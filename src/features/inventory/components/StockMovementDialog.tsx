@@ -15,6 +15,7 @@ import type {
     StockMovementRequest,
 } from "../types/inventory.types";
 import { useAddStockMovementMutation } from "../api/inventoryApi";
+import { toast } from "sonner";
 
 type Props = {
     open: boolean;
@@ -41,6 +42,14 @@ export function StockMovementDialog({ open, item, onClose }: Props) {
         },
     });
 
+    const outMovementTypes = [
+        "STOCK_OUT",
+        "PRODUCTION_USAGE",
+        "ADJUSTMENT_OUT",
+        "DAMAGE",
+        "RETURN_OUT",
+    ];
+
     const [addStockMovement, state] = useAddStockMovementMutation();
 
     useEffect(() => {
@@ -58,20 +67,37 @@ export function StockMovementDialog({ open, item, onClose }: Props) {
     const onSubmit = async (values: FormValues) => {
         if (!item) return;
 
-        const body: StockMovementRequest = {
-            movementType: values.movementType as StockMovementRequest["movementType"],
-            quantity: Number(values.quantity),
-            movementDate: values.movementDate,
-            referenceNumber: values.referenceNumber,
-            remarks: values.remarks,
-        };
+        const quantity = Number(values.quantity);
 
-        await addStockMovement({
-            itemId: item.id,
-            body,
-        }).unwrap();
+        if (
+            outMovementTypes.includes(values.movementType) &&
+            quantity > item.currentStock
+        ) {
+            toast.warning(
+                `Cannot remove ${quantity} ${item.unit}. Current stock is only ${item.currentStock} ${item.unit}.`
+            );
+            return;
+        }
 
-        onClose();
+        try {
+            const body: StockMovementRequest = {
+                movementType: values.movementType as StockMovementRequest["movementType"],
+                quantity,
+                movementDate: values.movementDate,
+                referenceNumber: values.referenceNumber,
+                remarks: values.remarks,
+            };
+
+            await addStockMovement({
+                itemId: item.id,
+                body,
+            }).unwrap();
+
+            toast.success("Stock movement saved successfully");
+            onClose();
+        } catch {
+            toast.error("Failed to save stock movement");
+        }
     };
 
     return (
@@ -89,6 +115,15 @@ export function StockMovementDialog({ open, item, onClose }: Props) {
                         </div>
                     </div>
                 )}
+
+                {item &&
+                    outMovementTypes.includes(form.watch("movementType")) &&
+                    Number(form.watch("quantity")) > item.currentStock && (
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                            Quantity is greater than available stock. Current stock is{" "}
+                            {item.currentStock} {item.unit}.
+                        </div>
+                    )}
 
                 <AppForm form={form} onSubmit={onSubmit}>
                     <div className="grid gap-4 md:grid-cols-2">

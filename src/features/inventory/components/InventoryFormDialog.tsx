@@ -19,6 +19,7 @@ import {
     useCreateInventoryItemMutation,
     useUpdateInventoryItemMutation,
 } from "../api/inventoryApi";
+import { toast } from "sonner";
 
 type Props = {
     open: boolean;
@@ -101,45 +102,56 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
     }, [open, item, form]);
 
     const onSubmit = async (values: FormValues) => {
-        if (isEdit && item) {
-            const body: InventoryItemUpdateRequest = {
+        try {
+            if (isEdit && item) {
+                const body: InventoryItemUpdateRequest = {
+                    name: values.name,
+                    category: values.category,
+                    itemType: values.itemType as InventoryItemUpdateRequest["itemType"],
+                    unit: values.unit,
+                    minimumStock: Number(values.minimumStock),
+                    purchasePrice: values.purchasePrice ? Number(values.purchasePrice) : null,
+                    sellingPrice: values.sellingPrice ? Number(values.sellingPrice) : null,
+                    supplierName: values.supplierName,
+                    status: values.status as InventoryItemUpdateRequest["status"],
+                    notes: values.notes,
+                };
+
+                await updateItem({
+                    id: item.id,
+                    body,
+                }).unwrap();
+
+                toast.success("Inventory item updated successfully");
+                onClose();
+                return;
+            }
+
+            const body: InventoryItemRequest = {
+                itemCode: values.itemCode,
                 name: values.name,
                 category: values.category,
-                itemType: values.itemType as InventoryItemUpdateRequest["itemType"],
+                itemType: values.itemType as InventoryItemRequest["itemType"],
                 unit: values.unit,
+                openingStock: Number(values.openingStock),
                 minimumStock: Number(values.minimumStock),
                 purchasePrice: values.purchasePrice ? Number(values.purchasePrice) : null,
                 sellingPrice: values.sellingPrice ? Number(values.sellingPrice) : null,
                 supplierName: values.supplierName,
-                status: values.status as InventoryItemUpdateRequest["status"],
                 notes: values.notes,
             };
 
-            await updateItem({
-                id: item.id,
-                body,
-            }).unwrap();
+            await createItem(body).unwrap();
 
+            toast.success("Inventory item created successfully");
             onClose();
-            return;
+        } catch {
+            toast.error(
+                isEdit
+                    ? "Failed to update inventory item"
+                    : "Failed to create inventory item"
+            );
         }
-
-        const body: InventoryItemRequest = {
-            itemCode: values.itemCode,
-            name: values.name,
-            category: values.category,
-            itemType: values.itemType as InventoryItemRequest["itemType"],
-            unit: values.unit,
-            openingStock: Number(values.openingStock),
-            minimumStock: Number(values.minimumStock),
-            purchasePrice: values.purchasePrice ? Number(values.purchasePrice) : null,
-            sellingPrice: values.sellingPrice ? Number(values.sellingPrice) : null,
-            supplierName: values.supplierName,
-            notes: values.notes,
-        };
-
-        await createItem(body).unwrap();
-        onClose();
     };
 
     const isLoading = createState.isLoading || updateState.isLoading;
