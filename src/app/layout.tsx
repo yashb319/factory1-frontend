@@ -4,6 +4,7 @@ import { AppProviders } from "@/lib/providers";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
+import { Analytics } from "@vercel/analytics/next";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -23,6 +24,7 @@ export default function RootLayout({
         <AppProviders>
           {children}
           <Toaster />
+          <Analytics />
         </AppProviders>
       </body>
     </html>
