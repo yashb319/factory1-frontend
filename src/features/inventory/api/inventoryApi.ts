@@ -2,6 +2,8 @@
 import { baseApi } from "@/services/baseApi";
 import type {
   ApiResponse,
+  BulkInventoryImportResponse,
+  BulkInventoryItemRequest,
   InventoryDashboard,
   InventoryItem,
   InventoryItemRequest,
@@ -78,6 +80,18 @@ export const inventoryApi = baseApi.injectEndpoints({
       invalidatesTags: ["Inventory"],
     }),
 
+    bulkCreateInventoryItems: builder.mutation<
+      ApiResponse<BulkInventoryImportResponse>,
+      BulkInventoryItemRequest
+    >({
+      query: (body) => ({
+        url: "/inventory/items/bulk",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Inventory"],
+    }),
+
     addStockMovement: builder.mutation<
       ApiResponse<StockMovement>,
       { itemId: string; body: StockMovementRequest }
@@ -110,6 +124,7 @@ export const {
   useCreateInventoryItemMutation,
   useUpdateInventoryItemMutation,
   useDeleteInventoryItemMutation,
+  useBulkCreateInventoryItemsMutation,
   useAddStockMovementMutation,
   useGetStockMovementsQuery,
 } = inventoryApi;

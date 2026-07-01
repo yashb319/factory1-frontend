@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   useDeleteInventoryItemMutation,
@@ -13,6 +14,8 @@ import type {
 } from "../types/inventory.types";
 import { exportInventoryCsv } from "../utils/inventoryExport";
 import { InventoryAiInsights } from "./InventoryAiInsights";
+import { InventoryBulkImportDialog } from "./InventoryBulkImportDialog";
+import { InventoryConfirmDialog } from "./InventoryConfirmDialog";
 import { InventoryDashboardCards } from "./InventoryDashboardCards";
 import { InventoryDetailsDialog } from "./InventoryDetailsDialog";
 import { InventoryFilters } from "./InventoryFilters";
@@ -31,6 +34,9 @@ export function InventoryPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [stockOpen, setStockOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
   const { data: dashboard, isLoading: dashboardLoading } =
@@ -38,7 +44,7 @@ export function InventoryPage() {
 
   const { data, isLoading } = useGetInventoryItemsQuery(filters);
 
-  const [deleteItem] = useDeleteInventoryItemMutation();
+  const [deleteItem, deleteState] = useDeleteInventoryItemMutation();
 
   const items = useMemo(() => data?.content ?? [], [data]);
 
@@ -62,14 +68,31 @@ export function InventoryPage() {
     setDetailsOpen(true);
   };
 
-  const handleDelete = async (item: InventoryItem) => {
-    const confirmed = window.confirm(
-      `Disable ${item.name}? It will not be deleted permanently.`
-    );
+  const openDeleteConfirm = (item: InventoryItem) => {
+    setSelectedItem(item);
+    setConfirmOpen(true);
+  };
 
-    if (!confirmed) return;
+  const handleDelete = async () => {
+    if (!selectedItem) return;
 
-    await deleteItem(item.id).unwrap();
+    try {
+      await deleteItem(selectedItem.id).unwrap();
+      toast.success("Inventory item disabled successfully");
+      setConfirmOpen(false);
+      setSelectedItem(null);
+    } catch {
+      toast.error("Failed to disable inventory item");
+    }
+  };
+
+  const handleExport = () => {
+    try {
+      exportInventoryCsv(items);
+      toast.success("Inventory CSV exported successfully");
+    } catch {
+      toast.error("Failed to export inventory CSV");
+    }
   };
 
   return (
@@ -86,20 +109,21 @@ export function InventoryPage() {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            onClick={() => exportInventoryCsv(items)}
+            onClick={handleExport}
             disabled={items.length === 0}
           >
             Export CSV
+          </Button>
+
+          <Button variant="outline" onClick={() => setBulkImportOpen(true)}>
+            Import CSV
           </Button>
 
           <Button onClick={openCreate}>Add Item</Button>
         </div>
       </div>
 
-      <InventoryDashboardCards
-        data={dashboard}
-        isLoading={dashboardLoading}
-      />
+      <InventoryDashboardCards data={dashboard} isLoading={dashboardLoading} />
 
       <InventoryAiInsights items={items} />
 
@@ -124,7 +148,7 @@ export function InventoryPage() {
           onView={openDetails}
           onEdit={openEdit}
           onStockMovement={openStock}
-          onDelete={handleDelete}
+          onDelete={openDeleteConfirm}
         />
       )}
 
@@ -144,6 +168,25 @@ export function InventoryPage() {
         open={detailsOpen}
         item={selectedItem}
         onClose={() => setDetailsOpen(false)}
+      />
+
+      <InventoryBulkImportDialog
+        open={bulkImportOpen}
+        onClose={() => setBulkImportOpen(false)}
+      />
+
+      <InventoryConfirmDialog
+        open={confirmOpen}
+        title="Disable inventory item?"
+        description={
+          selectedItem
+            ? `${selectedItem.name} will be marked inactive. This will not delete stock movement history.`
+            : "This item will be marked inactive."
+        }
+        confirmLabel="Disable"
+        loading={deleteState.isLoading}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={handleDelete}
       />
     </div>
   );

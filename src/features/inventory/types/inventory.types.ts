@@ -123,3 +123,13 @@ export type InventoryDashboard = {
   rawMaterialValue: number;
   finishedGoodsValue: number;
 };
+
+export type BulkInventoryItemRequest = {
+  items: InventoryItemRequest[];
+};
+
+export type BulkInventoryImportResponse = {
+  successCount: number;
+  failedCount: number;
+  errors: string[];
+};
