@@ -1,0 +1,240 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useBulkCreateSuppliersMutation } from "../api/supplierApi";
+import type { SupplierRequest, SupplierStatus } from "../types/supplier.types";
+
+type Props = {
+  open: boolean;
+  onClose: () => void;
+};
+
+type ParsedRow = SupplierRequest & {
+  rowNumber: number;
+  error?: string;
+};
+
+export function SupplierBulkImportDialog({ open, onClose }: Props) {
+  const [rows, setRows] = useState<ParsedRow[]>([]);
+  const [message, setMessage] = useState("");
+
+  const [bulkCreate, state] = useBulkCreateSuppliersMutation();
+
+  const validRows = useMemo(() => rows.filter((row) => !row.error), [rows]);
+  const invalidRows = useMemo(() => rows.filter((row) => row.error), [rows]);
+
+  const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const text = await file.text();
+    setRows(parseCsv(text));
+    setMessage("");
+  };
+
+  const handleImport = async () => {
+    try {
+      const response = await bulkCreate({
+        suppliers: validRows.map(({ rowNumber, error, ...supplier }) => supplier),
+      }).unwrap();
+
+      const msg = `Imported ${response.data.successCount} supplier(s). Failed ${response.data.failedCount}.`;
+      setMessage(msg);
+
+      if (response.data.failedCount > 0) toast.warning(msg);
+      else toast.success("Suppliers imported successfully");
+    } catch {
+      toast.error("Failed to import suppliers");
+    }
+  };
+
+  const downloadTemplate = () => {
+    const csv = [
+      [
+        "supplierCode",
+        "name",
+        "phone",
+        "email",
+        "gstNumber",
+        "address",
+        "city",
+        "state",
+        "contactPerson",
+        "paymentTerms",
+        "status",
+        "notes",
+      ].join(","),
+      [
+        "SUP-001",
+        "ABC Textiles",
+        "9876543210",
+        "abc@example.com",
+        "29ABCDE1234F1Z5",
+        "Industrial Area",
+        "Bangalore",
+        "Karnataka",
+        "Rajesh",
+        "30 days credit",
+        "ACTIVE",
+        "Fabric supplier",
+      ].join(","),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "supplier-import-template.csv";
+    link.click();
+
+    URL.revokeObjectURL(url);
+    toast.success("Supplier import template downloaded");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Bulk Import Suppliers</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+            Upload CSV with supplierCode, name, phone, email, gstNumber, address,
+            city, state, contactPerson, paymentTerms, status, notes.
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={downloadTemplate}>
+              Download Template
+            </Button>
+
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFile}
+              className="rounded-md border p-2 text-sm"
+            />
+          </div>
+
+          {rows.length > 0 && (
+            <div className="flex gap-3 text-sm">
+              <div>Valid: {validRows.length}</div>
+              <div>Invalid: {invalidRows.length}</div>
+            </div>
+          )}
+
+          {message && (
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+              {message}
+            </div>
+          )}
+
+          {rows.length > 0 && (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Row</th>
+                    <th className="px-3 py-2 text-left">Code</th>
+                    <th className="px-3 py-2 text-left">Name</th>
+                    <th className="px-3 py-2 text-left">Phone</th>
+                    <th className="px-3 py-2 text-left">GST</th>
+                    <th className="px-3 py-2 text-left">City</th>
+                    <th className="px-3 py-2 text-left">Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.rowNumber} className="border-t">
+                      <td className="px-3 py-2">{row.rowNumber}</td>
+                      <td className="px-3 py-2">{row.supplierCode}</td>
+                      <td className="px-3 py-2">{row.name}</td>
+                      <td className="px-3 py-2">{row.phone}</td>
+                      <td className="px-3 py-2">{row.gstNumber}</td>
+                      <td className="px-3 py-2">{row.city}</td>
+                      <td className="px-3 py-2 text-red-600">
+                        {row.error || "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+
+            <Button
+              disabled={validRows.length === 0 || state.isLoading}
+              onClick={handleImport}
+            >
+              {state.isLoading ? "Importing..." : "Import Valid Rows"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function parseCsv(text: string): ParsedRow[] {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const [, ...dataLines] = lines;
+
+  return dataLines.map((line, index) => {
+    const cols = splitCsvLine(line);
+
+    const row: ParsedRow = {
+      rowNumber: index + 2,
+      supplierCode: cols[0] ?? "",
+      name: cols[1] ?? "",
+      phone: cols[2] ?? "",
+      email: cols[3] ?? "",
+      gstNumber: cols[4] ?? "",
+      address: cols[5] ?? "",
+      city: cols[6] ?? "",
+      state: cols[7] ?? "",
+      contactPerson: cols[8] ?? "",
+      paymentTerms: cols[9] ?? "",
+      status: ((cols[10] ?? "ACTIVE") as SupplierStatus) || "ACTIVE",
+      notes: cols[11] ?? "",
+    };
+
+    row.error = validateRow(row);
+    return row;
+  });
+}
+
+function validateRow(row: ParsedRow) {
+  if (!row.supplierCode) return "Supplier code is required";
+  if (!row.name) return "Name is required";
+  if (row.status && !["ACTIVE", "INACTIVE"].includes(row.status)) {
+    return "Invalid status";
+  }
+  return undefined;
+}
+
+function splitCsvLine(line: string) {
+  const result: string[] = [];
+  let current = "";
+  let insideQuotes = false;
+
+  for (const char of line) {
+    if (char === '"') insideQuotes = !insideQuotes;
+    else if (char === "," && !insideQuotes) {
+      result.push(current.trim());
+      current = "";
+    } else current += char;
+  }
+
+  result.push(current.trim());
+  return result.map((value) => value.replace(/^"|"$/g, ""));
+}

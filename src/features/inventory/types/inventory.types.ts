@@ -46,6 +46,7 @@ export type InventoryItem = {
   purchasePrice?: number | null;
   sellingPrice?: number | null;
   inventoryValue: number;
+  supplierId?: string | null;
   supplierName?: string | null;
   status: InventoryItemStatus;
   notes?: string | null;
@@ -63,6 +64,7 @@ export type InventoryItemRequest = {
   minimumStock: number;
   purchasePrice?: number | null;
   sellingPrice?: number | null;
+  supplierId?: string | null;
   supplierName?: string;
   notes?: string;
 };
@@ -75,6 +77,7 @@ export type InventoryItemUpdateRequest = {
   minimumStock: number;
   purchasePrice?: number | null;
   sellingPrice?: number | null;
+  supplierId?: string | null;
   supplierName?: string;
   status: InventoryItemStatus;
   notes?: string;

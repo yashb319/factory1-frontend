@@ -1,239 +1,286 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
-    AppForm,
-    FormActions,
-    NumberField,
-    SelectField,
-    TextField,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AppForm,
+  FormActions,
+  NumberField,
+  SelectField,
+  TextField,
 } from "@/components/forms";
+import { SupplierFormDialog } from "@/features/suppliers/components/SupplierFormDialog";
+import { useGetActiveSuppliersQuery } from "@/features/suppliers/api/supplierApi";
 import type {
-    InventoryItem,
-    InventoryItemRequest,
-    InventoryItemUpdateRequest,
+  InventoryItem,
+  InventoryItemRequest,
+  InventoryItemUpdateRequest,
 } from "../types/inventory.types";
 import {
-    useCreateInventoryItemMutation,
-    useUpdateInventoryItemMutation,
+  useCreateInventoryItemMutation,
+  useUpdateInventoryItemMutation,
 } from "../api/inventoryApi";
-import { toast } from "sonner";
 
 type Props = {
-    open: boolean;
-    item?: InventoryItem | null;
-    onClose: () => void;
+  open: boolean;
+  item?: InventoryItem | null;
+  onClose: () => void;
 };
 
 type FormValues = {
-    itemCode: string;
-    name: string;
-    category: string;
-    itemType: string;
-    unit: string;
-    openingStock: number;
-    minimumStock: number;
-    purchasePrice?: number;
-    sellingPrice?: number;
-    supplierName: string;
-    status: string;
-    notes: string;
+  itemCode: string;
+  name: string;
+  category: string;
+  itemType: string;
+  unit: string;
+  openingStock: number;
+  minimumStock: number;
+  purchasePrice?: number;
+  sellingPrice?: number;
+  supplierId: string;
+  supplierName: string;
+  status: string;
+  notes: string;
 };
 
 export function InventoryFormDialog({ open, item, onClose }: Props) {
-    const isEdit = Boolean(item);
+  const isEdit = Boolean(item);
 
-    const form = useForm<FormValues>({
-        defaultValues: {
-            itemCode: "",
-            name: "",
-            category: "",
-            itemType: "RAW_MATERIAL",
-            unit: "pcs",
-            openingStock: 0,
-            minimumStock: 0,
-            purchasePrice: 0,
-            sellingPrice: 0,
-            supplierName: "",
-            status: "ACTIVE",
-            notes: "",
-        },
-    });
+  const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
 
-    const [createItem, createState] = useCreateInventoryItemMutation();
-    const [updateItem, updateState] = useUpdateInventoryItemMutation();
+  const { data: suppliers = [] } = useGetActiveSuppliersQuery();
 
-    useEffect(() => {
-        if (!open) return;
+  const form = useForm<FormValues>({
+    defaultValues: {
+      itemCode: "",
+      name: "",
+      category: "",
+      itemType: "RAW_MATERIAL",
+      unit: "pcs",
+      openingStock: 0,
+      minimumStock: 0,
+      purchasePrice: 0,
+      sellingPrice: 0,
+      supplierId: "",
+      supplierName: "",
+      status: "ACTIVE",
+      notes: "",
+    },
+  });
 
-        if (item) {
-            form.reset({
-                itemCode: item.itemCode,
-                name: item.name,
-                category: item.category ?? "",
-                itemType: item.itemType,
-                unit: item.unit,
-                openingStock: item.currentStock,
-                minimumStock: item.minimumStock,
-                purchasePrice: item.purchasePrice ?? 0,
-                sellingPrice: item.sellingPrice ?? 0,
-                supplierName: item.supplierName ?? "",
-                status: item.status,
-                notes: item.notes ?? "",
-            });
-        } else {
-            form.reset({
-                itemCode: "",
-                name: "",
-                category: "",
-                itemType: "RAW_MATERIAL",
-                unit: "pcs",
-                openingStock: 0,
-                minimumStock: 0,
-                purchasePrice: 0,
-                sellingPrice: 0,
-                supplierName: "",
-                status: "ACTIVE",
-                notes: "",
-            });
-        }
-    }, [open, item, form]);
+  const [createItem, createState] = useCreateInventoryItemMutation();
+  const [updateItem, updateState] = useUpdateInventoryItemMutation();
 
-    const onSubmit = async (values: FormValues) => {
-        try {
-            if (isEdit && item) {
-                const body: InventoryItemUpdateRequest = {
-                    name: values.name,
-                    category: values.category,
-                    itemType: values.itemType as InventoryItemUpdateRequest["itemType"],
-                    unit: values.unit,
-                    minimumStock: Number(values.minimumStock),
-                    purchasePrice: values.purchasePrice ? Number(values.purchasePrice) : null,
-                    sellingPrice: values.sellingPrice ? Number(values.sellingPrice) : null,
-                    supplierName: values.supplierName,
-                    status: values.status as InventoryItemUpdateRequest["status"],
-                    notes: values.notes,
-                };
+  useEffect(() => {
+    if (!open) return;
 
-                await updateItem({
-                    id: item.id,
-                    body,
-                }).unwrap();
+    if (item) {
+      form.reset({
+        itemCode: item.itemCode,
+        name: item.name,
+        category: item.category ?? "",
+        itemType: item.itemType,
+        unit: item.unit,
+        openingStock: item.currentStock,
+        minimumStock: item.minimumStock,
+        purchasePrice: item.purchasePrice ?? 0,
+        sellingPrice: item.sellingPrice ?? 0,
+        supplierId: item.supplierId ?? "",
+        supplierName: item.supplierName ?? "",
+        status: item.status,
+        notes: item.notes ?? "",
+      });
+    } else {
+      form.reset({
+        itemCode: "",
+        name: "",
+        category: "",
+        itemType: "RAW_MATERIAL",
+        unit: "pcs",
+        openingStock: 0,
+        minimumStock: 0,
+        purchasePrice: 0,
+        sellingPrice: 0,
+        supplierId: "",
+        supplierName: "",
+        status: "ACTIVE",
+        notes: "",
+      });
+    }
+  }, [open, item, form]);
 
-                toast.success("Inventory item updated successfully");
-                onClose();
-                return;
-            }
+  const onSubmit = async (values: FormValues) => {
+    try {
+      if (isEdit && item) {
+        const body: InventoryItemUpdateRequest = {
+          name: values.name,
+          category: values.category,
+          itemType: values.itemType as InventoryItemUpdateRequest["itemType"],
+          unit: values.unit,
+          minimumStock: Number(values.minimumStock),
+          purchasePrice: values.purchasePrice ? Number(values.purchasePrice) : null,
+          sellingPrice: values.sellingPrice ? Number(values.sellingPrice) : null,
+          supplierId: values.supplierId || null,
+          supplierName: values.supplierName,
+          status: values.status as InventoryItemUpdateRequest["status"],
+          notes: values.notes,
+        };
 
-            const body: InventoryItemRequest = {
-                itemCode: values.itemCode,
-                name: values.name,
-                category: values.category,
-                itemType: values.itemType as InventoryItemRequest["itemType"],
-                unit: values.unit,
-                openingStock: Number(values.openingStock),
-                minimumStock: Number(values.minimumStock),
-                purchasePrice: values.purchasePrice ? Number(values.purchasePrice) : null,
-                sellingPrice: values.sellingPrice ? Number(values.sellingPrice) : null,
-                supplierName: values.supplierName,
-                notes: values.notes,
-            };
+        await updateItem({
+          id: item.id,
+          body,
+        }).unwrap();
 
-            await createItem(body).unwrap();
+        toast.success("Inventory item updated successfully");
+        onClose();
+        return;
+      }
 
-            toast.success("Inventory item created successfully");
-            onClose();
-        } catch {
-            toast.error(
-                isEdit
-                    ? "Failed to update inventory item"
-                    : "Failed to create inventory item"
-            );
-        }
-    };
+      const body: InventoryItemRequest = {
+        itemCode: values.itemCode,
+        name: values.name,
+        category: values.category,
+        itemType: values.itemType as InventoryItemRequest["itemType"],
+        unit: values.unit,
+        openingStock: Number(values.openingStock),
+        minimumStock: Number(values.minimumStock),
+        purchasePrice: values.purchasePrice ? Number(values.purchasePrice) : null,
+        sellingPrice: values.sellingPrice ? Number(values.sellingPrice) : null,
+        supplierId: values.supplierId || null,
+        supplierName: values.supplierName,
+        notes: values.notes,
+      };
 
-    const isLoading = createState.isLoading || updateState.isLoading;
+      await createItem(body).unwrap();
 
-    return (
-        <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>
-                        {isEdit ? "Edit Inventory Item" : "Add Inventory Item"}
-                    </DialogTitle>
-                </DialogHeader>
+      toast.success("Inventory item created successfully");
+      onClose();
+    } catch {
+      toast.error(
+        isEdit
+          ? "Failed to update inventory item"
+          : "Failed to create inventory item"
+      );
+    }
+  };
 
-                <AppForm form={form} onSubmit={onSubmit}>
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <TextField
-                            name="itemCode"
-                            label="Item Code"
-                            disabled={isEdit}
-                            required
-                        />
+  const isLoading = createState.isLoading || updateState.isLoading;
 
-                        <TextField name="name" label="Item Name" required />
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {isEdit ? "Edit Inventory Item" : "Add Inventory Item"}
+            </DialogTitle>
+          </DialogHeader>
 
-                        <TextField name="category" label="Category" />
+          <AppForm form={form} onSubmit={onSubmit}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextField
+                name="itemCode"
+                label="Item Code"
+                disabled={isEdit}
+                required
+              />
 
-                        <SelectField
-                            name="itemType"
-                            label="Item Type"
-                            options={[
-                                { label: "Raw Material", value: "RAW_MATERIAL" },
-                                { label: "Finished Good", value: "FINISHED_GOOD" },
-                                { label: "Packaging", value: "PACKAGING" },
-                                { label: "Consumable", value: "CONSUMABLE" },
-                                { label: "Semi Finished", value: "SEMI_FINISHED" },
-                                { label: "Other", value: "OTHER" },
-                            ]}
-                            required
-                        />
+              <TextField name="name" label="Item Name" required />
 
-                        <TextField name="unit" label="Unit" required />
+              <TextField name="category" label="Category" />
 
-                        {!isEdit && (
-                            <NumberField
-                                name="openingStock"
-                                label="Opening Stock"
-                                required
-                            />
-                        )}
+              <SelectField
+                name="itemType"
+                label="Item Type"
+                options={[
+                  { label: "Raw Material", value: "RAW_MATERIAL" },
+                  { label: "Finished Good", value: "FINISHED_GOOD" },
+                  { label: "Packaging", value: "PACKAGING" },
+                  { label: "Consumable", value: "CONSUMABLE" },
+                  { label: "Semi Finished", value: "SEMI_FINISHED" },
+                  { label: "Other", value: "OTHER" },
+                ]}
+                required
+              />
 
-                        <NumberField name="minimumStock" label="Minimum Stock" required />
+              <TextField name="unit" label="Unit" required />
 
-                        <NumberField name="purchasePrice" label="Purchase / Cost Price" />
+              {!isEdit && (
+                <NumberField
+                  name="openingStock"
+                  label="Opening Stock"
+                  required
+                />
+              )}
 
-                        <NumberField name="sellingPrice" label="Selling Price" />
+              <NumberField name="minimumStock" label="Minimum Stock" required />
 
-                        <TextField name="supplierName" label="Supplier Name" />
+              <NumberField name="purchasePrice" label="Purchase / Cost Price" />
 
-                        {isEdit && (
-                            <SelectField
-                                name="status"
-                                label="Status"
-                                options={[
-                                    { label: "Active", value: "ACTIVE" },
-                                    { label: "Inactive", value: "INACTIVE" },
-                                ]}
-                            />
-                        )}
+              <NumberField name="sellingPrice" label="Selling Price" />
 
-                        <div className="md:col-span-2">
-                            <TextField name="notes" label="Notes" />
-                        </div>
-                    </div>
+              <div className="space-y-2">
+                <SelectField
+                  name="supplierId"
+                  label="Supplier"
+                  options={[
+                    { label: "No Supplier", value: "" },
+                    ...suppliers.map((supplier) => ({
+                      label: `${supplier.name} (${supplier.supplierCode})`,
+                      value: supplier.id,
+                    })),
+                  ]}
+                />
 
-                    <FormActions
-                        submitLabel={isEdit ? "Update Item" : "Create Item"}
-                        cancelLabel="Cancel"
-                        onCancel={onClose}
-                        loading={isLoading}
-                    />
-                </AppForm>
-            </DialogContent>
-        </Dialog>
-    );
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSupplierDialogOpen(true)}
+                >
+                  + New Supplier
+                </Button>
+              </div>
+
+              {isEdit && (
+                <SelectField
+                  name="status"
+                  label="Status"
+                  options={[
+                    { label: "Active", value: "ACTIVE" },
+                    { label: "Inactive", value: "INACTIVE" },
+                  ]}
+                />
+              )}
+
+              <div className="md:col-span-2">
+                <TextField name="notes" label="Notes" />
+              </div>
+            </div>
+
+            <FormActions
+              submitLabel={isEdit ? "Update Item" : "Create Item"}
+              cancelLabel="Cancel"
+              onCancel={onClose}
+              loading={isLoading}
+            />
+          </AppForm>
+        </DialogContent>
+      </Dialog>
+
+      <SupplierFormDialog
+        open={supplierDialogOpen}
+        supplier={null}
+        onClose={() => setSupplierDialogOpen(false)}
+      />
+    </>
+  );
 }
