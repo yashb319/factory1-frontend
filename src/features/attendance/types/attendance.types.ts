@@ -53,6 +53,12 @@ export interface BulkAttendanceRequest {
   }[];
 }
 
+export interface BulkAttendanceResponse {
+  successCount: number;
+  failedCount: number;
+  errors: string[];
+}
+
 export interface DeviceAttendanceEventRequest {
   employeeCode: string;
   eventTime: string;

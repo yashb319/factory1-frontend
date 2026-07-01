@@ -7,6 +7,7 @@ import type {
     AttendanceListParams,
     AttendanceRecord,
     BulkAttendanceRequest,
+    BulkAttendanceResponse,
     DeviceAttendanceEventRequest,
     MarkAttendanceRequest,
     MonthlyAttendanceReport,
@@ -68,7 +69,7 @@ export const attendanceApi = baseApi.injectEndpoints({
         }),
 
         bulkAttendance: builder.mutation<
-            AttendanceRecord[],
+            BulkAttendanceResponse,
             BulkAttendanceRequest
         >({
             query: (body) => ({
@@ -76,7 +77,7 @@ export const attendanceApi = baseApi.injectEndpoints({
                 method: "POST",
                 body,
             }),
-            transformResponse: (response: ApiResponse<AttendanceRecord[]>) =>
+            transformResponse: (response: ApiResponse<BulkAttendanceResponse>) =>
                 response.data,
             invalidatesTags: ["Attendance"],
         }),
