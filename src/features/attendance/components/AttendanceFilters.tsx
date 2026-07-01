@@ -20,16 +20,16 @@ export function AttendanceFilters({ filters, onChange }: Props) {
     <div className="rounded-xl border bg-card p-4">
       <div className="grid gap-3 md:grid-cols-4">
         <Input
-  type="date"
-  value={filters.fromDate ?? ""}
-  onChange={(e) => onChange({ fromDate: e.target.value })}
-/>
+          type="date"
+          value={filters.fromDate ?? ""}
+          onChange={(e) => onChange({ fromDate: e.target.value })}
+        />
 
-<Input
-  type="date"
-  value={filters.toDate ?? ""}
-  onChange={(e) => onChange({ toDate: e.target.value })}
-/>
+        <Input
+          type="date"
+          value={filters.toDate ?? ""}
+          onChange={(e) => onChange({ toDate: e.target.value })}
+        />
 
         <Select
           value={filters.status ?? "ALL"}

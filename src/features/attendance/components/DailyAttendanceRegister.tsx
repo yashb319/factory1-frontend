@@ -3,18 +3,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Save } from "lucide-react";
+import { CheckCircle2, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -36,15 +30,11 @@ interface RegisterRow {
   employeeCode: string;
   employeeName: string;
   department?: string;
-
   attendanceId?: string;
-
   checkInTime: string;
   checkOutTime: string;
-
   status: AttendanceStatus;
   remarks: string;
-
   hasAttendance: boolean;
   isModified: boolean;
 }
@@ -78,6 +68,29 @@ function isTimeDisabled(status: AttendanceStatus) {
     status === "PAID_LEAVE" ||
     status === "UNPAID_LEAVE"
   );
+}
+
+function statusLabel(status: AttendanceStatus) {
+  return status.replace("_", " ");
+}
+
+function statusClass(status: AttendanceStatus) {
+  switch (status) {
+    case "PRESENT":
+      return "border-green-200 bg-green-50 text-green-700";
+    case "ABSENT":
+      return "border-red-200 bg-red-50 text-red-700";
+    case "HALF_DAY":
+      return "border-yellow-200 bg-yellow-50 text-yellow-700";
+    case "LATE":
+      return "border-orange-200 bg-orange-50 text-orange-700";
+    case "PAID_LEAVE":
+      return "border-blue-200 bg-blue-50 text-blue-700";
+    case "UNPAID_LEAVE":
+      return "border-slate-200 bg-slate-100 text-slate-700";
+    default:
+      return "";
+  }
 }
 
 export function DailyAttendanceRegister() {
@@ -116,6 +129,23 @@ export function DailyAttendanceRegister() {
   );
 
   useEffect(() => {
+    const hasUnsavedChanges = rows.some((row) => row.isModified);
+
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (!hasUnsavedChanges) return;
+
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [rows]);
+
+  useEffect(() => {
     if (!employees.length) {
       setRows([]);
       return;
@@ -135,15 +165,11 @@ export function DailyAttendanceRegister() {
         employeeCode: employee.employeeCode,
         employeeName: employee.name,
         department: employee.department,
-
         attendanceId: attendance?.id,
-
         checkInTime: extractTime(attendance?.checkInTime),
         checkOutTime: extractTime(attendance?.checkOutTime),
-
         status: attendance?.status ?? "PRESENT",
         remarks: attendance?.remarks ?? "",
-
         hasAttendance: Boolean(attendance),
         isModified: false,
       };
@@ -177,6 +203,22 @@ export function DailyAttendanceRegister() {
     );
   }
 
+  function markAllPresent() {
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.hasAttendance) return row;
+
+        return {
+          ...row,
+          status: "PRESENT",
+          isModified: true,
+        };
+      })
+    );
+
+    toast.success("Pending employees marked as present");
+  }
+
   async function handleSave() {
     try {
       const changedRows = rows.filter((row) => row.isModified);
@@ -205,6 +247,14 @@ export function DailyAttendanceRegister() {
       }
 
       toast.success(`${result.successCount} attendance records saved`);
+
+      setRows((prev) =>
+        prev.map((row) => ({
+          ...row,
+          hasAttendance: true,
+          isModified: false,
+        }))
+      );
     } catch {
       toast.error("Failed to save daily attendance");
     }
@@ -216,6 +266,13 @@ export function DailyAttendanceRegister() {
   const recordedCount = rows.filter((row) => row.hasAttendance).length;
   const pendingCount = totalEmployees - recordedCount;
   const modifiedCount = rows.filter((row) => row.isModified).length;
+
+  const presentCount = rows.filter((row) => row.status === "PRESENT").length;
+  const absentCount = rows.filter((row) => row.status === "ABSENT").length;
+  const halfDayCount = rows.filter((row) => row.status === "HALF_DAY").length;
+  const leaveCount = rows.filter(
+    (row) => row.status === "PAID_LEAVE" || row.status === "UNPAID_LEAVE"
+  ).length;
 
   return (
     <div className="rounded-xl border bg-card">
@@ -231,14 +288,30 @@ export function DailyAttendanceRegister() {
           <Input
             type="date"
             value={date}
-            onChange={(event) => setDate(event.target.value)}
+            onChange={(event) => {
+              if (modifiedCount > 0) {
+                const confirmed = window.confirm(
+                  "You have unsaved attendance changes. Changing date will discard them. Continue?"
+                );
+
+                if (!confirmed) return;
+              }
+
+              setDate(event.target.value);
+            }}
             className="w-full sm:w-[180px]"
           />
 
           <Button
-            onClick={handleSave}
-            disabled={saving || modifiedCount === 0}
+            variant="outline"
+            onClick={markAllPresent}
+            disabled={loading || pendingCount === 0}
           >
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            Mark All Present
+          </Button>
+
+          <Button onClick={handleSave} disabled={saving || modifiedCount === 0}>
             {saving ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -249,27 +322,22 @@ export function DailyAttendanceRegister() {
         </div>
       </div>
 
-      <div className="grid gap-3 border-b p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border bg-muted/30 p-3">
-          <p className="text-xs text-muted-foreground">Total Employees</p>
-          <p className="text-xl font-semibold">{totalEmployees}</p>
-        </div>
-
-        <div className="rounded-lg border bg-muted/30 p-3">
-          <p className="text-xs text-muted-foreground">Recorded</p>
-          <p className="text-xl font-semibold">{recordedCount}</p>
-        </div>
-
-        <div className="rounded-lg border bg-muted/30 p-3">
-          <p className="text-xs text-muted-foreground">Pending</p>
-          <p className="text-xl font-semibold">{pendingCount}</p>
-        </div>
-
-        <div className="rounded-lg border bg-muted/30 p-3">
-          <p className="text-xs text-muted-foreground">Modified</p>
-          <p className="text-xl font-semibold">{modifiedCount}</p>
-        </div>
+      <div className="grid gap-3 border-b p-4 sm:grid-cols-2 lg:grid-cols-7">
+        <SummaryCard label="Total" value={totalEmployees} />
+        <SummaryCard label="Recorded" value={recordedCount} />
+        <SummaryCard label="Pending" value={pendingCount} />
+        <SummaryCard label="Present" value={presentCount} />
+        <SummaryCard label="Absent" value={absentCount} />
+        <SummaryCard label="Half Day" value={halfDayCount} />
+        <SummaryCard label="Modified" value={modifiedCount} />
       </div>
+
+      {modifiedCount > 0 && (
+        <div className="border-b bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+          You have {modifiedCount} unsaved attendance change
+          {modifiedCount > 1 ? "s" : ""}.
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <Table>
@@ -279,7 +347,7 @@ export function DailyAttendanceRegister() {
               <TableHead>Department</TableHead>
               <TableHead className="min-w-[140px]">Check In</TableHead>
               <TableHead className="min-w-[140px]">Check Out</TableHead>
-              <TableHead className="min-w-[170px]">Status</TableHead>
+              <TableHead className="min-w-[460px]">Status</TableHead>
               <TableHead className="min-w-[220px]">Remarks</TableHead>
               <TableHead>Record</TableHead>
             </TableRow>
@@ -313,7 +381,7 @@ export function DailyAttendanceRegister() {
                 return (
                   <TableRow
                     key={row.employeeId}
-                    className={row.isModified ? "bg-muted/50" : undefined}
+                    className={row.isModified ? "bg-yellow-50/60" : undefined}
                   >
                     <TableCell>
                       <div>
@@ -357,24 +425,29 @@ export function DailyAttendanceRegister() {
                     </TableCell>
 
                     <TableCell>
-                      <Select
-                        value={row.status}
-                        onValueChange={(value) =>
-                          updateRow(row.employeeId, "status", value)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
+                      <div className="flex flex-wrap gap-2">
+                        {STATUSES.map((status) => {
+                          const selected = row.status === status;
 
-                        <SelectContent>
-                          {STATUSES.map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {status.replace("_", " ")}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                          return (
+                            <button
+                              key={status}
+                              type="button"
+                              onClick={() =>
+                                updateRow(row.employeeId, "status", status)
+                              }
+                              className={[
+                                "rounded-full border px-3 py-1 text-xs font-medium transition",
+                                selected
+                                  ? statusClass(status)
+                                  : "bg-background hover:bg-muted",
+                              ].join(" ")}
+                            >
+                              {statusLabel(status)}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </TableCell>
 
                     <TableCell>
@@ -392,11 +465,13 @@ export function DailyAttendanceRegister() {
                     </TableCell>
 
                     <TableCell>
-                      {row.isModified
-                        ? "Modified"
-                        : row.hasAttendance
-                          ? "Saved"
-                          : "Pending"}
+                      {row.isModified ? (
+                        <Badge variant="secondary">Modified</Badge>
+                      ) : row.hasAttendance ? (
+                        <Badge>Saved</Badge>
+                      ) : (
+                        <Badge variant="outline">Pending</Badge>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
@@ -404,6 +479,15 @@ export function DailyAttendanceRegister() {
           </TableBody>
         </Table>
       </div>
+    </div>
+  );
+}
+
+function SummaryCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-xl font-semibold">{value}</p>
     </div>
   );
 }
