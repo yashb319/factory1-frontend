@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef } from "react";
 import { Download, Printer } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import {
   Dialog,
@@ -15,7 +15,11 @@ import {
   PayrollItemResponse,
   PayrollRunDetailsResponse,
 } from "../types/payroll.types";
-import { formatCurrency, getMonthName } from "../utils/payroll.utils";
+import { buildPayslipHtml } from "../utils/payrollPayslipHtml.utils";
+import {
+  downloadPayslipJpg,
+  printPayslip,
+} from "../utils/payrollPayslipDownload.utils";
 
 interface Props {
   open: boolean;
@@ -30,117 +34,65 @@ export function PayrollPayslipDialog({
   item,
   onOpenChange,
 }: Props) {
-  const printRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(false);
+
+  const payslipHtml = useMemo(() => {
+    if (!payroll || !item) return "";
+    return buildPayslipHtml(payroll, item);
+  }, [payroll, item]);
 
   if (!payroll || !item) return null;
 
-  function handlePrint() {
-    window.print();
+  async function handleDownload() {
+    setLoading(true);
+    try {
+      await downloadPayslipJpg(payroll!, item!);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleDownload() {
-    const content = printRef.current?.innerText ?? "";
-    const blob = new Blob([content], {
-      type: "text/plain;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = `payslip-${item?.employeeCode}-${payroll?.payrollMonth}-${payroll?.payrollYear}.txt`;
-    link.click();
-
-    URL.revokeObjectURL(url);
+  async function handlePrint() {
+    setLoading(true);
+    try {
+      await printPayslip(payroll!, item!);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+    <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        onInteractOutside={(e) => e.preventDefault()}
+        className="flex max-h-[92vh] flex-col overflow-hidden sm:max-w-5xl"
+      >
         <DialogHeader>
           <DialogTitle>Employee Payslip</DialogTitle>
         </DialogHeader>
 
-        <div className="flex justify-end gap-2 print:hidden">
-          <Button variant="outline" onClick={handlePrint}>
+        <div className="flex justify-end gap-2 border-b pb-3">
+          <Button variant="outline" disabled={loading} onClick={handlePrint}>
             <Printer className="mr-2 size-4" />
             Print
           </Button>
 
-          <Button onClick={handleDownload}>
+          <Button disabled={loading} onClick={handleDownload}>
             <Download className="mr-2 size-4" />
-            Download
+            Download JPG
           </Button>
         </div>
 
-        <div
-          ref={printRef}
-          className="rounded-xl border bg-white p-6 text-sm print:border-none"
-        >
-          <div className="border-b pb-4">
-            <h2 className="text-xl font-semibold">Factory1 Payslip</h2>
-            <p className="text-slate-500">
-              {getMonthName(payroll.payrollMonth)} {payroll.payrollYear}
-            </p>
-          </div>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Info label="Employee Name" value={item.employeeName} />
-            <Info label="Employee Code" value={item.employeeCode} />
-            <Info label="Salary Type" value={item.salaryType} />
-            <Info label="Base Salary" value={formatCurrency(item.baseSalary)} />
-            <Info label="Working Days" value={item.totalWorkingDays} />
-            <Info label="Present Days" value={item.presentDays} />
-            <Info label="Total Hours" value={item.totalHours} />
-            <Info label="Overtime Hours" value={item.overtimeHours} />
-          </div>
-
-          <div className="mt-6 rounded-xl border">
-            <div className="grid grid-cols-2 border-b p-3">
-              <span>Gross Salary</span>
-              <span className="text-right font-medium">
-                {formatCurrency(item.grossSalary)}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 border-b p-3">
-              <span>Overtime Amount</span>
-              <span className="text-right font-medium">
-                {formatCurrency(item.overtimeAmount)}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 border-b p-3">
-              <span>Deductions</span>
-              <span className="text-right font-medium">
-                {formatCurrency(item.deductions)}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 bg-slate-50 p-3 text-base font-semibold">
-              <span>Net Salary</span>
-              <span className="text-right">
-                {formatCurrency(item.netSalary)}
-              </span>
-            </div>
+        <div className="flex-1 overflow-y-auto py-4">
+          <div className="flex justify-center">
+            <iframe
+              title="Payslip Preview"
+              srcDoc={payslipHtml}
+              className="h-[760px] w-[820px] rounded-xl border bg-white"
+            />
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function Info({
-  label,
-  value,
-}: {
-  label: string;
-  value?: string | number;
-}) {
-  return (
-    <div>
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="font-medium">{value ?? "-"}</p>
-    </div>
   );
 }

@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
 import { Button } from "@/components/ui/button";
 
 import {
@@ -22,12 +21,11 @@ import {
 } from "@/components/ui/table";
 
 import { useGetPayrollRunByIdQuery } from "../api/payrollApi";
-import {
-  PayrollItemResponse,
-} from "../types/payroll.types";
+import { PayrollItemResponse } from "../types/payroll.types";
 
 import { formatCurrency, getMonthName } from "../utils/payroll.utils";
 import { exportPayrollCsv } from "../utils/payrollExport.utils";
+import { downloadAllPayslipsZip } from "../utils/payrollPayslipDownload.utils";
 
 import { PayrollStatusChip } from "./PayrollStatusChip";
 import { PayrollAiInsights } from "./PayrollAiInsights";
@@ -47,9 +45,23 @@ export function PayrollDetailsDialog({
   const [selectedPayslip, setSelectedPayslip] =
     useState<PayrollItemResponse | null>(null);
 
+  const [downloadingAll, setDownloadingAll] = useState(false);
+
   const { data, isLoading } = useGetPayrollRunByIdQuery(payrollId!, {
     skip: !payrollId || !open,
   });
+
+  async function handleDownloadAllPayslips() {
+    if (!data) return;
+
+    setDownloadingAll(true);
+
+    try {
+      await downloadAllPayslipsZip(data);
+    } finally {
+      setDownloadingAll(false);
+    }
+  }
 
   return (
     <>
@@ -67,13 +79,21 @@ export function PayrollDetailsDialog({
 
           {!isLoading && data && (
             <div className="space-y-6">
-              <div className="flex justify-end">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   variant="outline"
                   onClick={() => exportPayrollCsv(data)}
                 >
                   <Download className="mr-2 size-4" />
                   Export CSV
+                </Button>
+
+                <Button
+                  onClick={handleDownloadAllPayslips}
+                  disabled={downloadingAll || !data.items?.length}
+                >
+                  <Download className="mr-2 size-4" />
+                  {downloadingAll ? "Preparing..." : "Download All Payslips"}
                 </Button>
               </div>
 
@@ -131,7 +151,7 @@ export function PayrollDetailsDialog({
                       <TableHead>OT Amount</TableHead>
                       <TableHead>Deductions</TableHead>
                       <TableHead>Net</TableHead>
-                      <TableHead />
+                      <TableHead className="w-[120px]" />
                     </TableRow>
                   </TableHeader>
 
@@ -141,21 +161,37 @@ export function PayrollDetailsDialog({
                         <TableCell className="font-medium">
                           {item.employeeName}
                         </TableCell>
+
                         <TableCell>{item.employeeCode}</TableCell>
+
                         <TableCell>{item.salaryType}</TableCell>
+
                         <TableCell>{formatCurrency(item.baseSalary)}</TableCell>
+
                         <TableCell>{item.totalWorkingDays}</TableCell>
+
                         <TableCell>{item.presentDays}</TableCell>
+
                         <TableCell>{item.totalHours}</TableCell>
+
                         <TableCell>{item.overtimeHours}</TableCell>
-                        <TableCell>{formatCurrency(item.grossSalary)}</TableCell>
+
+                        <TableCell>
+                          {formatCurrency(item.grossSalary)}
+                        </TableCell>
+
                         <TableCell>
                           {formatCurrency(item.overtimeAmount)}
                         </TableCell>
-                        <TableCell>{formatCurrency(item.deductions)}</TableCell>
+
+                        <TableCell>
+                          {formatCurrency(item.deductions)}
+                        </TableCell>
+
                         <TableCell className="font-semibold">
                           {formatCurrency(item.netSalary)}
                         </TableCell>
+
                         <TableCell>
                           <Button
                             variant="ghost"
@@ -189,7 +225,9 @@ export function PayrollDetailsDialog({
         payroll={data}
         item={selectedPayslip}
         onOpenChange={(value) => {
-          if (!value) setSelectedPayslip(null);
+          if (!value) {
+            setSelectedPayslip(null);
+          }
         }}
       />
     </>
