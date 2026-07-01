@@ -1,0 +1,168 @@
+"use client";
+
+import {
+  Eye,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  ArrowUpDown,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Employee } from "../types/employee.types";
+
+interface Props {
+  employees: Employee[];
+  loading: boolean;
+  onView: (employee: Employee) => void;
+  onEdit: (employee: Employee) => void;
+  onDelete: (employee: Employee) => void;
+  onSort: (field: string) => void;
+}
+
+export function EmployeeTable({
+  employees,
+  loading,
+  onView,
+  onEdit,
+  onDelete,
+  onSort,
+}: Props) {
+  return (
+    <div className="rounded-xl border bg-card">
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>
+                <Button variant="ghost" size="sm" onClick={() => onSort("employeeCode")}>
+                  Code <ArrowUpDown className="ml-2 h-3 w-3" />
+                </Button>
+              </TableHead>
+
+              <TableHead>
+                <Button variant="ghost" size="sm" onClick={() => onSort("name")}>
+                  Name <ArrowUpDown className="ml-2 h-3 w-3" />
+                </Button>
+              </TableHead>
+
+              <TableHead>Department</TableHead>
+              <TableHead>Designation</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Salary</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="w-[70px] text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+
+          <TableBody>
+            {loading &&
+              Array.from({ length: 5 }).map((_, index) => (
+                <TableRow key={index}>
+                  <TableCell colSpan={8}>
+                    <div className="h-8 animate-pulse rounded-md bg-muted" />
+                  </TableCell>
+                </TableRow>
+              ))}
+
+            {!loading && employees.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                  No employees found.
+                </TableCell>
+              </TableRow>
+            )}
+
+            {!loading &&
+              employees.map((employee) => (
+                <TableRow key={employee.id}>
+                  <TableCell className="font-medium">
+                    {employee.employeeCode}
+                  </TableCell>
+
+                  <TableCell>
+                    <div>
+                      <p className="font-medium">{employee.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {employee.phone || employee.email || "No contact"}
+                      </p>
+                    </div>
+                  </TableCell>
+
+                  <TableCell>{employee.department || "-"}</TableCell>
+                  <TableCell>{employee.designation || "-"}</TableCell>
+
+                  <TableCell>
+                    <Badge variant="outline">
+                      {employee.employeeType.replace("_", " ")}
+                    </Badge>
+                  </TableCell>
+
+                  <TableCell>
+                    ₹{employee.salaryRate}{" "}
+                    <span className="text-xs text-muted-foreground">
+                      / {employee.salaryType.toLowerCase()}
+                    </span>
+                  </TableCell>
+
+                  <TableCell>
+                    <Badge
+                      variant={
+                        employee.status === "ACTIVE" ? "default" : "secondary"
+                      }
+                    >
+                      {employee.status}
+                    </Badge>
+                  </TableCell>
+
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onView(employee)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          View
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem onClick={() => onEdit(employee)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem
+                          onClick={() => onDelete(employee)}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
