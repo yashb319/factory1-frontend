@@ -17,6 +17,7 @@ import {
   useGetOrganizationSettingsQuery,
   useUpdateOrganizationSettingsMutation,
 } from "../api/organizationSettingsApi";
+import { toast } from "sonner";
 
 const schema = z.object({
   workingHoursPerDay: z.number().min(1, "Required"),
@@ -65,15 +66,20 @@ export function OrganizationSettingsForm() {
   }, [data, form]);
 
   async function onSubmit(values: FormValues) {
-    await updateSettings({
-      workingHoursPerDay: values.workingHoursPerDay,
-      workingDaysPerMonth: values.workingDaysPerMonth,
-      overtimeMultiplier: values.overtimeMultiplier,
-      currency: values.currency,
-      timezone: values.timezone,
-      weekStartDay: values.weekStartDay,
-      financialYearStartMonth: Number(values.financialYearStartMonth),
-    }).unwrap();
+    try {
+      await updateSettings({
+        workingHoursPerDay: values.workingHoursPerDay,
+        workingDaysPerMonth: values.workingDaysPerMonth,
+        overtimeMultiplier: values.overtimeMultiplier,
+        currency: values.currency,
+        timezone: values.timezone,
+        weekStartDay: values.weekStartDay,
+        financialYearStartMonth: Number(values.financialYearStartMonth),
+      }).unwrap();
+      toast.success("Organization settings updated successfully");
+    } catch (error) {
+      toast.error("Failed to update organization settings");
+    }
   }
 
   if (isLoading) {
