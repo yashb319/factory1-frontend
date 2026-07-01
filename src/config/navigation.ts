@@ -27,6 +27,6 @@ export const navigationItems = [
     icon: FileSpreadsheet,
   },
   { title: "AI Assistant", href: "/ai", icon: Bot },
-  { title: "Settings", href: "/organization-settings", icon: Settings },
+  { title: "Organization Settings", href: "/organization-settings", icon: Settings },
 
 ];
