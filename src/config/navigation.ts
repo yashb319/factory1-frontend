@@ -10,6 +10,7 @@ import {
   Bot,
   Settings,
   FileSpreadsheet,
+  PackageCheck,
 } from "lucide-react";
 
 export const navigationItems = [
@@ -18,6 +19,11 @@ export const navigationItems = [
   { title: "Attendance", href: "/attendance", icon: CalendarCheck },
   { title: "Payroll", href: "/payroll", icon: Wallet },
   { title: "Inventory", href: "/inventory", icon: Package },
+  {
+    title: "Products & Production",
+    href: "/products",
+    icon: PackageCheck,
+  },
   { title: "Billing", href: "/billing", icon: FileText },
   { title: "Suppliers", href: "/suppliers", icon: Truck },
   { title: "Customers", href: "/customers", icon: UserRound },
