@@ -14,6 +14,7 @@ import type {
   CustomerSearchParams,
 } from "../types/customer.types";
 import { exportCustomersCsv } from "../utils/customerExport";
+import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 import { CustomerAiInsights } from "./CustomerAiInsights";
 import { CustomerBulkImportDialog } from "./CustomerBulkImportDialog";
 import { CustomerConfirmDialog } from "./CustomerConfirmDialog";
@@ -46,6 +47,7 @@ export function CustomerPage() {
     useGetCustomerInsightsQuery();
 
   const [deleteCustomer, deleteState] = useDeleteCustomerMutation();
+  const logDataJob = useLogDataJob();
 
   const customers = useMemo(() => data?.content ?? [], [data]);
 
@@ -81,6 +83,16 @@ export function CustomerPage() {
   const handleExport = () => {
     try {
       exportCustomersCsv(customers);
+      void logDataJob({
+        operation: "EXPORT",
+        module: "CUSTOMER",
+        fileName: `customers-${new Date().toISOString().slice(0, 10)}.csv`,
+        status: "COMPLETED",
+        progress: 100,
+        totalRows: customers.length,
+        successRows: customers.length,
+        failedRows: 0,
+      });
       toast.success("Customer CSV exported successfully");
     } catch {
       toast.error("Failed to export customers");

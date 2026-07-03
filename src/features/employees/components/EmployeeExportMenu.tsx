@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ExportDialog } from "@/components/export/ExportDialog";
 import type { ExportColumn } from "@/components/export/export.types";
 import { Employee } from "../types/employee.types";
+import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 
 interface Props {
   employees: Employee[];
@@ -31,8 +32,19 @@ const EMPLOYEE_EXPORT_COLUMNS: ExportColumn[] = [
 export function EmployeeExportMenu({ employees }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const logDataJob = useLogDataJob();
 
   function handleStartExport() {
+    void logDataJob({
+      operation: "EXPORT",
+      module: "EMPLOYEE",
+      fileName: `employees-${new Date().toISOString().slice(0, 10)}.csv`,
+      status: "COMPLETED",
+      progress: 100,
+      totalRows: employees.length,
+      successRows: employees.length,
+      failedRows: 0,
+    });
     toast.success("Export job started. Track progress in Import / Export History.");
     setOpen(false);
     router.push("/import-export");

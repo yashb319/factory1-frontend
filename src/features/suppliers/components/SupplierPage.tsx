@@ -11,6 +11,7 @@ import {
 } from "../api/supplierApi";
 import type { Supplier, SupplierSearchParams } from "../types/supplier.types";
 import { exportSuppliersCsv } from "../utils/supplierExport";
+import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 import { SupplierAiInsights } from "./SupplierAiInsights";
 import { SupplierBulkImportDialog } from "./SupplierBulkImportDialog";
 import { SupplierConfirmDialog } from "./SupplierConfirmDialog";
@@ -39,6 +40,7 @@ export function SupplierPage() {
     useGetSupplierInsightsQuery();
 
   const [deleteSupplier, deleteState] = useDeleteSupplierMutation();
+  const logDataJob = useLogDataJob();
 
   const suppliers = useMemo(() => data?.content ?? [], [data]);
 
@@ -73,6 +75,16 @@ export function SupplierPage() {
   const handleExport = () => {
     try {
       exportSuppliersCsv(suppliers);
+      void logDataJob({
+        operation: "EXPORT",
+        module: "SUPPLIER",
+        fileName: `suppliers-${new Date().toISOString().slice(0, 10)}.csv`,
+        status: "COMPLETED",
+        progress: 100,
+        totalRows: suppliers.length,
+        successRows: suppliers.length,
+        failedRows: 0,
+      });
       toast.success("Supplier CSV exported successfully");
     } catch {
       toast.error("Failed to export suppliers");

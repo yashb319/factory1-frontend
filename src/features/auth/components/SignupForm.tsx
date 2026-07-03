@@ -2,19 +2,28 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Factory } from "lucide-react";
+import { Factory, MailCheck } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { toast } from "sonner";
 
 import { AppForm, FormActions, TextField, PasswordField } from "@/components/forms";
+import { Button } from "@/components/ui/button";
 import { setCredentials } from "../authSlice";
-import { useSignupOrganizationMutation } from "../authApi";
+import {
+  useSendSignupOtpMutation,
+  useSignupOrganizationMutation,
+} from "../authApi";
 import { signupSchema, type SignupFormValues } from "../schemas/signup.schema";
 import { useAppDispatch } from "@/lib/hook";
 
 export function SignupForm() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const [otpSentTo, setOtpSentTo] = useState<string | null>(null);
+  const [sendSignupOtp, { isLoading: isSendingOtp }] =
+    useSendSignupOtpMutation();
   const [signupOrganization, { isLoading, error }] =
     useSignupOrganizationMutation();
 
@@ -25,11 +34,51 @@ export function SignupForm() {
       ownerName: "",
       email: "",
       password: "",
+      otp: "",
     },
   });
 
+  const email = useWatch({
+    control: form.control,
+    name: "email",
+  }) ?? "";
+  const otpRequested = otpSentTo === email.trim().toLowerCase();
+
+  async function handleSendOtp() {
+    const validEmail = await form.trigger("email");
+
+    if (!validEmail) return;
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    try {
+      await sendSignupOtp({ email: normalizedEmail }).unwrap();
+
+      setOtpSentTo(normalizedEmail);
+      toast.success("OTP sent to your email");
+    } catch {
+      toast.error("Could not send OTP. Please check the email and try again.");
+    }
+  }
+
   async function onSubmit(values: SignupFormValues) {
-    const response = await signupOrganization(values).unwrap();
+    if (!otpRequested) {
+      await handleSendOtp();
+      return;
+    }
+
+    if (!values.otp || !/^\d{6}$/.test(values.otp)) {
+      form.setError("otp", {
+        type: "manual",
+        message: "Enter the 6 digit OTP",
+      });
+      return;
+    }
+
+    const response = await signupOrganization({
+      ...values,
+      otp: values.otp,
+    }).unwrap();
 
     dispatch(
       setCredentials({
@@ -85,6 +134,36 @@ export function SignupForm() {
               required
             />
 
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <TextField<SignupFormValues>
+                  name="otp"
+                  label="Email OTP"
+                  placeholder="6 digit code"
+                  disabled={!otpRequested}
+                  required
+                />
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSendOtp}
+                disabled={isSendingOtp}
+                className="mb-[1px]"
+              >
+                <MailCheck />
+                {otpRequested ? "Resend" : "Send OTP"}
+              </Button>
+            </div>
+
+            {otpRequested && (
+              <p className="text-xs text-slate-500">
+                We sent a verification code to {otpSentTo}. It expires in 10
+                minutes.
+              </p>
+            )}
+
             <PasswordField<SignupFormValues>
               name="password"
               label="Password"
@@ -99,8 +178,8 @@ export function SignupForm() {
             )}
 
             <FormActions
-              submitLabel="Create organization"
-              loading={isLoading}
+              submitLabel={otpRequested ? "Create organization" : "Send OTP"}
+              loading={isLoading || isSendingOtp}
             />
           </AppForm>
         </div>

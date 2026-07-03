@@ -1,7 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileText, Plus, ReceiptIndianRupee, Search, Trash2 } from "lucide-react";
+import {
+  Download,
+  FileText,
+  Plus,
+  ReceiptIndianRupee,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +28,8 @@ import {
   useLazyGetGstSuggestionsQuery,
 } from "../api/billingApi";
 import type { BillType, GstRateSuggestion } from "../types/billing.types";
+import { exportBillsCsv } from "../utils/billingExport";
+import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 
 type DraftItem = {
   rowId: string;
@@ -81,6 +90,7 @@ export function BillingPage() {
   const [createBill, createState] = useCreateBillMutation();
   const [cancelBill, cancelState] = useCancelBillMutation();
   const [getGstSuggestions, gstState] = useLazyGetGstSuggestionsQuery();
+  const logDataJob = useLogDataJob();
 
   const inventoryItems = useMemo(
     () => inventoryPage?.content ?? [],
@@ -219,6 +229,28 @@ export function BillingPage() {
     } catch {
       toast.error("Failed to create bill");
     }
+  };
+
+  const handleExportBills = () => {
+    const bills = billsPage?.content ?? [];
+
+    if (!bills.length) {
+      toast.info("No bills to export");
+      return;
+    }
+
+    exportBillsCsv(bills);
+    void logDataJob({
+      operation: "EXPORT",
+      module: "BILLING",
+      fileName: `billing-${new Date().toISOString().slice(0, 10)}.csv`,
+      status: "COMPLETED",
+      progress: 100,
+      totalRows: bills.length,
+      successRows: bills.length,
+      failedRows: 0,
+    });
+    toast.success("Billing CSV exported successfully");
   };
 
   return (
@@ -543,7 +575,21 @@ export function BillingPage() {
 
         <Card className="h-fit rounded-lg">
           <CardHeader>
-            <CardTitle>Recent {type === "SALES" ? "Sales" : "Supplier"} Bills</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>
+                Recent {type === "SALES" ? "Sales" : "Supplier"} Bills
+              </CardTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleExportBills}
+                disabled={!billsPage?.content?.length}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {billsLoading ? (

@@ -23,4 +23,13 @@ export type SignupOrganizationRequest = {
   ownerName: string;
   email: string;
   password: string;
+  otp: string;
+};
+
+export type SignupOtpRequest = {
+  email: string;
+};
+
+export type MessageResponse = {
+  message: string;
 };
