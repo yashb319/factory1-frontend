@@ -1,6 +1,9 @@
 import type { Supplier } from "../types/supplier.types";
+import { toCsv } from "@/features/import-export/utils/csv";
+import { downloadCsv, saveLocalExportFile } from "@/features/import-export/utils/localExportFiles";
 
 export const exportSuppliersCsv = (suppliers: Supplier[]) => {
+  const fileName = `suppliers-${new Date().toISOString().slice(0, 10)}.csv`;
   const headers = [
     "Supplier Code",
     "Name",
@@ -29,19 +32,13 @@ export const exportSuppliersCsv = (suppliers: Supplier[]) => {
     `${s.dataCompletenessScore}%`,
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) =>
-      row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")
-    )
-    .join("\n");
+  const csv = toCsv([headers, ...rows]);
+  const saved = saveLocalExportFile({ fileName, content: csv });
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
+  downloadCsv({ fileName, content: csv });
 
-  link.href = url;
-  link.download = `suppliers-${new Date().toISOString().slice(0, 10)}.csv`;
-  link.click();
-
-  URL.revokeObjectURL(url);
+  return {
+    fileName,
+    outputFileUrl: saved.url,
+  };
 };

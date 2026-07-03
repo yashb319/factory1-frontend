@@ -85,16 +85,17 @@ export function PayrollDetailsDialog({
                 <Button
                   variant="outline"
                   onClick={() => {
-                    exportPayrollCsv(data);
+                    const exported = exportPayrollCsv(data);
                     void logDataJob({
                       operation: "EXPORT",
                       module: "PAYROLL",
-                      fileName: `payroll-${data.payrollMonth}-${data.payrollYear}.csv`,
+                      fileName: exported.fileName,
                       status: "COMPLETED",
                       progress: 100,
                       totalRows: data.items?.length ?? 0,
                       successRows: data.items?.length ?? 0,
                       failedRows: 0,
+                      outputFileUrl: exported.outputFileUrl,
                     });
                   }}
                 >

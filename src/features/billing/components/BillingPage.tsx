@@ -239,16 +239,17 @@ export function BillingPage() {
       return;
     }
 
-    exportBillsCsv(bills);
+    const exported = exportBillsCsv(bills);
     void logDataJob({
       operation: "EXPORT",
       module: "BILLING",
-      fileName: `billing-${new Date().toISOString().slice(0, 10)}.csv`,
+      fileName: exported.fileName,
       status: "COMPLETED",
       progress: 100,
       totalRows: bills.length,
       successRows: bills.length,
       failedRows: 0,
+      outputFileUrl: exported.outputFileUrl,
     });
     toast.success("Billing CSV exported successfully");
   };

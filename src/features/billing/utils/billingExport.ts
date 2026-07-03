@@ -1,6 +1,9 @@
 import type { Bill } from "../types/billing.types";
+import { toCsv } from "@/features/import-export/utils/csv";
+import { downloadCsv, saveLocalExportFile } from "@/features/import-export/utils/localExportFiles";
 
 export function exportBillsCsv(bills: Bill[]) {
+  const fileName = `billing-${new Date().toISOString().slice(0, 10)}.csv`;
   const headers = [
     "Bill Number",
     "Type",
@@ -35,22 +38,13 @@ export function exportBillsCsv(bills: Bill[]) {
     bill.grandTotal,
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) =>
-      row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")
-    )
-    .join("\n");
+  const csv = toCsv([headers, ...rows]);
+  const saved = saveLocalExportFile({ fileName, content: csv });
 
-  const blob = new Blob([csv], {
-    type: "text/csv;charset=utf-8;",
-  });
+  downloadCsv({ fileName, content: csv });
 
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = `billing-${new Date().toISOString().slice(0, 10)}.csv`;
-  link.click();
-
-  URL.revokeObjectURL(url);
+  return {
+    fileName,
+    outputFileUrl: saved.url,
+  };
 }

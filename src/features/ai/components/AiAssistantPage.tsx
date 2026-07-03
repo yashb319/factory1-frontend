@@ -1,14 +1,22 @@
 "use client";
 
 import { FormEvent, useMemo, useRef, useState } from "react";
-import { Bot, Send, Sparkles, UserRound } from "lucide-react";
+import { Bot, CheckCircle2, Send, Sparkles, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { useSendAiMessageMutation } from "../api/aiApi";
-import type { AiChatMessage, AiChatResponse, AiMetric } from "../types/ai.types";
+import {
+  useExecuteAiActionMutation,
+  useSendAiMessageMutation,
+} from "../api/aiApi";
+import type {
+  AiActionProposal,
+  AiChatMessage,
+  AiChatResponse,
+  AiMetric,
+} from "../types/ai.types";
 import { AiChartView } from "./AiChartView";
 
 type ThreadMessage = AiChatMessage & {
@@ -42,6 +50,7 @@ export function AiAssistantPage() {
   ]);
 
   const [sendAiMessage, sendState] = useSendAiMessageMutation();
+  const [executeAiAction, actionState] = useExecuteAiActionMutation();
   const formRef = useRef<HTMLFormElement>(null);
 
   const history = useMemo(
@@ -96,6 +105,38 @@ export function AiAssistantPage() {
   const askStarter = (question: string) => {
     setInput(question);
     requestAnimationFrame(() => formRef.current?.requestSubmit());
+  };
+
+  const applyAction = async (action: AiActionProposal) => {
+    try {
+      const result = await executeAiAction({
+        actionId: action.id,
+        module: action.module,
+        recordId: action.recordId,
+        field: action.field,
+        newValue: action.newValue,
+        payload: action.payload,
+      }).unwrap();
+
+      toast.success(result.message);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `${result.message}. I refreshed the related module data.`,
+        },
+      ]);
+    } catch {
+      toast.error("Could not apply this AI update");
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content:
+            "I could not apply that update. Please check your role access and the value format, then try again.",
+        },
+      ]);
+    }
   };
 
   return (
@@ -173,6 +214,52 @@ export function AiAssistantPage() {
                     ) : null}
 
                     <AiChartView chart={message.response?.chart} />
+
+                    {message.response?.actions?.length ? (
+                      <div className="space-y-2">
+                        {message.response.actions.map((action) => (
+                          <div
+                            key={action.id}
+                            className="rounded-md border bg-background p-3"
+                          >
+                            <div className="text-xs font-medium uppercase text-muted-foreground">
+                              {action.module}
+                            </div>
+                            <div className="mt-1 font-medium">
+                              {action.recordLabel}
+                            </div>
+                            <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+                              <div className="rounded-md bg-muted/60 p-2">
+                                <div className="text-muted-foreground">
+                                  Current {action.field}
+                                </div>
+                                <div className="mt-1 font-medium">
+                                  {action.currentValue || "-"}
+                                </div>
+                              </div>
+                              <div className="rounded-md bg-muted/60 p-2">
+                                <div className="text-muted-foreground">
+                                  New {action.field}
+                                </div>
+                                <div className="mt-1 font-medium">
+                                  {action.newValue}
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="mt-3"
+                              disabled={actionState.isLoading}
+                              onClick={() => applyAction(action)}
+                            >
+                              <CheckCircle2 className="mr-2 h-4 w-4" />
+                              Apply update
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
 
                     {message.response?.suggestions?.length ? (
                       <div className="flex flex-wrap gap-2">
