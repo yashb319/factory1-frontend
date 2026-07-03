@@ -13,6 +13,7 @@ import type {
   InventorySearchParams,
 } from "../types/inventory.types";
 import { exportInventoryCsv } from "../utils/inventoryExport";
+import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 import { InventoryAiInsights } from "./InventoryAiInsights";
 import { InventoryBulkImportDialog } from "./InventoryBulkImportDialog";
 import { InventoryConfirmDialog } from "./InventoryConfirmDialog";
@@ -45,6 +46,7 @@ export function InventoryPage() {
   const { data, isLoading } = useGetInventoryItemsQuery(filters);
 
   const [deleteItem, deleteState] = useDeleteInventoryItemMutation();
+  const logDataJob = useLogDataJob();
 
   const items = useMemo(() => data?.content ?? [], [data]);
 
@@ -89,6 +91,16 @@ export function InventoryPage() {
   const handleExport = () => {
     try {
       exportInventoryCsv(items);
+      void logDataJob({
+        operation: "EXPORT",
+        module: "INVENTORY",
+        fileName: `inventory-${new Date().toISOString().slice(0, 10)}.csv`,
+        status: "COMPLETED",
+        progress: 100,
+        totalRows: items.length,
+        successRows: items.length,
+        failedRows: 0,
+      });
       toast.success("Inventory CSV exported successfully");
     } catch {
       toast.error("Failed to export inventory CSV");

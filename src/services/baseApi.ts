@@ -8,7 +8,11 @@ export const baseApi = createApi({
     baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
 
     prepareHeaders: (headers, { endpoint, getState }) => {
-      if (endpoint === "login" || endpoint === "signupOrganization") {
+      if (
+        endpoint === "login" ||
+        endpoint === "signupOrganization" ||
+        endpoint === "sendSignupOtp"
+      ) {
         headers.delete("Authorization");
         return headers;
       }
@@ -36,6 +40,8 @@ export const baseApi = createApi({
     "Customer",
     "Products",
     "Billing",
+    "ImportExport",
+    "Dashboard",
   ],
 
   endpoints: () => ({}),

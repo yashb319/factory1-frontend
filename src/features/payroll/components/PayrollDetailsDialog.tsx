@@ -30,6 +30,7 @@ import { downloadAllPayslipsZip } from "../utils/payrollPayslipDownload.utils";
 import { PayrollStatusChip } from "./PayrollStatusChip";
 import { PayrollAiInsights } from "./PayrollAiInsights";
 import { PayrollPayslipDialog } from "./PayrollPayslipDialog";
+import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 
 interface Props {
   payrollId?: string | null;
@@ -46,6 +47,7 @@ export function PayrollDetailsDialog({
     useState<PayrollItemResponse | null>(null);
 
   const [downloadingAll, setDownloadingAll] = useState(false);
+  const logDataJob = useLogDataJob();
 
   const { data, isLoading } = useGetPayrollRunByIdQuery(payrollId!, {
     skip: !payrollId || !open,
@@ -82,7 +84,19 @@ export function PayrollDetailsDialog({
               <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => exportPayrollCsv(data)}
+                  onClick={() => {
+                    exportPayrollCsv(data);
+                    void logDataJob({
+                      operation: "EXPORT",
+                      module: "PAYROLL",
+                      fileName: `payroll-${data.payrollMonth}-${data.payrollYear}.csv`,
+                      status: "COMPLETED",
+                      progress: 100,
+                      totalRows: data.items?.length ?? 0,
+                      successRows: data.items?.length ?? 0,
+                      failedRows: 0,
+                    });
+                  }}
                 >
                   <Download className="mr-2 size-4" />
                   Export CSV

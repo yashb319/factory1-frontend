@@ -25,6 +25,7 @@ import {
   ValidationRow,
 } from "@/components/file-upload/FileValidationTable";
 import { useRouter } from "next/navigation";
+import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 
 interface Props {
   open: boolean;
@@ -220,6 +221,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   const [mapping, setMapping] = useState<ColumnMappingValue>({});
 
   const router = useRouter();
+  const logDataJob = useLogDataJob();
 
   const sourceColumns = useMemo(() => {
     if (!rawRows.length) return [];
@@ -252,6 +254,17 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   }, [validationRows, mapping]);
 
   function handleStartImport() {
+    void logDataJob({
+      operation: "IMPORT",
+      module: "EMPLOYEE",
+      fileName: fileName || `employees-${new Date().toISOString().slice(0, 10)}.csv`,
+      status: validation.invalid > 0 ? "PARTIAL_SUCCESS" : "COMPLETED",
+      progress: 100,
+      totalRows: validationRows.length,
+      successRows: importableRows.length,
+      failedRows: validation.invalid,
+      notes: "Client-side import validation completed. Backend bulk import integration pending.",
+    });
     toast.success("Import job started. Track progress in Import / Export History.");
 
     handleOpenChange(false);

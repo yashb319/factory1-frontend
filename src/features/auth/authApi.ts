@@ -2,7 +2,9 @@ import { baseApi } from "@/services/baseApi";
 import type {
   AuthResponse,
   LoginRequest,
+  MessageResponse,
   SignupOrganizationRequest,
+  SignupOtpRequest,
 } from "./types";
 
 export const authApi = baseApi.injectEndpoints({
@@ -25,7 +27,19 @@ export const authApi = baseApi.injectEndpoints({
         body,
       }),
     }),
+
+    sendSignupOtp: builder.mutation<MessageResponse, SignupOtpRequest>({
+      query: (body) => ({
+        url: "/api/auth/signup-otp",
+        method: "POST",
+        body,
+      }),
+    }),
   }),
 });
 
-export const { useLoginMutation, useSignupOrganizationMutation } = authApi;
+export const {
+  useLoginMutation,
+  useSignupOrganizationMutation,
+  useSendSignupOtpMutation,
+} = authApi;

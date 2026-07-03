@@ -29,6 +29,8 @@ import { DataJob, DataJobStatus } from "../types/importExport.types";
 
 interface Props {
   jobs: DataJob[];
+  isLoading?: boolean;
+  onRefresh?: () => void;
 }
 
 function getStatusBadge(status: DataJobStatus) {
@@ -46,7 +48,7 @@ function getStatusBadge(status: DataJobStatus) {
   }
 }
 
-export function ImportExportTable({ jobs }: Props) {
+export function ImportExportTable({ jobs, isLoading, onRefresh }: Props) {
   return (
     <div className="rounded-xl border bg-card">
       <div className="flex items-center justify-between border-b p-4">
@@ -57,9 +59,9 @@ export function ImportExportTable({ jobs }: Props) {
           </p>
         </div>
 
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" onClick={onRefresh} disabled={isLoading}>
           <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
+          {isLoading ? "Refreshing..." : "Refresh"}
         </Button>
       </div>
 
@@ -93,7 +95,7 @@ export function ImportExportTable({ jobs }: Props) {
                     <p className="font-medium">{job.fileName}</p>
                     {job.completedAt && (
                       <p className="text-xs text-muted-foreground">
-                        Completed {job.completedAt}
+                        Completed {formatDate(job.completedAt)}
                       </p>
                     )}
                   </div>
@@ -121,7 +123,7 @@ export function ImportExportTable({ jobs }: Props) {
                 </TableCell>
 
                 <TableCell>{job.createdBy}</TableCell>
-                <TableCell>{job.createdAt}</TableCell>
+                <TableCell>{formatDate(job.createdAt)}</TableCell>
 
                 <TableCell className="text-right">
                   <DropdownMenu>
@@ -133,16 +135,20 @@ export function ImportExportTable({ jobs }: Props) {
 
                     <DropdownMenuContent align="end">
                       {job.outputFileUrl && (
-                        <DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <a href={job.outputFileUrl} download>
                           <Download className="mr-2 h-4 w-4" />
                           Download Output
+                          </a>
                         </DropdownMenuItem>
                       )}
 
                       {job.errorFileUrl && (
-                        <DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <a href={job.errorFileUrl} download>
                           <FileWarning className="mr-2 h-4 w-4" />
                           Download Error File
+                          </a>
                         </DropdownMenuItem>
                       )}
 
@@ -156,9 +162,22 @@ export function ImportExportTable({ jobs }: Props) {
                 </TableCell>
               </TableRow>
             ))}
+
+            {!jobs.length && (
+              <TableRow>
+                <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                  {isLoading ? "Loading jobs..." : "No import/export jobs found."}
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
     </div>
   );
+}
+
+function formatDate(value?: string) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("en-IN");
 }
