@@ -22,11 +22,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useGetInventoryItemsQuery } from "@/features/inventory/api/inventoryApi";
 
 export function ProductsPage() {
   const { data, isLoading, isFetching } = useGetProductsQuery({
     page: 0,
     size: 50,
+  });
+
+  const { data: inventoryPage } = useGetInventoryItemsQuery({
+    page: 0,
+    size: 300,
+    itemType: "FINISHED_GOOD",
   });
 
   const [deleteProduct, deleteState] = useDeleteProductMutation();
@@ -39,6 +46,9 @@ export function ProductsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
 
   const products = data?.content ?? [];
+  const inventoryById = new Map(
+    (inventoryPage?.content ?? []).map((item) => [item.id, item])
+  );
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -99,6 +109,7 @@ export function ProductsPage() {
                   <tr>
                     <th className="p-3 text-left">Code</th>
                     <th className="p-3 text-left">Name</th>
+                    <th className="p-3 text-left">Linked Inventory Item</th>
                     <th className="p-3 text-left">Unit</th>
                     <th className="p-3 text-left">BOM</th>
                     <th className="p-3 text-left">Status</th>
@@ -107,79 +118,91 @@ export function ProductsPage() {
                 </thead>
 
                 <tbody>
-                  {products.map((product) => (
-                    <tr key={product.id} className="border-t">
-                      <td className="p-3 font-medium">
-                        {product.productCode}
-                      </td>
+                  {products.map((product) => {
+                    const inventoryItem = inventoryById.get(
+                      product.finishedGoodInventoryItemId
+                    );
 
-                      <td className="p-3">{product.name}</td>
+                    return (
+                      <tr key={product.id} className="border-t">
+                        <td className="p-3 font-medium">
+                          {product.productCode}
+                        </td>
 
-                      <td className="p-3">{product.unit || "-"}</td>
+                        <td className="p-3">{product.name}</td>
 
-                      <td className="p-3">
-                        <span className="rounded-full bg-muted px-2 py-1 text-xs">
-                          {product.hasBom ? "Configured" : "Optional"}
-                        </span>
-                      </td>
+                        <td className="p-3">
+                          {inventoryItem
+                            ? `${inventoryItem.itemCode} - ${inventoryItem.name}`
+                            : product.finishedGoodInventoryItemId}
+                        </td>
 
-                      <td className="p-3">
-                        <span className="rounded-full bg-muted px-2 py-1 text-xs">
-                          {product.active ? "Active" : "Inactive"}
-                        </span>
-                      </td>
+                        <td className="p-3">{product.unit || "-"}</td>
 
-                      <td className="p-3">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedProduct(product);
-                              setProductionOpen(true);
-                            }}
-                          >
-                            Produce
-                          </Button>
+                        <td className="p-3">
+                          <span className="rounded-full bg-muted px-2 py-1 text-xs">
+                            {product.hasBom ? "Configured" : "Optional"}
+                          </span>
+                        </td>
 
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedProduct(product);
-                              setBomOpen(true);
-                            }}
-                          >
-                            BOM
-                          </Button>
+                        <td className="p-3">
+                          <span className="rounded-full bg-muted px-2 py-1 text-xs">
+                            {product.active ? "Active" : "Inactive"}
+                          </span>
+                        </td>
 
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedProduct(product);
-                              setFormOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
+                        <td className="p-3">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedProduct(product);
+                                setProductionOpen(true);
+                              }}
+                            >
+                              Produce
+                            </Button>
 
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => setDeleteTarget(product)}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedProduct(product);
+                                setBomOpen(true);
+                              }}
+                            >
+                              BOM
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedProduct(product);
+                                setFormOpen(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => setDeleteTarget(product)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
 
                   {!products.length && (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="p-6 text-center text-muted-foreground"
                       >
                         No products found.

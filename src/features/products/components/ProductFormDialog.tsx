@@ -43,19 +43,18 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
   const { data: inventoryPage } = useGetInventoryItemsQuery({
     page: 0,
     size: 200,
+    itemType: "FINISHED_GOOD",
+    status: "ACTIVE",
   });
 
   const inventoryItems = inventoryPage?.content ?? [];
 
-  const finishedGoodOptions = [
-    { label: "No linked inventory item", value: "" },
-    ...inventoryItems
+  const finishedGoodOptions = inventoryItems
       .filter((item) => item.itemType === "FINISHED_GOOD")
       .map((item) => ({
         label: `${item.itemCode} - ${item.name} (${item.currentStock} ${item.unit})`,
         value: item.id,
-      })),
-  ];
+      }));
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -86,12 +85,16 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
 
   const onSubmit = async (values: FormValues) => {
     try {
+      if (!values.finishedGoodInventoryItemId) {
+        toast.error("Please select a finished good inventory item");
+        return;
+      }
+
       const body: ProductRequest = {
         productCode: values.productCode,
         name: values.name,
         description: values.description,
-        finishedGoodInventoryItemId:
-          values.finishedGoodInventoryItemId || undefined,
+        finishedGoodInventoryItemId: values.finishedGoodInventoryItemId,
         unit: values.unit,
         active: values.active === "true",
       };
@@ -134,6 +137,8 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
               name="finishedGoodInventoryItemId"
               label="Finished Good Inventory Item"
               options={finishedGoodOptions}
+              placeholder="Select finished good item"
+              required
             />
 
             <SelectField

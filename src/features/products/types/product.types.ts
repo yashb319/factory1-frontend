@@ -3,7 +3,7 @@ export type Product = {
   productCode: string;
   name: string;
   description?: string;
-  finishedGoodInventoryItemId?: string;
+  finishedGoodInventoryItemId: string;
   unit?: string;
   active: boolean;
   hasBom: boolean;
@@ -13,7 +13,7 @@ export type ProductRequest = {
   productCode: string;
   name: string;
   description?: string;
-  finishedGoodInventoryItemId?: string;
+  finishedGoodInventoryItemId: string;
   unit?: string;
   active?: boolean;
 };
@@ -41,7 +41,6 @@ export type BomRequest = {
 
 export type ProductionRequest = {
   productId: string;
-  finishedGoodInventoryItemId?: string;
   quantityProduced: number;
   productionDate: string;
   notes?: string;
@@ -63,7 +62,6 @@ export type PageResponse<T> = {
   size: number;
   totalElements: number;
   totalPages: number;
-  last: boolean;
 };
 
 export type ApiResponse<T> = {

@@ -49,13 +49,13 @@ export function BomDialog({ open, onOpenChange, product }: Props) {
   useEffect(() => {
     if (!open) return;
 
-    if (bom) {
-      setName(bom.name);
-      setComponents(bom.components || []);
-    } else {
-      setName("Default BOM");
-      setComponents([]);
-    }
+    const nextName = bom?.name ?? "Default BOM";
+    const nextComponents = bom?.components ?? [];
+
+    queueMicrotask(() => {
+      setName(nextName);
+      setComponents(nextComponents);
+    });
   }, [bom, open, product?.id]);
 
   const addComponent = () => {
