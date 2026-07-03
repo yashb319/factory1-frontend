@@ -34,4 +34,15 @@ export type SignupOtpRequest = {
 
 export type MessageResponse = {
   message: string;
+  debug?: Record<string, unknown> | null;
+};
+
+export type ForgotPasswordOtpRequest = {
+  email: string;
+};
+
+export type ResetPasswordRequest = {
+  email: string;
+  otp: string;
+  password: string;
 };
