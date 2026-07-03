@@ -1,6 +1,9 @@
 import { PayrollRunDetailsResponse } from "../types/payroll.types";
+import { toCsv } from "@/features/import-export/utils/csv";
+import { downloadCsv, saveLocalExportFile } from "@/features/import-export/utils/localExportFiles";
 
 export function exportPayrollCsv(payroll: PayrollRunDetailsResponse) {
+  const fileName = `payroll-${payroll.payrollMonth}-${payroll.payrollYear}.csv`;
   const headers = [
     "Employee Code",
     "Employee Name",
@@ -31,24 +34,13 @@ export function exportPayrollCsv(payroll: PayrollRunDetailsResponse) {
     item.netSalary,
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) =>
-      row
-        .map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`)
-        .join(",")
-    )
-    .join("\n");
+  const csv = toCsv([headers, ...rows]);
+  const saved = saveLocalExportFile({ fileName, content: csv });
 
-  const blob = new Blob([csv], {
-    type: "text/csv;charset=utf-8;",
-  });
+  downloadCsv({ fileName, content: csv });
 
-  const url = URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `payroll-${payroll.payrollMonth}-${payroll.payrollYear}.csv`;
-  link.click();
-
-  URL.revokeObjectURL(url);
+  return {
+    fileName,
+    outputFileUrl: saved.url,
+  };
 }

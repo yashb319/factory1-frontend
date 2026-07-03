@@ -74,16 +74,17 @@ export function SupplierPage() {
 
   const handleExport = () => {
     try {
-      exportSuppliersCsv(suppliers);
+      const exported = exportSuppliersCsv(suppliers);
       void logDataJob({
         operation: "EXPORT",
         module: "SUPPLIER",
-        fileName: `suppliers-${new Date().toISOString().slice(0, 10)}.csv`,
+        fileName: exported.fileName,
         status: "COMPLETED",
         progress: 100,
         totalRows: suppliers.length,
         successRows: suppliers.length,
         failedRows: 0,
+        outputFileUrl: exported.outputFileUrl,
       });
       toast.success("Supplier CSV exported successfully");
     } catch {

@@ -27,6 +27,7 @@ export type AiChatResponse = {
   metrics: AiMetric[];
   suggestions: string[];
   chart?: AiChart | null;
+  actions?: AiActionProposal[];
   provider: string;
   fallback: boolean;
 };
@@ -34,6 +35,31 @@ export type AiChatResponse = {
 export type AiChatRequest = {
   message: string;
   history: AiChatMessage[];
+};
+
+export type AiActionProposal = {
+  id: string;
+  module: string;
+  recordId: string;
+  recordLabel: string;
+  field: string;
+  currentValue: string;
+  newValue: string;
+  confirmationText: string;
+  payload?: Record<string, unknown>;
+};
+
+export type AiActionExecuteRequest = {
+  actionId: string;
+  module: string;
+  recordId: string;
+  field: string;
+  newValue: string;
+  payload?: Record<string, unknown>;
+};
+
+export type AiActionExecuteResponse = {
+  message: string;
 };
 
 export type ApiResponse<T> = {

@@ -82,16 +82,17 @@ export function CustomerPage() {
 
   const handleExport = () => {
     try {
-      exportCustomersCsv(customers);
+      const exported = exportCustomersCsv(customers);
       void logDataJob({
         operation: "EXPORT",
         module: "CUSTOMER",
-        fileName: `customers-${new Date().toISOString().slice(0, 10)}.csv`,
+        fileName: exported.fileName,
         status: "COMPLETED",
         progress: 100,
         totalRows: customers.length,
         successRows: customers.length,
         failedRows: 0,
+        outputFileUrl: exported.outputFileUrl,
       });
       toast.success("Customer CSV exported successfully");
     } catch {

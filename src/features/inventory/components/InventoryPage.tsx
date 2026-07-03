@@ -90,16 +90,17 @@ export function InventoryPage() {
 
   const handleExport = () => {
     try {
-      exportInventoryCsv(items);
+      const exported = exportInventoryCsv(items);
       void logDataJob({
         operation: "EXPORT",
         module: "INVENTORY",
-        fileName: `inventory-${new Date().toISOString().slice(0, 10)}.csv`,
+        fileName: exported.fileName,
         status: "COMPLETED",
         progress: 100,
         totalRows: items.length,
         successRows: items.length,
         failedRows: 0,
+        outputFileUrl: exported.outputFileUrl,
       });
       toast.success("Inventory CSV exported successfully");
     } catch {

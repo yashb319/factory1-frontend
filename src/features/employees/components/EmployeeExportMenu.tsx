@@ -10,6 +10,11 @@ import { ExportDialog } from "@/components/export/ExportDialog";
 import type { ExportColumn } from "@/components/export/export.types";
 import { Employee } from "../types/employee.types";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
+import { toCsv } from "@/features/import-export/utils/csv";
+import {
+  downloadCsv,
+  saveLocalExportFile,
+} from "@/features/import-export/utils/localExportFiles";
 
 interface Props {
   employees: Employee[];
@@ -34,18 +39,34 @@ export function EmployeeExportMenu({ employees }: Props) {
   const [open, setOpen] = useState(false);
   const logDataJob = useLogDataJob();
 
-  function handleStartExport() {
+  function handleStartExport(payload: { columns: string[] }) {
+    const selectedColumns = EMPLOYEE_EXPORT_COLUMNS.filter((column) =>
+      payload.columns.includes(column.value)
+    );
+    const fileName = `employees-${new Date().toISOString().slice(0, 10)}.csv`;
+    const rows = employees.map((employee) =>
+      selectedColumns.map((column) => employee[column.value as keyof Employee] ?? "")
+    );
+    const csv = toCsv([
+      selectedColumns.map((column) => column.label),
+      ...rows,
+    ]);
+    const saved = saveLocalExportFile({ fileName, content: csv });
+
+    downloadCsv({ fileName, content: csv });
+
     void logDataJob({
       operation: "EXPORT",
       module: "EMPLOYEE",
-      fileName: `employees-${new Date().toISOString().slice(0, 10)}.csv`,
+      fileName,
       status: "COMPLETED",
       progress: 100,
       totalRows: employees.length,
       successRows: employees.length,
       failedRows: 0,
+      outputFileUrl: saved.url,
     });
-    toast.success("Export job started. Track progress in Import / Export History.");
+    toast.success("Employee CSV exported successfully.");
     setOpen(false);
     router.push("/import-export");
   }

@@ -26,6 +26,10 @@ import {
 } from "@/components/ui/table";
 
 import { DataJob, DataJobStatus } from "../types/importExport.types";
+import {
+  downloadCsv,
+  getLocalExportFile,
+} from "../utils/localExportFiles";
 
 interface Props {
   jobs: DataJob[];
@@ -49,6 +53,28 @@ function getStatusBadge(status: DataJobStatus) {
 }
 
 export function ImportExportTable({ jobs, isLoading, onRefresh }: Props) {
+  function downloadOutput(job: DataJob) {
+    if (!job.outputFileUrl) return;
+
+    if (job.outputFileUrl.startsWith("factory1-local-export://")) {
+      const file = getLocalExportFile(job.outputFileUrl);
+
+      if (!file) {
+        alert("This exported file is no longer available in this browser.");
+        return;
+      }
+
+      downloadCsv({
+        fileName: file.fileName,
+        content: file.content,
+        mimeType: file.mimeType,
+      });
+      return;
+    }
+
+    window.open(job.outputFileUrl, "_blank", "noopener,noreferrer");
+  }
+
   return (
     <div className="rounded-xl border bg-card">
       <div className="flex items-center justify-between border-b p-4">
@@ -135,11 +161,9 @@ export function ImportExportTable({ jobs, isLoading, onRefresh }: Props) {
 
                     <DropdownMenuContent align="end">
                       {job.outputFileUrl && (
-                        <DropdownMenuItem asChild>
-                          <a href={job.outputFileUrl} download>
+                        <DropdownMenuItem onClick={() => downloadOutput(job)}>
                           <Download className="mr-2 h-4 w-4" />
                           Download Output
-                          </a>
                         </DropdownMenuItem>
                       )}
 
@@ -154,7 +178,7 @@ export function ImportExportTable({ jobs, isLoading, onRefresh }: Props) {
 
                       {!job.outputFileUrl && !job.errorFileUrl && (
                         <DropdownMenuItem disabled>
-                          No files available
+                          No file captured
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>
