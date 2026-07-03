@@ -99,6 +99,12 @@ export function LoginForm() {
           </div>
 
           <p className="mt-6 text-center text-sm text-slate-500">
+            <Link href="/forgot-password" className="font-medium text-blue-600">
+              Forgot password?
+            </Link>
+          </p>
+
+          <p className="mt-3 text-center text-sm text-slate-500">
             New to Factory1?{" "}
             <Link href="/signup" className="font-medium text-blue-600">
               Create organization
