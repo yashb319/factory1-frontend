@@ -1,10 +1,12 @@
 export type UserRole = "OWNER" | "ADMIN" | "FINANCE" | "MANAGEMENT";
+export type UserStatus = "ACTIVE" | "INACTIVE";
 
 export type AuthUser = {
   id: string;
   name: string;
   email: string;
   role: UserRole;
+  status: UserStatus;
   organizationId: string;
 };
 
