@@ -4,9 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Factory } from "lucide-react";
 import { navigationItems } from "@/config/navigation";
+import { useAppSelector } from "@/lib/hook";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const user = useAppSelector((state) => state.auth.user);
+
+  const items = navigationItems.filter(
+    (item) => !user?.role || item.roles.includes(user.role)
+  );
 
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 border-r bg-slate-950 text-white lg:block">
@@ -22,7 +28,7 @@ export function Sidebar() {
       </div>
 
       <nav className="space-y-1 px-3 py-4">
-        {navigationItems.map((item) => {
+        {items.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;
 

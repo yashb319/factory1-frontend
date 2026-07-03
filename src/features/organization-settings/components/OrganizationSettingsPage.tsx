@@ -1,4 +1,5 @@
 import { OrganizationSettingsForm } from "@/features/organization-settings/components/OrganizationSettingsForm";
+import { AccessManagementPanel } from "@/features/access/components/AccessManagementPanel";
 
 export default function OrganizationSettingsPage() {
   return (
@@ -13,6 +14,7 @@ export default function OrganizationSettingsPage() {
       </div>
 
       <OrganizationSettingsForm />
+      <AccessManagementPanel />
     </div>
   );
 }
