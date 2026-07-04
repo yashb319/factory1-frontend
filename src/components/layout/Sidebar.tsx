@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, Factory } from "lucide-react";
-import { navigationItems } from "@/config/navigation";
+import { canAccessNavigationItem, navigationItems } from "@/config/navigation";
 import { useAppSelector } from "@/lib/hook";
 import { cn } from "@/lib/utils";
 import {
@@ -29,8 +29,8 @@ export function Sidebar({
   const pathname = usePathname();
   const user = useAppSelector((state) => state.auth.user);
 
-  const items = navigationItems.filter(
-    (item) => !user?.role || item.roles.includes(user.role)
+  const items = navigationItems.filter((item) =>
+    canAccessNavigationItem(item, user)
   );
 
   return (

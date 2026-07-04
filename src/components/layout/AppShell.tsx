@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FactoryWalkthrough } from "@/components/help/FactoryWalkthrough";
 import { FloatingAssistant } from "@/features/ai/components/FloatingAssistant";
+import { useAppSelector } from "@/lib/hook";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export function AppShell({ children }: Props) {
+  const user = useAppSelector((state) => state.auth.user);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -31,8 +33,12 @@ export function AppShell({ children }: Props) {
         </main>
       </div>
 
-      <FactoryWalkthrough />
-      <FloatingAssistant />
+      {!user?.platformAdmin ? (
+        <>
+          <FactoryWalkthrough />
+          <FloatingAssistant />
+        </>
+      ) : null}
     </div>
   );
 }

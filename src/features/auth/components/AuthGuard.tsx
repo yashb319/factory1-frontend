@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAppSelector } from "@/lib/hook";
 
 type AuthGuardProps = {
@@ -10,7 +10,9 @@ type AuthGuardProps = {
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const token = useAppSelector((state) => state.auth.token);
+  const user = useAppSelector((state) => state.auth.user);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -26,8 +28,13 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
     if (!token) {
       router.replace("/login");
+      return;
     }
-  }, [mounted, token, router]);
+
+    if (user?.platformAdmin && pathname !== "/saas-admin") {
+      router.replace("/saas-admin");
+    }
+  }, [mounted, pathname, token, user?.platformAdmin, router]);
 
   if (!mounted || !token) {
     return null;

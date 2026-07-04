@@ -19,7 +19,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { startFactoryWalkthrough } from "@/components/help/FactoryWalkthrough";
 import { logout } from "@/features/auth/authSlice";
 import { useGetDashboardSummaryQuery } from "@/features/dashboard/api/dashboardApi";
-import { navigationItems } from "@/config/navigation";
+import { canAccessNavigationItem, navigationItems } from "@/config/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,14 +40,15 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
-  const role = user?.role;
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  const { data: dashboard } = useGetDashboardSummaryQuery();
+  const { data: dashboard } = useGetDashboardSummaryQuery(undefined, {
+    skip: Boolean(user?.platformAdmin),
+  });
 
   const searchableItems = useMemo(() => {
     const visibleNavigation = navigationItems
-      .filter((item) => !role || item.roles.includes(role))
+      .filter((item) => canAccessNavigationItem(item, user))
       .map((item) => ({
         title: item.title,
         href: item.href,
@@ -57,7 +58,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       }));
 
     return visibleNavigation;
-  }, [role]);
+  }, [user]);
 
   const filteredItems = useMemo(() => {
     const normalized = normalize(query);
@@ -479,6 +480,7 @@ const keywordsByHref: Record<string, string[]> = {
   "/import-export": ["import", "export", "csv", "history", "download"],
   "/ai": ["ai", "chat", "assistant", "question"],
   "/organization-settings": ["settings", "organization", "org", "access", "role", "user"],
+  "/saas-admin": ["saas", "admin", "factory", "plan", "pricing", "usage"],
 };
 
 const descriptionByHref: Record<string, string> = {
@@ -494,4 +496,5 @@ const descriptionByHref: Record<string, string> = {
   "/import-export": "View import and export history",
   "/ai": "Open full AI assistant chat",
   "/organization-settings": "Manage org settings and access",
+  "/saas-admin": "Manage factories, plans, pricing and usage",
 };

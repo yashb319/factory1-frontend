@@ -1,4 +1,9 @@
-export type UserRole = "OWNER" | "ADMIN" | "FINANCE" | "MANAGEMENT";
+export type UserRole =
+  | "OWNER"
+  | "ADMIN"
+  | "FINANCE"
+  | "MANAGEMENT"
+  | "SAAS_OWNER";
 export type UserStatus = "ACTIVE" | "INACTIVE";
 
 export type AuthUser = {
@@ -8,6 +13,7 @@ export type AuthUser = {
   role: UserRole;
   status: UserStatus;
   organizationId: string;
+  platformAdmin?: boolean;
 };
 
 export type AuthResponse = {
