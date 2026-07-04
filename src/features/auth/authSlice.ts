@@ -8,10 +8,14 @@ type AuthState = {
   user: AuthUser | null;
 };
 
+export const AUTH_TOKEN_STORAGE_KEY = "factory1_token";
+export const AUTH_USER_STORAGE_KEY = "factory1_user";
+export const AUTH_LAST_ACTIVITY_STORAGE_KEY = "factory1_last_activity_at";
+
 function getStoredUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
 
-  const rawUser = localStorage.getItem("factory1_user");
+  const rawUser = localStorage.getItem(AUTH_USER_STORAGE_KEY);
 
   if (!rawUser || rawUser === "undefined" || rawUser === "null") {
     return null;
@@ -20,7 +24,7 @@ function getStoredUser(): AuthUser | null {
   try {
     return JSON.parse(rawUser) as AuthUser;
   } catch {
-    localStorage.removeItem("factory1_user");
+    localStorage.removeItem(AUTH_USER_STORAGE_KEY);
     return null;
   }
 }
@@ -28,7 +32,7 @@ function getStoredUser(): AuthUser | null {
 const initialState: AuthState = {
   token:
     typeof window !== "undefined"
-      ? localStorage.getItem("factory1_token")
+      ? localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
       : null,
   user: getStoredUser(),
 };
@@ -44,15 +48,16 @@ const authSlice = createSlice({
       state.token = action.payload.token;
       state.user = action.payload.user ?? null;
 
-      localStorage.setItem("factory1_token", action.payload.token);
+      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, action.payload.token);
+      localStorage.setItem(AUTH_LAST_ACTIVITY_STORAGE_KEY, String(Date.now()));
 
       if (action.payload.user) {
         localStorage.setItem(
-          "factory1_user",
+          AUTH_USER_STORAGE_KEY,
           JSON.stringify(action.payload.user)
         );
       } else {
-        localStorage.removeItem("factory1_user");
+        localStorage.removeItem(AUTH_USER_STORAGE_KEY);
       }
     },
 
@@ -60,8 +65,9 @@ const authSlice = createSlice({
       state.token = null;
       state.user = null;
 
-      localStorage.removeItem("factory1_token");
-      localStorage.removeItem("factory1_user");
+      localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+      localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+      localStorage.removeItem(AUTH_LAST_ACTIVITY_STORAGE_KEY);
     },
   },
 });

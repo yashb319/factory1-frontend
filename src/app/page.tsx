@@ -3,13 +3,21 @@ import {
   Bot,
   CalendarCheck,
   CheckCircle2,
+  Clock,
+  IndianRupee,
+  Mail,
+  MapPin,
   Factory,
   FileText,
   Package,
+  ShieldCheck,
   Users,
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PublicPricingCards } from "@/features/public-pricing/components/PublicPricingCards";
+
+const contactEmail = "official.factory.one@gmail.com";
 
 const features = [
   {
@@ -44,6 +52,14 @@ const features = [
   },
 ];
 
+const terms = [
+  "Factory1 is provided as a SaaS platform for factory operations management and business workflow digitization.",
+  "Customers are responsible for the correctness of employee, payroll, inventory, billing and tax data entered in the system.",
+  "AI responses are designed to assist decision-making, but final business, payroll, GST and compliance decisions should be verified by the factory team or advisor.",
+  "Plan limits, AI quotas, feature availability and pricing may change based on usage, infrastructure cost and commercial agreements.",
+  "Factory1 aims to protect customer data with authenticated access, role-based permissions and secure cloud deployment practices.",
+];
+
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-slate-50">
@@ -68,6 +84,12 @@ export default function LandingPage() {
             </a>
             <a href="#pricing" className="hover:text-slate-950">
               Pricing
+            </a>
+            <a href="#terms" className="hover:text-slate-950">
+              Terms
+            </a>
+            <a href="#contact" className="hover:text-slate-950">
+              Contact
             </a>
           </nav>
 
@@ -210,28 +232,143 @@ export default function LandingPage() {
       </section>
 
       <section id="pricing" className="mx-auto max-w-7xl px-6 py-16">
-        <div className="rounded-3xl border bg-slate-950 p-8 text-white md:p-10">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="max-w-2xl">
-            <h2 className="text-3xl font-semibold tracking-tight">
-              Start your pilot with Factory1.
-            </h2>
-            <p className="mt-3 text-slate-400">
-              Built for early factory testing. Start with core modules and grow
-              as your operations move online.
-            </p>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Button size="lg" asChild>
-                <Link href="/signup">Create organization</Link>
-              </Button>
-
-              <Button size="lg" variant="secondary" asChild>
-                <Link href="/login">Login</Link>
-              </Button>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-sm text-slate-600">
+              <IndianRupee size={15} className="text-blue-600" />
+              Flexible SaaS plans
             </div>
+            <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+              Start free, then scale with your factory.
+            </h2>
+            <p className="mt-3 text-slate-600">
+              Plans are based on employee count and hosted AI usage. Pricing can
+              be finalized after understanding your factory size and rollout
+              needs.
+            </p>
+          </div>
+
+          <Button size="lg" asChild>
+            <Link href="/signup">Start free</Link>
+          </Button>
+        </div>
+
+        <PublicPricingCards />
+      </section>
+
+      <section id="terms" className="border-y bg-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[0.85fr_1.15fr]">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-slate-50 px-3 py-1 text-sm text-slate-600">
+              <ShieldCheck size={15} className="text-green-700" />
+              Terms and conditions
+            </div>
+            <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+              Clear operating terms for factory teams.
+            </h2>
+            <p className="mt-3 text-slate-600">
+              These public terms summarize expected use of Factory1. Detailed
+              commercial terms can be shared during onboarding.
+            </p>
+          </div>
+
+          <div className="grid gap-3">
+            {terms.map((term) => (
+              <div key={term} className="rounded-xl border bg-slate-50 p-4">
+                <p className="text-sm leading-6 text-slate-700">{term}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
+
+      <section id="contact" className="mx-auto max-w-7xl px-6 py-16">
+        <div className="grid gap-5 lg:grid-cols-3">
+          <div className="lg:col-span-1">
+            <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+              Contact Factory1
+            </h2>
+            <p className="mt-3 text-slate-600">
+              Reach out for onboarding, pricing, product questions or support.
+            </p>
+          </div>
+
+          <ContactCard
+            icon={Mail}
+            title="Email"
+            text={contactEmail}
+            href={`mailto:${contactEmail}`}
+          />
+          <ContactCard icon={Clock} title="Response time" text="Within 24 hours" />
+          <ContactCard icon={MapPin} title="Made in" text="Bangalore, India" />
+          <ContactCard
+            icon={ShieldCheck}
+            title="Best for"
+            text="SME factories digitizing operations"
+          />
+          <ContactCard
+            icon={Bot}
+            title="AI support"
+            text="Factory data assistance with role-based access"
+          />
+        </div>
+      </section>
+
+      <footer className="border-t bg-slate-950 text-white">
+        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 md:grid-cols-[1.2fr_0.8fr_0.8fr]">
+          <div>
+            <Link href="/" className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-950">
+                <Factory size={20} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Factory1</p>
+                <p className="text-xs text-slate-400">Operations OS</p>
+              </div>
+            </Link>
+            <p className="mt-4 max-w-md text-sm leading-6 text-slate-400">
+              Factory1 helps factories manage people, inventory, billing,
+              production and AI insights from one practical SaaS workspace.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold">Company</h3>
+            <div className="mt-4 grid gap-3 text-sm text-slate-400">
+              <a href="#features" className="hover:text-white">
+                Features
+              </a>
+              <a href="#pricing" className="hover:text-white">
+                Pricing
+              </a>
+              <a href="#terms" className="hover:text-white">
+                Terms
+              </a>
+              <a href="#contact" className="hover:text-white">
+                Contact
+              </a>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold">Support</h3>
+            <div className="mt-4 grid gap-3 text-sm text-slate-400">
+              <a href={`mailto:${contactEmail}`} className="hover:text-white">
+                {contactEmail}
+              </a>
+              <span>Response time: 24 hours</span>
+              <span>Made in Bangalore</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-white/10 px-6 py-4">
+          <div className="mx-auto flex max-w-7xl flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+            <span>© 2026 Factory1. All rights reserved.</span>
+            <span>Built for Indian manufacturing teams.</span>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
@@ -252,4 +389,36 @@ function WhyCard({ title, text }: { title: string; text: string }) {
       <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
     </div>
   );
+}
+
+function ContactCard({
+  icon: Icon,
+  title,
+  text,
+  href,
+}: {
+  icon: typeof Mail;
+  title: string;
+  text: string;
+  href?: string;
+}) {
+  const content = (
+    <div className="rounded-2xl border bg-white p-6 shadow-sm">
+      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+        <Icon size={21} />
+      </div>
+      <h3 className="font-semibold text-slate-950">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
+    </div>
+  );
+
+  if (href) {
+    return (
+      <a href={href} className="block focus:outline-none focus:ring-2 focus:ring-slate-950">
+        {content}
+      </a>
+    );
+  }
+
+  return content;
 }
