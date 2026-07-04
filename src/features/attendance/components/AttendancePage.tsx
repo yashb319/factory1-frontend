@@ -3,7 +3,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarCheck, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useGetAttendanceQuery } from "../api/attendanceApi";
@@ -12,7 +12,6 @@ import { AttendanceStatsCards } from "./AttendanceStatsCards";
 import { AttendanceFilters } from "./AttendanceFilters";
 import { AttendanceTable } from "./AttendanceTable";
 import { MarkAttendanceDialog } from "./MarkAttendanceDialog";
-import { AttendanceAiInsights } from "./AttendanceAiInsights";
 import { DailyAttendanceRegister } from "./DailyAttendanceRegister";
 
 export function AttendancePage() {
@@ -57,8 +56,6 @@ export function AttendancePage() {
       </div>
 
       <AttendanceStatsCards />
-
-      <AttendanceAiInsights />
 
       <DailyAttendanceRegister />
 

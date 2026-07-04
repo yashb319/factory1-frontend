@@ -8,7 +8,6 @@ import { useEmployeeFilters } from "../hooks/useEmployeeFilters";
 import { Employee } from "../types/employee.types";
 import { EmployeeFilters } from "./EmployeeFilters";
 import { EmployeeExportMenu } from "./EmployeeExportMenu";
-import { EmployeeAiInsights } from "./EmployeeAiInsights";
 import { EmployeeTable } from "./EmployeeTable";
 import { EmployeePagination } from "./EmployeePagination";
 import { AddEmployeeDrawer } from "./AddEmployeeDrawer";
@@ -52,8 +51,6 @@ export function EmployeesPage() {
           </Button>
         </div>
       </div>
-
-      <EmployeeAiInsights employees={data?.content ?? []} />
 
       <EmployeeFilters filters={filters} onChange={updateFilters} />
 

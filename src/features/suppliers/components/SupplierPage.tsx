@@ -6,13 +6,11 @@ import { Button } from "@/components/ui/button";
 import {
   useDeleteSupplierMutation,
   useGetSupplierDashboardQuery,
-  useGetSupplierInsightsQuery,
   useGetSuppliersQuery,
 } from "../api/supplierApi";
 import type { Supplier, SupplierSearchParams } from "../types/supplier.types";
 import { exportSuppliersCsv } from "../utils/supplierExport";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
-import { SupplierAiInsights } from "./SupplierAiInsights";
 import { SupplierBulkImportDialog } from "./SupplierBulkImportDialog";
 import { SupplierConfirmDialog } from "./SupplierConfirmDialog";
 import { SupplierDashboardCards } from "./SupplierDashboardCards";
@@ -36,9 +34,6 @@ export function SupplierPage() {
   const { data, isLoading } = useGetSuppliersQuery(filters);
   const { data: dashboard, isLoading: dashboardLoading } =
     useGetSupplierDashboardQuery();
-  const { data: insights, isLoading: insightsLoading } =
-    useGetSupplierInsightsQuery();
-
   const [deleteSupplier, deleteState] = useDeleteSupplierMutation();
   const logDataJob = useLogDataJob();
 
@@ -120,8 +115,6 @@ export function SupplierPage() {
       </div>
 
       <SupplierDashboardCards data={dashboard} isLoading={dashboardLoading} />
-
-      <SupplierAiInsights insights={insights} isLoading={insightsLoading} />
 
       <SupplierFilters filters={filters} onChange={setFilters} />
 

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   useDeleteCustomerMutation,
   useGetCustomerDashboardQuery,
-  useGetCustomerInsightsQuery,
   useGetCustomersQuery,
 } from "../api/customerApi";
 import type {
@@ -15,7 +14,6 @@ import type {
 } from "../types/customer.types";
 import { exportCustomersCsv } from "../utils/customerExport";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
-import { CustomerAiInsights } from "./CustomerAiInsights";
 import { CustomerBulkImportDialog } from "./CustomerBulkImportDialog";
 import { CustomerConfirmDialog } from "./CustomerConfirmDialog";
 import { CustomerDashboardCards } from "./CustomerDashboardCards";
@@ -42,9 +40,6 @@ export function CustomerPage() {
 
   const { data: dashboard, isLoading: dashboardLoading } =
     useGetCustomerDashboardQuery();
-
-  const { data: insights, isLoading: insightsLoading } =
-    useGetCustomerInsightsQuery();
 
   const [deleteCustomer, deleteState] = useDeleteCustomerMutation();
   const logDataJob = useLogDataJob();
@@ -131,8 +126,6 @@ export function CustomerPage() {
         data={dashboard}
         isLoading={dashboardLoading}
       />
-
-      <CustomerAiInsights insights={insights} isLoading={insightsLoading} />
 
       <CustomerFilters filters={filters} onChange={setFilters} />
 

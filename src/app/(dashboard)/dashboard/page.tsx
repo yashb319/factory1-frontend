@@ -14,7 +14,6 @@ import { AppPage } from "@/components/common/AppPage";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageSection } from "@/components/common/PageSection";
 import { StatCard } from "@/components/cards/StatCard";
-import { AIInsightCard } from "@/components/cards/AIInsightCard";
 import { useGetDashboardSummaryQuery } from "@/features/dashboard/api/dashboardApi";
 
 export default function DashboardPage() {
@@ -87,7 +86,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-6">
         <PageSection
           title="Recent Activity"
           description="Latest operational signals from your factory"
@@ -101,8 +100,6 @@ export default function DashboardPage() {
             )}
           </div>
         </PageSection>
-
-        <AIInsightCard insights={data?.insights ?? []} />
       </div>
     </AppPage>
   );
