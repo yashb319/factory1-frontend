@@ -14,7 +14,6 @@ import type {
 } from "../types/inventory.types";
 import { exportInventoryCsv } from "../utils/inventoryExport";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
-import { InventoryAiInsights } from "./InventoryAiInsights";
 import { InventoryBulkImportDialog } from "./InventoryBulkImportDialog";
 import { InventoryConfirmDialog } from "./InventoryConfirmDialog";
 import { InventoryDashboardCards } from "./InventoryDashboardCards";
@@ -137,8 +136,6 @@ export function InventoryPage() {
       </div>
 
       <InventoryDashboardCards data={dashboard} isLoading={dashboardLoading} />
-
-      <InventoryAiInsights items={items} />
 
       <InventoryFilters filters={filters} onChange={setFilters} />
 

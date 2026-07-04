@@ -28,7 +28,6 @@ import { exportPayrollCsv } from "../utils/payrollExport.utils";
 import { downloadAllPayslipsZip } from "../utils/payrollPayslipDownload.utils";
 
 import { PayrollStatusChip } from "./PayrollStatusChip";
-import { PayrollAiInsights } from "./PayrollAiInsights";
 import { PayrollPayslipDialog } from "./PayrollPayslipDialog";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 
@@ -111,8 +110,6 @@ export function PayrollDetailsDialog({
                   {downloadingAll ? "Preparing..." : "Download All Payslips"}
                 </Button>
               </div>
-
-              <PayrollAiInsights payroll={data} />
 
               <div className="grid gap-4 md:grid-cols-4">
                 <Card label="Payroll Month">
