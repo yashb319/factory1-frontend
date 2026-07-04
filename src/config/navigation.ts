@@ -11,15 +11,17 @@ import {
   Settings,
   FileSpreadsheet,
   PackageCheck,
+  ShieldCheck,
 } from "lucide-react";
 import type { ComponentType } from "react";
-import type { UserRole } from "@/features/auth/types";
+import type { AuthUser, UserRole } from "@/features/auth/types";
 
 type NavigationItem = {
   title: string;
   href: string;
   icon: ComponentType<{ size?: number; className?: string }>;
   roles: UserRole[];
+  platformAdminOnly?: boolean;
 };
 
 const allRoles: UserRole[] = ["OWNER", "ADMIN", "FINANCE", "MANAGEMENT"];
@@ -54,5 +56,27 @@ export const navigationItems: NavigationItem[] = [
     icon: Settings,
     roles: ["OWNER", "ADMIN"],
   },
+  {
+    title: "SaaS Admin",
+    href: "/saas-admin",
+    icon: ShieldCheck,
+    roles: ["SAAS_OWNER"],
+    platformAdminOnly: true,
+  },
 
 ];
+
+export function canAccessNavigationItem(
+  item: NavigationItem,
+  user: AuthUser | null
+) {
+  if (item.platformAdminOnly) {
+    return Boolean(user?.platformAdmin);
+  }
+
+  if (user?.platformAdmin) {
+    return false;
+  }
+
+  return !user?.role || item.roles.includes(user.role);
+}

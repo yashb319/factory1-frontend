@@ -35,7 +35,7 @@ export function LoginForm() {
       })
     );
 
-    router.push("/dashboard");
+    router.push(response.user?.platformAdmin ? "/saas-admin" : "/dashboard");
   }
 
   return (

@@ -72,6 +72,7 @@ export const baseApi = createApi({
     "Billing",
     "ImportExport",
     "Dashboard",
+    "SaasAdmin",
   ],
 
   endpoints: () => ({}),
