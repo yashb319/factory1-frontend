@@ -93,7 +93,7 @@ export function SignupForm() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-lg rounded-2xl border bg-white p-8 shadow-sm">
-        <div className="mb-8 flex items-center gap-3">
+        <Link href="/" className="mb-8 flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-slate-950">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
             <Factory size={22} />
           </div>
@@ -102,7 +102,7 @@ export function SignupForm() {
             <h1 className="text-lg font-semibold">Factory1</h1>
             <p className="text-sm text-slate-500">Create your workspace</p>
           </div>
-        </div>
+        </Link>
 
         <h2 className="text-2xl font-semibold text-slate-950">
           Signup your organization

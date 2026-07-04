@@ -41,7 +41,7 @@ export function LoginForm() {
   return (
     <main className="flex min-h-screen bg-slate-50">
       <section className="hidden flex-1 bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
-        <div className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-white/70">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
             <Factory size={22} />
           </div>
@@ -49,7 +49,7 @@ export function LoginForm() {
             <h1 className="text-lg font-semibold">Factory1</h1>
             <p className="text-sm text-slate-400">Run your factory smarter.</p>
           </div>
-        </div>
+        </Link>
 
         <div>
           <h2 className="max-w-lg text-4xl font-semibold tracking-tight">
