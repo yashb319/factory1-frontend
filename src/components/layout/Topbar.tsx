@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Bell,
   CalendarCheck,
   FileText,
   HelpCircle,
+  Keyboard,
   LogOut,
   Menu,
   Package,
@@ -21,11 +22,16 @@ import { logout } from "@/features/auth/authSlice";
 import { useGetDashboardSummaryQuery } from "@/features/dashboard/api/dashboardApi";
 import { canAccessNavigationItem, navigationItems } from "@/config/navigation";
 import {
+  openShortcutsMenuEvent,
+  visibleShortcuts,
+} from "@/config/shortcuts";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAppDispatch, useAppSelector } from "@/lib/hook";
@@ -42,9 +48,21 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const user = useAppSelector((state) => state.auth.user);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { data: dashboard } = useGetDashboardSummaryQuery(undefined, {
     skip: Boolean(user?.platformAdmin),
   });
+
+  useEffect(() => {
+    function openShortcuts() {
+      setShortcutsOpen(true);
+    }
+
+    window.addEventListener(openShortcutsMenuEvent, openShortcuts);
+
+    return () =>
+      window.removeEventListener(openShortcutsMenuEvent, openShortcuts);
+  }, []);
 
   const searchableItems = useMemo(() => {
     const visibleNavigation = navigationItems
@@ -80,6 +98,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
     () => buildNotifications(dashboard),
     [dashboard]
   );
+
+  const shortcuts = useMemo(() => visibleShortcuts(user), [user]);
 
   const unreadCount = notifications.filter(
     (notification) => notification.tone !== "good"
@@ -165,6 +185,55 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           <Search size={18} />
         </button>
 
+        <DropdownMenu open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
+          <DropdownMenuTrigger className="hidden items-center gap-2 rounded-lg border px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 md:flex">
+            <Keyboard size={16} />
+            <span>Shortcuts</span>
+            <kbd className="rounded border bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+              F1
+            </kbd>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent align="end" className="w-96">
+            <DropdownMenuLabel>
+              <div>
+                <p className="text-sm font-medium">Tally-Style Shortcuts</p>
+                <p className="text-xs text-muted-foreground">
+                  Press function keys anywhere after login for quick access.
+                </p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+
+            {shortcuts.map((shortcut) => (
+              <DropdownMenuItem
+                key={`${shortcut.key}-${shortcut.title}`}
+                className="items-start gap-3 px-2 py-2"
+                onClick={() => {
+                  if (shortcut.href) {
+                    router.push(shortcut.href);
+                  }
+                }}
+              >
+                <kbd className="mt-0.5 min-w-10 rounded border bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-700">
+                  {shortcut.key}
+                </kbd>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium">
+                    {shortcut.title}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Tally: {shortcut.tallyHint} | {shortcut.description}
+                  </span>
+                </span>
+                <DropdownMenuShortcut>
+                  {shortcut.opensMenu ? "Menu" : "Go"}
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <DropdownMenu>
           <DropdownMenuTrigger className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100">
             <Bell size={18} />
@@ -249,21 +318,25 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem
-              onSelect={() => {
-                window.setTimeout(startFactoryWalkthrough, 0);
-              }}
-            >
-              <HelpCircle className="mr-2 h-4 w-4" />
-              Product Walkthrough
-            </DropdownMenuItem>
+            {!user?.platformAdmin ? (
+              <>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    window.setTimeout(startFactoryWalkthrough, 0);
+                  }}
+                >
+                  <HelpCircle className="mr-2 h-4 w-4" />
+                  Product Walkthrough
+                </DropdownMenuItem>
 
-            <DropdownMenuItem
-              onClick={() => router.push("/organization-settings")}
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              Organization Settings
-            </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push("/organization-settings")}
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  Organization Settings
+                </DropdownMenuItem>
+              </>
+            ) : null}
 
             <DropdownMenuItem
               onClick={handleLogout}
