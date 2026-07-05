@@ -16,8 +16,10 @@
     "mobile:sync": "npm run build && npx cap sync",
     "mobile:open:android": "npx cap open android",
     "mobile:open:ios": "npx cap open ios",
-    "mobile:build:android:debug": "npm run mobile:sync && cd android && ./gradlew assembleDebug",
-    "mobile:build:android:release": "npm run mobile:sync && cd android && ./gradlew bundleRelease",
+    "mobile:ensure-gradle": "node scripts/ensure-gradle-wrapper.js",
+    "mobile:check:android": "node scripts/check-android-sdk.js",
+    "mobile:build:android:debug": "npm run mobile:sync && npm run mobile:ensure-gradle && npm run mobile:check:android && node scripts/run-android-gradle.js assembleDebug",
+    "mobile:build:android:release": "npm run mobile:sync && npm run mobile:ensure-gradle && npm run mobile:check:android && node scripts/run-android-gradle.js bundleRelease",
     "mobile:copy:android:debug": "mkdir -p release/mobile && cp android/app/build/outputs/apk/debug/app-debug.apk release/mobile/Factory1-android-debug.apk"
   },
   "build": {
