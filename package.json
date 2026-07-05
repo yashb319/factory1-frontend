@@ -2,13 +2,60 @@
   "name": "factory1-ui-v2",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "desktop:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:3000/login && electron .\"",
+    "desktop:start": "electron .",
+    "desktop:pack": "npm run build && electron-builder",
+    "desktop:pack:mac": "npm run build && electron-builder --mac",
+    "desktop:pack:win": "npm run build && electron-builder --win",
+    "mobile:sync": "npm run build && npx cap sync",
+    "mobile:open:android": "npx cap open android",
+    "mobile:open:ios": "npx cap open ios",
+    "mobile:build:android:debug": "npm run mobile:sync && cd android && ./gradlew assembleDebug",
+    "mobile:build:android:release": "npm run mobile:sync && cd android && ./gradlew bundleRelease",
+    "mobile:copy:android:debug": "mkdir -p release/mobile && cp android/app/build/outputs/apk/debug/app-debug.apk release/mobile/Factory1-android-debug.apk"
+  },
+  "build": {
+    "appId": "com.factory1.desktop",
+    "productName": "Factory1",
+    "directories": {
+      "output": "release"
+    },
+    "artifactName": "${productName}-${os}-${arch}.${ext}",
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Factory1"
+    }
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/filesystem": "^8.1.2",
     "@hookform/resolvers": "^5.4.0",
     "@reduxjs/toolkit": "^2.12.0",
     "@tanstack/react-table": "^8.21.3",
@@ -38,13 +85,20 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^10.0.3",
+    "electron": "^43.0.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^9.0.10"
   }
 }

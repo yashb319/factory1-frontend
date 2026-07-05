@@ -19,6 +19,7 @@
 
 # production
 /build
+/release
 
 # misc
 .DS_Store
@@ -39,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# native app build outputs
+android/app/build/
+android/.gradle/
+ios/App/build/
+ios/DerivedData/

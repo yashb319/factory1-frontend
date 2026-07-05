@@ -1,10 +1,14 @@
 import Link from "next/link";
 import {
+  Apple,
   Bot,
   CalendarCheck,
   CheckCircle2,
   Clock,
+  Download,
+  Smartphone,
   IndianRupee,
+  Laptop,
   Mail,
   MapPin,
   Factory,
@@ -13,11 +17,24 @@ import {
   ShieldCheck,
   Users,
   Wallet,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PublicPricingCards } from "@/features/public-pricing/components/PublicPricingCards";
 
 const contactEmail = "official.factory.one@gmail.com";
+const macDownloadUrl =
+  process.env.NEXT_PUBLIC_FACTORY1_MAC_DOWNLOAD_URL ??
+  "https://github.com/yashb319/factory1-frontend/releases/latest/download/Factory1-mac-arm64.dmg";
+const windowsDownloadUrl =
+  process.env.NEXT_PUBLIC_FACTORY1_WINDOWS_DOWNLOAD_URL ??
+  "https://github.com/yashb319/factory1-frontend/releases/latest/download/Factory1-win-x64.exe";
+const androidDownloadUrl =
+  process.env.NEXT_PUBLIC_FACTORY1_ANDROID_DOWNLOAD_URL ??
+  "https://github.com/yashb319/factory1-frontend/releases/latest/download/Factory1-android.apk";
+const iosDownloadUrl =
+  process.env.NEXT_PUBLIC_FACTORY1_IOS_DOWNLOAD_URL ??
+  "https://github.com/yashb319/factory1-frontend/releases/latest/download/Factory1-ios-project.zip";
 
 const features = [
   {
@@ -84,6 +101,9 @@ export default function LandingPage() {
             </a>
             <a href="#pricing" className="hover:text-slate-950">
               Pricing
+            </a>
+            <a href="#desktop" className="hover:text-slate-950">
+              Apps
             </a>
             <a href="#terms" className="hover:text-slate-950">
               Terms
@@ -256,6 +276,71 @@ export default function LandingPage() {
         <PublicPricingCards />
       </section>
 
+      <section id="desktop" className="border-y bg-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[0.9fr_1.1fr]">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-slate-50 px-3 py-1 text-sm text-slate-600">
+              <Smartphone size={15} className="text-blue-600" />
+              Apps
+            </div>
+            <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+              Use Factory1 on desktop and mobile.
+            </h2>
+            <p className="mt-3 text-slate-600">
+              Install Factory1 on Windows, macOS, Android or iOS and open
+              directly from the login screen. The apps connect to the live
+              Factory1 cloud workspace, so UI and backend improvements arrive
+              automatically after deployment.
+            </p>
+            <div className="mt-6 grid gap-3 text-sm text-slate-600">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-green-600" />
+                Opens directly on the login screen
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-green-600" />
+                Works with your existing Factory1 account
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-green-600" />
+                No local database or Java setup needed
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            <DownloadCard
+              icon={Laptop}
+              title="Windows"
+              text="Installer for Windows 10 and 11 desktops."
+              href={windowsDownloadUrl}
+              buttonLabel="Download for Windows"
+            />
+            <DownloadCard
+              icon={Apple}
+              title="macOS"
+              text="DMG installer for Apple Silicon Macs."
+              href={macDownloadUrl}
+              buttonLabel="Download for Mac"
+            />
+            <DownloadCard
+              icon={Smartphone}
+              title="Android"
+              text="APK for Android phones and tablets."
+              href={androidDownloadUrl}
+              buttonLabel="Download Android APK"
+            />
+            <DownloadCard
+              icon={Apple}
+              title="iPhone and iPad"
+              text="iOS project package for Apple signing, TestFlight and App Store release."
+              href={iosDownloadUrl}
+              buttonLabel="Download iOS package"
+            />
+          </div>
+        </div>
+      </section>
+
       <section id="terms" className="border-y bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[0.85fr_1.15fr]">
           <div>
@@ -341,6 +426,9 @@ export default function LandingPage() {
               <a href="#pricing" className="hover:text-white">
                 Pricing
               </a>
+              <a href="#desktop" className="hover:text-white">
+                Apps
+              </a>
               <a href="#terms" className="hover:text-white">
                 Terms
               </a>
@@ -397,7 +485,7 @@ function ContactCard({
   text,
   href,
 }: {
-  icon: typeof Mail;
+  icon: LucideIcon;
   title: string;
   text: string;
   href?: string;
@@ -421,4 +509,35 @@ function ContactCard({
   }
 
   return content;
+}
+
+function DownloadCard({
+  icon: Icon,
+  title,
+  text,
+  href,
+  buttonLabel,
+}: {
+  icon: LucideIcon;
+  title: string;
+  text: string;
+  href: string;
+  buttonLabel: string;
+}) {
+  return (
+    <div className="flex min-h-[260px] flex-col rounded-2xl border bg-slate-50 p-6">
+      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-white text-slate-700">
+        <Icon size={21} />
+      </div>
+      <h3 className="font-semibold text-slate-950">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
+
+      <Button className="mt-auto" asChild>
+        <a href={href}>
+          <Download size={16} />
+          {buttonLabel}
+        </a>
+      </Button>
+    </div>
+  );
 }
