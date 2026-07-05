@@ -33,6 +33,26 @@ npm run mobile:open:ios
 npm run mobile:build:android:debug
 ```
 
+Android local builds require Android Studio and Android SDK. On macOS:
+
+1. Install Android Studio.
+2. Open Android Studio once.
+3. Install Android SDK Platform, Platform-Tools and Build-Tools.
+4. Confirm the SDK exists at:
+
+```text
+~/Library/Android/sdk
+```
+
+If your SDK is somewhere else, set:
+
+```bash
+export ANDROID_HOME="/path/to/Android/sdk"
+export PATH="$ANDROID_HOME/platform-tools:$PATH"
+```
+
+Without Android Studio/SDK, `npm run mobile:open:android` and APK builds cannot run locally.
+
 The Android debug APK can be copied to:
 
 ```bash
