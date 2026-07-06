@@ -5,6 +5,7 @@ import {
   Wallet,
   Package,
   FileText,
+  Landmark,
   Truck,
   UserRound,
   Bot,
@@ -41,6 +42,7 @@ export const navigationItems: NavigationItem[] = [
     roles: operationsRoles,
   },
   { title: "Billing", href: "/billing", icon: FileText, roles: financeRoles },
+  { title: "Accounting", href: "/accounting", icon: Landmark, roles: financeRoles },
   { title: "Suppliers", href: "/suppliers", icon: Truck, roles: operationsRoles },
   { title: "Customers", href: "/customers", icon: UserRound, roles: financeRoles },
   {

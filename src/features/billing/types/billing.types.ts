@@ -93,3 +93,31 @@ export type GstRateSuggestion = {
   source: string;
   sourceUrl: string;
 };
+
+export type GstReportRow = {
+  billNumber: string;
+  type: BillType;
+  billDate: string;
+  partyName: string;
+  partyGstNumber?: string | null;
+  taxableAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  grandTotal: number;
+};
+
+export type GstReport = {
+  fromDate: string;
+  toDate: string;
+  salesTaxableAmount: number;
+  salesCgstAmount: number;
+  salesSgstAmount: number;
+  salesIgstAmount: number;
+  purchaseTaxableAmount: number;
+  purchaseCgstAmount: number;
+  purchaseSgstAmount: number;
+  purchaseIgstAmount: number;
+  netGstPayable: number;
+  rows: GstReportRow[];
+};

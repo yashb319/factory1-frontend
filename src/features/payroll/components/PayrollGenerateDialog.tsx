@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { toast } from "sonner";
 
 import {
   Dialog,
@@ -45,18 +46,23 @@ export function PayrollGenerateDialog({
   });
 
   async function onSubmit(values: PayrollGenerateFormValues) {
-    const response = await generatePayroll({
-      month: Number(values.month),
-      year: Number(values.year),
-    }).unwrap();
+    try {
+      const response = await generatePayroll({
+        month: Number(values.month),
+        year: Number(values.year),
+      }).unwrap();
 
-    onGenerated?.(response.data.id);
-    onOpenChange(false);
+      toast.success("Payroll generated successfully");
+      onGenerated?.(response.data.id);
+      onOpenChange(false);
 
-    form.reset({
-      month: values.month,
-      year: values.year,
-    });
+      form.reset({
+        month: values.month,
+        year: values.year,
+      });
+    } catch (error) {
+      toast.error(errorMessage(error) ?? "Could not generate payroll");
+    }
   }
 
   return (
@@ -96,4 +102,18 @@ export function PayrollGenerateDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function errorMessage(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "data" in error
+  ) {
+    const data = (error as { data?: { message?: string } }).data;
+
+    return data?.message;
+  }
+
+  return null;
 }

@@ -4,6 +4,7 @@ import type {
   Bill,
   BillRequest,
   BillType,
+  GstReport,
   GstRateSuggestion,
   PageResponse,
 } from "../types/billing.types";
@@ -52,6 +53,16 @@ export const billingApi = baseApi.injectEndpoints({
         params: { query },
       }),
     }),
+
+    getGstReport: builder.query<
+      GstReport,
+      { fromDate: string; toDate: string }
+    >({
+      query: ({ fromDate, toDate }) => ({
+        url: "/api/billing/gst-report",
+        params: { fromDate, toDate },
+      }),
+    }),
   }),
 });
 
@@ -60,4 +71,5 @@ export const {
   useCreateBillMutation,
   useCancelBillMutation,
   useLazyGetGstSuggestionsQuery,
+  useLazyGetGstReportQuery,
 } = billingApi;

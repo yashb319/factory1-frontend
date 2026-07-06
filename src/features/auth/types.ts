@@ -24,6 +24,7 @@ export type AuthResponse = {
 export type LoginRequest = {
   email: string;
   password: string;
+  otp?: string;
 };
 
 export type SignupOrganizationRequest = {
@@ -32,9 +33,19 @@ export type SignupOrganizationRequest = {
   email: string;
   password: string;
   otp: string;
+  location: string;
+  industryType: string;
+  employeeCountEstimate: number;
+  gstNumber?: string;
+  businessType?: string;
+  state?: string;
 };
 
 export type SignupOtpRequest = {
+  email: string;
+};
+
+export type LoginOtpRequest = {
   email: string;
 };
 

@@ -11,6 +11,8 @@ type AuthState = {
 export const AUTH_TOKEN_STORAGE_KEY = "factory1_token";
 export const AUTH_USER_STORAGE_KEY = "factory1_user";
 export const AUTH_LAST_ACTIVITY_STORAGE_KEY = "factory1_last_activity_at";
+export const AUTH_LAST_LOGIN_EMAIL_STORAGE_KEY = "factory1_last_login_email";
+export const AUTH_LAST_LOGIN_NAME_STORAGE_KEY = "factory1_last_login_name";
 
 function getStoredUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
@@ -55,6 +57,14 @@ const authSlice = createSlice({
         localStorage.setItem(
           AUTH_USER_STORAGE_KEY,
           JSON.stringify(action.payload.user)
+        );
+        localStorage.setItem(
+          AUTH_LAST_LOGIN_EMAIL_STORAGE_KEY,
+          action.payload.user.email
+        );
+        localStorage.setItem(
+          AUTH_LAST_LOGIN_NAME_STORAGE_KEY,
+          action.payload.user.name
         );
       } else {
         localStorage.removeItem(AUTH_USER_STORAGE_KEY);

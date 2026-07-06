@@ -6,6 +6,7 @@ import { driver, type DriveStep, type PopoverDOM } from "driver.js";
 import { toast } from "sonner";
 
 const TOUR_STORAGE_PREFIX = "factory1-walkthrough-seen:";
+const GLOBAL_AUTO_TOUR_KEY = TOUR_STORAGE_PREFIX + "workspace";
 const TOUR_EVENT = "factory1:start-walkthrough";
 
 type ModuleTourConfig = {
@@ -65,6 +66,13 @@ const moduleTourConfigs: Record<string, ModuleTourConfig> = {
     workflow: "Choose Sales Bill to reduce stock for customers, or Supplier Bill to increase stock from vendors.",
     actions: "Use GST suggestions by HSN or item name, then post the bill. Recent bills appear on the right and can be exported.",
     ai: "Ask AI to find bills, summarize unpaid billing, compare sales and purchases or explain GST totals.",
+  },
+  "/accounting": {
+    name: "Accounting",
+    intro: "This module gives finance users party ledgers, receivables, payables and GST summaries from posted bills.",
+    workflow: "Choose a month or quarter range, review ledger balances, then export ledger or GST CSVs for CA review.",
+    actions: "Use Billing to post sales or supplier bills. Accounting reports update automatically from posted billing data.",
+    ai: "Ask AI for receivable risks, payable totals, GST payable or party ledger summaries within your finance access.",
   },
   "/customers": {
     name: "Customers",
@@ -289,14 +297,11 @@ export function FactoryWalkthrough() {
 
     window.addEventListener(TOUR_EVENT, start);
 
-    const routeStorageKey =
-      TOUR_STORAGE_PREFIX + pathname.replace(/[^a-z0-9/-]/gi, "_");
-
     const hasSeenTour =
-      window.localStorage.getItem(routeStorageKey) === "true";
+      window.localStorage.getItem(GLOBAL_AUTO_TOUR_KEY) === "true";
 
     if (!hasSeenTour) {
-      window.localStorage.setItem(routeStorageKey, "true");
+      window.localStorage.setItem(GLOBAL_AUTO_TOUR_KEY, "true");
       window.setTimeout(() => startWalkthrough(pathname), 700);
     }
 

@@ -27,6 +27,18 @@ const schema = z.object({
   timezone: z.string().min(1, "Required"),
   weekStartDay: z.string().min(1, "Required"),
   financialYearStartMonth: z.string().min(1, "Required"),
+  organizationName: z.string().min(2, "Required"),
+  location: z.string().optional(),
+  industryType: z.string().optional(),
+  employeeCountEstimate: z.number().optional(),
+  gstNumber: z
+    .string()
+    .optional()
+    .refine((value) => !value || /^[0-9A-Z]{15}$/.test(value.trim().toUpperCase()), {
+      message: "GST number must be 15 characters",
+    }),
+  businessType: z.string().optional(),
+  state: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -46,6 +58,13 @@ export function OrganizationSettingsForm() {
       timezone: "Asia/Kolkata",
       weekStartDay: "MONDAY",
       financialYearStartMonth: "4",
+      organizationName: "",
+      location: "",
+      industryType: "",
+      employeeCountEstimate: undefined,
+      gstNumber: "",
+      businessType: "MANUFACTURING",
+      state: "",
     },
   });
 
@@ -62,6 +81,13 @@ export function OrganizationSettingsForm() {
       financialYearStartMonth: String(
         data.data.financialYearStartMonth ?? 4
       ),
+      organizationName: data.data.organizationName ?? "",
+      location: data.data.location ?? "",
+      industryType: data.data.industryType ?? "",
+      employeeCountEstimate: data.data.employeeCountEstimate ?? undefined,
+      gstNumber: data.data.gstNumber ?? "",
+      businessType: data.data.businessType ?? "MANUFACTURING",
+      state: data.data.state ?? "",
     });
   }, [data, form]);
 
@@ -75,9 +101,16 @@ export function OrganizationSettingsForm() {
         timezone: values.timezone,
         weekStartDay: values.weekStartDay,
         financialYearStartMonth: Number(values.financialYearStartMonth),
+        organizationName: values.organizationName,
+        location: values.location,
+        industryType: values.industryType,
+        employeeCountEstimate: values.employeeCountEstimate,
+        gstNumber: values.gstNumber?.trim().toUpperCase(),
+        businessType: values.businessType,
+        state: values.state,
       }).unwrap();
       toast.success("Organization settings updated successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to update organization settings");
     }
   }
@@ -89,6 +122,74 @@ export function OrganizationSettingsForm() {
   return (
     <div className="rounded-2xl border bg-white p-6 shadow-sm">
       <AppForm form={form} onSubmit={onSubmit}>
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-slate-950">
+            Factory Profile
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            These details power onboarding, GST context, dashboard setup and AI answers.
+          </p>
+        </div>
+
+        <div className="mb-8 grid gap-4 md:grid-cols-2">
+          <TextField<FormValues>
+            name="organizationName"
+            label="Factory Name"
+            placeholder="ABC Manufacturing"
+            required
+          />
+
+          <TextField<FormValues>
+            name="location"
+            label="Factory Location"
+            placeholder="Peenya, Bengaluru"
+          />
+
+          <TextField<FormValues>
+            name="industryType"
+            label="Industry Type"
+            placeholder="Textile, fabrication, food processing"
+          />
+
+          <NumberField<FormValues>
+            name="employeeCountEstimate"
+            label="Employee Estimate"
+            min={1}
+          />
+
+          <TextField<FormValues>
+            name="gstNumber"
+            label="GST Number"
+            placeholder="Optional"
+          />
+
+          <SelectField<FormValues>
+            name="businessType"
+            label="Business Type"
+            options={[
+              { label: "Manufacturing", value: "MANUFACTURING" },
+              { label: "Trading", value: "TRADING" },
+              { label: "Job work", value: "JOB_WORK" },
+              { label: "Services", value: "SERVICES" },
+            ]}
+          />
+
+          <TextField<FormValues>
+            name="state"
+            label="State"
+            placeholder="Karnataka"
+          />
+        </div>
+
+        <div className="mb-6 border-t pt-6">
+          <h2 className="text-sm font-semibold text-slate-950">
+            Operations Settings
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Payroll and reporting defaults for this organization.
+          </p>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-2">
           <NumberField<FormValues>
             name="workingHoursPerDay"

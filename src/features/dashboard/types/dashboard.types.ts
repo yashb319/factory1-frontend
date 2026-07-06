@@ -18,4 +18,14 @@ export type DashboardSummary = {
   purchasesThisMonth: number;
   recentActivity: string[];
   insights: string[];
+  setupCompleted: boolean;
+  setupItems: DashboardSetupItem[];
+};
+
+export type DashboardSetupItem = {
+  key: string;
+  title: string;
+  description: string;
+  href: string;
+  completed: boolean;
 };

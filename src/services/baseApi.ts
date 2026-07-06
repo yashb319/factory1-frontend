@@ -16,6 +16,7 @@ const rawBaseQuery = fetchBaseQuery({
       endpoint === "login" ||
       endpoint === "signupOrganization" ||
       endpoint === "sendSignupOtp" ||
+      endpoint === "sendLoginOtp" ||
       endpoint === "sendForgotPasswordOtp" ||
       endpoint === "resetPassword"
     ) {
@@ -70,6 +71,7 @@ export const baseApi = createApi({
     "Customer",
     "Products",
     "Billing",
+    "Accounting",
     "ImportExport",
     "Dashboard",
     "SaasAdmin",

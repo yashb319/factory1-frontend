@@ -2,6 +2,7 @@ import { baseApi } from "@/services/baseApi";
 import type {
   AuthResponse,
   ForgotPasswordOtpRequest,
+  LoginOtpRequest,
   LoginRequest,
   MessageResponse,
   ResetPasswordRequest,
@@ -49,6 +50,14 @@ export const authApi = baseApi.injectEndpoints({
       }),
     }),
 
+    sendLoginOtp: builder.mutation<MessageResponse, LoginOtpRequest>({
+      query: (body) => ({
+        url: "/api/auth/login-otp",
+        method: "POST",
+        body,
+      }),
+    }),
+
     resetPassword: builder.mutation<MessageResponse, ResetPasswordRequest>({
       query: (body) => ({
         url: "/api/auth/reset-password",
@@ -63,6 +72,7 @@ export const {
   useLoginMutation,
   useSignupOrganizationMutation,
   useSendSignupOtpMutation,
+  useSendLoginOtpMutation,
   useSendForgotPasswordOtpMutation,
   useResetPasswordMutation,
 } = authApi;

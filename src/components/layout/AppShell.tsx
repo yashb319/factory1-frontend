@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { FactoryWalkthrough } from "@/components/help/FactoryWalkthrough";
 import { FloatingAssistant } from "@/features/ai/components/FloatingAssistant";
 import {
@@ -18,6 +18,7 @@ type Props = {
 
 export function AppShell({ children }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const user = useAppSelector((state) => state.auth.user);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -29,6 +30,19 @@ export function AppShell({ children }: Props) {
       }
 
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+        return;
+      }
+
+      if (pathname === "/billing" && isBillingShortcut(event.key)) {
+        event.preventDefault();
+        event.stopPropagation();
+        window.dispatchEvent(
+          new CustomEvent("factory1:billing-shortcut", {
+            detail: {
+              key: event.key,
+            },
+          })
+        );
         return;
       }
 
@@ -56,7 +70,7 @@ export function AppShell({ children }: Props) {
     window.addEventListener("keydown", handleKeyDown, true);
 
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [router, user]);
+  }, [pathname, router, user]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -83,4 +97,19 @@ export function AppShell({ children }: Props) {
       ) : null}
     </div>
   );
+}
+
+function isBillingShortcut(key: string) {
+  return [
+    "F2",
+    "F4",
+    "F5",
+    "F6",
+    "F7",
+    "F8",
+    "F9",
+    "F10",
+    "F11",
+    "F12",
+  ].includes(key);
 }

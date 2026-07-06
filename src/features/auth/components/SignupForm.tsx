@@ -8,7 +8,14 @@ import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
-import { AppForm, FormActions, TextField, PasswordField } from "@/components/forms";
+import {
+  AppForm,
+  FormActions,
+  NumberField,
+  PasswordField,
+  SelectField,
+  TextField,
+} from "@/components/forms";
 import { Button } from "@/components/ui/button";
 import { setCredentials } from "../authSlice";
 import {
@@ -35,6 +42,12 @@ export function SignupForm() {
       email: "",
       password: "",
       otp: "",
+      location: "",
+      industryType: "",
+      employeeCountEstimate: 1,
+      gstNumber: "",
+      businessType: "MANUFACTURING",
+      state: "",
     },
   });
 
@@ -77,6 +90,7 @@ export function SignupForm() {
 
     const response = await signupOrganization({
       ...values,
+      gstNumber: values.gstNumber?.trim().toUpperCase(),
       otp: values.otp,
     }).unwrap();
 
@@ -92,7 +106,7 @@ export function SignupForm() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-      <div className="w-full max-w-lg rounded-2xl border bg-white p-8 shadow-sm">
+      <div className="w-full max-w-2xl rounded-2xl border bg-white p-8 shadow-sm">
         <Link href="/" className="mb-8 flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-slate-950">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
             <Factory size={22} />
@@ -133,6 +147,61 @@ export function SignupForm() {
               placeholder="owner@example.com"
               required
             />
+
+            <div className="rounded-xl border bg-slate-50 p-4">
+              <h3 className="text-sm font-semibold text-slate-950">
+                Initial factory setup
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                This helps Factory1 prepare a useful dashboard from day one.
+              </p>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <TextField<SignupFormValues>
+                  name="location"
+                  label="Factory location"
+                  placeholder="Peenya, Bengaluru"
+                  required
+                />
+
+                <TextField<SignupFormValues>
+                  name="industryType"
+                  label="Industry type"
+                  placeholder="Textile, fabrication, food processing"
+                  required
+                />
+
+                <NumberField<SignupFormValues>
+                  name="employeeCountEstimate"
+                  label="Number of employees"
+                  min={1}
+                  required
+                />
+
+                <TextField<SignupFormValues>
+                  name="gstNumber"
+                  label="GST number"
+                  placeholder="Optional"
+                />
+
+                <SelectField<SignupFormValues>
+                  name="businessType"
+                  label="Business type"
+                  options={[
+                    { label: "Manufacturing", value: "MANUFACTURING" },
+                    { label: "Trading", value: "TRADING" },
+                    { label: "Job work", value: "JOB_WORK" },
+                    { label: "Services", value: "SERVICES" },
+                  ]}
+                />
+
+                <TextField<SignupFormValues>
+                  name="state"
+                  label="State"
+                  placeholder="Karnataka"
+                />
+              </div>
+            </div>
 
             <div className="flex items-end gap-3">
               <div className="flex-1">

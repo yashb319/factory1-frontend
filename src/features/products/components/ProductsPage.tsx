@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { PackageCheck, Plus } from "lucide-react";
+import { Download, MoreHorizontal, PackageCheck, Plus } from "lucide-react";
 import {
   useDeleteProductMutation,
   useGetProductsQuery,
@@ -10,6 +10,12 @@ import {
 import type { Product } from "../types/product.types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ProductFormDialog } from "./ProductFormDialog";
 import { BomDialog } from "./BomDialog";
 import { ProductionDialog } from "./ProductionDialog";
@@ -23,6 +29,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useGetInventoryItemsQuery } from "@/features/inventory/api/inventoryApi";
+import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
+import { exportProductsCsv } from "../utils/productExport";
 
 export function ProductsPage() {
   const { data, isLoading, isFetching } = useGetProductsQuery({
@@ -37,6 +45,7 @@ export function ProductsPage() {
   });
 
   const [deleteProduct, deleteState] = useDeleteProductMutation();
+  const logDataJob = useLogDataJob();
 
   const [formOpen, setFormOpen] = useState(false);
   const [bomOpen, setBomOpen] = useState(false);
@@ -62,6 +71,29 @@ export function ProductsPage() {
     }
   };
 
+  const handleExport = () => {
+    if (!products.length) {
+      toast.info("No products to export");
+      return;
+    }
+
+    const exported = exportProductsCsv(products);
+
+    void logDataJob({
+      operation: "EXPORT",
+      module: "PRODUCT",
+      fileName: exported.fileName,
+      status: "COMPLETED",
+      progress: 100,
+      totalRows: products.length,
+      successRows: products.length,
+      failedRows: 0,
+      outputFileUrl: exported.outputFileUrl,
+    });
+
+    toast.success("Products CSV exported successfully");
+  };
+
   return (
     <div className="space-y-6 p-6">
       <Card>
@@ -77,6 +109,15 @@ export function ProductsPage() {
           </div>
 
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              disabled={!products.length}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+
             <Button
               variant="outline"
               onClick={() => {
@@ -152,47 +193,47 @@ export function ProductsPage() {
                         </td>
 
                         <td className="p-3">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedProduct(product);
-                                setProductionOpen(true);
-                              }}
-                            >
-                              Produce
-                            </Button>
-
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedProduct(product);
-                                setBomOpen(true);
-                              }}
-                            >
-                              BOM
-                            </Button>
-
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedProduct(product);
-                                setFormOpen(true);
-                              }}
-                            >
-                              Edit
-                            </Button>
-
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => setDeleteTarget(product)}
-                            >
-                              Delete
-                            </Button>
+                          <div className="flex justify-end">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  aria-label={`Product actions for ${product.name}`}
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedProduct(product);
+                                    setProductionOpen(true);
+                                  }}
+                                >
+                                  Record production
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedProduct(product);
+                                    setBomOpen(true);
+                                  }}
+                                >
+                                  Configure BOM
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedProduct(product);
+                                    setFormOpen(true);
+                                  }}
+                                >
+                                  Edit product
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setDeleteTarget(product)}>
+                                  Delete product
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </td>
                       </tr>

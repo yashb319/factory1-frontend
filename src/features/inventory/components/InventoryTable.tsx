@@ -1,7 +1,14 @@
 "use client";
 
+import { MoreHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { InventoryItem } from "../types/inventory.types";
 import {
   formatCurrency,
@@ -117,28 +124,32 @@ export function InventoryTable({
                   </td>
 
                   <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onStockMovement(item)}
-                      >
-                        Stock
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onEdit(item)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onDelete(item)}
-                      >
-                        Disable
-                      </Button>
+                    <div className="flex justify-end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`Inventory actions for ${item.name}`}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onView(item)}>
+                            View details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onStockMovement(item)}>
+                            Stock movement
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onEdit(item)}>
+                            Edit item
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onDelete(item)}>
+                            Disable item
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </td>
                 </tr>

@@ -1,8 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import {
+  ArrowRight,
   Boxes,
   CalendarCheck,
+  CheckCircle2,
+  Circle,
   FileText,
   Package,
   ReceiptIndianRupee,
@@ -25,6 +29,46 @@ export default function DashboardPage() {
         title="Dashboard"
         description="Live overview of your Factory1 workspace."
       />
+
+      {!isLoading && data && !data.setupCompleted && (
+        <PageSection
+          title="Factory Setup"
+          description="Complete these starter steps to make dashboard, payroll, billing and AI answers more useful."
+        >
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {data.setupItems.map((item) => {
+              const Icon = item.completed ? CheckCircle2 : Circle;
+
+              return (
+                <Link
+                  href={item.href}
+                  key={item.key}
+                  className="group flex min-h-28 items-start gap-3 rounded-lg border bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50"
+                >
+                  <Icon
+                    className={
+                      item.completed
+                        ? "mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
+                        : "mt-0.5 h-5 w-5 shrink-0 text-slate-400"
+                    }
+                  />
+
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-slate-950">
+                      {item.title}
+                    </span>
+                    <span className="mt-1 block text-sm leading-5 text-slate-500">
+                      {item.description}
+                    </span>
+                  </span>
+
+                  <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition group-hover:text-blue-600" />
+                </Link>
+              );
+            })}
+          </div>
+        </PageSection>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
