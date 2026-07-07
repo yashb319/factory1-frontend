@@ -18,25 +18,38 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useGetActiveCustomersQuery } from "@/features/customers/api/customerApi";
 import { useGetActiveSuppliersQuery } from "@/features/suppliers/api/supplierApi";
 import { useGetInventoryItemsQuery } from "@/features/inventory/api/inventoryApi";
 import { useGetProductsQuery } from "@/features/products/api/productsApi";
+import { useGetOrganizationSettingsQuery } from "@/features/organization-settings/api/organizationSettingsApi";
 import type { InventoryItem } from "@/features/inventory/types/inventory.types";
 import type { Product } from "@/features/products/types/product.types";
 import {
   useCancelBillMutation,
   useCreateBillMutation,
   useGetBillsQuery,
+  usePostBillMutation,
   useLazyGetGstReportQuery,
   useLazyGetGstSuggestionsQuery,
+  useRecordBillPaymentMutation,
 } from "../api/billingApi";
-import type { BillType, GstRateSuggestion, PaymentStatus } from "../types/billing.types";
+import type { Bill, BillStatus, BillType, GstRateSuggestion, PaymentStatus } from "../types/billing.types";
 import { exportBillsCsv } from "../utils/billingExport";
 import { exportGstReportCsv } from "../utils/gstReportExport";
+import { printInvoice } from "../utils/invoicePrint";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
+import { inferIntraState, stateNameFromGstNumber } from "@/lib/gstState";
 
 type DraftItem = {
   rowId: string;
@@ -50,6 +63,16 @@ type DraftItem = {
   discountAmount: number;
   gstRate: number;
   suggestions: GstRateSuggestion[];
+};
+
+type PartyLike = {
+  gstNumber?: string | null;
+  billingAddress?: string | null;
+  shippingAddress?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  paymentTerms?: string | null;
 };
 
 type VoucherMode = {
@@ -106,6 +129,8 @@ export function BillingPage() {
   const [placeOfSupply, setPlaceOfSupply] = useState("");
   const [intraState, setIntraState] = useState(true);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("UNPAID");
+  const [paymentBill, setPaymentBill] = useState<Bill | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<DraftItem[]>([newItem()]);
 
@@ -117,6 +142,7 @@ export function BillingPage() {
     status: "ACTIVE",
   });
   const { data: productsPage } = useGetProductsQuery({ page: 0, size: 300 });
+  const { data: orgSettingsResponse } = useGetOrganizationSettingsQuery();
   const { data: billsPage, isLoading: billsLoading } = useGetBillsQuery({
     type,
     page: 0,
@@ -125,6 +151,8 @@ export function BillingPage() {
 
   const [createBill, createState] = useCreateBillMutation();
   const [cancelBill, cancelState] = useCancelBillMutation();
+  const [postBill, postState] = usePostBillMutation();
+  const [recordBillPayment, paymentState] = useRecordBillPaymentMutation();
   const [getGstSuggestions, gstState] = useLazyGetGstSuggestionsQuery();
   const [getGstReport, gstReportState] = useLazyGetGstReportQuery();
   const logDataJob = useLogDataJob();
@@ -153,6 +181,19 @@ export function BillingPage() {
     voucherModes.find((entry) => entry.type === type) ?? voucherModes[0];
   const parties = type === "SALES" ? customers : suppliers;
   const selectedParty = parties.find((party) => party.id === partyId);
+  const orgSettings = orgSettingsResponse?.data;
+  const factoryState =
+    orgSettings?.state || stateNameFromGstNumber(orgSettings?.gstNumber) || "";
+  const selectedPartyAddress = selectedParty
+    ? getPartyAddress(selectedParty)
+    : "";
+  const selectedPartyDestination = selectedParty
+    ? getPartyDestination(selectedParty)
+    : "";
+  const inferredGstTreatment = inferIntraState(
+    factoryState,
+    selectedParty?.state || stateNameFromGstNumber(selectedParty?.gstNumber) || placeOfSupply
+  );
 
   const switchVoucher = (billType: BillType) => {
     setType(billType);
@@ -170,6 +211,43 @@ export function BillingPage() {
     );
   };
 
+  const openPaymentDialog = (bill: Bill) => {
+    setPaymentBill(bill);
+    setPaymentAmount(String(bill.paidAmount ?? 0));
+  };
+
+  const closePaymentDialog = () => {
+    setPaymentBill(null);
+    setPaymentAmount("");
+  };
+
+  const submitPayment = async () => {
+    if (!paymentBill) {
+      return;
+    }
+
+    const paidAmount = Number(paymentAmount);
+    if (
+      Number.isNaN(paidAmount) ||
+      paidAmount < 0 ||
+      paidAmount > Number(paymentBill.grandTotal)
+    ) {
+      toast.error("Enter a valid paid amount");
+      return;
+    }
+
+    try {
+      await recordBillPayment({
+        id: paymentBill.id,
+        paidAmount,
+      }).unwrap();
+      toast.success("Payment updated");
+      closePaymentDialog();
+    } catch {
+      toast.error("Failed to update payment");
+    }
+  };
+
   const selectProduct = (rowId: string, productId: string) => {
     const product = productsById.get(productId);
     const inventoryItem = product
@@ -181,7 +259,7 @@ export function BillingPage() {
       inventoryItemId: product?.finishedGoodInventoryItemId ?? "",
       itemName: product?.name ?? "",
       unit: product?.unit ?? inventoryItem?.unit ?? "PCS",
-      rate: Number(inventoryItem?.sellingPrice ?? 0),
+      rate: Number(inventoryItem?.sellingPrice ?? inventoryItem?.purchasePrice ?? 0),
     });
   };
 
@@ -192,7 +270,10 @@ export function BillingPage() {
       inventoryItemId,
       itemName: inventoryItem?.name ?? "",
       unit: inventoryItem?.unit ?? "PCS",
-      rate: Number(inventoryItem?.purchasePrice ?? inventoryItem?.sellingPrice ?? 0),
+      rate:
+        type === "PURCHASE"
+          ? Number(inventoryItem?.purchasePrice ?? inventoryItem?.sellingPrice ?? 0)
+          : Number(inventoryItem?.sellingPrice ?? inventoryItem?.purchasePrice ?? 0),
     });
   };
 
@@ -224,7 +305,7 @@ export function BillingPage() {
     });
   };
 
-  const handleCreate = async () => {
+  const handleCreate = async (status: BillStatus = "POSTED") => {
     const validItems = items.filter(
       (item) => item.quantity > 0 && item.rate >= 0 && item.inventoryItemId
     );
@@ -242,14 +323,14 @@ export function BillingPage() {
     try {
       await createBill({
         type,
-        status: "POSTED",
+        status,
         paymentStatus,
         customerId: type === "SALES" ? partyId : undefined,
         supplierId: type === "PURCHASE" ? partyId : undefined,
         billNumber: billNumber || undefined,
         billDate,
         dueDate: dueDate || undefined,
-        placeOfSupply,
+        placeOfSupply: placeOfSupply || selectedPartyDestination || selectedParty?.state || undefined,
         intraState,
         notes,
         items: validItems.map((item) => ({
@@ -266,9 +347,11 @@ export function BillingPage() {
       }).unwrap();
 
       toast.success(
-        type === "SALES"
-          ? "Sales voucher posted and stock reduced"
-          : "Purchase voucher posted and stock increased"
+        status === "DRAFT"
+          ? "Voucher saved as draft"
+          : type === "SALES"
+            ? "Sales voucher posted and stock reduced"
+            : "Purchase voucher posted and stock increased"
       );
 
       setBillNumber("");
@@ -387,6 +470,37 @@ export function BillingPage() {
       router.push("/organization-settings");
     }
   };
+
+  useEffect(() => {
+    if (!selectedParty) {
+      return;
+    }
+
+    const destination = getPartyDestination(selectedParty);
+    if (destination) {
+      setPlaceOfSupply(destination);
+    }
+
+    const paymentTermDays = parsePaymentTermDays(selectedParty.paymentTerms);
+    if (paymentTermDays !== null) {
+      setDueDate(addDaysIso(billDate, paymentTermDays));
+    }
+
+    const inferred = inferIntraState(
+      factoryState,
+      selectedParty.state || stateNameFromGstNumber(selectedParty.gstNumber)
+    );
+    if (inferred !== null) {
+      setIntraState(inferred);
+    }
+  }, [billDate, factoryState, selectedParty]);
+
+  useEffect(() => {
+    const inferred = inferIntraState(factoryState, placeOfSupply);
+    if (inferred !== null) {
+      setIntraState(inferred);
+    }
+  }, [factoryState, placeOfSupply]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -619,6 +733,52 @@ export function BillingPage() {
                     </p>
                   </div>
                 </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-md border bg-slate-50 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium text-slate-950">
+                        {type === "SALES" ? "Customer details" : "Supplier details"}
+                      </p>
+                      {selectedParty?.gstNumber ? (
+                        <Badge variant="secondary" className="rounded-md">
+                          GSTIN {selectedParty.gstNumber}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      {selectedParty
+                        ? [
+                            selectedPartyAddress,
+                            selectedPartyDestination,
+                            selectedParty.paymentTerms
+                              ? `Terms: ${selectedParty.paymentTerms}`
+                              : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "Party master has limited details."
+                        : "Select a ledger to auto-fill GST, address, place of supply and due date."}
+                    </p>
+                  </div>
+
+                  <div className="rounded-md border bg-slate-50 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium text-slate-950">Tax auto-fill</p>
+                      <Badge variant="outline" className="rounded-md">
+                        {intraState ? "CGST + SGST" : "IGST"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      {factoryState
+                        ? `Factory state: ${factoryState}. ${
+                            inferredGstTreatment === null
+                              ? "Verify GST treatment manually when party state is missing."
+                              : "GST treatment is inferred from factory and party/place of supply."
+                          }`
+                        : "Add factory state or GSTIN in organization settings to infer IGST automatically."}
+                    </p>
+                  </div>
+                </div>
               </section>
 
               <section>
@@ -730,7 +890,14 @@ export function BillingPage() {
                                       onClick={() => applySuggestion(item.rowId, suggestion)}
                                       className="block w-full rounded-md border bg-slate-50 px-2 py-1 text-left text-xs hover:bg-slate-100"
                                     >
-                                      {suggestion.hsnCode} - {suggestion.igstRate}% GST
+                                      <span className="block font-medium">
+                                        {suggestion.hsnCode || "HSN/SAC"} - {suggestion.igstRate}% GST
+                                      </span>
+                                      <span className="mt-0.5 block truncate text-muted-foreground">
+                                        {suggestion.source?.toLowerCase().includes("ai")
+                                          ? "AI suggestion, editable"
+                                          : "Official/common suggestion, editable"}
+                                      </span>
                                     </button>
                                   ))}
                                 </div>
@@ -811,16 +978,25 @@ export function BillingPage() {
                     className="min-h-24"
                   />
                 </Field>
-                <div className="flex items-end justify-end">
+                <div className="flex flex-col justify-end gap-2">
                   <Button
                     size="lg"
-                    onClick={handleCreate}
+                    variant="outline"
+                    onClick={() => handleCreate("DRAFT")}
+                    disabled={createState.isLoading}
+                    className="w-full"
+                  >
+                    Save Draft
+                  </Button>
+                  <Button
+                    size="lg"
+                    onClick={() => handleCreate("POSTED")}
                     disabled={createState.isLoading}
                     className="w-full"
                     title="Post voucher. Windows: Alt+S. Mac: Cmd+Enter."
                   >
                     <FileText className="mr-2 h-4 w-4" />
-                    {createState.isLoading ? "Posting..." : `Post ${mode.title}`}
+                    {createState.isLoading ? "Saving..." : `Post ${mode.title}`}
                   </Button>
                 </div>
               </section>
@@ -907,26 +1083,48 @@ export function BillingPage() {
                         </Badge>
                       </div>
                       <div className="mt-3 flex items-center justify-between">
-                        <span className="font-semibold">
-                          {formatCurrency(Number(bill.grandTotal))}
-                        </span>
-                        {bill.status !== "CANCELLED" ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={cancelState.isLoading}
-                            onClick={async () => {
-                              try {
-                                await cancelBill(bill.id).unwrap();
-                                toast.success("Voucher cancelled and stock reversed");
-                              } catch {
-                                toast.error("Failed to cancel voucher");
-                              }
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        ) : null}
+                        <div>
+                          <span className="font-semibold">
+                            {formatCurrency(Number(bill.grandTotal))}
+                          </span>
+                          <div className="text-xs text-muted-foreground">
+                            Paid {formatCurrency(Number(bill.paidAmount ?? 0))} · Due{" "}
+                            {formatCurrency(
+                              Math.max(
+                                0,
+                                Number(bill.grandTotal) - Number(bill.paidAmount ?? 0)
+                              )
+                            )}
+                          </div>
+                        </div>
+                        <RecentVoucherActions
+                          bill={bill}
+                          cancelling={cancelState.isLoading}
+                          posting={postState.isLoading}
+                          recordingPayment={paymentState.isLoading}
+                          onPrint={() => {
+                            if (!printInvoice(bill)) {
+                              toast.error("Could not open invoice print window");
+                            }
+                          }}
+                          onPost={async () => {
+                            try {
+                              await postBill(bill.id).unwrap();
+                              toast.success("Draft posted and stock updated");
+                            } catch {
+                              toast.error("Failed to post draft");
+                            }
+                          }}
+                          onCancel={async () => {
+                            try {
+                              await cancelBill(bill.id).unwrap();
+                              toast.success("Voucher cancelled and stock reversed");
+                            } catch {
+                              toast.error("Failed to cancel voucher");
+                            }
+                          }}
+                          onPayment={() => openPaymentDialog(bill)}
+                        />
                       </div>
                     </div>
                   ))}
@@ -947,6 +1145,93 @@ export function BillingPage() {
           onNavigate={(href) => router.push(href)}
         />
       </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-white p-3 shadow-lg md:hidden">
+        <div className="grid grid-cols-3 gap-2">
+          <Button type="button" variant="outline" onClick={addItem}>
+            Add Line
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleCreate("DRAFT")}
+            disabled={createState.isLoading}
+          >
+            Draft
+          </Button>
+          <Button
+            type="button"
+            onClick={() => handleCreate("POSTED")}
+            disabled={createState.isLoading}
+          >
+            Post
+          </Button>
+        </div>
+      </div>
+
+      <Dialog
+        open={Boolean(paymentBill)}
+        onOpenChange={(open) => {
+          if (!open) {
+            closePaymentDialog();
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+            <DialogDescription>
+              Update the total amount paid against this voucher.
+            </DialogDescription>
+          </DialogHeader>
+          {paymentBill ? (
+            <div className="space-y-4">
+              <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                <div className="font-medium">{paymentBill.billNumber}</div>
+                <div className="text-muted-foreground">{paymentBill.partyName}</div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Total</div>
+                    <div className="font-semibold">
+                      {formatCurrency(Number(paymentBill.grandTotal))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Due</div>
+                    <div className="font-semibold">
+                      {formatCurrency(
+                        Math.max(
+                          0,
+                          Number(paymentBill.grandTotal) -
+                            Number(paymentBill.paidAmount ?? 0)
+                        )
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <Field label="Total paid amount">
+                <Input
+                  type="number"
+                  min="0"
+                  max={paymentBill.grandTotal}
+                  step="0.01"
+                  value={paymentAmount}
+                  onChange={(event) => setPaymentAmount(event.target.value)}
+                />
+              </Field>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={closePaymentDialog}>
+              Cancel
+            </Button>
+            <Button onClick={submitPayment} disabled={paymentState.isLoading}>
+              Save Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1161,6 +1446,62 @@ function VoucherPreview({
   );
 }
 
+function RecentVoucherActions({
+  bill,
+  cancelling,
+  posting,
+  recordingPayment,
+  onPrint,
+  onPost,
+  onCancel,
+  onPayment,
+}: {
+  bill: Bill;
+  cancelling: boolean;
+  posting: boolean;
+  recordingPayment: boolean;
+  onPrint: () => void;
+  onPost: () => void;
+  onCancel: () => void;
+  onPayment: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap justify-end gap-2">
+      <Button size="sm" variant="outline" onClick={onPrint}>
+        Print
+      </Button>
+
+      {bill.status === "DRAFT" ? (
+        <Button size="sm" onClick={onPost} disabled={posting}>
+          Post
+        </Button>
+      ) : null}
+
+      {bill.status !== "CANCELLED" ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={recordingPayment}
+          onClick={onPayment}
+        >
+          Payment
+        </Button>
+      ) : null}
+
+      {bill.status !== "CANCELLED" ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={cancelling}
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 function Field({
   label,
   children,
@@ -1297,6 +1638,38 @@ function currentMonthRange() {
 
 function initialBillType(value: string | null): BillType {
   return value === "PURCHASE" ? "PURCHASE" : "SALES";
+}
+
+function getPartyAddress(party: PartyLike) {
+  return party.billingAddress || party.shippingAddress || party.address || "";
+}
+
+function getPartyDestination(party: PartyLike) {
+  return [party.city, party.state].filter(Boolean).join(", ") || party.state || party.city || "";
+}
+
+function parsePaymentTermDays(paymentTerms?: string | null) {
+  if (!paymentTerms) {
+    return null;
+  }
+
+  const lower = paymentTerms.trim().toLowerCase();
+  if (lower === "cash" || lower === "immediate" || lower.includes("advance")) {
+    return 0;
+  }
+
+  const match = lower.match(/(\d{1,3})/);
+  return match ? Number(match[1]) : null;
+}
+
+function addDaysIso(isoDate: string, days: number) {
+  const date = new Date(`${isoDate}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function isAddLineShortcut(event: KeyboardEvent) {

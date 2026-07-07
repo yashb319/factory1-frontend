@@ -80,6 +80,7 @@ export type Bill = {
   igstAmount: number;
   roundOff: number;
   grandTotal: number;
+  paidAmount: number;
   notes?: string | null;
   items: BillItem[];
 };

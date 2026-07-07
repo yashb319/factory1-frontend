@@ -47,6 +47,28 @@ export const billingApi = baseApi.injectEndpoints({
       invalidatesTags: ["Billing", "Inventory"],
     }),
 
+    postBill: builder.mutation<Bill, string>({
+      query: (id) => ({
+        url: `/api/billing/bills/${id}/post`,
+        method: "PUT",
+      }),
+      transformResponse: (response: ApiResponse<Bill>) => response.data,
+      invalidatesTags: ["Billing", "Inventory"],
+    }),
+
+    recordBillPayment: builder.mutation<
+      Bill,
+      { id: string; paidAmount: number }
+    >({
+      query: ({ id, paidAmount }) => ({
+        url: `/api/billing/bills/${id}/payment`,
+        method: "PUT",
+        body: { paidAmount },
+      }),
+      transformResponse: (response: ApiResponse<Bill>) => response.data,
+      invalidatesTags: ["Billing", "Accounting"],
+    }),
+
     getGstSuggestions: builder.query<GstRateSuggestion[], string>({
       query: (query) => ({
         url: "/api/billing/gst-suggestions",
@@ -70,6 +92,8 @@ export const {
   useGetBillsQuery,
   useCreateBillMutation,
   useCancelBillMutation,
+  usePostBillMutation,
+  useRecordBillPaymentMutation,
   useLazyGetGstSuggestionsQuery,
   useLazyGetGstReportQuery,
 } = billingApi;
