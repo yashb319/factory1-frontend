@@ -10,6 +10,7 @@ import {
   useUpdateSupplierMutation,
 } from "../api/supplierApi";
 import type { Supplier, SupplierRequest } from "../types/supplier.types";
+import { stateNameFromGstNumber } from "@/lib/gstState";
 
 type Props = {
   open: boolean;
@@ -41,6 +42,7 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
 
   const [createSupplier, createState] = useCreateSupplierMutation();
   const [updateSupplier, updateState] = useUpdateSupplierMutation();
+  const gstNumber = form.watch("gstNumber");
 
   useEffect(() => {
     if (!open) return;
@@ -61,12 +63,29 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
     });
   }, [open, supplier, form]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const state = stateNameFromGstNumber(gstNumber);
+    if (state && !form.getValues("state")) {
+      form.setValue("state", state, { shouldDirty: true });
+    }
+  }, [form, gstNumber, open]);
+
   const onSubmit = async (values: FormValues) => {
+    const payload = {
+      ...values,
+      gstNumber: values.gstNumber?.trim().toUpperCase(),
+      state: values.state || stateNameFromGstNumber(values.gstNumber),
+    };
+
     try {
       if (isEdit && supplier) {
         await updateSupplier({
           id: supplier.id,
-          body: values,
+          body: payload,
         }).unwrap();
 
         toast.success("Supplier updated successfully");
@@ -74,7 +93,7 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
         return;
       }
 
-      await createSupplier(values).unwrap();
+      await createSupplier(payload).unwrap();
 
       toast.success("Supplier created successfully");
       onClose();

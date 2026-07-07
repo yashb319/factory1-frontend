@@ -20,6 +20,7 @@ import {
   useUpdateCustomerMutation,
 } from "../api/customerApi";
 import type { Customer, CustomerRequest } from "../types/customer.types";
+import { stateNameFromGstNumber } from "@/lib/gstState";
 
 type Props = {
   open: boolean;
@@ -52,6 +53,7 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
 
   const [createCustomer, createState] = useCreateCustomerMutation();
   const [updateCustomer, updateState] = useUpdateCustomerMutation();
+  const gstNumber = form.watch("gstNumber");
 
   useEffect(() => {
     if (!open) return;
@@ -73,12 +75,29 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
     });
   }, [open, customer, form]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const state = stateNameFromGstNumber(gstNumber);
+    if (state && !form.getValues("state")) {
+      form.setValue("state", state, { shouldDirty: true });
+    }
+  }, [form, gstNumber, open]);
+
   const onSubmit = async (values: FormValues) => {
+    const payload = {
+      ...values,
+      gstNumber: values.gstNumber?.trim().toUpperCase(),
+      state: values.state || stateNameFromGstNumber(values.gstNumber),
+    };
+
     try {
       if (isEdit && customer) {
         await updateCustomer({
           id: customer.id,
-          body: values,
+          body: payload,
         }).unwrap();
 
         toast.success("Customer updated successfully");
@@ -86,7 +105,7 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
         return;
       }
 
-      await createCustomer(values).unwrap();
+      await createCustomer(payload).unwrap();
 
       toast.success("Customer created successfully");
       onClose();
