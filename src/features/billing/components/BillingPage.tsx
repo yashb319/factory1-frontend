@@ -258,8 +258,11 @@ export function BillingPage() {
       productId,
       inventoryItemId: product?.finishedGoodInventoryItemId ?? "",
       itemName: product?.name ?? "",
+      hsnCode: inventoryItem?.hsnCode ?? "",
       unit: product?.unit ?? inventoryItem?.unit ?? "PCS",
       rate: Number(inventoryItem?.sellingPrice ?? inventoryItem?.purchasePrice ?? 0),
+      gstRate: Number(inventoryItem?.gstRate ?? 18),
+      suggestions: [],
     });
   };
 
@@ -269,11 +272,14 @@ export function BillingPage() {
     updateItem(rowId, {
       inventoryItemId,
       itemName: inventoryItem?.name ?? "",
+      hsnCode: inventoryItem?.hsnCode ?? "",
       unit: inventoryItem?.unit ?? "PCS",
       rate:
         type === "PURCHASE"
           ? Number(inventoryItem?.purchasePrice ?? inventoryItem?.sellingPrice ?? 0)
           : Number(inventoryItem?.sellingPrice ?? inventoryItem?.purchasePrice ?? 0),
+      gstRate: Number(inventoryItem?.gstRate ?? 18),
+      suggestions: [],
     });
   };
 

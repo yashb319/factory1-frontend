@@ -4,9 +4,11 @@ import {
   Eye,
   MoreHorizontal,
   Pencil,
+  QrCode,
   Trash2,
   ArrowUpDown,
 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -22,6 +24,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Employee } from "../types/employee.types";
 
@@ -42,9 +51,22 @@ export function EmployeeTable({
   onDelete,
   onSort,
 }: Props) {
+  const [qrEmployee, setQrEmployee] = useState<Employee | null>(null);
+  const qrPayload = useMemo(() => {
+    if (!qrEmployee) return "";
+    return JSON.stringify({
+      employeeCode: qrEmployee.employeeCode,
+      name: qrEmployee.name,
+    });
+  }, [qrEmployee]);
+  const qrUrl = qrPayload
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(qrPayload)}`
+    : "";
+
   return (
-    <div className="rounded-xl border bg-card">
-      <div className="overflow-x-auto">
+    <>
+      <div className="rounded-xl border bg-card">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -148,6 +170,11 @@ export function EmployeeTable({
                           Edit
                         </DropdownMenuItem>
 
+                        <DropdownMenuItem onClick={() => setQrEmployee(employee)}>
+                          <QrCode className="mr-2 h-4 w-4" />
+                          Attendance QR
+                        </DropdownMenuItem>
+
                         <DropdownMenuItem
                           onClick={() => onDelete(employee)}
                           className="text-destructive"
@@ -159,10 +186,45 @@ export function EmployeeTable({
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
+            ))}
           </TableBody>
         </Table>
+        </div>
       </div>
-    </div>
+
+      <Dialog open={Boolean(qrEmployee)} onOpenChange={(open) => !open && setQrEmployee(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Attendance QR</DialogTitle>
+            <DialogDescription>
+              Scan this from the Factory1 capture station to mark attendance.
+            </DialogDescription>
+          </DialogHeader>
+
+          {qrEmployee ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-white p-4 text-center">
+                <img
+                  src={qrUrl}
+                  alt={`${qrEmployee.employeeCode} attendance QR`}
+                  className="mx-auto h-64 w-64"
+                />
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3 text-sm">
+                <p className="font-medium text-slate-950">
+                  {qrEmployee.employeeCode} · {qrEmployee.name}
+                </p>
+                <p className="mt-1 break-all text-xs text-slate-500">
+                  {qrPayload}
+                </p>
+              </div>
+              <Button type="button" className="w-full" onClick={() => window.print()}>
+                Print QR
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -64,6 +64,7 @@ import type {
   AccountGroup,
   AccountGroupType,
   AccountLedger,
+  AccountingVoucher,
   AgingReport,
   BalanceSheetRow,
   BalanceType,
@@ -71,6 +72,7 @@ import type {
 } from "../types/accounting.types";
 import { exportAgingCsv } from "../utils/agingExport";
 import { exportBalanceSheetCsv } from "../utils/balanceSheetExport";
+import { exportDayBookCsv } from "../utils/dayBookExport";
 import { exportLedgerCsv } from "../utils/ledgerExport";
 import { exportProfitLossCsv } from "../utils/profitLossExport";
 
@@ -98,6 +100,8 @@ type VoucherLineDraft = {
   description: string;
 };
 
+type DayBookFilter = VoucherType | "ALL";
+
 export function AccountingPage() {
   const [fromDate, setFromDate] = useState(
     () => currentQuarterRange().fromDate
@@ -105,6 +109,7 @@ export function AccountingPage() {
   const [toDate, setToDate] = useState(
     () => currentQuarterRange().toDate
   );
+  const [dayBookFilter, setDayBookFilter] = useState<DayBookFilter>("ALL");
   const [agingAsOfDate, setAgingAsOfDate] = useState(() => todayDate());
   const [groupName, setGroupName] = useState("");
   const [groupType, setGroupType] = useState<AccountGroupType>("ASSET");
@@ -150,7 +155,8 @@ export function AccountingPage() {
   });
   const { data: masters, isFetching: mastersFetching } =
     useGetAccountMastersQuery();
-  const { data: vouchers } = useGetAccountingVouchersQuery();
+  const { data: vouchers, isFetching: vouchersFetching } =
+    useGetAccountingVouchersQuery(range);
   const [createVoucher, createVoucherState] =
     useCreateAccountingVoucherMutation();
   const [createGroup, createGroupState] = useCreateAccountGroupMutation();
@@ -173,6 +179,10 @@ export function AccountingPage() {
     },
     { debit: 0, credit: 0 }
   );
+  const filteredVouchers = (vouchers ?? []).filter((voucher) =>
+    dayBookFilter === "ALL" ? true : voucher.voucherType === dayBookFilter
+  );
+  const dayBookSummary = summarizeVouchers(filteredVouchers);
 
   const submitGroup = async () => {
     if (!groupName.trim()) {
@@ -279,6 +289,12 @@ export function AccountingPage() {
     setLedgerGroupId("");
     setOpeningBalance("0");
     setBalanceType("DR");
+  };
+
+  const applyPeriod = (period: "TODAY" | "MONTH" | "QUARTER" | "FY") => {
+    const nextRange = periodRange(period);
+    setFromDate(nextRange.fromDate);
+    setToDate(nextRange.toDate);
   };
 
   const confirmDeleteGroup = async () => {
@@ -479,6 +495,30 @@ export function AccountingPage() {
     toast.success("Aging CSV exported successfully");
   };
 
+  const exportDayBook = () => {
+    if (!filteredVouchers.length) {
+      toast.info("No vouchers to export");
+      return;
+    }
+
+    const exported = exportDayBookCsv(filteredVouchers, fromDate, toDate);
+
+    void logDataJob({
+      operation: "EXPORT",
+      module: "BILLING",
+      fileName: exported.fileName,
+      status: "COMPLETED",
+      progress: 100,
+      totalRows: exported.totalRows,
+      successRows: exported.totalRows,
+      failedRows: 0,
+      outputFileUrl: exported.outputFileUrl,
+      notes: `Day Book ${fromDate} to ${toDate}`,
+    });
+
+    toast.success("Day Book CSV exported successfully");
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
@@ -533,6 +573,26 @@ export function AccountingPage() {
             <Download className="mr-2 h-4 w-4" />
             B/S CSV
           </Button>
+          <div className="flex flex-wrap gap-1 sm:col-span-6">
+            {[
+              ["TODAY", "Today"],
+              ["MONTH", "Month"],
+              ["QUARTER", "Quarter"],
+              ["FY", "FY"],
+            ].map(([value, label]) => (
+              <Button
+                key={value}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  applyPeriod(value as "TODAY" | "MONTH" | "QUARTER" | "FY")
+                }
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1018,33 +1078,112 @@ export function AccountingPage() {
         </Card>
 
         <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>Recent Vouchers</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <div>
+              <CardTitle>Day Book</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Voucher register for the selected period.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select
+                value={dayBookFilter}
+                onValueChange={(value) =>
+                  setDayBookFilter(value as DayBookFilter)
+                }
+              >
+                <SelectTrigger className="h-9 w-[132px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Vouchers</SelectItem>
+                  {voucherTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {labelCase(type)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportDayBook}
+                disabled={!filteredVouchers.length}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                CSV
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {(vouchers ?? []).slice(0, 8).map((voucher) => (
-              <div key={voucher.id} className="rounded-md border p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-medium">{voucher.voucherNumber}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {labelCase(voucher.voucherType)} · {voucher.voucherDate}
-                    </div>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              {voucherTypes.map((type) => (
+                <div key={type} className="rounded-md border bg-muted/20 p-2">
+                  <div className="text-xs text-muted-foreground">
+                    {labelCase(type)}
                   </div>
-                  <Badge variant="outline">
-                    {formatCurrency(voucher.totalDebit)}
-                  </Badge>
+                  <div className="mt-1 font-semibold">
+                    {dayBookSummary.countByType[type] ?? 0}
+                  </div>
                 </div>
-                {voucher.narration ? (
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    {voucher.narration}
-                  </div>
-                ) : null}
+              ))}
+            </div>
+
+            <div className="rounded-md border bg-slate-950 p-3 text-white">
+              <div className="text-xs uppercase tracking-wide text-slate-300">
+                Total Movement
               </div>
-            ))}
-            {!vouchers?.length ? (
+              <div className="mt-1 text-xl font-semibold">
+                {vouchersFetching ? "..." : formatCurrency(dayBookSummary.totalDebit)}
+              </div>
+            </div>
+
+            <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
+              {filteredVouchers.map((voucher) => (
+                <div key={voucher.id} className="rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium">{voucher.voucherNumber}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {labelCase(voucher.voucherType)} · {voucher.voucherDate}
+                      </div>
+                    </div>
+                    <Badge variant="outline">
+                      {formatCurrency(voucher.totalDebit)}
+                    </Badge>
+                  </div>
+                  {voucher.narration ? (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      {voucher.narration}
+                    </div>
+                  ) : null}
+                  <div className="mt-3 space-y-1 border-t pt-2">
+                    {voucher.lines.slice(0, 4).map((line) => (
+                      <div
+                        key={line.id}
+                        className="flex justify-between gap-3 text-xs"
+                      >
+                        <span className="min-w-0 truncate">
+                          {line.entryType} {line.ledgerName ?? "Ledger"}
+                        </span>
+                        <span className="font-medium">
+                          {formatCurrency(line.amount)}
+                        </span>
+                      </div>
+                    ))}
+                    {voucher.lines.length > 4 ? (
+                      <div className="text-xs text-muted-foreground">
+                        +{voucher.lines.length - 4} more lines
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {!vouchersFetching && !filteredVouchers.length ? (
               <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                No accounting vouchers posted yet.
+                No accounting vouchers found in this period.
               </div>
             ) : null}
           </CardContent>
@@ -1753,13 +1892,65 @@ function currentQuarterRange() {
   };
 }
 
-function todayDate() {
+function periodRange(period: "TODAY" | "MONTH" | "QUARTER" | "FY") {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
+
+  if (period === "TODAY") {
+    const today = toIsoDate(now);
+    return {
+      fromDate: today,
+      toDate: today,
+    };
+  }
+
+  if (period === "MONTH") {
+    return {
+      fromDate: toIsoDate(new Date(now.getFullYear(), now.getMonth(), 1)),
+      toDate: toIsoDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+    };
+  }
+
+  if (period === "FY") {
+    const startYear = now.getMonth() >= 3
+      ? now.getFullYear()
+      : now.getFullYear() - 1;
+
+    return {
+      fromDate: toIsoDate(new Date(startYear, 3, 1)),
+      toDate: toIsoDate(new Date(startYear + 1, 2, 31)),
+    };
+  }
+
+  return currentQuarterRange();
+}
+
+function todayDate() {
+  return toIsoDate(new Date());
+}
+
+function toIsoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function summarizeVouchers(vouchers: AccountingVoucher[]) {
+  return vouchers.reduce(
+    (summary, voucher) => {
+      summary.totalDebit += Number(voucher.totalDebit || 0);
+      summary.totalCredit += Number(voucher.totalCredit || 0);
+      summary.countByType[voucher.voucherType] =
+        (summary.countByType[voucher.voucherType] ?? 0) + 1;
+      return summary;
+    },
+    {
+      totalDebit: 0,
+      totalCredit: 0,
+      countByType: {} as Record<VoucherType, number>,
+    }
+  );
 }
 
 function newVoucherLine(entryType: BalanceType): VoucherLineDraft {

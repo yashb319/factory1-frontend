@@ -51,6 +51,7 @@ export function InventoryTable({
               <th className="px-4 py-3 text-left font-medium">Min Stock</th>
               <th className="px-4 py-3 text-left font-medium">Purchase</th>
               <th className="px-4 py-3 text-left font-medium">Selling</th>
+              <th className="px-4 py-3 text-left font-medium">Tax</th>
               <th className="px-4 py-3 text-left font-medium">Value</th>
               <th className="px-4 py-3 text-left font-medium">Status</th>
               <th className="px-4 py-3 text-right font-medium">Actions</th>
@@ -61,7 +62,7 @@ export function InventoryTable({
             {items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={10}
                   className="px-4 py-10 text-center text-muted-foreground"
                 >
                   No inventory items found.
@@ -109,6 +110,13 @@ export function InventoryTable({
                     {item.sellingPrice
                       ? formatCurrency(item.sellingPrice)
                       : "-"}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{item.gstRate ?? "-"}%</div>
+                    <div className="text-xs text-muted-foreground">
+                      {item.hsnCode || "No HSN"}
+                    </div>
                   </td>
 
                   <td className="px-4 py-3">

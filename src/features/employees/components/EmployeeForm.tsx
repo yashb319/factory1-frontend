@@ -1,6 +1,7 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import * as React from "react";
+import { Camera, Loader2, X } from "lucide-react";
 import { UseFormReturn } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,21 @@ export function EmployeeForm({
   onSubmit,
 }: Props) {
   const errors = form.formState.errors;
+  const photoDataUrl = form.watch("photoDataUrl");
+
+  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      form.setValue("photoDataUrl", String(reader.result || ""), {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    };
+    reader.readAsDataURL(file);
+  }
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-6 pb-6">
@@ -69,6 +85,46 @@ export function EmployeeForm({
         </div>
       </div>
 
+      <div className="rounded-lg border bg-slate-50 p-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-white">
+            {photoDataUrl ? (
+              <img
+                src={photoDataUrl}
+                alt="Employee"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <Camera className="h-8 w-8 text-slate-400" />
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1 space-y-2">
+            <label className="text-sm font-medium">Attendance Photo</label>
+            <Input accept="image/*" type="file" onChange={handlePhotoChange} />
+            <p className="text-xs text-slate-500">
+              Used by the Factory1 capture station for prototype photo matching.
+            </p>
+          </div>
+
+          {photoDataUrl ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() =>
+                form.setValue("photoDataUrl", "", {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">Employee Type *</label>
@@ -87,8 +143,9 @@ export function EmployeeForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="BLUE_COLLAR">Blue Collar</SelectItem>
-              <SelectItem value="WHITE_COLLAR">White Collar</SelectItem>
-              <SelectItem value="CONTRACTOR">Contractor</SelectItem>
+              <SelectItem value="STAFF">Staff</SelectItem>
+              <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
+              <SelectItem value="MANAGER">Manager</SelectItem>
             </SelectContent>
           </Select>
         </div>

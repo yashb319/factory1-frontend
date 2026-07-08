@@ -6,6 +6,7 @@ export const employeeFormSchema = z.object({
 
   phone: z.string().optional(),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
+  photoDataUrl: z.string().optional(),
 
   employeeType: z.enum(["BLUE_COLLAR", "STAFF", "SUPERVISOR", "MANAGER"]),
 

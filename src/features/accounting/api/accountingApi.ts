@@ -144,8 +144,19 @@ export const accountingApi = baseApi.injectEndpoints({
       invalidatesTags: ["Accounting"],
     }),
 
-    getAccountingVouchers: builder.query<AccountingVoucher[], void>({
-      query: () => "/api/accounting/vouchers",
+    getAccountingVouchers: builder.query<
+      AccountingVoucher[],
+      Partial<AccountingRange> | void
+    >({
+      query: (range) => ({
+        url: "/api/accounting/vouchers",
+        params: range?.fromDate && range?.toDate
+          ? {
+              fromDate: range.fromDate,
+              toDate: range.toDate,
+            }
+          : undefined,
+      }),
       providesTags: ["Accounting"],
     }),
 
