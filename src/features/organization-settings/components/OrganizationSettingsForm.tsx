@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { Copy, KeyRound, RefreshCw } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -15,9 +16,11 @@ import {
 
 import {
   useGetOrganizationSettingsQuery,
+  useRegenerateAttendanceCaptureKeyMutation,
   useUpdateOrganizationSettingsMutation,
 } from "../api/organizationSettingsApi";
 import { toast } from "sonner";
+import { stateNameFromGstNumber } from "@/lib/gstState";
 
 const schema = z.object({
   workingHoursPerDay: z.number().min(1, "Required"),
@@ -47,6 +50,8 @@ export function OrganizationSettingsForm() {
   const { data, isLoading } = useGetOrganizationSettingsQuery();
   const [updateSettings, { isLoading: isSaving }] =
     useUpdateOrganizationSettingsMutation();
+  const [regenerateCaptureKey, { isLoading: isGeneratingKey }] =
+    useRegenerateAttendanceCaptureKeyMutation();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -67,6 +72,7 @@ export function OrganizationSettingsForm() {
       state: "",
     },
   });
+  const gstNumber = form.watch("gstNumber");
 
   useEffect(() => {
     if (!data?.data) return;
@@ -91,6 +97,13 @@ export function OrganizationSettingsForm() {
     });
   }, [data, form]);
 
+  useEffect(() => {
+    const state = stateNameFromGstNumber(gstNumber);
+    if (state && !form.getValues("state")) {
+      form.setValue("state", state, { shouldDirty: true });
+    }
+  }, [form, gstNumber]);
+
   async function onSubmit(values: FormValues) {
     try {
       await updateSettings({
@@ -107,12 +120,29 @@ export function OrganizationSettingsForm() {
         employeeCountEstimate: values.employeeCountEstimate,
         gstNumber: values.gstNumber?.trim().toUpperCase(),
         businessType: values.businessType,
-        state: values.state,
+        state: values.state || stateNameFromGstNumber(values.gstNumber),
       }).unwrap();
       toast.success("Organization settings updated successfully");
     } catch {
       toast.error("Failed to update organization settings");
     }
+  }
+
+  async function handleGenerateCaptureKey() {
+    try {
+      await regenerateCaptureKey().unwrap();
+      toast.success("Attendance capture key generated");
+    } catch {
+      toast.error("Could not generate capture key");
+    }
+  }
+
+  async function handleCopyCaptureKey() {
+    const key = data?.data.attendanceCaptureKey;
+    if (!key) return;
+
+    await navigator.clipboard.writeText(key);
+    toast.success("Capture key copied");
   }
 
   if (isLoading) {
@@ -257,6 +287,43 @@ export function OrganizationSettingsForm() {
               { label: "December", value: "12" },
             ]}
           />
+        </div>
+
+        <div className="mt-8 border-t pt-6">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                <KeyRound className="h-4 w-4" />
+                Attendance Capture Key
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Put this key in the Factory1 capture app. Rotate it if a phone or kiosk is lost.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
+                onClick={handleCopyCaptureKey}
+                disabled={!data?.data.attendanceCaptureKey}
+              >
+                <Copy className="h-4 w-4" />
+                Copy
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-950 px-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                onClick={handleGenerateCaptureKey}
+                disabled={isGeneratingKey}
+              >
+                <RefreshCw className={`h-4 w-4 ${isGeneratingKey ? "animate-spin" : ""}`} />
+                {data?.data.attendanceCaptureKey ? "Regenerate" : "Generate"}
+              </button>
+            </div>
+          </div>
+          <div className="rounded-lg border bg-slate-50 p-3 font-mono text-xs text-slate-700">
+            {data?.data.attendanceCaptureKey || "No key generated yet"}
+          </div>
         </div>
 
         <FormActions

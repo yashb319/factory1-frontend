@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Factory, MailCheck } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -24,6 +24,7 @@ import {
 } from "../authApi";
 import { signupSchema, type SignupFormValues } from "../schemas/signup.schema";
 import { useAppDispatch } from "@/lib/hook";
+import { stateNameFromGstNumber } from "@/lib/gstState";
 
 export function SignupForm() {
   const router = useRouter();
@@ -55,7 +56,18 @@ export function SignupForm() {
     control: form.control,
     name: "email",
   }) ?? "";
+  const gstNumber = useWatch({
+    control: form.control,
+    name: "gstNumber",
+  }) ?? "";
   const otpRequested = otpSentTo === email.trim().toLowerCase();
+
+  useEffect(() => {
+    const state = stateNameFromGstNumber(gstNumber);
+    if (state && !form.getValues("state")) {
+      form.setValue("state", state, { shouldDirty: true });
+    }
+  }, [form, gstNumber]);
 
   async function handleSendOtp() {
     const validEmail = await form.trigger("email");
@@ -91,6 +103,7 @@ export function SignupForm() {
     const response = await signupOrganization({
       ...values,
       gstNumber: values.gstNumber?.trim().toUpperCase(),
+      state: values.state || stateNameFromGstNumber(values.gstNumber),
       otp: values.otp,
     }).unwrap();
 

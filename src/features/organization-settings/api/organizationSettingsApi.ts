@@ -27,10 +27,22 @@ export const organizationSettingsApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["OrganizationSettings", "Payroll"],
     }),
+
+    regenerateAttendanceCaptureKey: builder.mutation<
+      ApiResponse<OrganizationSettingsResponse>,
+      void
+    >({
+      query: () => ({
+        url: "/api/organization/settings/attendance-capture-key",
+        method: "POST",
+      }),
+      invalidatesTags: ["OrganizationSettings"],
+    }),
   }),
 });
 
 export const {
   useGetOrganizationSettingsQuery,
+  useRegenerateAttendanceCaptureKeyMutation,
   useUpdateOrganizationSettingsMutation,
 } = organizationSettingsApi;

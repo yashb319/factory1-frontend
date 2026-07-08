@@ -27,4 +27,5 @@ export interface OrganizationSettingsResponse
   organizationId: string;
   organizationEmail?: string;
   phone?: string;
+  attendanceCaptureKey?: string;
 }

@@ -69,6 +69,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
 
   const [createProduct, createState] = useCreateProductMutation();
   const [updateProduct, updateState] = useUpdateProductMutation();
+  const selectedFinishedGoodId = form.watch("finishedGoodInventoryItemId");
 
   useEffect(() => {
     if (!open) return;
@@ -82,6 +83,26 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       active: String(product?.active ?? true),
     });
   }, [open, product, form]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const selectedItem = inventoryItems.find(
+      (item) => item.id === selectedFinishedGoodId
+    );
+
+    if (!selectedItem) {
+      return;
+    }
+
+    if (!form.getValues("name")) {
+      form.setValue("name", selectedItem.name, { shouldDirty: true });
+    }
+
+    form.setValue("unit", selectedItem.unit || "PCS", { shouldDirty: true });
+  }, [form, inventoryItems, open, selectedFinishedGoodId]);
 
   const onSubmit = async (values: FormValues) => {
     try {

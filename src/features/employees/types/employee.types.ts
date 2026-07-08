@@ -8,6 +8,7 @@ export interface Employee {
   name: string;
   phone?: string;
   email?: string;
+  photoDataUrl?: string;
   employeeType: EmployeeType;
   designation?: string;
   department?: string;
@@ -36,6 +37,7 @@ export interface CreateEmployeeRequest {
   name: string;
   phone?: string;
   email?: string;
+  photoDataUrl?: string;
   employeeType: EmployeeType;
   designation?: string;
   department?: string;

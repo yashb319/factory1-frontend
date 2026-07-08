@@ -45,6 +45,8 @@ export type InventoryItem = {
   minimumStock: number;
   purchasePrice?: number | null;
   sellingPrice?: number | null;
+  hsnCode?: string | null;
+  gstRate?: number | null;
   inventoryValue: number;
   supplierId?: string | null;
   supplierName?: string | null;
@@ -64,6 +66,8 @@ export type InventoryItemRequest = {
   minimumStock: number;
   purchasePrice?: number | null;
   sellingPrice?: number | null;
+  hsnCode?: string;
+  gstRate?: number | null;
   supplierId?: string | null;
   supplierName?: string;
   notes?: string;
@@ -77,6 +81,8 @@ export type InventoryItemUpdateRequest = {
   minimumStock: number;
   purchasePrice?: number | null;
   sellingPrice?: number | null;
+  hsnCode?: string;
+  gstRate?: number | null;
   supplierId?: string | null;
   supplierName?: string;
   status: InventoryItemStatus;

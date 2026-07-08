@@ -91,6 +91,8 @@ export function InventoryBulkImportDialog({ open, onClose }: Props) {
                 "minimumStock",
                 "purchasePrice",
                 "sellingPrice",
+                "hsnCode",
+                "gstRate",
                 "supplierName",
                 "notes",
             ].join(","),
@@ -104,6 +106,8 @@ export function InventoryBulkImportDialog({ open, onClose }: Props) {
                 "100",
                 "85",
                 "",
+                "5208",
+                "5",
                 "ABC Textiles",
                 "Used for bags",
             ].join(","),
@@ -137,7 +141,8 @@ export function InventoryBulkImportDialog({ open, onClose }: Props) {
                         Upload CSV with columns:
                         <div className="mt-2 font-mono text-xs">
                             itemCode, name, category, itemType, unit, openingStock,
-                            minimumStock, purchasePrice, sellingPrice, supplierName, notes
+                            minimumStock, purchasePrice, sellingPrice, hsnCode, gstRate,
+                            supplierName, notes
                         </div>
                     </div>
 
@@ -243,8 +248,10 @@ function parseCsv(text: string): ParsedRow[] {
             minimumStock: Number(cols[6] ?? 0),
             purchasePrice: cols[7] ? Number(cols[7]) : null,
             sellingPrice: cols[8] ? Number(cols[8]) : null,
-            supplierName: cols[9] ?? "",
-            notes: cols[10] ?? "",
+            hsnCode: cols[9] ?? "",
+            gstRate: cols[10] ? Number(cols[10]) : null,
+            supplierName: cols[11] ?? "",
+            notes: cols[12] ?? "",
         };
 
         row.error = validateRow(row);
@@ -263,6 +270,10 @@ function validateRow(row: ParsedRow) {
     }
     if (Number.isNaN(row.minimumStock) || row.minimumStock < 0) {
         return "Minimum stock must be 0 or more";
+    }
+    if (row.gstRate !== null && row.gstRate !== undefined
+        && (Number.isNaN(row.gstRate) || row.gstRate < 0 || row.gstRate > 28)) {
+        return "GST rate must be between 0 and 28";
     }
 
     return undefined;

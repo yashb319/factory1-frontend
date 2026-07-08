@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,6 +29,8 @@ import {
   useCreateInventoryItemMutation,
   useUpdateInventoryItemMutation,
 } from "../api/inventoryApi";
+import { useLazyGetGstSuggestionsQuery } from "@/features/billing/api/billingApi";
+import type { GstRateSuggestion } from "@/features/billing/types/billing.types";
 
 type Props = {
   open: boolean;
@@ -45,6 +48,8 @@ type FormValues = {
   minimumStock: number;
   purchasePrice?: number;
   sellingPrice?: number;
+  hsnCode: string;
+  gstRate?: number;
   supplierId: string;
   supplierName: string;
   status: string;
@@ -55,6 +60,7 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
   const isEdit = Boolean(item);
 
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
+  const [gstSuggestions, setGstSuggestions] = useState<GstRateSuggestion[]>([]);
 
   const { data: suppliers = [] } = useGetActiveSuppliersQuery();
 
@@ -69,6 +75,8 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
       minimumStock: 0,
       purchasePrice: 0,
       sellingPrice: 0,
+      hsnCode: "",
+      gstRate: 18,
       supplierId: "",
       supplierName: "",
       status: "ACTIVE",
@@ -78,11 +86,19 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
 
   const [createItem, createState] = useCreateInventoryItemMutation();
   const [updateItem, updateState] = useUpdateInventoryItemMutation();
+  const [getGstSuggestions, gstSuggestionState] = useLazyGetGstSuggestionsQuery();
+  const selectedSupplierId = form.watch("supplierId");
+  const itemType = form.watch("itemType");
+  const purchasePrice = form.watch("purchasePrice");
+  const sellingPrice = form.watch("sellingPrice");
+  const itemName = form.watch("name");
+  const hsnCode = form.watch("hsnCode");
 
   useEffect(() => {
     if (!open) return;
 
     if (item) {
+      setGstSuggestions([]);
       form.reset({
         itemCode: item.itemCode,
         name: item.name,
@@ -93,12 +109,15 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
         minimumStock: item.minimumStock,
         purchasePrice: item.purchasePrice ?? 0,
         sellingPrice: item.sellingPrice ?? 0,
+        hsnCode: item.hsnCode ?? "",
+        gstRate: item.gstRate ?? 18,
         supplierId: item.supplierId ?? "",
         supplierName: item.supplierName ?? "",
         status: item.status,
         notes: item.notes ?? "",
       });
     } else {
+      setGstSuggestions([]);
       form.reset({
         itemCode: "",
         name: "",
@@ -109,6 +128,8 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
         minimumStock: 0,
         purchasePrice: 0,
         sellingPrice: 0,
+        hsnCode: "",
+        gstRate: 18,
         supplierId: "",
         supplierName: "",
         status: "ACTIVE",
@@ -116,6 +137,25 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
       });
     }
   }, [open, item, form]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const supplier = suppliers.find((entry) => entry.id === selectedSupplierId);
+    form.setValue("supplierName", supplier?.name ?? "", { shouldDirty: true });
+  }, [form, open, selectedSupplierId, suppliers]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    if (itemType === "FINISHED_GOOD" && !sellingPrice && purchasePrice) {
+      form.setValue("sellingPrice", Number(purchasePrice), { shouldDirty: true });
+    }
+  }, [form, itemType, open, purchasePrice, sellingPrice]);
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -128,8 +168,15 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
           minimumStock: Number(values.minimumStock),
           purchasePrice: values.purchasePrice ? Number(values.purchasePrice) : null,
           sellingPrice: values.sellingPrice ? Number(values.sellingPrice) : null,
+          hsnCode: values.hsnCode?.trim().toUpperCase(),
+          gstRate:
+            values.gstRate === undefined || values.gstRate === null
+              ? null
+              : Number(values.gstRate),
           supplierId: values.supplierId || null,
-          supplierName: values.supplierName,
+          supplierName:
+            suppliers.find((supplier) => supplier.id === values.supplierId)?.name
+            ?? values.supplierName,
           status: values.status as InventoryItemUpdateRequest["status"],
           notes: values.notes,
         };
@@ -154,8 +201,15 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
         minimumStock: Number(values.minimumStock),
         purchasePrice: values.purchasePrice ? Number(values.purchasePrice) : null,
         sellingPrice: values.sellingPrice ? Number(values.sellingPrice) : null,
+        hsnCode: values.hsnCode?.trim().toUpperCase(),
+        gstRate:
+          values.gstRate === undefined || values.gstRate === null
+            ? null
+            : Number(values.gstRate),
         supplierId: values.supplierId || null,
-        supplierName: values.supplierName,
+        supplierName:
+          suppliers.find((supplier) => supplier.id === values.supplierId)?.name
+          ?? values.supplierName,
         notes: values.notes,
       };
 
@@ -170,6 +224,34 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
           : "Failed to create inventory item"
       );
     }
+  };
+
+  const lookupGst = async () => {
+    const query = hsnCode || itemName;
+
+    if (!query.trim()) {
+      toast.error("Enter item name or HSN first");
+      return;
+    }
+
+    try {
+      const suggestions = await getGstSuggestions(query).unwrap();
+      setGstSuggestions(suggestions);
+
+      if (!suggestions.length) {
+        toast.info("No GST suggestion found. Please verify manually.");
+      }
+    } catch {
+      toast.error("Could not fetch GST suggestion");
+    }
+  };
+
+  const applyGstSuggestion = (suggestion: GstRateSuggestion) => {
+    form.setValue("hsnCode", suggestion.hsnCode, { shouldDirty: true });
+    form.setValue("gstRate", Number(suggestion.igstRate ?? 0), {
+      shouldDirty: true,
+    });
+    setGstSuggestions([]);
   };
 
   const isLoading = createState.isLoading || updateState.isLoading;
@@ -226,6 +308,57 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
               <NumberField name="purchasePrice" label="Purchase / Cost Price" />
 
               <NumberField name="sellingPrice" label="Selling Price" />
+
+              <div className="space-y-2">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <TextField
+                      name="hsnCode"
+                      label="HSN / SAC"
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    disabled={gstSuggestionState.isFetching}
+                    onClick={lookupGst}
+                    aria-label="Find GST suggestion"
+                  >
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {gstSuggestions.length > 0 ? (
+                  <div className="space-y-1">
+                    {gstSuggestions.slice(0, 3).map((suggestion) => (
+                      <button
+                        key={`${suggestion.hsnCode}-${suggestion.description}`}
+                        type="button"
+                        onClick={() => applyGstSuggestion(suggestion)}
+                        className="block w-full rounded-md border bg-slate-50 px-2 py-1 text-left text-xs hover:bg-slate-100"
+                      >
+                        <span className="block font-medium">
+                          {suggestion.hsnCode || "HSN/SAC"} - {suggestion.igstRate}% GST
+                        </span>
+                        <span className="mt-0.5 block truncate text-muted-foreground">
+                          {suggestion.source?.toLowerCase().includes("ai")
+                            ? "AI suggestion, editable"
+                            : "Official/common suggestion, editable"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <NumberField
+                name="gstRate"
+                label="GST %"
+                min={0}
+                max={28}
+              />
 
               <div className="space-y-2">
                 <SelectField
