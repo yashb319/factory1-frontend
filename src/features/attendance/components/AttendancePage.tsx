@@ -3,7 +3,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Plus } from "lucide-react";
+import { Download, ExternalLink, KeyRound, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -92,6 +92,35 @@ export function AttendancePage() {
           <Button onClick={() => setMarkOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Mark Attendance
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950 md:flex-row md:items-center md:justify-between">
+        <div className="flex gap-3">
+          <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" />
+          <div>
+            <p className="font-semibold">Want automatic QR/photo attendance?</p>
+            <p className="mt-1 text-blue-800">
+              Generate the Attendance Capture Key in Organization Settings, then open the capture station on your gate phone or kiosk.
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+          <Button variant="outline" onClick={() => window.open("/organization-settings", "_self")}>
+            Setup Key
+          </Button>
+          <Button
+            onClick={() =>
+              window.open(
+                "https://factory1-frontend-attendance-captur.vercel.app/",
+                "_blank",
+                "noopener,noreferrer"
+              )
+            }
+          >
+            <ExternalLink className="mr-2 h-4 w-4" />
+            Open Capture
           </Button>
         </div>
       </div>
