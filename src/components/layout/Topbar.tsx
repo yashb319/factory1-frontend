@@ -553,6 +553,7 @@ const keywordsByHref: Record<string, string[]> = {
   "/customers": ["customer", "client", "buyer", "sales"],
   "/import-export": ["import", "export", "csv", "history", "download"],
   "/ai": ["ai", "chat", "assistant", "question"],
+  "/docs": ["docs", "documentation", "help", "guide", "manual", "testing"],
   "/organization-settings": ["settings", "organization", "org", "access", "role", "user"],
   "/saas-admin": ["saas", "admin", "factory", "plan", "pricing", "usage"],
 };
@@ -570,6 +571,7 @@ const descriptionByHref: Record<string, string> = {
   "/customers": "Manage customer records",
   "/import-export": "View import and export history",
   "/ai": "Open full AI assistant chat",
+  "/docs": "Read module guides and testing notes",
   "/organization-settings": "Manage org settings and access",
   "/saas-admin": "Manage factories, plans, pricing and usage",
 };

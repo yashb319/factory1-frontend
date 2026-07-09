@@ -46,6 +46,19 @@ export function AppShell({ children }: Props) {
         return;
       }
 
+      if (pathname === "/accounting" && isAccountingShortcut(event.key)) {
+        event.preventDefault();
+        event.stopPropagation();
+        window.dispatchEvent(
+          new CustomEvent("factory1:accounting-shortcut", {
+            detail: {
+              key: event.key,
+            },
+          })
+        );
+        return;
+      }
+
       const shortcut = visibleShortcuts(user).find(
         (entry) => entry.key === event.key
       );
@@ -102,6 +115,22 @@ export function AppShell({ children }: Props) {
 function isBillingShortcut(key: string) {
   return [
     "F2",
+    "F4",
+    "F5",
+    "F6",
+    "F7",
+    "F8",
+    "F9",
+    "F10",
+    "F11",
+    "F12",
+  ].includes(key);
+}
+
+function isAccountingShortcut(key: string) {
+  return [
+    "F2",
+    "F3",
     "F4",
     "F5",
     "F6",
