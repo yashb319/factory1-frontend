@@ -52,6 +52,7 @@ export const navigationItems: NavigationItem[] = [
     roles: ["OWNER", "ADMIN"],
   },
   { title: "AI Assistant", href: "/ai", icon: Bot, roles: allRoles },
+  // { title: "Docs", href: "/docs", icon: BookOpen, roles: allRoles },
   {
     title: "Organization Settings",
     href: "/organization-settings",

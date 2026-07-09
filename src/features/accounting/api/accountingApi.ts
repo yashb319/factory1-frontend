@@ -7,9 +7,11 @@ import type {
   AccountMasters,
   AccountGroupMutationRequest,
   AccountLedgerMutationRequest,
+  AccountingVoucherMutationRequest,
   AgingReport,
   AgingReportRequest,
   BalanceSheet,
+  CancelAccountingVoucherRequest,
   CreateAccountGroupRequest,
   CreateAccountLedgerRequest,
   CreateAccountingVoucherRequest,
@@ -171,10 +173,35 @@ export const accountingApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Accounting"],
     }),
+
+    updateAccountingVoucher: builder.mutation<
+      { data: AccountingVoucher; message: string; success: boolean },
+      AccountingVoucherMutationRequest
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/api/accounting/vouchers/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["Accounting"],
+    }),
+
+    cancelAccountingVoucher: builder.mutation<
+      { data: AccountingVoucher; message: string; success: boolean },
+      CancelAccountingVoucherRequest
+    >({
+      query: ({ id, reason }) => ({
+        url: `/api/accounting/vouchers/${id}`,
+        method: "DELETE",
+        body: { reason },
+      }),
+      invalidatesTags: ["Accounting"],
+    }),
   }),
 });
 
 export const {
+  useCancelAccountingVoucherMutation,
   useCreateAccountingVoucherMutation,
   useCreateAccountGroupMutation,
   useCreateAccountLedgerMutation,
@@ -188,6 +215,7 @@ export const {
   useGetProfitLossQuery,
   useGetTrialBalanceQuery,
   useLazyGetAccountingGstSummaryQuery,
+  useUpdateAccountingVoucherMutation,
   useUpdateAccountGroupMutation,
   useUpdateAccountLedgerMutation,
 } = accountingApi;

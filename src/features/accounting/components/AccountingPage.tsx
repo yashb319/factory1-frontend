@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
+  Copy,
   Download,
   Edit2,
   FileSpreadsheet,
+  Keyboard,
   Landmark,
   Plus,
+  Printer,
   ReceiptText,
   Trash2,
 } from "lucide-react";
@@ -42,8 +46,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
+import { toCsv } from "@/features/import-export/utils/csv";
+import { downloadCsv } from "@/features/import-export/utils/localExportFiles";
 import { exportGstReportCsv } from "@/features/billing/utils/gstReportExport";
 import {
+  useCancelAccountingVoucherMutation,
   useCreateAccountingVoucherMutation,
   useCreateAccountGroupMutation,
   useCreateAccountLedgerMutation,
@@ -57,6 +64,7 @@ import {
   useGetProfitLossQuery,
   useGetTrialBalanceQuery,
   useLazyGetAccountingGstSummaryQuery,
+  useUpdateAccountingVoucherMutation,
   useUpdateAccountGroupMutation,
   useUpdateAccountLedgerMutation,
 } from "../api/accountingApi";
@@ -68,6 +76,7 @@ import type {
   AgingReport,
   BalanceSheetRow,
   BalanceType,
+  TrialBalance,
   VoucherType,
 } from "../types/accounting.types";
 import { exportAgingCsv } from "../utils/agingExport";
@@ -75,6 +84,17 @@ import { exportBalanceSheetCsv } from "../utils/balanceSheetExport";
 import { exportDayBookCsv } from "../utils/dayBookExport";
 import { exportLedgerCsv } from "../utils/ledgerExport";
 import { exportProfitLossCsv } from "../utils/profitLossExport";
+import { formatCurrency, labelCase } from "../utils/accountingFormat";
+import {
+  AccountingWorkspaceNav,
+  type AccountingWorkspace,
+} from "./AccountingWorkspaceNav";
+import { CashBankBook } from "./CashBankBook";
+import {
+  LedgerDrilldownDialog,
+  type LedgerDrilldownRow,
+  type SelectedLedger,
+} from "./LedgerDrilldownDialog";
 
 const groupTypes: AccountGroupType[] = [
   "ASSET",
@@ -103,6 +123,7 @@ type VoucherLineDraft = {
 type DayBookFilter = VoucherType | "ALL";
 
 export function AccountingPage() {
+  const router = useRouter();
   const [fromDate, setFromDate] = useState(
     () => currentQuarterRange().fromDate
   );
@@ -130,6 +151,11 @@ export function AccountingPage() {
     useState<BalanceType>("DR");
   const [deleteLedgerTarget, setDeleteLedgerTarget] =
     useState<AccountLedger | null>(null);
+  const [selectedLedger, setSelectedLedger] = useState<SelectedLedger | null>(
+    null
+  );
+  const [workspace, setWorkspace] =
+    useState<AccountingWorkspace>("OVERVIEW");
   const [voucherType, setVoucherType] = useState<VoucherType>("JOURNAL");
   const [voucherDate, setVoucherDate] = useState(() => todayDate());
   const [voucherNarration, setVoucherNarration] = useState("");
@@ -137,6 +163,11 @@ export function AccountingPage() {
     newVoucherLine("DR"),
     newVoucherLine("CR"),
   ]);
+  const [editingVoucher, setEditingVoucher] =
+    useState<AccountingVoucher | null>(null);
+  const [cancelVoucherTarget, setCancelVoucherTarget] =
+    useState<AccountingVoucher | null>(null);
+  const [cancelVoucherReason, setCancelVoucherReason] = useState("");
   const range = { fromDate, toDate };
   const { data, isLoading, isFetching } = useGetLedgerReportQuery(range);
   const { data: trialBalance, isFetching: trialBalanceFetching } =
@@ -159,6 +190,10 @@ export function AccountingPage() {
     useGetAccountingVouchersQuery(range);
   const [createVoucher, createVoucherState] =
     useCreateAccountingVoucherMutation();
+  const [updateVoucher, updateVoucherState] =
+    useUpdateAccountingVoucherMutation();
+  const [cancelVoucher, cancelVoucherState] =
+    useCancelAccountingVoucherMutation();
   const [createGroup, createGroupState] = useCreateAccountGroupMutation();
   const [createLedger, createLedgerState] = useCreateAccountLedgerMutation();
   const [updateGroup, updateGroupState] = useUpdateAccountGroupMutation();
@@ -183,6 +218,129 @@ export function AccountingPage() {
     dayBookFilter === "ALL" ? true : voucher.voucherType === dayBookFilter
   );
   const dayBookSummary = summarizeVouchers(filteredVouchers);
+  const ledgerDrilldownRows = selectedLedger
+    ? ledgerVoucherLines(vouchers ?? [], selectedLedger.id)
+    : [];
+  const ledgerDrilldownTotals = summarizeLedgerDrilldown(ledgerDrilldownRows);
+  const monthlySummary = summarizeMonthlyVouchers(vouchers ?? []);
+  const groupSummary = summarizeTrialBalanceByGroup(trialBalance?.rows ?? []);
+
+  useEffect(() => {
+    const handleVoucherShortcut = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      const isTextInput =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.getAttribute("role") === "combobox";
+
+      if (isTextInput && !event.altKey && !event.shiftKey) {
+        return;
+      }
+
+      const nextType = voucherTypeFromShortcut(event);
+      if (!nextType) {
+        return;
+      }
+
+      event.preventDefault();
+      setWorkspace("VOUCHERS");
+      setVoucherType(nextType);
+      toast.info(`${labelCase(nextType)} voucher selected`);
+    };
+
+    window.addEventListener("keydown", handleVoucherShortcut);
+    return () => window.removeEventListener("keydown", handleVoucherShortcut);
+  }, []);
+
+  useEffect(() => {
+    function handleAccountingShortcut(event: Event) {
+      const shortcutEvent =
+        event as CustomEvent<{
+          key?: string;
+        }>;
+
+      if (shortcutEvent.detail?.key) {
+        handleAccountingShortcutKey(shortcutEvent.detail.key);
+      }
+    }
+
+    window.addEventListener(
+      "factory1:accounting-shortcut",
+      handleAccountingShortcut
+    );
+
+    return () =>
+      window.removeEventListener(
+        "factory1:accounting-shortcut",
+        handleAccountingShortcut
+      );
+  });
+
+  function selectVoucherType(nextType: VoucherType) {
+    setWorkspace("VOUCHERS");
+    setVoucherType(nextType);
+    toast.info(`${labelCase(nextType)} voucher selected`);
+  }
+
+  function handleAccountingShortcutKey(key: string) {
+    if (key === "F2") {
+      document.getElementById("accounting-from-date")?.focus();
+      return;
+    }
+
+    if (key === "F3") {
+      setWorkspace("MASTERS");
+      return;
+    }
+
+    if (key === "F4") {
+      selectVoucherType("CONTRA");
+      return;
+    }
+
+    if (key === "F5") {
+      selectVoucherType("PAYMENT");
+      return;
+    }
+
+    if (key === "F6") {
+      selectVoucherType("RECEIPT");
+      return;
+    }
+
+    if (key === "F7") {
+      selectVoucherType("JOURNAL");
+      return;
+    }
+
+    if (key === "F8") {
+      router.push("/billing?type=SALES");
+      return;
+    }
+
+    if (key === "F9") {
+      router.push("/billing?type=PURCHASE");
+      return;
+    }
+
+    if (key === "F10") {
+      setWorkspace("CASH_BANK");
+      return;
+    }
+
+    if (key === "F11") {
+      setWorkspace("REPORTS");
+      return;
+    }
+
+    if (key === "F12") {
+      router.push("/organization-settings");
+    }
+  }
 
   const submitGroup = async () => {
     if (!groupName.trim()) {
@@ -345,19 +503,36 @@ export function AccountingPage() {
       return;
     }
 
+    const payload = {
+      voucherType,
+      voucherDate,
+      narration: voucherNarration.trim() || null,
+      lines,
+    };
+
     try {
-      await createVoucher({
-        voucherType,
-        voucherDate,
-        narration: voucherNarration.trim() || null,
-        lines,
-      }).unwrap();
-      setVoucherNarration("");
-      setVoucherLines([newVoucherLine("DR"), newVoucherLine("CR")]);
-      toast.success("Voucher posted");
+      if (editingVoucher) {
+        await updateVoucher({
+          id: editingVoucher.id,
+          ...payload,
+        }).unwrap();
+        toast.success("Voucher updated");
+      } else {
+        await createVoucher(payload).unwrap();
+        toast.success("Voucher posted");
+      }
+      resetVoucherForm();
     } catch {
-      toast.error("Could not post voucher");
+      toast.error(editingVoucher ? "Could not update voucher" : "Could not post voucher");
     }
+  };
+
+  const resetVoucherForm = () => {
+    setEditingVoucher(null);
+    setVoucherType("JOURNAL");
+    setVoucherDate(todayDate());
+    setVoucherNarration("");
+    setVoucherLines([newVoucherLine("DR"), newVoucherLine("CR")]);
   };
 
   const updateVoucherLine = (
@@ -367,6 +542,198 @@ export function AccountingPage() {
     setVoucherLines((current) =>
       current.map((line) => (line.id === id ? { ...line, ...patch } : line))
     );
+  };
+
+  const copyVoucherToEntry = (voucher: AccountingVoucher) => {
+    setEditingVoucher(null);
+    setVoucherType(voucher.voucherType);
+    setVoucherDate(todayDate());
+    setVoucherNarration(
+      voucher.narration
+        ? `${voucher.narration} (copy of ${voucher.voucherNumber})`
+        : `Copy of ${voucher.voucherNumber}`
+    );
+    setVoucherLines(
+      voucher.lines.map((line) => ({
+        id: crypto.randomUUID(),
+        ledgerId: line.ledgerId,
+        entryType: line.entryType,
+        amount: String(line.amount ?? ""),
+        description: line.description ?? "",
+      }))
+    );
+    toast.success(`${voucher.voucherNumber} copied to voucher entry`);
+  };
+
+  const editVoucherInEntry = (voucher: AccountingVoucher) => {
+    if (voucher.sourceType) {
+      toast.info("Bill generated vouchers are edited from Billing");
+      return;
+    }
+
+    setEditingVoucher(voucher);
+    setWorkspace("VOUCHERS");
+    setVoucherType(voucher.voucherType);
+    setVoucherDate(voucher.voucherDate);
+    setVoucherNarration(voucher.narration ?? "");
+    setVoucherLines(
+      voucher.lines.map((line) => ({
+        id: crypto.randomUUID(),
+        ledgerId: line.ledgerId,
+        entryType: line.entryType,
+        amount: String(line.amount ?? ""),
+        description: line.description ?? "",
+      }))
+    );
+  };
+
+  const confirmCancelVoucher = async () => {
+    if (!cancelVoucherTarget) {
+      return;
+    }
+
+    try {
+      await cancelVoucher({
+        id: cancelVoucherTarget.id,
+        reason: cancelVoucherReason.trim() || null,
+      }).unwrap();
+      setCancelVoucherTarget(null);
+      setCancelVoucherReason("");
+      toast.success("Voucher cancelled");
+    } catch {
+      toast.error("Could not cancel voucher");
+    }
+  };
+
+  const autoBalanceVoucher = () => {
+    if (!voucherLines.length) {
+      return;
+    }
+
+    const difference = Number((voucherTotals.debit - voucherTotals.credit).toFixed(2));
+    if (Math.abs(difference) <= 0.009) {
+      toast.info("Voucher is already balanced");
+      return;
+    }
+
+    const lastLine = voucherLines[voucherLines.length - 1];
+    const nextEntryType: BalanceType = difference > 0 ? "CR" : "DR";
+    updateVoucherLine(lastLine.id, {
+      entryType: nextEntryType,
+      amount: String(Math.abs(difference)),
+    });
+    toast.success("Last line auto-balanced");
+  };
+
+  const openLedgerDrilldown = (ledger: SelectedLedger) => {
+    setSelectedLedger(ledger);
+  };
+
+  const exportLedgerDrilldown = () => {
+    if (!selectedLedger || !ledgerDrilldownRows.length) {
+      toast.info("No ledger voucher lines to export");
+      return;
+    }
+
+    const content = toCsv([
+      [
+        "Voucher Date",
+        "Voucher Number",
+        "Voucher Type",
+        "Ledger",
+        "Dr/Cr",
+        "Debit",
+        "Credit",
+        "Narration",
+        "Line Description",
+      ],
+      ...ledgerDrilldownRows.map((row) => [
+        row.voucherDate,
+        row.voucherNumber,
+        labelCase(row.voucherType),
+        row.ledgerName,
+        row.entryType,
+        row.debit,
+        row.credit,
+        row.narration ?? "",
+        row.description ?? "",
+      ]),
+    ]);
+
+    downloadCsv({
+      fileName: `ledger-drilldown-${selectedLedger.name}-${fromDate}-to-${toDate}.csv`,
+      content,
+    });
+    toast.success("Ledger drill-down CSV downloaded");
+  };
+
+  const printVoucher = (voucher: AccountingVoucher) => {
+    const printWindow = window.open("", "_blank", "width=900,height=720");
+    if (!printWindow) {
+      toast.error("Could not open print window");
+      return;
+    }
+
+    const rows = voucher.lines
+      .map(
+        (line) => `
+          <tr>
+            <td>${escapeHtml(line.ledgerName ?? "Ledger")}</td>
+            <td>${line.entryType}</td>
+            <td class="num">${formatCurrency(line.amount)}</td>
+            <td>${escapeHtml(line.description ?? "")}</td>
+          </tr>
+        `
+      )
+      .join("");
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>${voucher.voucherNumber}</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #111827; margin: 32px; }
+            h1 { margin: 0 0 4px; font-size: 24px; }
+            .meta { color: #4b5563; margin-bottom: 24px; }
+            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+            th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+            th { background: #f3f4f6; }
+            .num { text-align: right; }
+            .total { margin-top: 16px; text-align: right; font-weight: 700; }
+            .narration { margin-top: 16px; color: #374151; }
+          </style>
+        </head>
+        <body>
+          <h1>Accounting Voucher</h1>
+          <div class="meta">
+            <strong>${voucher.voucherNumber}</strong> · ${labelCase(voucher.voucherType)} · ${voucher.voucherDate}
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Ledger</th>
+                <th>Dr/Cr</th>
+                <th class="num">Amount</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <div class="total">
+            Debit ${formatCurrency(voucher.totalDebit)} · Credit ${formatCurrency(voucher.totalCredit)}
+          </div>
+          ${voucher.narration ? `<div class="narration">Narration: ${escapeHtml(voucher.narration)}</div>` : ""}
+          <script>
+            window.onload = function () {
+              window.print();
+              window.onafterprint = function () { window.close(); };
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const exportLedger = () => {
@@ -471,6 +838,91 @@ export function AccountingPage() {
     toast.success("Balance Sheet CSV exported successfully");
   };
 
+  const exportTrialBalance = () => {
+    if (!trialBalance?.rows.length) {
+      toast.info("No Trial Balance rows to export");
+      return;
+    }
+
+    const content = toCsv([
+      [
+        "Ledger",
+        "Group",
+        "Opening Dr",
+        "Opening Cr",
+        "Period Dr",
+        "Period Cr",
+        "Closing Dr",
+        "Closing Cr",
+      ],
+      ...trialBalance.rows.map((row) => [
+        row.ledgerName,
+        row.groupName ?? "",
+        row.openingDebit,
+        row.openingCredit,
+        row.periodDebit,
+        row.periodCredit,
+        row.closingDebit,
+        row.closingCredit,
+      ]),
+    ]);
+
+    downloadCsv({
+      fileName: `trial-balance-${fromDate}-to-${toDate}.csv`,
+      content,
+    });
+    toast.success("Trial Balance CSV downloaded");
+  };
+
+  const exportGroupSummary = () => {
+    if (!groupSummary.length) {
+      toast.info("No group summary rows to export");
+      return;
+    }
+
+    const content = toCsv([
+      ["Group", "Ledgers", "Closing Debit", "Closing Credit"],
+      ...groupSummary.map((row) => [
+        row.groupName,
+        row.ledgerCount,
+        row.closingDebit,
+        row.closingCredit,
+      ]),
+    ]);
+
+    downloadCsv({
+      fileName: `group-summary-${fromDate}-to-${toDate}.csv`,
+      content,
+    });
+    toast.success("Group Summary CSV downloaded");
+  };
+
+  const exportMonthlySummary = () => {
+    if (!monthlySummary.length) {
+      toast.info("No monthly voucher rows to export");
+      return;
+    }
+
+    const content = toCsv([
+      ["Month", "Vouchers", "Payment", "Receipt", "Contra", "Journal", "Movement"],
+      ...monthlySummary.map((row) => [
+        row.month,
+        row.voucherCount,
+        row.payment,
+        row.receipt,
+        row.contra,
+        row.journal,
+        row.totalMovement,
+      ]),
+    ]);
+
+    downloadCsv({
+      fileName: `monthly-voucher-summary-${fromDate}-to-${toDate}.csv`,
+      content,
+    });
+    toast.success("Monthly Summary CSV downloaded");
+  };
+
   const exportAging = (report: AgingReport | undefined) => {
     if (!report || !report.rows.length) {
       toast.info("No aging rows to export");
@@ -533,6 +985,7 @@ export function AccountingPage() {
 
         <div className="grid gap-2 rounded-lg border bg-white p-3 sm:grid-cols-[150px_150px_auto_auto_auto_auto]">
           <Input
+            id="accounting-from-date"
             type="date"
             value={fromDate}
             onChange={(event) => setFromDate(event.target.value)}
@@ -596,7 +1049,19 @@ export function AccountingPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <AccountingWorkspaceNav value={workspace} onChange={setWorkspace} />
+
+      <AccountingCommandPanel
+        workspace={workspace}
+        voucherType={voucherType}
+        onShortcut={handleAccountingShortcutKey}
+      />
+
+      <div
+        id="accounting-overview"
+        hidden={workspace !== "OVERVIEW"}
+        className="grid scroll-mt-24 gap-4 md:grid-cols-3"
+      >
         <SummaryCard
           title="Receivables"
           value={formatCurrency(data?.totalReceivables ?? 0)}
@@ -614,7 +1079,7 @@ export function AccountingPage() {
         />
       </div>
 
-      <Card className="rounded-lg">
+      <Card className="rounded-lg" hidden={workspace !== "OVERVIEW"}>
         <CardHeader className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
           <div>
             <CardTitle>Aging Reports</CardTitle>
@@ -646,7 +1111,11 @@ export function AccountingPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div
+        id="account-masters"
+        hidden={workspace !== "MASTERS"}
+        className="grid scroll-mt-24 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+      >
         <Card className="rounded-lg">
           <CardHeader className="flex flex-row items-center justify-between gap-3">
             <div>
@@ -888,15 +1357,43 @@ export function AccountingPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Card className="rounded-lg">
+      <div
+        id="voucher-entry"
+        hidden={workspace !== "VOUCHERS"}
+        className="grid scroll-mt-24 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+      >
+        <Card id="day-book" className="rounded-lg scroll-mt-24">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ReceiptText className="h-5 w-5" />
-              Voucher Entry
-            </CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2">
+                <ReceiptText className="h-5 w-5" />
+                {editingVoucher ? "Edit Voucher" : "Voucher Entry"}
+              </CardTitle>
+              {editingVoucher ? (
+                <Badge variant="outline">
+                  Editing {editingVoucher.voucherNumber}
+                </Badge>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
+              <Keyboard className="h-4 w-4" />
+              <span className="font-medium text-foreground">Tally shortcuts</span>
+              <ShortcutPill label="F4 Contra" />
+              <ShortcutPill label="F5 Payment" />
+              <ShortcutPill label="F6 Receipt" />
+              <ShortcutPill label="F7 Journal" />
+              <span>Alt+C/P/R/J also works while typing.</span>
+            </div>
+
+            {editingVoucher ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                You are editing a posted manual voucher. Changes are saved with
+                an audit trail.
+              </div>
+            ) : null}
+
             <div className="grid gap-3 md:grid-cols-[170px_170px_1fr]">
               <div className="space-y-2">
                 <Label>Voucher type</Label>
@@ -1053,6 +1550,13 @@ export function AccountingPage() {
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
                   variant="outline"
+                  onClick={() => setWorkspace("MASTERS")}
+                >
+                  <Landmark className="mr-2 h-4 w-4" />
+                  New Ledger
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={() =>
                     setVoucherLines((current) => [
                       ...current,
@@ -1063,14 +1567,23 @@ export function AccountingPage() {
                   <Plus className="mr-2 h-4 w-4" />
                   Add Line
                 </Button>
+                <Button variant="outline" onClick={autoBalanceVoucher}>
+                  Auto Balance
+                </Button>
+                {editingVoucher ? (
+                  <Button variant="outline" onClick={resetVoucherForm}>
+                    Cancel Edit
+                  </Button>
+                ) : null}
                 <Button
                   onClick={submitVoucher}
                   disabled={
                     createVoucherState.isLoading ||
+                    updateVoucherState.isLoading ||
                     Math.abs(voucherTotals.debit - voucherTotals.credit) > 0.009
                   }
                 >
-                  Post Voucher
+                  {editingVoucher ? "Save Voucher" : "Post Voucher"}
                 </Button>
               </div>
             </div>
@@ -1143,7 +1656,16 @@ export function AccountingPage() {
                 <div key={voucher.id} className="rounded-md border p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="font-medium">{voucher.voucherNumber}</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="font-medium">{voucher.voucherNumber}</div>
+                        {voucher.sourceType ? (
+                          <Badge variant="secondary">
+                            {voucher.sourceType === "BILL"
+                              ? "Billing source"
+                              : voucher.sourceType}
+                          </Badge>
+                        ) : null}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {labelCase(voucher.voucherType)} · {voucher.voucherDate}
                       </div>
@@ -1171,11 +1693,59 @@ export function AccountingPage() {
                         </span>
                       </div>
                     ))}
-                    {voucher.lines.length > 4 ? (
+                  {voucher.lines.length > 4 ? (
                       <div className="text-xs text-muted-foreground">
                         +{voucher.lines.length - 4} more lines
                       </div>
                     ) : null}
+                  </div>
+                  <div className="mt-3 flex justify-end gap-2 border-t pt-2">
+                    {voucher.sourceBillId ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push("/billing")}
+                      >
+                        Source
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={Boolean(voucher.sourceType)}
+                      onClick={() => editVoucherInEntry(voucher)}
+                    >
+                      <Edit2 className="mr-2 h-4 w-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyVoucherToEntry(voucher)}
+                    >
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copy
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => printVoucher(voucher)}
+                    >
+                      <Printer className="mr-2 h-4 w-4" />
+                      Print
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={Boolean(voucher.sourceType)}
+                      onClick={() => {
+                        setCancelVoucherTarget(voucher);
+                        setCancelVoucherReason("");
+                      }}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Cancel
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -1190,12 +1760,34 @@ export function AccountingPage() {
         </Card>
       </div>
 
-      <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle>Profit & Loss</CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Income and expenses from accounting voucher movement in this period.
-          </p>
+      <div hidden={workspace !== "CASH_BANK"}>
+        <CashBankBook
+          vouchers={vouchers ?? []}
+          ledgers={masters?.ledgers ?? []}
+        />
+      </div>
+
+      <Card
+        id="accounting-reports"
+        hidden={workspace !== "REPORTS"}
+        className="rounded-lg scroll-mt-24"
+      >
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div>
+            <CardTitle>Profit & Loss</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Income and expenses from accounting voucher movement in this period.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={exportProfitLoss}
+            disabled={!profitLoss?.rows.length}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            CSV
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-4">
@@ -1235,7 +1827,20 @@ export function AccountingPage() {
                 <tbody>
                   {(profitLoss?.rows ?? []).map((row) => (
                     <tr key={row.ledgerId} className="border-t">
-                      <td className="p-3 font-medium">{row.ledgerName}</td>
+                      <td className="p-3 font-medium">
+                        <button
+                          type="button"
+                          className="text-left font-medium text-blue-700 hover:underline"
+                          onClick={() =>
+                            openLedgerDrilldown({
+                              id: row.ledgerId,
+                              name: row.ledgerName,
+                            })
+                          }
+                        >
+                          {row.ledgerName}
+                        </button>
+                      </td>
                       <td className="p-3">{row.groupName ?? "-"}</td>
                       <td className="p-3">{row.section}</td>
                       <td className="p-3 text-right font-semibold">
@@ -1285,7 +1890,7 @@ export function AccountingPage() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-lg">
+      <Card className="rounded-lg" hidden={workspace !== "REPORTS"}>
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <div>
             <CardTitle>Balance Sheet</CardTitle>
@@ -1306,6 +1911,15 @@ export function AccountingPage() {
                 ? "Check totals"
                 : "Balanced"}
           </Badge>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={exportBalanceSheet}
+            disabled={!balanceSheet?.assets.length && !balanceSheet?.liabilities.length}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            CSV
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-4">
@@ -1336,17 +1950,19 @@ export function AccountingPage() {
               title="Assets"
               rows={balanceSheet?.assets ?? []}
               total={balanceSheet?.totalAssets ?? 0}
+              onOpenLedger={openLedgerDrilldown}
             />
             <BalanceSheetSide
               title="Liabilities"
               rows={balanceSheet?.liabilities ?? []}
               total={balanceSheet?.totalLiabilities ?? 0}
+              onOpenLedger={openLedgerDrilldown}
             />
           </div>
         </CardContent>
       </Card>
 
-      <Card className="rounded-lg">
+      <Card className="rounded-lg" hidden={workspace !== "REPORTS"}>
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <div>
             <CardTitle>Trial Balance</CardTitle>
@@ -1361,6 +1977,15 @@ export function AccountingPage() {
                 ? "Balanced"
                 : "Check totals"}
           </Badge>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={exportTrialBalance}
+            disabled={!trialBalance?.rows.length}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            CSV
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-md border">
@@ -1380,7 +2005,20 @@ export function AccountingPage() {
               <tbody>
                 {(trialBalance?.rows ?? []).map((row) => (
                   <tr key={row.ledgerId} className="border-t">
-                    <td className="p-3 font-medium">{row.ledgerName}</td>
+                    <td className="p-3 font-medium">
+                      <button
+                        type="button"
+                        className="text-left font-medium text-blue-700 hover:underline"
+                        onClick={() =>
+                          openLedgerDrilldown({
+                            id: row.ledgerId,
+                            name: row.ledgerName,
+                          })
+                        }
+                      >
+                        {row.ledgerName}
+                      </button>
+                    </td>
                     <td className="p-3">{row.groupName ?? "-"}</td>
                     <td className="p-3 text-right">
                       {formatCurrency(row.openingDebit)}
@@ -1431,7 +2069,140 @@ export function AccountingPage() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-lg">
+      <div
+        hidden={workspace !== "REPORTS"}
+        className="grid gap-4 lg:grid-cols-2"
+      >
+        <Card className="rounded-lg">
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <div>
+              <CardTitle>Group Summary</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Tally-style group totals from closing balances.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={exportGroupSummary}
+              disabled={!groupSummary.length}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              CSV
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full min-w-[620px] text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="p-3 text-left">Group</th>
+                    <th className="p-3 text-right">Ledgers</th>
+                    <th className="p-3 text-right">Closing Dr</th>
+                    <th className="p-3 text-right">Closing Cr</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupSummary.map((row) => (
+                    <tr key={row.groupName} className="border-t">
+                      <td className="p-3 font-medium">{row.groupName}</td>
+                      <td className="p-3 text-right">{row.ledgerCount}</td>
+                      <td className="p-3 text-right">
+                        {formatCurrency(row.closingDebit)}
+                      </td>
+                      <td className="p-3 text-right">
+                        {formatCurrency(row.closingCredit)}
+                      </td>
+                    </tr>
+                  ))}
+                  {!groupSummary.length ? (
+                    <tr>
+                      <td
+                        className="p-8 text-center text-muted-foreground"
+                        colSpan={4}
+                      >
+                        No group balances found.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-lg">
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <div>
+              <CardTitle>Monthly Voucher Summary</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Month-wise voucher movement for review.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={exportMonthlySummary}
+              disabled={!monthlySummary.length}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              CSV
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="p-3 text-left">Month</th>
+                    <th className="p-3 text-right">Vouchers</th>
+                    <th className="p-3 text-right">Payment</th>
+                    <th className="p-3 text-right">Receipt</th>
+                    <th className="p-3 text-right">Contra</th>
+                    <th className="p-3 text-right">Journal</th>
+                    <th className="p-3 text-right">Movement</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlySummary.map((row) => (
+                    <tr key={row.month} className="border-t">
+                      <td className="p-3 font-medium">{row.month}</td>
+                      <td className="p-3 text-right">{row.voucherCount}</td>
+                      <td className="p-3 text-right">
+                        {formatCurrency(row.payment)}
+                      </td>
+                      <td className="p-3 text-right">
+                        {formatCurrency(row.receipt)}
+                      </td>
+                      <td className="p-3 text-right">
+                        {formatCurrency(row.contra)}
+                      </td>
+                      <td className="p-3 text-right">
+                        {formatCurrency(row.journal)}
+                      </td>
+                      <td className="p-3 text-right font-semibold">
+                        {formatCurrency(row.totalMovement)}
+                      </td>
+                    </tr>
+                  ))}
+                  {!monthlySummary.length ? (
+                    <tr>
+                      <td
+                        className="p-8 text-center text-muted-foreground"
+                        colSpan={7}
+                      >
+                        No vouchers found for monthly summary.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="rounded-lg" hidden={workspace !== "OVERVIEW"}>
         <CardHeader>
           <CardTitle>Account Ledgers</CardTitle>
         </CardHeader>
@@ -1490,6 +2261,16 @@ export function AccountingPage() {
           </div>
         </CardContent>
       </Card>
+
+      <LedgerDrilldownDialog
+        selectedLedger={selectedLedger}
+        rows={ledgerDrilldownRows}
+        totals={ledgerDrilldownTotals}
+        fromDate={fromDate}
+        toDate={toDate}
+        onClose={() => setSelectedLedger(null)}
+        onExport={exportLedgerDrilldown}
+      />
 
       <Dialog
         open={Boolean(editingGroup)}
@@ -1686,6 +2467,43 @@ export function AccountingPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(cancelVoucherTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCancelVoucherTarget(null);
+            setCancelVoucherReason("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel accounting voucher?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove {cancelVoucherTarget?.voucherNumber} from
+              accounting reports and keep an audit trail.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label>Reason</Label>
+            <Input
+              value={cancelVoucherReason}
+              onChange={(event) => setCancelVoucherReason(event.target.value)}
+              placeholder="Example: Duplicate entry"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Voucher</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCancelVoucher}
+              disabled={cancelVoucherState.isLoading}
+            >
+              Cancel Voucher
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -1734,14 +2552,141 @@ function InlineMetric({
   );
 }
 
+function ShortcutPill({ label }: { label: string }) {
+  return (
+    <span className="rounded border bg-white px-2 py-1 font-medium text-foreground">
+      {label}
+    </span>
+  );
+}
+
+function AccountingCommandPanel({
+  workspace,
+  voucherType,
+  onShortcut,
+}: {
+  workspace: AccountingWorkspace;
+  voucherType: VoucherType;
+  onShortcut: (key: string) => void;
+}) {
+  const commands = [
+    {
+      key: "F2",
+      label: "Period",
+      active: false,
+      description: "Change date",
+    },
+    {
+      key: "F3",
+      label: "Masters",
+      active: workspace === "MASTERS",
+      description: "Groups & ledgers",
+    },
+    {
+      key: "F4",
+      label: "Contra",
+      active: workspace === "VOUCHERS" && voucherType === "CONTRA",
+      description: "Cash/bank transfer",
+    },
+    {
+      key: "F5",
+      label: "Payment",
+      active: workspace === "VOUCHERS" && voucherType === "PAYMENT",
+      description: "Pay supplier/expense",
+    },
+    {
+      key: "F6",
+      label: "Receipt",
+      active: workspace === "VOUCHERS" && voucherType === "RECEIPT",
+      description: "Receive money",
+    },
+    {
+      key: "F7",
+      label: "Journal",
+      active: workspace === "VOUCHERS" && voucherType === "JOURNAL",
+      description: "Adjustment entry",
+    },
+    {
+      key: "F8",
+      label: "Sales",
+      active: false,
+      description: "Open sales bill",
+    },
+    {
+      key: "F9",
+      label: "Purchase",
+      active: false,
+      description: "Open supplier bill",
+    },
+    {
+      key: "F10",
+      label: "Cash/Bank",
+      active: workspace === "CASH_BANK",
+      description: "Running book",
+    },
+    {
+      key: "F11",
+      label: "Reports",
+      active: workspace === "REPORTS",
+      description: "P&L, B/S, TB",
+    },
+    {
+      key: "F12",
+      label: "Configure",
+      active: false,
+      description: "Org settings",
+    },
+  ];
+
+  return (
+    <Card className="rounded-lg border-slate-200 bg-white">
+      <CardContent className="p-3">
+        <div className="flex gap-2 overflow-x-auto xl:grid xl:grid-cols-[repeat(11,minmax(86px,1fr))]">
+          {commands.map((command) => (
+            <button
+              key={command.key}
+              type="button"
+              onClick={() => onShortcut(command.key)}
+              className={[
+                "min-w-[92px] rounded-md border p-2 text-left transition",
+                command.active
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white",
+              ].join(" ")}
+            >
+              <span className="block text-[11px] font-semibold">
+                {command.key}
+              </span>
+              <span className="mt-1 block text-sm font-semibold">
+                {command.label}
+              </span>
+              <span
+                className={
+                  command.active
+                    ? "mt-0.5 block text-[11px] text-slate-200"
+                    : "mt-0.5 block text-[11px] text-muted-foreground"
+                }
+              >
+                {command.description}
+              </span>
+            </button>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function BalanceSheetSide({
   title,
   rows,
   total,
+  onOpenLedger,
 }: {
   title: string;
   rows: BalanceSheetRow[];
   total: number;
+  onOpenLedger: (ledger: SelectedLedger) => void;
 }) {
   return (
     <div className="overflow-hidden rounded-md border">
@@ -1763,7 +2708,24 @@ function BalanceSheetSide({
               key={`${title}-${row.ledgerId ?? row.ledgerName}`}
               className="border-t"
             >
-              <td className="p-3 font-medium">{row.ledgerName}</td>
+              <td className="p-3 font-medium">
+                {row.ledgerId ? (
+                  <button
+                    type="button"
+                    className="text-left font-medium text-blue-700 hover:underline"
+                    onClick={() =>
+                      onOpenLedger({
+                        id: row.ledgerId!,
+                        name: row.ledgerName,
+                      })
+                    }
+                  >
+                    {row.ledgerName}
+                  </button>
+                ) : (
+                  row.ledgerName
+                )}
+              </td>
               <td className="p-3">{row.groupName ?? "-"}</td>
               <td className="p-3 text-right font-semibold">
                 {formatCurrency(row.amount)}
@@ -1953,6 +2915,125 @@ function summarizeVouchers(vouchers: AccountingVoucher[]) {
   );
 }
 
+function summarizeMonthlyVouchers(vouchers: AccountingVoucher[]) {
+  const summary = new Map<
+    string,
+    {
+      month: string;
+      voucherCount: number;
+      payment: number;
+      receipt: number;
+      contra: number;
+      journal: number;
+      totalMovement: number;
+    }
+  >();
+
+  vouchers.forEach((voucher) => {
+    const month = voucher.voucherDate.slice(0, 7);
+    const row =
+      summary.get(month) ??
+      {
+        month,
+        voucherCount: 0,
+        payment: 0,
+        receipt: 0,
+        contra: 0,
+        journal: 0,
+        totalMovement: 0,
+      };
+
+    row.voucherCount += 1;
+    row.totalMovement += Number(voucher.totalDebit || 0);
+
+    if (voucher.voucherType === "PAYMENT") {
+      row.payment += Number(voucher.totalDebit || 0);
+    } else if (voucher.voucherType === "RECEIPT") {
+      row.receipt += Number(voucher.totalDebit || 0);
+    } else if (voucher.voucherType === "CONTRA") {
+      row.contra += Number(voucher.totalDebit || 0);
+    } else {
+      row.journal += Number(voucher.totalDebit || 0);
+    }
+
+    summary.set(month, row);
+  });
+
+  return [...summary.values()].sort((left, right) =>
+    left.month.localeCompare(right.month)
+  );
+}
+
+function summarizeTrialBalanceByGroup(rows: NonNullable<TrialBalance["rows"]>) {
+  const summary = new Map<
+    string,
+    {
+      groupName: string;
+      ledgerCount: number;
+      closingDebit: number;
+      closingCredit: number;
+    }
+  >();
+
+  rows.forEach((row) => {
+    const groupName = row.groupName || "Ungrouped";
+    const current =
+      summary.get(groupName) ??
+      {
+        groupName,
+        ledgerCount: 0,
+        closingDebit: 0,
+        closingCredit: 0,
+      };
+
+    current.ledgerCount += 1;
+    current.closingDebit += Number(row.closingDebit || 0);
+    current.closingCredit += Number(row.closingCredit || 0);
+    summary.set(groupName, current);
+  });
+
+  return [...summary.values()].sort((left, right) =>
+    left.groupName.localeCompare(right.groupName)
+  );
+}
+
+function ledgerVoucherLines(
+  vouchers: AccountingVoucher[],
+  ledgerId: string
+): LedgerDrilldownRow[] {
+  return vouchers.flatMap((voucher) =>
+    voucher.lines
+      .filter((line) => line.ledgerId === ledgerId)
+      .map((line) => ({
+        voucherId: voucher.id,
+        lineId: line.id,
+        voucherNumber: voucher.voucherNumber,
+        voucherType: voucher.voucherType,
+        voucherDate: voucher.voucherDate,
+        ledgerName: line.ledgerName ?? "Ledger",
+        entryType: line.entryType,
+        debit: line.entryType === "DR" ? Number(line.amount || 0) : 0,
+        credit: line.entryType === "CR" ? Number(line.amount || 0) : 0,
+        narration: voucher.narration,
+        description: line.description,
+      }))
+  );
+}
+
+function summarizeLedgerDrilldown(rows: LedgerDrilldownRow[]) {
+  return rows.reduce(
+    (summary, row) => {
+      summary.debit += row.debit;
+      summary.credit += row.credit;
+      return summary;
+    },
+    {
+      debit: 0,
+      credit: 0,
+    }
+  );
+}
+
 function newVoucherLine(entryType: BalanceType): VoucherLineDraft {
   return {
     id: crypto.randomUUID(),
@@ -1963,20 +3044,48 @@ function newVoucherLine(entryType: BalanceType): VoucherLineDraft {
   };
 }
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value || 0);
+function voucherTypeFromShortcut(event: KeyboardEvent): VoucherType | null {
+  if (event.key === "F4") {
+    return "CONTRA";
+  }
+
+  if (event.key === "F5") {
+    return "PAYMENT";
+  }
+
+  if (event.key === "F6") {
+    return "RECEIPT";
+  }
+
+  if (event.key === "F7") {
+    return "JOURNAL";
+  }
+
+  if (!event.altKey) {
+    return null;
+  }
+
+  switch (event.key.toLowerCase()) {
+    case "c":
+      return "CONTRA";
+    case "p":
+      return "PAYMENT";
+    case "r":
+      return "RECEIPT";
+    case "j":
+      return "JOURNAL";
+    default:
+      return null;
+  }
 }
 
-function labelCase(value: string) {
+function escapeHtml(value: string) {
   return value
-    .toLowerCase()
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function isTrialBalanceMatched(

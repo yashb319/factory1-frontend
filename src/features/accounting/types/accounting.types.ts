@@ -202,6 +202,10 @@ export type AccountingVoucher = {
   totalDebit: number;
   totalCredit: number;
   posted: boolean;
+  sourceBillId?: string | null;
+  sourceType?: string | null;
+  cancelledAt?: string | null;
+  cancelledReason?: string | null;
   lines: AccountingVoucherLine[];
 };
 
@@ -215,6 +219,15 @@ export type CreateAccountingVoucherRequest = {
     amount: number;
     description?: string | null;
   }>;
+};
+
+export type AccountingVoucherMutationRequest = CreateAccountingVoucherRequest & {
+  id: string;
+};
+
+export type CancelAccountingVoucherRequest = {
+  id: string;
+  reason?: string | null;
 };
 
 export type { GstReport };
