@@ -111,7 +111,7 @@ export function PayrollDetailsDialog({
                 </Button>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
                 <Card label="Payroll Month">
                   {getMonthName(data.payrollMonth)} {data.payrollYear}
                 </Card>
@@ -127,7 +127,7 @@ export function PayrollDetailsDialog({
                 </Card>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
                 <Card label="Gross Amount">
                   {formatCurrency(data.grossAmount)}
                 </Card>
@@ -148,7 +148,7 @@ export function PayrollDetailsDialog({
               </div>
 
               <div className="overflow-x-auto rounded-2xl border bg-white shadow-sm">
-                <Table>
+                <Table className="responsive-table">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Employee</TableHead>
@@ -170,41 +170,41 @@ export function PayrollDetailsDialog({
                   <TableBody>
                     {data.items?.map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium" data-label="Employee">
                           {item.employeeName}
                         </TableCell>
 
-                        <TableCell>{item.employeeCode}</TableCell>
+                        <TableCell data-label="Code">{item.employeeCode}</TableCell>
 
-                        <TableCell>{item.salaryType}</TableCell>
+                        <TableCell data-label="Salary Type">{item.salaryType}</TableCell>
 
-                        <TableCell>{formatCurrency(item.baseSalary)}</TableCell>
+                        <TableCell data-label="Base">{formatCurrency(item.baseSalary)}</TableCell>
 
-                        <TableCell>{item.totalWorkingDays}</TableCell>
+                        <TableCell data-label="Working Days">{item.totalWorkingDays}</TableCell>
 
-                        <TableCell>{item.presentDays}</TableCell>
+                        <TableCell data-label="Present">{item.presentDays}</TableCell>
 
-                        <TableCell>{item.totalHours}</TableCell>
+                        <TableCell data-label="Hours">{item.totalHours}</TableCell>
 
-                        <TableCell>{item.overtimeHours}</TableCell>
+                        <TableCell data-label="OT Hours">{item.overtimeHours}</TableCell>
 
-                        <TableCell>
+                        <TableCell data-label="Gross">
                           {formatCurrency(item.grossSalary)}
                         </TableCell>
 
-                        <TableCell>
+                        <TableCell data-label="OT Amount">
                           {formatCurrency(item.overtimeAmount)}
                         </TableCell>
 
-                        <TableCell>
+                        <TableCell data-label="Deductions">
                           {formatCurrency(item.deductions)}
                         </TableCell>
 
-                        <TableCell className="font-semibold">
+                        <TableCell className="font-semibold" data-label="Net">
                           {formatCurrency(item.netSalary)}
                         </TableCell>
 
-                        <TableCell>
+                        <TableCell data-label="Action">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -254,9 +254,9 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border bg-white p-4">
-      <p className="text-sm text-slate-500">{label}</p>
-      <div className="mt-1 text-lg font-semibold">{children}</div>
+    <div className="rounded-xl border bg-white p-3 sm:p-4">
+      <p className="text-xs text-slate-500 sm:text-sm">{label}</p>
+      <div className="mt-1 text-xl font-semibold sm:text-2xl">{children}</div>
     </div>
   );
 }

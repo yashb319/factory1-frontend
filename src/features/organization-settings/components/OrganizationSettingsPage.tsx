@@ -3,7 +3,7 @@ import { AccessManagementPanel } from "@/features/access/components/AccessManage
 
 export default function OrganizationSettingsPage() {
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Organization Settings

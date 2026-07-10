@@ -70,7 +70,7 @@ export default function DashboardPage() {
         </PageSection>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Employees"
           value={loadingValue(isLoading, data?.employees)}
@@ -100,7 +100,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Sales This Month"
           value={isLoading ? "..." : formatCurrency(data?.salesThisMonth ?? 0)}

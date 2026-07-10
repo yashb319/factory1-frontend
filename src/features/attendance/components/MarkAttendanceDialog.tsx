@@ -97,7 +97,7 @@ export function MarkAttendanceDialog({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="min-w-[720px] max-w-[95vw]">
+      <DialogContent className="w-full max-w-[95vw] sm:max-w-[720px]">
         <DialogHeader>
           <DialogTitle>Mark Attendance</DialogTitle>
         </DialogHeader>

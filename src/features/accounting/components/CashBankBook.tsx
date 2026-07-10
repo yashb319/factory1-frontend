@@ -137,14 +137,14 @@ export function CashBankBook({ vouchers, ledgers }: Props) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 grid-cols-3">
           <Metric title="Receipts / Debits" value={formatCurrency(totals.debit)} />
           <Metric title="Payments / Credits" value={formatCurrency(totals.credit)} />
           <Metric title="Closing Balance" value={formatCurrency(totals.closing)} />
         </div>
 
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full min-w-[920px] text-sm">
+          <table className="responsive-table w-full min-w-[920px] text-sm">
             <thead className="bg-muted">
               <tr>
                 <th className="p-3 text-left">Date</th>
@@ -162,17 +162,17 @@ export function CashBankBook({ vouchers, ledgers }: Props) {
                   key={`${row.voucherNumber}-${row.particulars}-${row.debit}-${row.credit}`}
                   className="border-t"
                 >
-                  <td className="p-3">{row.voucherDate}</td>
-                  <td className="p-3 font-medium">{row.voucherNumber}</td>
-                  <td className="p-3">{row.voucherType}</td>
-                  <td className="p-3">{row.particulars}</td>
-                  <td className="p-3 text-right">
+                  <td className="p-3" data-label="Date">{row.voucherDate}</td>
+                  <td className="p-3 font-medium" data-label="Voucher">{row.voucherNumber}</td>
+                  <td className="p-3" data-label="Type">{row.voucherType}</td>
+                  <td className="p-3" data-label="Particulars">{row.particulars}</td>
+                  <td className="p-3 text-right" data-label="Debit">
                     {row.debit ? formatCurrency(row.debit) : "-"}
                   </td>
-                  <td className="p-3 text-right">
+                  <td className="p-3 text-right" data-label="Credit">
                     {row.credit ? formatCurrency(row.credit) : "-"}
                   </td>
-                  <td className="p-3 text-right font-semibold">
+                  <td className="p-3 text-right font-semibold" data-label="Balance">
                     {formatCurrency(row.balance)}
                   </td>
                 </tr>

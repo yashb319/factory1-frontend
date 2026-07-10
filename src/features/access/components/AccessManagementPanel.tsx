@@ -211,7 +211,7 @@ export function AccessManagementPanel() {
         </div>
 
         <div className="min-w-0">
-          <Table>
+          <Table className="responsive-table">
             <TableHeader>
               <TableRow>
                 <TableHead>User</TableHead>
@@ -223,25 +223,25 @@ export function AccessManagementPanel() {
             <TableBody>
               {users.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell>
+                  <TableCell data-label="User">
                     <div>
                       <p className="font-medium">{user.name}</p>
                       <p className="text-xs text-muted-foreground">{user.email}</p>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Role">
                     <Badge variant={user.role === "OWNER" ? "default" : "outline"}>
                       {user.role}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Status">
                     <Badge
                       variant={user.status === "ACTIVE" ? "secondary" : "destructive"}
                     >
                       {user.status}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" data-label="Action">
                     {user.role !== "OWNER" && user.status === "ACTIVE" && (
                       <Button
                         type="button"

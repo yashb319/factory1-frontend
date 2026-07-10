@@ -131,7 +131,7 @@ export function InventoryBulkImportDialog({ open, onClose }: Props) {
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-h-[90vh] max-w-5xl min-w-3xl overflow-y-auto">
+            <DialogContent className="max-h-[90vh] w-full max-w-[calc(100%-2rem)] sm:max-w-5xl overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Bulk Import Inventory</DialogTitle>
                 </DialogHeader>
@@ -174,7 +174,7 @@ export function InventoryBulkImportDialog({ open, onClose }: Props) {
 
                     {rows.length > 0 && (
                         <div className="overflow-x-auto rounded-lg border">
-                            <table className="w-full min-w-[1000px] text-sm">
+                            <table className="responsive-table w-full min-w-[1000px] text-sm">
                                 <thead className="bg-muted/50">
                                     <tr>
                                         <th className="px-3 py-2 text-left">Row</th>
@@ -191,14 +191,14 @@ export function InventoryBulkImportDialog({ open, onClose }: Props) {
                                 <tbody>
                                     {rows.map((row) => (
                                         <tr key={row.rowNumber} className="border-t">
-                                            <td className="px-3 py-2">{row.rowNumber}</td>
-                                            <td className="px-3 py-2">{row.itemCode}</td>
-                                            <td className="px-3 py-2">{row.name}</td>
-                                            <td className="px-3 py-2">{row.itemType}</td>
-                                            <td className="px-3 py-2">{row.unit}</td>
-                                            <td className="px-3 py-2">{row.openingStock}</td>
-                                            <td className="px-3 py-2">{row.minimumStock}</td>
-                                            <td className="px-3 py-2 text-red-600">
+                                            <td className="px-3 py-2" data-label="Row">{row.rowNumber}</td>
+                                            <td className="px-3 py-2" data-label="Item Code">{row.itemCode}</td>
+                                            <td className="px-3 py-2" data-label="Name">{row.name}</td>
+                                            <td className="px-3 py-2" data-label="Type">{row.itemType}</td>
+                                            <td className="px-3 py-2" data-label="Unit">{row.unit}</td>
+                                            <td className="px-3 py-2" data-label="Opening">{row.openingStock}</td>
+                                            <td className="px-3 py-2" data-label="Minimum">{row.minimumStock}</td>
+                                            <td className="px-3 py-2 text-red-600" data-label="Error">
                                                 {row.error || "-"}
                                             </td>
                                         </tr>

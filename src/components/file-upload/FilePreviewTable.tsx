@@ -20,7 +20,7 @@ export function FilePreviewTable({ data }: Props) {
 
   return (
     <div className="rounded-xl border">
-      <Table>
+      <Table className="responsive-table">
         <TableHeader>
           <TableRow>
             {columns.map((column) => (
@@ -33,7 +33,7 @@ export function FilePreviewTable({ data }: Props) {
           {data.slice(0, 10).map((row, index) => (
             <TableRow key={index}>
               {columns.map((column) => (
-                <TableCell key={column}>
+                <TableCell key={column} data-label={column}>
                   {String(row[column] ?? "")}
                 </TableCell>
               ))}

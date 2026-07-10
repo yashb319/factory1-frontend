@@ -138,7 +138,7 @@ export function BomDialog({ open, onOpenChange, product }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-5xl overflow-y-auto">
+      <DialogContent className="max-h-[85vh] w-full max-w-[calc(100%-2rem)] sm:max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>BOM for {product.name}</DialogTitle>
         </DialogHeader>
@@ -149,7 +149,7 @@ export function BomDialog({ open, onOpenChange, product }: Props) {
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
 
-          <div className="rounded-md border">
+          <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm">
               <thead className="bg-muted">
                 <tr>

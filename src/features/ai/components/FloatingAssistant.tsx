@@ -283,9 +283,9 @@ export function FloatingAssistant() {
   return (
     <div
       data-tour="ai-assistant"
-      className="fixed inset-x-3 bottom-3 z-50 sm:inset-x-auto sm:right-5 sm:w-[420px]"
+      className="fixed inset-x-3 bottom-3 z-50 flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-y-auto rounded-lg border bg-white shadow-2xl shadow-slate-950/15 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[420px]"
     >
-      <div className="overflow-hidden rounded-lg border bg-white shadow-2xl shadow-slate-950/15">
+      <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -338,7 +338,7 @@ export function FloatingAssistant() {
           </div>
         </div>
 
-        <div className="flex max-h-[72vh] flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
               {messages.length ? (
                 messages.map((message, index) => (

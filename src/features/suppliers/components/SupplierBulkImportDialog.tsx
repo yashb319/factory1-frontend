@@ -97,7 +97,7 @@ export function SupplierBulkImportDialog({ open, onClose }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-full max-w-[calc(100%-2rem)] sm:max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Bulk Import Suppliers</DialogTitle>
         </DialogHeader>
@@ -136,7 +136,7 @@ export function SupplierBulkImportDialog({ open, onClose }: Props) {
 
           {rows.length > 0 && (
             <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className="responsive-table w-full min-w-[900px] text-sm">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="px-3 py-2 text-left">Row</th>
@@ -151,13 +151,13 @@ export function SupplierBulkImportDialog({ open, onClose }: Props) {
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.rowNumber} className="border-t">
-                      <td className="px-3 py-2">{row.rowNumber}</td>
-                      <td className="px-3 py-2">{row.supplierCode}</td>
-                      <td className="px-3 py-2">{row.name}</td>
-                      <td className="px-3 py-2">{row.phone}</td>
-                      <td className="px-3 py-2">{row.gstNumber}</td>
-                      <td className="px-3 py-2">{row.city}</td>
-                      <td className="px-3 py-2 text-red-600">
+                      <td className="px-3 py-2" data-label="Row">{row.rowNumber}</td>
+                      <td className="px-3 py-2" data-label="Code">{row.supplierCode}</td>
+                      <td className="px-3 py-2" data-label="Name">{row.name}</td>
+                      <td className="px-3 py-2" data-label="Phone">{row.phone}</td>
+                      <td className="px-3 py-2" data-label="GST">{row.gstNumber}</td>
+                      <td className="px-3 py-2" data-label="City">{row.city}</td>
+                      <td className="px-3 py-2 text-red-600" data-label="Error">
                         {row.error || "-"}
                       </td>
                     </tr>

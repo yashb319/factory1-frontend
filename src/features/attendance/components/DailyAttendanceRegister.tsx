@@ -322,7 +322,7 @@ export function DailyAttendanceRegister() {
         </div>
       </div>
 
-      <div className="grid gap-3 border-b p-4 sm:grid-cols-2 lg:grid-cols-7">
+      <div className="grid gap-3 border-b p-4 grid-cols-2 lg:grid-cols-7">
         <SummaryCard label="Total" value={totalEmployees} />
         <SummaryCard label="Recorded" value={recordedCount} />
         <SummaryCard label="Pending" value={pendingCount} />

@@ -102,7 +102,7 @@ export function StockMovementDialog({ open, item, onClose }: Props) {
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-xl">
+            <DialogContent className="w-full max-w-[calc(100%-2rem)] sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle>Update Stock</DialogTitle>
                 </DialogHeader>

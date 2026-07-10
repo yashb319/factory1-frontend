@@ -140,7 +140,7 @@ export function AiAssistantPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-5rem)] min-h-[720px] flex-col gap-4 p-6">
+    <div className="flex h-[calc(100dvh-8rem)] min-h-[420px] flex-col gap-4">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
@@ -160,6 +160,21 @@ export function AiAssistantPage() {
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_320px]">
         <Card className="min-h-0 rounded-lg">
           <CardContent className="flex h-full min-h-0 flex-col gap-4 p-4">
+            <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden">
+              {starterQuestions.map((question) => (
+                <Button
+                  key={question}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0"
+                  onClick={() => askStarter(question)}
+                >
+                  {question}
+                </Button>
+              ))}
+            </div>
+
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
               {messages.map((message, index) => (
                 <div
@@ -314,7 +329,7 @@ export function AiAssistantPage() {
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
+        <div className="hidden space-y-4 lg:block">
           <Card className="rounded-lg">
             <CardHeader>
               <CardTitle>Common Questions</CardTitle>

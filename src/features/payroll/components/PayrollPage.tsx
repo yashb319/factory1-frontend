@@ -124,7 +124,7 @@ export function PayrollPage() {
   const confirmContent = getConfirmContent(confirm.action);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Payroll

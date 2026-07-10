@@ -88,7 +88,7 @@ export function PayrollPayslipDialog({
             <iframe
               title="Payslip Preview"
               srcDoc={payslipHtml}
-              className="h-[760px] w-[820px] rounded-xl border bg-white"
+              className="h-[760px] w-full rounded-xl border bg-white"
             />
           </div>
         </div>

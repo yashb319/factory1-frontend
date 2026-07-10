@@ -168,6 +168,53 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Responsive stacked tables: convert wide data tables into labelled card
+   lists on small screens (<=640px) to remove horizontal scrolling. */
+@media (max-width: 640px) {
+  .responsive-table,
+  .responsive-table tbody,
+  .responsive-table tr,
+  .responsive-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .responsive-table {
+    min-width: 0 !important;
+  }
+
+  .responsive-table thead {
+    display: none;
+  }
+
+  .responsive-table tr {
+    margin-bottom: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.625rem;
+    padding: 0.25rem 0.25rem;
+  }
+
+  .responsive-table td {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    text-align: right;
+  }
+
+  .responsive-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    max-width: 45%;
+    font-weight: 600;
+    text-align: left;
+    color: var(--muted-foreground);
+    white-space: normal;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

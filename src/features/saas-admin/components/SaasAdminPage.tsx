@@ -308,7 +308,7 @@ export function SaasAdminPage() {
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 grid-cols-2 xl:grid-cols-5">
         <MetricCard
           label="Factories"
           value={dashboard?.totalFactories ?? 0}
@@ -336,7 +336,7 @@ export function SaasAdminPage() {
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 grid-cols-2">
         <div className="rounded-lg border bg-white p-4">
           <p className="text-xs font-medium uppercase text-slate-500">
             Plan attention
@@ -357,7 +357,7 @@ export function SaasAdminPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 grid-cols-2 xl:grid-cols-5">
         {(dashboard?.plans ?? []).map((plan) => (
           <PlanSummary
             key={plan.plan}
@@ -453,7 +453,7 @@ export function SaasAdminPage() {
           />
         </div>
 
-        <div className="mt-4 grid gap-2 md:grid-cols-3">
+        <div className="mt-4 grid gap-2 grid-cols-2 md:grid-cols-3">
           {(dashboard?.offers ?? []).map((offer) => (
             <div key={offer.id} className="rounded-md border bg-slate-50 p-3">
               <div className="flex items-start justify-between gap-2">
@@ -662,13 +662,13 @@ function MetricCard({
   icon: typeof Building2;
 }) {
   return (
-    <Card className="rounded-lg">
-      <CardContent className="flex items-center justify-between p-4">
+    <Card className="rounded-xl">
+      <CardContent className="flex items-center justify-between p-3 sm:p-4">
         <div>
           <p className="text-xs font-medium uppercase text-slate-500">
             {label}
           </p>
-          <p className="mt-1 text-2xl font-semibold">{value}</p>
+          <p className="mt-1 text-xl font-semibold sm:text-2xl">{value}</p>
         </div>
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
           <Icon size={18} />

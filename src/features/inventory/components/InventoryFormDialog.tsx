@@ -259,7 +259,7 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-full max-w-[calc(100%-2rem)] sm:max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {isEdit ? "Edit Inventory Item" : "Add Inventory Item"}
