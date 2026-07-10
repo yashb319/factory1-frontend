@@ -108,7 +108,7 @@ const moduleDocs: ModuleDoc[] = [
       "Can this later work with RFID or camera hardware?",
     ],
     notes: [
-      "Capture site: https://factory1-frontend-attendance-captur.vercel.app/",
+      "Capture site: https://attendance-capture.factory1.in/",
     ],
   },
   {

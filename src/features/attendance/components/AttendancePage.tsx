@@ -113,7 +113,7 @@ export function AttendancePage() {
           <Button
             onClick={() =>
               window.open(
-                "https://factory1-frontend-attendance-captur.vercel.app/",
+                "https://attendance-capture.factory1.in/",
                 "_blank",
                 "noopener,noreferrer"
               )
