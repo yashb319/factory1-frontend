@@ -4,6 +4,8 @@ import type {
   SaasAdminDashboard,
   SaasFactory,
   SaasFactoryUpdateRequest,
+  SaasOffer,
+  SaasOfferRequest,
   SaasPlanOption,
   SaasPlanUpdateRequest,
 } from "../types/saasAdmin.types";
@@ -41,11 +43,21 @@ export const saasAdminApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["SaasAdmin"],
     }),
+
+    createSaasOffer: builder.mutation<ApiResponse<SaasOffer>, SaasOfferRequest>({
+      query: (body) => ({
+        url: "/api/saas-admin/offers",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["SaasAdmin"],
+    }),
   }),
 });
 
 export const {
   useGetSaasAdminDashboardQuery,
+  useCreateSaasOfferMutation,
   useUpdateSaasFactoryMutation,
   useUpdateSaasPlanMutation,
 } = saasAdminApi;

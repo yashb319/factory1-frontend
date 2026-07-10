@@ -4,6 +4,30 @@ export interface ApiResponse<T> {
   data: T;
 }
 
+export type OrganizationPlan = "FREE" | "STARTER" | "GROWTH" | "BUSINESS" | "ENTERPRISE";
+
+export interface PlanOption {
+  plan: OrganizationPlan;
+  label: string;
+  employeeLimit: number | null;
+  aiPromptLimit: number | null;
+  aiPromptWindowMinutes: number;
+  aiUnlimited: boolean;
+  defaultMonthlyPrice: number;
+  displayNote?: string | null;
+  serviceOfferings?: string | null;
+}
+
+export interface PlanOffer {
+  id: string;
+  title: string;
+  code: string;
+  description?: string | null;
+  discountPercent?: number | null;
+  validUntil?: string | null;
+  active: boolean;
+}
+
 export interface OrganizationSettingsRequest {
   workingHoursPerDay: number;
   workingDaysPerMonth: number;
@@ -31,4 +55,20 @@ export interface OrganizationSettingsResponse
   organizationEmail?: string;
   phone?: string;
   attendanceCaptureKey?: string;
+  plan: OrganizationPlan;
+  planMonthlyPrice: number;
+  employeeLimit: number | null;
+  aiExternalPromptLimit: number | null;
+  aiExternalPromptWindowMinutes: number;
+  aiExternalPromptUnlimited: boolean;
+}
+
+export interface PlanChangeRequest {
+  requestedPlan: OrganizationPlan;
+  note?: string;
+}
+
+export interface MessageResponse {
+  message: string;
+  debug?: Record<string, unknown> | null;
 }

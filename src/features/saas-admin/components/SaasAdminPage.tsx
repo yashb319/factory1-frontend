@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Save,
   Sparkles,
+  Tag,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/table";
 import { useAppSelector } from "@/lib/hook";
 import {
+  useCreateSaasOfferMutation,
   useGetSaasAdminDashboardQuery,
   useUpdateSaasFactoryMutation,
   useUpdateSaasPlanMutation,
@@ -54,6 +56,17 @@ type PlanDraft = {
   aiPromptWindowMinutes: string;
   aiUnlimited: boolean;
   defaultMonthlyPrice: string;
+  displayNote: string;
+  serviceOfferings: string;
+};
+
+type OfferDraft = {
+  title: string;
+  code: string;
+  description: string;
+  discountPercent: string;
+  validUntil: string;
+  active: boolean;
 };
 
 export function SaasAdminPage() {
@@ -66,8 +79,17 @@ export function SaasAdminPage() {
   );
   const [updateFactory, updateState] = useUpdateSaasFactoryMutation();
   const [updatePlan, updatePlanState] = useUpdateSaasPlanMutation();
+  const [createOffer, createOfferState] = useCreateSaasOfferMutation();
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [planDrafts, setPlanDrafts] = useState<Record<string, PlanDraft>>({});
+  const [offerDraft, setOfferDraft] = useState<OfferDraft>({
+    title: "",
+    code: "",
+    description: "",
+    discountPercent: "",
+    validUntil: "",
+    active: true,
+  });
 
   const dashboard = data?.data;
 
@@ -104,6 +126,8 @@ export function SaasAdminPage() {
             aiPromptWindowMinutes: String(plan.aiPromptWindowMinutes ?? 5),
             aiUnlimited: Boolean(plan.aiUnlimited),
             defaultMonthlyPrice: String(Number(plan.defaultMonthlyPrice ?? 0)),
+            displayNote: plan.displayNote ?? "",
+            serviceOfferings: plan.serviceOfferings ?? "",
           };
         }
       }
@@ -174,6 +198,8 @@ export function SaasAdminPage() {
           aiPromptWindowMinutes: Number(draft.aiPromptWindowMinutes || 5),
           aiUnlimited: draft.aiUnlimited,
           defaultMonthlyPrice: Number(draft.defaultMonthlyPrice || 0),
+          displayNote: draft.displayNote,
+          serviceOfferings: draft.serviceOfferings,
         },
       }).unwrap();
 
@@ -209,9 +235,43 @@ export function SaasAdminPage() {
         aiPromptWindowMinutes: current[plan]?.aiPromptWindowMinutes ?? "5",
         aiUnlimited: current[plan]?.aiUnlimited ?? plan === "ENTERPRISE",
         defaultMonthlyPrice: current[plan]?.defaultMonthlyPrice ?? "0",
+        displayNote: current[plan]?.displayNote ?? "",
+        serviceOfferings: current[plan]?.serviceOfferings ?? "",
         ...patch,
       },
     }));
+  }
+
+  async function generateOffer() {
+    if (!offerDraft.title.trim() || !offerDraft.code.trim()) {
+      toast.error("Offer title and code are required");
+      return;
+    }
+
+    try {
+      await createOffer({
+        title: offerDraft.title,
+        code: offerDraft.code,
+        description: offerDraft.description,
+        discountPercent: offerDraft.discountPercent
+          ? Number(offerDraft.discountPercent)
+          : undefined,
+        validUntil: offerDraft.validUntil || undefined,
+        active: offerDraft.active,
+      }).unwrap();
+
+      toast.success("Offer generated");
+      setOfferDraft({
+        title: "",
+        code: "",
+        description: "",
+        discountPercent: "",
+        validUntil: "",
+        active: true,
+      });
+    } catch {
+      toast.error("Could not generate offer");
+    }
   }
 
   const factories = dashboard?.factories ?? [];
@@ -297,7 +357,7 @@ export function SaasAdminPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         {(dashboard?.plans ?? []).map((plan) => (
           <PlanSummary
             key={plan.plan}
@@ -308,6 +368,116 @@ export function SaasAdminPage() {
             saving={updatePlanState.isLoading}
           />
         ))}
+      </div>
+
+      <div className="rounded-lg border bg-white p-4">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Tag size={16} />
+              Offer Generator
+            </h2>
+            <p className="text-xs text-slate-500">
+              Create manual sales offers while payment gateway integration is pending.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={generateOffer}
+            disabled={createOfferState.isLoading}
+          >
+            <Save size={14} />
+            Generate Offer
+          </Button>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-6">
+          <Input
+            className="h-9 md:col-span-2"
+            placeholder="Offer title"
+            value={offerDraft.title}
+            onChange={(event) =>
+              setOfferDraft((current) => ({ ...current, title: event.target.value }))
+            }
+          />
+          <Input
+            className="h-9"
+            placeholder="Code"
+            value={offerDraft.code}
+            onChange={(event) =>
+              setOfferDraft((current) => ({ ...current, code: event.target.value }))
+            }
+          />
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            className="h-9"
+            placeholder="Discount %"
+            value={offerDraft.discountPercent}
+            onChange={(event) =>
+              setOfferDraft((current) => ({
+                ...current,
+                discountPercent: event.target.value,
+              }))
+            }
+          />
+          <Input
+            type="date"
+            className="h-9"
+            value={offerDraft.validUntil}
+            onChange={(event) =>
+              setOfferDraft((current) => ({ ...current, validUntil: event.target.value }))
+            }
+          />
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={offerDraft.active}
+              onCheckedChange={(checked) =>
+                setOfferDraft((current) => ({ ...current, active: Boolean(checked) }))
+              }
+            />
+            <span className="text-xs font-medium text-slate-600">Active</span>
+          </div>
+          <Input
+            className="h-9 md:col-span-6"
+            placeholder="Description or sales note"
+            value={offerDraft.description}
+            onChange={(event) =>
+              setOfferDraft((current) => ({
+                ...current,
+                description: event.target.value,
+              }))
+            }
+          />
+        </div>
+
+        <div className="mt-4 grid gap-2 md:grid-cols-3">
+          {(dashboard?.offers ?? []).map((offer) => (
+            <div key={offer.id} className="rounded-md border bg-slate-50 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold">{offer.title}</p>
+                  <p className="text-xs text-slate-500">{offer.code}</p>
+                </div>
+                <Badge variant={offer.active ? "default" : "outline"}>
+                  {offer.active ? "Active" : "Inactive"}
+                </Badge>
+              </div>
+              <p className="mt-2 text-xs text-slate-600">
+                {offer.discountPercent ?? 0}% off
+                {offer.validUntil ? ` until ${offer.validUntil}` : ""}
+              </p>
+              {offer.description ? (
+                <p className="mt-2 text-xs text-slate-500">{offer.description}</p>
+              ) : null}
+            </div>
+          ))}
+          {!dashboard?.offers?.length ? (
+            <p className="text-sm text-slate-500">No offers generated yet.</p>
+          ) : null}
+        </div>
       </div>
 
       <div className="rounded-lg border bg-white">
@@ -527,6 +697,8 @@ function PlanSummary({
     aiPromptWindowMinutes: String(plan.aiPromptWindowMinutes ?? 5),
     aiUnlimited: Boolean(plan.aiUnlimited),
     defaultMonthlyPrice: String(Number(plan.defaultMonthlyPrice ?? 0)),
+    displayNote: plan.displayNote ?? "",
+    serviceOfferings: plan.serviceOfferings ?? "",
   };
 
   const dirty =
@@ -534,7 +706,9 @@ function PlanSummary({
     currentDraft.aiPromptLimit !== (plan.aiPromptLimit == null ? "" : String(plan.aiPromptLimit)) ||
     Number(currentDraft.aiPromptWindowMinutes || 5) !== Number(plan.aiPromptWindowMinutes ?? 5) ||
     currentDraft.aiUnlimited !== Boolean(plan.aiUnlimited) ||
-    Number(currentDraft.defaultMonthlyPrice || 0) !== Number(plan.defaultMonthlyPrice ?? 0);
+    Number(currentDraft.defaultMonthlyPrice || 0) !== Number(plan.defaultMonthlyPrice ?? 0) ||
+    currentDraft.displayNote !== (plan.displayNote ?? "") ||
+    currentDraft.serviceOfferings !== (plan.serviceOfferings ?? "");
 
   return (
     <div className="rounded-lg border bg-white p-4">
@@ -572,6 +746,30 @@ function PlanSummary({
             value={plan.plan === "ENTERPRISE" ? "" : currentDraft.employeeLimit}
             onChange={(event) =>
               onChange({ employeeLimit: event.target.value })
+            }
+          />
+        </label>
+
+        <label className="space-y-1 text-xs font-medium text-slate-600">
+          <span>Display Note</span>
+          <Input
+            className="h-8"
+            placeholder="For growing daily operations"
+            value={currentDraft.displayNote}
+            onChange={(event) =>
+              onChange({ displayNote: event.target.value })
+            }
+          />
+        </label>
+
+        <label className="space-y-1 text-xs font-medium text-slate-600">
+          <span>Service Offered</span>
+          <Input
+            className="h-8"
+            placeholder="All modules, Role-based access"
+            value={currentDraft.serviceOfferings}
+            onChange={(event) =>
+              onChange({ serviceOfferings: event.target.value })
             }
           />
         </label>

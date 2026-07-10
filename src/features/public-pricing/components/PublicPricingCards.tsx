@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import type {
   ApiResponse,
   OrganizationPlan,
+  PublicOffer,
   PublicPlanOption,
 } from "../types/publicPricing.types";
 
@@ -22,6 +23,8 @@ const fallbackPlans: PublicPlanOption[] = [
     aiPromptWindowMinutes: 5,
     aiUnlimited: false,
     defaultMonthlyPrice: 0,
+    displayNote: "For a small factory trial",
+    serviceOfferings: "All Factory1 modules, Email OTP signup, Standard reports",
   },
   {
     plan: "STARTER",
@@ -30,7 +33,9 @@ const fallbackPlans: PublicPlanOption[] = [
     aiPromptLimit: 20,
     aiPromptWindowMinutes: 5,
     aiUnlimited: false,
-    defaultMonthlyPrice: 0,
+    defaultMonthlyPrice: 999,
+    displayNote: "For growing daily operations",
+    serviceOfferings: "All Factory1 modules, Import and export history, Role-based access",
   },
   {
     plan: "GROWTH",
@@ -39,7 +44,20 @@ const fallbackPlans: PublicPlanOption[] = [
     aiPromptLimit: 50,
     aiPromptWindowMinutes: 5,
     aiUnlimited: false,
-    defaultMonthlyPrice: 0,
+    defaultMonthlyPrice: 2499,
+    displayNote: "For multi-team factories",
+    serviceOfferings: "All Factory1 modules, Advanced dashboard, AI across modules, Priority onboarding help",
+  },
+  {
+    plan: "BUSINESS",
+    label: "Business",
+    employeeLimit: 250,
+    aiPromptLimit: 100,
+    aiPromptWindowMinutes: 5,
+    aiUnlimited: false,
+    defaultMonthlyPrice: 4999,
+    displayNote: "For larger operating teams",
+    serviceOfferings: "All Factory1 modules, Higher employee limits, Higher AI quota, Priority onboarding help",
   },
   {
     plan: "ENTERPRISE",
@@ -49,6 +67,8 @@ const fallbackPlans: PublicPlanOption[] = [
     aiPromptWindowMinutes: 5,
     aiUnlimited: true,
     defaultMonthlyPrice: 0,
+    displayNote: "Unlimited + dedicated support",
+    serviceOfferings: "All Factory1 modules, Unlimited employees, Unlimited hosted AI prompts, Dedicated setup support, Plan-level controls",
   },
 ];
 
@@ -69,18 +89,23 @@ const planContent: Record<
   },
   GROWTH: {
     note: "For multi-team factories",
-    features: ["Advanced dashboard", "AI across modules", "Priority onboarding help"],
+    features: ["All Factory1 modules", "AI across modules", "Priority onboarding help"],
+  },
+  BUSINESS: {
+    note: "For larger operating teams",
+    features: ["All Factory1 modules", "Higher employee limits", "Higher AI quota"],
   },
   ENTERPRISE: {
-    note: "For larger factory groups",
-    features: ["Custom quotas", "Dedicated setup support", "Plan-level controls"],
+    note: "Unlimited + dedicated support",
+    features: ["All Factory1 modules", "Dedicated setup support", "Plan-level controls"],
   },
 };
 
-const planOrder: OrganizationPlan[] = ["FREE", "STARTER", "GROWTH", "ENTERPRISE"];
+const planOrder: OrganizationPlan[] = ["FREE", "STARTER", "GROWTH", "BUSINESS", "ENTERPRISE"];
 
 export function PublicPricingCards() {
   const [remotePlans, setRemotePlans] = useState<PublicPlanOption[] | undefined>();
+  const [offers, setOffers] = useState<PublicOffer[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const plans = mergePlans(remotePlans);
 
@@ -100,13 +125,21 @@ export function PublicPricingCards() {
         }
 
         const body = (await response.json()) as ApiResponse<PublicPlanOption[]>;
+        const offersResponse = await fetch(`${apiBaseUrl()}/api/public/offers`, {
+          cache: "no-store",
+        });
+        const offersBody = offersResponse.ok
+          ? ((await offersResponse.json()) as ApiResponse<PublicOffer[]>)
+          : undefined;
 
         if (active) {
           setRemotePlans(body.data);
+          setOffers(offersBody?.data ?? []);
         }
       } catch {
         if (active) {
           setRemotePlans(undefined);
+          setOffers([]);
         }
       } finally {
         if (active) {
@@ -123,44 +156,49 @@ export function PublicPricingCards() {
   }, []);
 
   return (
-    <div className="mt-10 grid gap-5 lg:grid-cols-4">
-      {plans.map((plan) => {
-        const content = planContent[plan.plan];
+    <div className="mt-10 space-y-5">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+        {plans.map((plan) => {
+          const content = planContent[plan.plan];
+          const offer = bestDiscountOffer(offers);
 
-        return (
-          <div
-            key={plan.plan}
-            className="flex min-h-[360px] flex-col rounded-2xl border bg-white p-6 shadow-sm"
-          >
-            <div>
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-blue-700">{plan.label}</p>
-                {isFetching ? (
-                  <span className="text-xs text-slate-400">Updating</span>
-                ) : null}
+          return (
+            <div
+              key={plan.plan}
+              className="flex min-h-[360px] flex-col rounded-2xl border bg-white p-6 shadow-sm"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-blue-700">{plan.label}</p>
+                  {isFetching ? (
+                    <span className="text-xs text-slate-400">Updating</span>
+                  ) : null}
+                </div>
+                <div className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+                  <PlanPrice plan={plan} offer={offer} />
+                </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  {plan.displayNote || content.note}
+                </p>
               </div>
-              <div className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
-                {formatPrice(plan)}
+
+              <div className="mt-6 space-y-3 text-sm text-slate-700">
+                <PlanLine text={formatEmployeeLimit(plan.employeeLimit)} />
+                <PlanLine text={formatAiLimit(plan)} />
+                {serviceOfferings(plan, content.features).map((feature) => (
+                  <PlanLine key={feature} text={feature} />
+                ))}
               </div>
-              <p className="mt-2 text-sm text-slate-500">{content.note}</p>
-            </div>
 
-            <div className="mt-6 space-y-3 text-sm text-slate-700">
-              <PlanLine text={formatEmployeeLimit(plan.employeeLimit)} />
-              <PlanLine text={formatAiLimit(plan)} />
-              {content.features.map((feature) => (
-                <PlanLine key={feature} text={feature} />
-              ))}
+              <Button className="mt-auto" variant="outline" asChild>
+                <Link href={plan.plan === "FREE" ? "/signup" : `mailto:${contactEmail}`}>
+                  {plan.plan === "FREE" ? "Create account" : "Contact sales"}
+                </Link>
+              </Button>
             </div>
-
-            <Button className="mt-auto" variant="outline" asChild>
-              <Link href={plan.plan === "FREE" ? "/signup" : `mailto:${contactEmail}`}>
-                {plan.plan === "FREE" ? "Create account" : "Contact sales"}
-              </Link>
-            </Button>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -202,6 +240,69 @@ function formatPrice(plan: PublicPlanOption) {
   return `₹${new Intl.NumberFormat("en-IN", {
     maximumFractionDigits: 0,
   }).format(price)}/mo`;
+}
+
+function PlanPrice({
+  plan,
+  offer,
+}: {
+  plan: PublicPlanOption;
+  offer?: PublicOffer;
+}) {
+  const price = Number(plan.defaultMonthlyPrice ?? 0);
+  const discount = Number(offer?.discountPercent ?? 0);
+
+  if (plan.plan === "ENTERPRISE" && price <= 0) {
+    return <span>Custom</span>;
+  }
+
+  if (price <= 0 || discount <= 0) {
+    return <span>{formatPrice(plan)}</span>;
+  }
+
+  const discountedPrice = Math.max(0, Math.round(price * (1 - discount / 100)));
+  const code = offer?.code?.trim();
+  const validUntil = offer?.validUntil?.trim();
+  const tooltip = [
+    offer?.title?.trim(),
+    code ? `Code: ${code}` : undefined,
+    validUntil ? `Valid till: ${validUntil}` : undefined,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-2" title={tooltip}>
+      <span className="text-lg text-slate-400 line-through">
+        {formatCurrency(price)}
+      </span>
+      <span>{formatCurrency(discountedPrice)}/mo</span>
+    </span>
+  );
+}
+
+function bestDiscountOffer(offers: PublicOffer[]) {
+  return offers
+    .filter((offer) => Number(offer.discountPercent ?? 0) > 0)
+    .sort(
+      (first, second) =>
+        Number(second.discountPercent ?? 0) - Number(first.discountPercent ?? 0)
+    )[0];
+}
+
+function formatCurrency(price: number) {
+  return `₹${new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: 0,
+  }).format(price)}`;
+}
+
+function serviceOfferings(plan: PublicPlanOption, fallback: string[]) {
+  const offerings = plan.serviceOfferings
+    ?.split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return offerings?.length ? offerings : fallback;
 }
 
 function formatEmployeeLimit(employeeLimit: number | null) {

@@ -1,4 +1,4 @@
-export type OrganizationPlan = "FREE" | "STARTER" | "GROWTH" | "ENTERPRISE";
+export type OrganizationPlan = "FREE" | "STARTER" | "GROWTH" | "BUSINESS" | "ENTERPRISE";
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -14,6 +14,18 @@ export interface SaasPlanOption {
   aiPromptWindowMinutes: number;
   aiUnlimited: boolean;
   defaultMonthlyPrice: number;
+  displayNote?: string | null;
+  serviceOfferings?: string | null;
+}
+
+export interface SaasOffer {
+  id: string;
+  title: string;
+  code: string;
+  description?: string | null;
+  discountPercent?: number | null;
+  validUntil?: string | null;
+  active: boolean;
 }
 
 export interface SaasOwner {
@@ -72,6 +84,7 @@ export interface SaasAdminDashboard {
   totalHostedAiPrompts: number;
   totalDbRecords: number;
   plans: SaasPlanOption[];
+  offers: SaasOffer[];
   factories: SaasFactory[];
 }
 
@@ -86,4 +99,15 @@ export interface SaasPlanUpdateRequest {
   aiPromptWindowMinutes: number;
   aiUnlimited: boolean;
   defaultMonthlyPrice: number;
+  displayNote?: string | null;
+  serviceOfferings?: string | null;
+}
+
+export interface SaasOfferRequest {
+  title: string;
+  code: string;
+  description?: string;
+  discountPercent?: number;
+  validUntil?: string;
+  active?: boolean;
 }
