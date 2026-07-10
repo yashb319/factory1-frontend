@@ -40,7 +40,7 @@ export function InventoryDetailsDialog({ open, item, onClose }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-full max-w-[calc(100%-2rem)] sm:max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Inventory Details</DialogTitle>
         </DialogHeader>
@@ -64,7 +64,7 @@ export function InventoryDetailsDialog({ open, item, onClose }: Props) {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-4">
+            <div className="mt-4 grid gap-3 grid-cols-2 md:grid-cols-4">
               <Info label="Current Stock" value={`${formatNumber(item.currentStock)} ${item.unit}`} />
               <Info label="Minimum Stock" value={`${formatNumber(item.minimumStock)} ${item.unit}`} />
               <Info label="Purchase Price" value={formatCurrency(item.purchasePrice)} />
@@ -96,7 +96,7 @@ export function InventoryDetailsDialog({ open, item, onClose }: Props) {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[700px] text-sm">
+              <table className="responsive-table w-full min-w-[700px] text-sm">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="px-4 py-3 text-left">Date</th>
@@ -127,20 +127,20 @@ export function InventoryDetailsDialog({ open, item, onClose }: Props) {
                   ) : (
                     movements.map((movement) => (
                       <tr key={movement.id} className="border-t">
-                        <td className="px-4 py-3">{movement.movementDate}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" data-label="Date">{movement.movementDate}</td>
+                        <td className="px-4 py-3" data-label="Type">
                           {movementTypeLabel(movement.movementType)}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" data-label="Qty">
                           {formatNumber(movement.quantity)}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" data-label="Before">
                           {formatNumber(movement.stockBefore)}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" data-label="After">
                           {formatNumber(movement.stockAfter)}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" data-label="Remarks">
                           {movement.remarks || "-"}
                         </td>
                       </tr>

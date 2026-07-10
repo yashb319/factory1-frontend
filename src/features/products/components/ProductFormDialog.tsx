@@ -139,7 +139,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-full max-w-[calc(100%-2rem)] sm:max-w-xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Product" : "Add Product"}</DialogTitle>
         </DialogHeader>

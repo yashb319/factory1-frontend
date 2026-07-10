@@ -29,7 +29,7 @@ export function FileValidationTable({ rows }: Props) {
   return (
     <div className="rounded-xl border">
       <div className="max-h-[420px] overflow-auto">
-        <Table>
+        <Table className="responsive-table">
           <TableHeader>
             <TableRow>
               <TableHead>Row</TableHead>
@@ -44,9 +44,9 @@ export function FileValidationTable({ rows }: Props) {
           <TableBody>
             {rows.slice(0, 50).map((row) => (
               <TableRow key={row.rowNumber}>
-                <TableCell>{row.rowNumber}</TableCell>
+                <TableCell data-label="Row">{row.rowNumber}</TableCell>
 
-                <TableCell>
+                <TableCell data-label="Status">
                   <Badge
                     variant={
                       row.status === "ERROR"
@@ -61,12 +61,12 @@ export function FileValidationTable({ rows }: Props) {
                 </TableCell>
 
                 {columns.map((column) => (
-                  <TableCell key={column}>
+                  <TableCell key={column} data-label={column}>
                     {String(row.data[column] ?? "")}
                   </TableCell>
                 ))}
 
-                <TableCell className="min-w-[260px] text-sm text-muted-foreground">
+                <TableCell className="min-w-[260px] text-sm text-muted-foreground" data-label="Message">
                   {row.messages.join(", ") || "Ready"}
                 </TableCell>
               </TableRow>

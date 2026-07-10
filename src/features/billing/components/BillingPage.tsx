@@ -549,7 +549,7 @@ export function BillingPage() {
   });
 
   return (
-    <div className="space-y-5 p-4 sm:p-6">
+    <div className="space-y-5">
       <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -611,7 +611,7 @@ export function BillingPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
         <MetricTile
           label="Voucher Total"
           value={formatCurrency(totals.grandTotal)}
@@ -1183,7 +1183,7 @@ export function BillingPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-full max-w-[calc(100%-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Record Payment</DialogTitle>
             <DialogDescription>
@@ -1376,7 +1376,7 @@ function MetricTile({
 }) {
   return (
     <div
-      className={`rounded-lg border p-4 ${
+      className={`rounded-xl border bg-white p-3 sm:p-4 ${
         tone === "dark" ? "bg-slate-950 text-white" : "bg-white"
       }`}
     >
@@ -1387,7 +1387,7 @@ function MetricTile({
       >
         {label}
       </p>
-      <p className="mt-2 text-xl font-semibold">{value}</p>
+      <p className="mt-2 text-xl font-semibold sm:text-2xl">{value}</p>
     </div>
   );
 }

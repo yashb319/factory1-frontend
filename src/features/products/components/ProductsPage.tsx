@@ -95,9 +95,9 @@ export function ProductsPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <CardHeader className="flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               <PackageCheck className="h-5 w-5" />
@@ -108,7 +108,7 @@ export function ProductsPage() {
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={handleExport}
@@ -145,7 +145,7 @@ export function ProductsPage() {
             <p className="text-sm text-muted-foreground">Loading products...</p>
           ) : (
             <div className="overflow-x-auto rounded-md border">
-              <table className="w-full text-sm">
+              <table className="responsive-table w-full text-sm">
                 <thead className="bg-muted">
                   <tr>
                     <th className="p-3 text-left">Code</th>
@@ -166,33 +166,33 @@ export function ProductsPage() {
 
                     return (
                       <tr key={product.id} className="border-t">
-                        <td className="p-3 font-medium">
+                        <td className="p-3 font-medium" data-label="Code">
                           {product.productCode}
                         </td>
 
-                        <td className="p-3">{product.name}</td>
+                        <td className="p-3" data-label="Name">{product.name}</td>
 
-                        <td className="p-3">
+                        <td className="p-3" data-label="Linked Item">
                           {inventoryItem
                             ? `${inventoryItem.itemCode} - ${inventoryItem.name}`
                             : product.finishedGoodInventoryItemId}
                         </td>
 
-                        <td className="p-3">{product.unit || "-"}</td>
+                        <td className="p-3" data-label="Unit">{product.unit || "-"}</td>
 
-                        <td className="p-3">
+                        <td className="p-3" data-label="BOM">
                           <span className="rounded-full bg-muted px-2 py-1 text-xs">
                             {product.hasBom ? "Configured" : "Optional"}
                           </span>
                         </td>
 
-                        <td className="p-3">
+                        <td className="p-3" data-label="Status">
                           <span className="rounded-full bg-muted px-2 py-1 text-xs">
                             {product.active ? "Active" : "Inactive"}
                           </span>
                         </td>
 
-                        <td className="p-3">
+                        <td className="p-3" data-label="Actions">
                           <div className="flex justify-end">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>

@@ -26,7 +26,7 @@ export function CustomerTable({
   return (
     <div className="rounded-lg border bg-card">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1000px] text-sm">
+        <table className="responsive-table w-full min-w-[1000px] text-sm">
           <thead className="border-b bg-muted/50">
             <tr>
               <th className="px-4 py-3 text-left">Customer</th>
@@ -53,34 +53,36 @@ export function CustomerTable({
             ) : (
               customers.map((customer) => (
                 <tr key={customer.id} className="border-b">
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Customer">
                     <div className="font-medium">{customer.name}</div>
                     <div className="text-xs text-muted-foreground">
                       {customer.customerCode}
                     </div>
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Contact">
                     <div>{customer.contactPerson || "-"}</div>
                     <div className="text-xs text-muted-foreground">
                       {customer.phone || "-"}
                     </div>
                   </td>
 
-                  <td className="px-4 py-3">{customer.gstNumber || "-"}</td>
+                  <td className="px-4 py-3" data-label="GST">
+                    {customer.gstNumber || "-"}
+                  </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Location">
                     {[customer.city, customer.state, customer.pincode]
                       .filter(Boolean)
                       .join(", ") ||
                       "-"}
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Payment Terms">
                     {customer.paymentTerms || "-"}
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Data Score">
                     <Badge
                       variant={
                         customer.dataCompletenessScore >= 70
@@ -92,7 +94,7 @@ export function CustomerTable({
                     </Badge>
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Status">
                     <Badge
                       variant={
                         customer.status === "ACTIVE" ? "default" : "outline"
@@ -102,7 +104,7 @@ export function CustomerTable({
                     </Badge>
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Actions">
                     <div className="flex justify-end gap-2">
                       <Button
                         size="sm"
@@ -128,12 +130,12 @@ export function CustomerTable({
         </table>
       </div>
 
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-muted-foreground">
           Total {totalElements} customer(s)
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
             variant="outline"

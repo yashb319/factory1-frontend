@@ -20,7 +20,7 @@ export function AttendanceTable({ records, loading }: Props) {
   return (
     <div className="rounded-xl border bg-card">
       <div className="overflow-x-auto">
-        <Table>
+        <Table className="responsive-table">
           <TableHeader>
             <TableRow>
               <TableHead>Employee</TableHead>
@@ -57,7 +57,7 @@ export function AttendanceTable({ records, loading }: Props) {
             {!loading &&
               records.map((record) => (
                 <TableRow key={record.id}>
-                  <TableCell>
+                  <TableCell data-label="Employee">
                     <div>
                       <p className="font-medium">
                         {record.employeeName || record.employeeCode || record.employeeId}
@@ -70,16 +70,16 @@ export function AttendanceTable({ records, loading }: Props) {
                     </div>
                   </TableCell>
 
-                  <TableCell>{record.date}</TableCell>
-                  <TableCell>{record.checkInTime || "-"}</TableCell>
-                  <TableCell>{record.checkOutTime || "-"}</TableCell>
-                  <TableCell>{record.totalHours ?? "-"}</TableCell>
+                  <TableCell data-label="Date">{record.date}</TableCell>
+                  <TableCell data-label="Check In">{record.checkInTime || "-"}</TableCell>
+                  <TableCell data-label="Check Out">{record.checkOutTime || "-"}</TableCell>
+                  <TableCell data-label="Total Hours">{record.totalHours ?? "-"}</TableCell>
 
-                  <TableCell>
+                  <TableCell data-label="Status">
                     <Badge variant="outline">{record.status}</Badge>
                   </TableCell>
 
-                  <TableCell>{record.source || "-"}</TableCell>
+                  <TableCell data-label="Source">{record.source || "-"}</TableCell>
                 </TableRow>
               ))}
           </TableBody>

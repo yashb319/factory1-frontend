@@ -92,7 +92,7 @@ export function ImportExportTable({ jobs, isLoading, onRefresh }: Props) {
       </div>
 
       <div className="overflow-x-auto">
-        <Table>
+        <Table className="responsive-table">
           <TableHeader>
             <TableRow>
               <TableHead>Operation</TableHead>
@@ -110,13 +110,13 @@ export function ImportExportTable({ jobs, isLoading, onRefresh }: Props) {
           <TableBody>
             {jobs.map((job) => (
               <TableRow key={job.id}>
-                <TableCell>
+                <TableCell data-label="Operation">
                   <Badge variant="outline">{job.operation}</Badge>
                 </TableCell>
 
-                <TableCell className="font-medium">{job.module}</TableCell>
+                <TableCell className="font-medium" data-label="Module">{job.module}</TableCell>
 
-                <TableCell>
+                <TableCell data-label="File">
                   <div>
                     <p className="font-medium">{job.fileName}</p>
                     {job.completedAt && (
@@ -127,9 +127,9 @@ export function ImportExportTable({ jobs, isLoading, onRefresh }: Props) {
                   </div>
                 </TableCell>
 
-                <TableCell>{getStatusBadge(job.status)}</TableCell>
+                <TableCell data-label="Status">{getStatusBadge(job.status)}</TableCell>
 
-                <TableCell>
+                <TableCell data-label="Progress">
                   <div className="space-y-1">
                     <Progress value={job.progress} />
                     <p className="text-xs text-muted-foreground">
@@ -138,7 +138,7 @@ export function ImportExportTable({ jobs, isLoading, onRefresh }: Props) {
                   </div>
                 </TableCell>
 
-                <TableCell>
+                <TableCell data-label="Rows">
                   <div className="text-sm">
                     <p>Total: {job.totalRows ?? "-"}</p>
                     <p className="text-muted-foreground">
@@ -148,10 +148,10 @@ export function ImportExportTable({ jobs, isLoading, onRefresh }: Props) {
                   </div>
                 </TableCell>
 
-                <TableCell>{job.createdBy}</TableCell>
-                <TableCell>{formatDate(job.createdAt)}</TableCell>
+                <TableCell data-label="Created By">{job.createdBy}</TableCell>
+                <TableCell data-label="Created At">{formatDate(job.createdAt)}</TableCell>
 
-                <TableCell className="text-right">
+                <TableCell className="text-right" data-label="Action">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon">

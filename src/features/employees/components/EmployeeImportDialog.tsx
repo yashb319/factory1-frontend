@@ -322,7 +322,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="h-[90vh] min-w-5xl max-w-[95vw] overflow-hidden p-0">
+      <DialogContent className="h-[90vh] w-full max-w-[calc(100%-2rem)] sm:max-w-5xl overflow-hidden p-0">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle>Import Employees</DialogTitle>
         </DialogHeader>

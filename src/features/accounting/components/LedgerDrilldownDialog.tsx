@@ -63,7 +63,7 @@ export function LedgerDrilldownDialog({
         }
       }}
     >
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="w-full max-w-[calc(100%-2rem)] sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>{selectedLedger?.name ?? "Ledger"} Drill-down</DialogTitle>
           <DialogDescription>
@@ -71,7 +71,7 @@ export function LedgerDrilldownDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 grid-cols-3">
           <Metric title="Debit" value={formatCurrency(totals.debit)} />
           <Metric title="Credit" value={formatCurrency(totals.credit)} />
           <Metric
@@ -81,7 +81,7 @@ export function LedgerDrilldownDialog({
         </div>
 
         <div className="max-h-[460px] overflow-auto rounded-md border">
-          <table className="w-full min-w-[920px] text-sm">
+          <table className="responsive-table w-full min-w-[920px] text-sm">
             <thead className="bg-muted">
               <tr>
                 <th className="p-3 text-left">Date</th>
@@ -96,17 +96,17 @@ export function LedgerDrilldownDialog({
             <tbody>
               {rows.map((row) => (
                 <tr key={`${row.voucherId}-${row.lineId}`} className="border-t">
-                  <td className="p-3">{row.voucherDate}</td>
-                  <td className="p-3 font-medium">{row.voucherNumber}</td>
-                  <td className="p-3">{labelCase(row.voucherType)}</td>
-                  <td className="p-3">{row.entryType}</td>
-                  <td className="p-3 text-right">
+                  <td className="p-3" data-label="Date">{row.voucherDate}</td>
+                  <td className="p-3 font-medium" data-label="Voucher">{row.voucherNumber}</td>
+                  <td className="p-3" data-label="Type">{labelCase(row.voucherType)}</td>
+                  <td className="p-3" data-label="Dr/Cr">{row.entryType}</td>
+                  <td className="p-3 text-right" data-label="Debit">
                     {row.debit ? formatCurrency(row.debit) : "-"}
                   </td>
-                  <td className="p-3 text-right">
+                  <td className="p-3 text-right" data-label="Credit">
                     {row.credit ? formatCurrency(row.credit) : "-"}
                   </td>
-                  <td className="p-3">
+                  <td className="p-3" data-label="Narration">
                     <div>{row.narration || "-"}</div>
                     {row.description ? (
                       <div className="text-xs text-muted-foreground">

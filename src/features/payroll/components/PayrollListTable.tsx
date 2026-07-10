@@ -48,7 +48,7 @@ export function PayrollListTable({
 
   return (
     <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-      <Table>
+      <Table className="responsive-table">
         <TableHeader>
           <TableRow>
             <TableHead>Payroll Month</TableHead>
@@ -83,33 +83,33 @@ export function PayrollListTable({
           {!isLoading &&
             rows.map((row) => (
               <TableRow key={row.id}>
-                <TableCell className="font-medium">
+                <TableCell className="font-medium" data-label="Payroll Month">
                   {getMonthName(row.payrollMonth)} {row.payrollYear}
                 </TableCell>
 
-                <TableCell>
+                <TableCell data-label="Status">
                   <PayrollStatusChip status={row.status} />
                 </TableCell>
 
-                <TableCell>{row.totalEmployees}</TableCell>
+                <TableCell data-label="Employees">{row.totalEmployees}</TableCell>
 
-                <TableCell>{formatCurrency(row.grossAmount)}</TableCell>
+                <TableCell data-label="Gross Amount">{formatCurrency(row.grossAmount)}</TableCell>
 
-                <TableCell>{formatCurrency(row.overtimeAmount)}</TableCell>
+                <TableCell data-label="Overtime">{formatCurrency(row.overtimeAmount)}</TableCell>
 
-                <TableCell>{formatCurrency(row.deductionAmount)}</TableCell>
+                <TableCell data-label="Deductions">{formatCurrency(row.deductionAmount)}</TableCell>
 
-                <TableCell className="font-semibold">
+                <TableCell className="font-semibold" data-label="Net Amount">
                   {formatCurrency(row.netAmount)}
                 </TableCell>
 
-                <TableCell>
+                <TableCell data-label="Generated At">
                   {row.generatedAt
                     ? new Date(row.generatedAt).toLocaleString("en-IN")
                     : "-"}
                 </TableCell>
 
-                <TableCell>
+                <TableCell data-label="Actions">
                   <PayrollActions
                     payroll={row}
                     onView={() => onView(row.id)}

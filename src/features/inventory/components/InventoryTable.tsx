@@ -42,7 +42,7 @@ export function InventoryTable({
   return (
     <div className="rounded-lg border bg-card">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1100px] text-sm">
+        <table className="responsive-table w-full min-w-[1100px] text-sm">
           <thead className="border-b bg-muted/50">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Item</th>
@@ -71,7 +71,7 @@ export function InventoryTable({
             ) : (
               items.map((item) => (
                 <tr key={item.id} className="border-b">
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Item">
                     <button
                       type="button"
                       className="text-left"
@@ -85,9 +85,9 @@ export function InventoryTable({
                     </button>
                   </td>
 
-                  <td className="px-4 py-3">{itemTypeLabel(item.itemType)}</td>
+                  <td className="px-4 py-3" data-label="Type">{itemTypeLabel(item.itemType)}</td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Stock">
                     <div className="font-medium">
                       {formatNumber(item.currentStock)} {item.unit}
                     </div>
@@ -98,32 +98,32 @@ export function InventoryTable({
                     ) : null}
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Min Stock">
                     {formatNumber(item.minimumStock)} {item.unit}
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Purchase">
                     {formatCurrency(item.purchasePrice)}
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Selling">
                     {item.sellingPrice
                       ? formatCurrency(item.sellingPrice)
                       : "-"}
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Tax">
                     <div className="font-medium">{item.gstRate ?? "-"}%</div>
                     <div className="text-xs text-muted-foreground">
                       {item.hsnCode || "No HSN"}
                     </div>
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Value">
                     {formatCurrency(item.inventoryValue)}
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Status">
                     <Badge
                       variant={item.status === "ACTIVE" ? "default" : "outline"}
                     >
@@ -131,7 +131,7 @@ export function InventoryTable({
                     </Badge>
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Actions">
                     <div className="flex justify-end">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -167,12 +167,12 @@ export function InventoryTable({
         </table>
       </div>
 
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-muted-foreground">
           Total {totalElements} item(s)
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
             variant="outline"

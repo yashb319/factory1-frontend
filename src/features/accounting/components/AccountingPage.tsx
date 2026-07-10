@@ -1086,7 +1086,7 @@ export function AccountingPage() {
           </p>
         </div>
 
-        <div className="grid gap-2 rounded-lg border bg-white p-3 sm:grid-cols-[150px_150px_auto_auto_auto_auto]">
+        <div className="grid gap-2 rounded-lg border bg-white p-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-[150px_150px_auto_auto_auto_auto]">
           <Input
             id="accounting-from-date"
             type="date"
@@ -1220,7 +1220,7 @@ export function AccountingPage() {
         className="grid scroll-mt-24 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
       >
         <Card className="rounded-lg">
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Account Masters</CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -1235,7 +1235,7 @@ export function AccountingPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto rounded-md border">
-              <table className="w-full min-w-[820px] text-sm">
+              <table className="responsive-table w-full min-w-[820px] text-sm">
                 <thead className="bg-muted">
                   <tr>
                     <th className="p-3 text-left">Group</th>
@@ -1248,7 +1248,7 @@ export function AccountingPage() {
                 <tbody>
                   {(masters?.groups ?? []).map((group) => (
                     <tr key={group.id} className="border-t">
-                      <td className="p-3">
+                      <td className="p-3" data-label="Group">
                         <div className="font-medium">{group.name}</div>
                         {group.systemGroup ? (
                           <div className="text-xs text-muted-foreground">
@@ -1256,14 +1256,14 @@ export function AccountingPage() {
                           </div>
                         ) : null}
                       </td>
-                      <td className="p-3">{labelCase(group.groupType)}</td>
-                      <td className="p-3 text-right">{group.ledgerCount}</td>
-                      <td className="p-3">
+                      <td className="p-3" data-label="Type">{labelCase(group.groupType)}</td>
+                      <td className="p-3 text-right" data-label="Ledgers">{group.ledgerCount}</td>
+                      <td className="p-3" data-label="Nature">
                         {group.affectsGrossProfit
                           ? "Trading / gross profit"
                           : "Balance sheet / indirect"}
                       </td>
-                      <td className="p-3">
+                      <td className="p-3" data-label="Actions">
                         <div className="flex justify-end gap-2">
                           <Button
                             size="sm"
@@ -1694,7 +1694,7 @@ export function AccountingPage() {
         </Card>
 
         <Card className="rounded-lg">
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Day Book</CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -1802,7 +1802,7 @@ export function AccountingPage() {
                       </div>
                     ) : null}
                   </div>
-                  <div className="mt-3 flex justify-end gap-2 border-t pt-2">
+                  <div className="mt-3 flex flex-wrap justify-end gap-2 border-t pt-2">
                     {voucher.sourceBillId ? (
                       <Button
                         size="sm"
@@ -1893,7 +1893,7 @@ export function AccountingPage() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             <InlineMetric
               title="Trading Income"
               value={formatCurrency(profitLoss?.tradingIncome ?? 0)}
@@ -1918,7 +1918,7 @@ export function AccountingPage() {
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
             <div className="overflow-x-auto rounded-md border">
-              <table className="w-full min-w-[720px] text-sm">
+              <table className="responsive-table w-full min-w-[720px] text-sm">
                 <thead className="bg-muted">
                   <tr>
                     <th className="p-3 text-left">Ledger</th>
@@ -1930,7 +1930,7 @@ export function AccountingPage() {
                 <tbody>
                   {(profitLoss?.rows ?? []).map((row) => (
                     <tr key={row.ledgerId} className="border-t">
-                      <td className="p-3 font-medium">
+                      <td className="p-3 font-medium" data-label="Ledger">
                         <button
                           type="button"
                           className="text-left font-medium text-blue-700 hover:underline"
@@ -1944,9 +1944,9 @@ export function AccountingPage() {
                           {row.ledgerName}
                         </button>
                       </td>
-                      <td className="p-3">{row.groupName ?? "-"}</td>
-                      <td className="p-3">{row.section}</td>
-                      <td className="p-3 text-right font-semibold">
+                      <td className="p-3" data-label="Group">{row.groupName ?? "-"}</td>
+                      <td className="p-3" data-label="Section">{row.section}</td>
+                      <td className="p-3 text-right font-semibold" data-label="Amount">
                         {formatCurrency(row.amount)}
                       </td>
                     </tr>
@@ -2025,7 +2025,7 @@ export function AccountingPage() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             <InlineMetric
               title="Assets"
               value={formatCurrency(balanceSheet?.totalAssets ?? 0)}
@@ -2092,7 +2092,7 @@ export function AccountingPage() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-md border">
-            <table className="w-full min-w-[1080px] text-sm">
+            <table className="responsive-table w-full min-w-[1080px] text-sm">
               <thead className="bg-muted">
                 <tr>
                   <th className="p-3 text-left">Ledger</th>
@@ -2108,39 +2108,39 @@ export function AccountingPage() {
               <tbody>
                 {(trialBalance?.rows ?? []).map((row) => (
                   <tr key={row.ledgerId} className="border-t">
-                    <td className="p-3 font-medium">
-                      <button
-                        type="button"
-                        className="text-left font-medium text-blue-700 hover:underline"
-                        onClick={() =>
-                          openLedgerDrilldown({
-                            id: row.ledgerId,
-                            name: row.ledgerName,
-                          })
-                        }
-                      >
-                        {row.ledgerName}
-                      </button>
-                    </td>
-                    <td className="p-3">{row.groupName ?? "-"}</td>
-                    <td className="p-3 text-right">
-                      {formatCurrency(row.openingDebit)}
-                    </td>
-                    <td className="p-3 text-right">
-                      {formatCurrency(row.openingCredit)}
-                    </td>
-                    <td className="p-3 text-right">
-                      {formatCurrency(row.periodDebit)}
-                    </td>
-                    <td className="p-3 text-right">
-                      {formatCurrency(row.periodCredit)}
-                    </td>
-                    <td className="p-3 text-right font-semibold">
-                      {formatCurrency(row.closingDebit)}
-                    </td>
-                    <td className="p-3 text-right font-semibold">
-                      {formatCurrency(row.closingCredit)}
-                    </td>
+                      <td className="p-3 font-medium" data-label="Ledger">
+                        <button
+                          type="button"
+                          className="text-left font-medium text-blue-700 hover:underline"
+                          onClick={() =>
+                            openLedgerDrilldown({
+                              id: row.ledgerId,
+                              name: row.ledgerName,
+                            })
+                          }
+                        >
+                          {row.ledgerName}
+                        </button>
+                      </td>
+                      <td className="p-3" data-label="Group">{row.groupName ?? "-"}</td>
+                      <td className="p-3 text-right" data-label="Opening Dr">
+                        {formatCurrency(row.openingDebit)}
+                      </td>
+                      <td className="p-3 text-right" data-label="Opening Cr">
+                        {formatCurrency(row.openingCredit)}
+                      </td>
+                      <td className="p-3 text-right" data-label="Period Dr">
+                        {formatCurrency(row.periodDebit)}
+                      </td>
+                      <td className="p-3 text-right" data-label="Period Cr">
+                        {formatCurrency(row.periodCredit)}
+                      </td>
+                      <td className="p-3 text-right font-semibold" data-label="Closing Dr">
+                        {formatCurrency(row.closingDebit)}
+                      </td>
+                      <td className="p-3 text-right font-semibold" data-label="Closing Cr">
+                        {formatCurrency(row.closingCredit)}
+                      </td>
                   </tr>
                 ))}
                 <tr className="border-t bg-muted font-semibold">
@@ -2212,7 +2212,7 @@ export function AccountingPage() {
               />
             </div>
             <div className="max-h-[320px] overflow-auto rounded-md border">
-              <table className="w-full min-w-[760px] text-sm">
+              <table className="responsive-table w-full min-w-[760px] text-sm">
                 <thead className="bg-muted">
                   <tr>
                     <th className="p-3 text-left">Invoice</th>
@@ -2228,16 +2228,16 @@ export function AccountingPage() {
                     .filter((row) => row.type === "SALES")
                     .map((row) => (
                       <tr key={row.billNumber} className="border-t">
-                        <td className="p-3 font-medium">{row.billNumber}</td>
-                        <td className="p-3">{row.partyName}</td>
-                        <td className="p-3">{row.partyGstNumber || "-"}</td>
-                        <td className="p-3 text-right">
+                        <td className="p-3 font-medium" data-label="Invoice">{row.billNumber}</td>
+                        <td className="p-3" data-label="Customer">{row.partyName}</td>
+                        <td className="p-3" data-label="GSTIN">{row.partyGstNumber || "-"}</td>
+                        <td className="p-3 text-right" data-label="Taxable">
                           {formatCurrency(row.taxableAmount)}
                         </td>
-                        <td className="p-3 text-right">
+                        <td className="p-3 text-right" data-label="GST">
                           {formatCurrency(row.cgstAmount + row.sgstAmount + row.igstAmount)}
                         </td>
-                        <td className="p-3 text-right font-semibold">
+                        <td className="p-3 text-right font-semibold" data-label="Total">
                           {formatCurrency(row.grandTotal)}
                         </td>
                       </tr>
@@ -2306,7 +2306,7 @@ export function AccountingPage() {
         className="grid gap-4 lg:grid-cols-2"
       >
         <Card className="rounded-lg">
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Group Summary</CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -2325,7 +2325,7 @@ export function AccountingPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto rounded-md border">
-              <table className="w-full min-w-[620px] text-sm">
+              <table className="responsive-table w-full min-w-[620px] text-sm">
                 <thead className="bg-muted">
                   <tr>
                     <th className="p-3 text-left">Group</th>
@@ -2337,12 +2337,12 @@ export function AccountingPage() {
                 <tbody>
                   {groupSummary.map((row) => (
                     <tr key={row.groupName} className="border-t">
-                      <td className="p-3 font-medium">{row.groupName}</td>
-                      <td className="p-3 text-right">{row.ledgerCount}</td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 font-medium" data-label="Group">{row.groupName}</td>
+                      <td className="p-3 text-right" data-label="Ledgers">{row.ledgerCount}</td>
+                      <td className="p-3 text-right" data-label="Closing Dr">
                         {formatCurrency(row.closingDebit)}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label="Closing Cr">
                         {formatCurrency(row.closingCredit)}
                       </td>
                     </tr>
@@ -2364,7 +2364,7 @@ export function AccountingPage() {
         </Card>
 
         <Card className="rounded-lg">
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Monthly Voucher Summary</CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -2383,7 +2383,7 @@ export function AccountingPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto rounded-md border">
-              <table className="w-full min-w-[720px] text-sm">
+              <table className="responsive-table w-full min-w-[720px] text-sm">
                 <thead className="bg-muted">
                   <tr>
                     <th className="p-3 text-left">Month</th>
@@ -2398,21 +2398,21 @@ export function AccountingPage() {
                 <tbody>
                   {monthlySummary.map((row) => (
                     <tr key={row.month} className="border-t">
-                      <td className="p-3 font-medium">{row.month}</td>
-                      <td className="p-3 text-right">{row.voucherCount}</td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 font-medium" data-label="Month">{row.month}</td>
+                      <td className="p-3 text-right" data-label="Vouchers">{row.voucherCount}</td>
+                      <td className="p-3 text-right" data-label="Payment">
                         {formatCurrency(row.payment)}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label="Receipt">
                         {formatCurrency(row.receipt)}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label="Contra">
                         {formatCurrency(row.contra)}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label="Journal">
                         {formatCurrency(row.journal)}
                       </td>
-                      <td className="p-3 text-right font-semibold">
+                      <td className="p-3 text-right font-semibold" data-label="Movement">
                         {formatCurrency(row.totalMovement)}
                       </td>
                     </tr>
@@ -2453,7 +2453,7 @@ export function AccountingPage() {
           </CardHeader>
           <CardContent>
             <div className="max-h-[420px] overflow-auto rounded-md border">
-              <table className="w-full min-w-[760px] text-sm">
+              <table className="responsive-table w-full min-w-[760px] text-sm">
                 <thead className="bg-muted">
                   <tr>
                     <th className="p-3 text-left">Month</th>
@@ -2469,8 +2469,8 @@ export function AccountingPage() {
                       key={`${row.month}-${row.ledgerId}`}
                       className="border-t"
                     >
-                      <td className="p-3 font-medium">{row.month}</td>
-                      <td className="p-3">
+                      <td className="p-3 font-medium" data-label="Month">{row.month}</td>
+                      <td className="p-3" data-label="Ledger">
                         <button
                           type="button"
                           className="text-left font-medium text-blue-700 hover:underline"
@@ -2484,13 +2484,13 @@ export function AccountingPage() {
                           {row.ledgerName}
                         </button>
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label="Debit">
                         {formatCurrency(row.debit)}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label="Credit">
                         {formatCurrency(row.credit)}
                       </td>
-                      <td className="p-3 text-right font-semibold">
+                      <td className="p-3 text-right font-semibold" data-label="Net">
                         {formatCurrency(row.debit - row.credit)}
                       </td>
                     </tr>
@@ -2518,7 +2518,7 @@ export function AccountingPage() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-md border">
-            <table className="w-full min-w-[980px] text-sm">
+            <table className="responsive-table w-full min-w-[980px] text-sm">
               <thead className="bg-muted">
                 <tr>
                   <th className="p-3 text-left">Party</th>
@@ -2537,20 +2537,20 @@ export function AccountingPage() {
                     key={`${party.type}-${party.partyName}-${party.partyGstNumber ?? ""}`}
                     className="border-t"
                   >
-                    <td className="p-3 font-medium">{party.partyName}</td>
-                    <td className="p-3">{party.type}</td>
-                    <td className="p-3">{party.partyGstNumber || "-"}</td>
-                    <td className="p-3 text-right">{party.billCount}</td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 font-medium" data-label="Party">{party.partyName}</td>
+                    <td className="p-3" data-label="Type">{party.type}</td>
+                    <td className="p-3" data-label="GST">{party.partyGstNumber || "-"}</td>
+                    <td className="p-3 text-right" data-label="Bills">{party.billCount}</td>
+                    <td className="p-3 text-right" data-label="Taxable">
                       {formatCurrency(party.taxableAmount)}
                     </td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-right" data-label="GST Amount">
                       {formatCurrency(party.gstAmount)}
                     </td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-right" data-label="Grand Total">
                       {formatCurrency(party.grandTotal)}
                     </td>
-                    <td className="p-3 text-right font-semibold">
+                    <td className="p-3 text-right font-semibold" data-label="Outstanding">
                       {formatCurrency(party.outstandingAmount)}
                     </td>
                   </tr>
@@ -2648,7 +2648,7 @@ export function AccountingPage() {
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-full max-w-[calc(100%-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Account Ledger</DialogTitle>
             <DialogDescription>
@@ -2828,14 +2828,14 @@ function SummaryCard({
   loading: boolean;
 }) {
   return (
-    <Card className="rounded-lg">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+    <Card className="rounded-xl">
+      <CardHeader className="p-3 pb-1 sm:p-6 sm:pb-2">
+        <CardTitle className="text-xs font-medium text-muted-foreground sm:text-sm">
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-semibold">
+      <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+        <div className="text-xl font-semibold sm:text-2xl">
           {loading ? "..." : value}
         </div>
       </CardContent>
@@ -2999,12 +2999,12 @@ function BalanceSheetSide({
   onOpenLedger: (ledger: SelectedLedger) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-md border">
-      <div className="flex items-center justify-between bg-muted px-3 py-2 text-sm font-semibold">
-        <span>{title}</span>
-        <span>{formatCurrency(total)}</span>
-      </div>
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-md border">
+        <div className="flex items-center justify-between bg-muted px-3 py-2 text-sm font-semibold">
+          <span>{title}</span>
+          <span>{formatCurrency(total)}</span>
+        </div>
+        <table className="responsive-table w-full text-sm">
         <thead>
           <tr className="border-t bg-muted/50">
             <th className="p-3 text-left">Ledger</th>
@@ -3018,7 +3018,7 @@ function BalanceSheetSide({
               key={`${title}-${row.ledgerId ?? row.ledgerName}`}
               className="border-t"
             >
-              <td className="p-3 font-medium">
+              <td className="p-3 font-medium" data-label="Ledger">
                 {row.ledgerId ? (
                   <button
                     type="button"
@@ -3036,8 +3036,8 @@ function BalanceSheetSide({
                   row.ledgerName
                 )}
               </td>
-              <td className="p-3">{row.groupName ?? "-"}</td>
-              <td className="p-3 text-right font-semibold">
+              <td className="p-3" data-label="Group">{row.groupName ?? "-"}</td>
+              <td className="p-3 text-right font-semibold" data-label="Amount">
                 {formatCurrency(row.amount)}
               </td>
             </tr>
@@ -3096,7 +3096,7 @@ function AgingPanel({
       </div>
 
       <div className="max-h-[320px] overflow-auto">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="responsive-table w-full min-w-[720px] text-sm">
           <thead className="bg-muted/50">
             <tr>
               <th className="p-3 text-left">Bill</th>
@@ -3110,12 +3110,12 @@ function AgingPanel({
           <tbody>
             {(report?.rows ?? []).map((row) => (
               <tr key={row.billId} className="border-t">
-                <td className="p-3 font-medium">{row.billNumber}</td>
-                <td className="p-3">{row.partyName}</td>
-                <td className="p-3">{row.dueDate ?? row.billDate}</td>
-                <td className="p-3 text-right">{row.daysOverdue}</td>
-                <td className="p-3">{row.bucket}</td>
-                <td className="p-3 text-right font-semibold">
+                <td className="p-3 font-medium" data-label="Bill">{row.billNumber}</td>
+                <td className="p-3" data-label="Party">{row.partyName}</td>
+                <td className="p-3" data-label="Due">{row.dueDate ?? row.billDate}</td>
+                <td className="p-3 text-right" data-label="Days">{row.daysOverdue}</td>
+                <td className="p-3" data-label="Bucket">{row.bucket}</td>
+                <td className="p-3 text-right font-semibold" data-label="Outstanding">
                   {formatCurrency(row.outstandingAmount)}
                 </td>
               </tr>

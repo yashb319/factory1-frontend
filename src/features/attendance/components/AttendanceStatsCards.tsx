@@ -42,13 +42,13 @@ export function AttendanceStatsCards() {
     ];
 
     return (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
             {cards.map((card) => (
-                <div key={card.label} className="rounded-xl border bg-card p-4">
+                <div key={card.label} className="rounded-xl border bg-card p-3 sm:p-4">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-muted-foreground">{card.label}</p>
-                            <p className="mt-1 text-2xl font-semibold">
+                            <p className="mt-1 text-xl font-semibold sm:text-2xl">
                                 {isLoading ? "-" : card.value}
                             </p>
                         </div>

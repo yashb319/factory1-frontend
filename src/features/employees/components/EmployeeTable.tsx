@@ -67,7 +67,7 @@ export function EmployeeTable({
     <>
       <div className="rounded-xl border bg-card">
         <div className="overflow-x-auto">
-        <Table>
+        <Table className="responsive-table">
           <TableHeader>
             <TableRow>
               <TableHead>
@@ -112,11 +112,11 @@ export function EmployeeTable({
             {!loading &&
               employees.map((employee) => (
                 <TableRow key={employee.id}>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium" data-label="Code">
                     {employee.employeeCode}
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell data-label="Name">
                     <div>
                       <p className="font-medium">{employee.name}</p>
                       <p className="text-xs text-muted-foreground">
@@ -125,23 +125,23 @@ export function EmployeeTable({
                     </div>
                   </TableCell>
 
-                  <TableCell>{employee.department || "-"}</TableCell>
-                  <TableCell>{employee.designation || "-"}</TableCell>
+                  <TableCell data-label="Department">{employee.department || "-"}</TableCell>
+                  <TableCell data-label="Designation">{employee.designation || "-"}</TableCell>
 
-                  <TableCell>
+                  <TableCell data-label="Type">
                     <Badge variant="outline">
                       {employee.employeeType.replace("_", " ")}
                     </Badge>
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell data-label="Salary">
                     ₹{employee.salaryRate}{" "}
                     <span className="text-xs text-muted-foreground">
                       / {employee.salaryType.toLowerCase()}
                     </span>
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell data-label="Status">
                     <Badge
                       variant={
                         employee.status === "ACTIVE" ? "default" : "secondary"
@@ -151,7 +151,7 @@ export function EmployeeTable({
                     </Badge>
                   </TableCell>
 
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" data-label="Action">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
@@ -207,7 +207,7 @@ export function EmployeeTable({
                 <img
                   src={qrUrl}
                   alt={`${qrEmployee.employeeCode} attendance QR`}
-                  className="mx-auto h-64 w-64"
+                  className="mx-auto h-auto w-full max-w-[240px]"
                 />
               </div>
               <div className="rounded-lg bg-slate-50 p-3 text-sm">
