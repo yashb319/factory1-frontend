@@ -34,6 +34,9 @@ export type SignupOrganizationRequest = {
   password: string;
   otp: string;
   location: string;
+  city?: string;
+  pincode?: string;
+  country?: string;
   industryType: string;
   employeeCountEstimate: number;
   gstNumber?: string;

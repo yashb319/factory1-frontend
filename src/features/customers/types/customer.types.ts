@@ -25,6 +25,8 @@ export type Customer = {
   shippingAddress?: string | null;
   city?: string | null;
   state?: string | null;
+  pincode?: string | null;
+  country?: string | null;
   contactPerson?: string | null;
   paymentTerms?: string | null;
   status: CustomerStatus;
@@ -42,6 +44,8 @@ export type CustomerRequest = {
   shippingAddress?: string;
   city?: string;
   state?: string;
+  pincode?: string;
+  country?: string;
   contactPerson?: string;
   paymentTerms?: string;
   status?: CustomerStatus;

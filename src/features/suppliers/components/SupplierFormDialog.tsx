@@ -11,6 +11,12 @@ import {
 } from "../api/supplierApi";
 import type { Supplier, SupplierRequest } from "../types/supplier.types";
 import { stateNameFromGstNumber } from "@/lib/gstState";
+import { LocationSuggestionHint } from "@/components/forms/LocationSuggestionHint";
+import {
+  getBestLocationSuggestion,
+  getLocationSuggestions,
+  type LocationSuggestion,
+} from "@/lib/locationSuggestions";
 
 type Props = {
   open: boolean;
@@ -33,6 +39,8 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
       address: "",
       city: "",
       state: "",
+      pincode: "",
+      country: "India",
       contactPerson: "",
       paymentTerms: "",
       status: "ACTIVE",
@@ -43,6 +51,15 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
   const [createSupplier, createState] = useCreateSupplierMutation();
   const [updateSupplier, updateState] = useUpdateSupplierMutation();
   const gstNumber = form.watch("gstNumber");
+  const city = form.watch("city");
+  const locationSuggestions = getLocationSuggestions(city);
+
+  const applyLocationSuggestion = (suggestion: LocationSuggestion) => {
+    form.setValue("city", suggestion.city, { shouldDirty: true });
+    form.setValue("state", suggestion.state, { shouldDirty: true });
+    form.setValue("pincode", suggestion.pincode, { shouldDirty: true });
+    form.setValue("country", suggestion.country, { shouldDirty: true });
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -56,6 +73,8 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
       address: supplier?.address ?? "",
       city: supplier?.city ?? "",
       state: supplier?.state ?? "",
+      pincode: supplier?.pincode ?? "",
+      country: supplier?.country ?? "India",
       contactPerson: supplier?.contactPerson ?? "",
       paymentTerms: supplier?.paymentTerms ?? "",
       status: supplier?.status ?? "ACTIVE",
@@ -74,11 +93,35 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
     }
   }, [form, gstNumber, open]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const suggestion = getBestLocationSuggestion(city);
+    if (!suggestion) {
+      return;
+    }
+
+    if (!form.getValues("state")) {
+      form.setValue("state", suggestion.state, { shouldDirty: true });
+    }
+
+    if (!form.getValues("pincode")) {
+      form.setValue("pincode", suggestion.pincode, { shouldDirty: true });
+    }
+
+    if (!form.getValues("country")) {
+      form.setValue("country", suggestion.country, { shouldDirty: true });
+    }
+  }, [city, form, open]);
+
   const onSubmit = async (values: FormValues) => {
     const payload = {
       ...values,
       gstNumber: values.gstNumber?.trim().toUpperCase(),
       state: values.state || stateNameFromGstNumber(values.gstNumber),
+      country: values.country || "India",
     };
 
     try {
@@ -119,8 +162,16 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
             <TextField name="email" label="Email" />
             <TextField name="gstNumber" label="GST Number" />
             <TextField name="contactPerson" label="Contact Person" />
-            <TextField name="city" label="City" />
+            <div>
+              <TextField name="city" label="City" />
+              <LocationSuggestionHint
+                suggestions={locationSuggestions}
+                onApply={applyLocationSuggestion}
+              />
+            </div>
             <TextField name="state" label="State" />
+            <TextField name="pincode" label="Pincode" />
+            <TextField name="country" label="Country" />
             <TextField name="paymentTerms" label="Payment Terms" />
 
             <SelectField

@@ -6,10 +6,39 @@ import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
+const AlertDialogCloseContext = React.createContext<(() => void) | null>(null)
+
 function AlertDialog({
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+  const allowExplicitCloseRef = React.useRef(false)
+
+  const markExplicitClose = React.useCallback(() => {
+    allowExplicitCloseRef.current = true
+  }, [])
+
+  function handleOpenChange(open: boolean) {
+    if (open) {
+      onOpenChange?.(open)
+      return
+    }
+
+    if (allowExplicitCloseRef.current) {
+      allowExplicitCloseRef.current = false
+      onOpenChange?.(false)
+    }
+  }
+
+  return (
+    <AlertDialogCloseContext.Provider value={markExplicitClose}>
+      <AlertDialogPrimitive.Root
+        data-slot="alert-dialog"
+        onOpenChange={handleOpenChange}
+        {...props}
+      />
+    </AlertDialogCloseContext.Provider>
+  )
 }
 
 function AlertDialogTrigger({
@@ -151,14 +180,21 @@ function AlertDialogAction({
   className,
   variant = "default",
   size = "default",
+  onClick,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action> &
   Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
+  const markExplicitClose = React.useContext(AlertDialogCloseContext)
+
   return (
     <Button variant={variant} size={size} asChild>
       <AlertDialogPrimitive.Action
         data-slot="alert-dialog-action"
         className={cn(className)}
+        onClick={(event) => {
+          markExplicitClose?.()
+          onClick?.(event)
+        }}
         {...props}
       />
     </Button>
@@ -169,14 +205,21 @@ function AlertDialogCancel({
   className,
   variant = "outline",
   size = "default",
+  onClick,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Cancel> &
   Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
+  const markExplicitClose = React.useContext(AlertDialogCloseContext)
+
   return (
     <Button variant={variant} size={size} asChild>
       <AlertDialogPrimitive.Cancel
         data-slot="alert-dialog-cancel"
         className={cn(className)}
+        onClick={(event) => {
+          markExplicitClose?.()
+          onClick?.(event)
+        }}
         {...props}
       />
     </Button>

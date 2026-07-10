@@ -56,6 +56,7 @@ import {
   useCreateAccountLedgerMutation,
   useDeleteAccountGroupMutation,
   useDeleteAccountLedgerMutation,
+  useGetAccountingGstSummaryQuery,
   useGetAccountingVouchersQuery,
   useGetAgingReportQuery,
   useGetAccountMastersQuery,
@@ -176,6 +177,8 @@ export function AccountingPage() {
     useGetProfitLossQuery(range);
   const { data: balanceSheet, isFetching: balanceSheetFetching } =
     useGetBalanceSheetQuery(range);
+  const { data: gstSummary, isFetching: gstSummaryFetching } =
+    useGetAccountingGstSummaryQuery(range);
   const { data: receivablesAging } = useGetAgingReportQuery({
     type: "SALES",
     asOfDate: agingAsOfDate,
@@ -223,6 +226,7 @@ export function AccountingPage() {
     : [];
   const ledgerDrilldownTotals = summarizeLedgerDrilldown(ledgerDrilldownRows);
   const monthlySummary = summarizeMonthlyVouchers(vouchers ?? []);
+  const ledgerMonthlySummary = summarizeLedgerMonthly(vouchers ?? []);
   const groupSummary = summarizeTrialBalanceByGroup(trialBalance?.rows ?? []);
 
   useEffect(() => {
@@ -790,6 +794,81 @@ export function AccountingPage() {
     }
   };
 
+  const exportGstr1 = () => {
+    const rows = (gstSummary?.rows ?? []).filter((row) => row.type === "SALES");
+    if (!rows.length) {
+      toast.info("No sales vouchers found for GSTR-1");
+      return;
+    }
+
+    const content = toCsv([
+      [
+        "Invoice Number",
+        "Invoice Date",
+        "Customer",
+        "GSTIN",
+        "Taxable Value",
+        "CGST",
+        "SGST",
+        "IGST",
+        "Invoice Value",
+      ],
+      ...rows.map((row) => [
+        row.billNumber,
+        row.billDate,
+        row.partyName,
+        row.partyGstNumber ?? "",
+        row.taxableAmount,
+        row.cgstAmount,
+        row.sgstAmount,
+        row.igstAmount,
+        row.grandTotal,
+      ]),
+    ]);
+
+    downloadCsv({
+      fileName: `gstr-1-sales-${fromDate}-to-${toDate}.csv`,
+      content,
+    });
+    toast.success("GSTR-1 sales register downloaded");
+  };
+
+  const exportGstr3b = () => {
+    if (!gstSummary) {
+      toast.info("GST summary is still loading");
+      return;
+    }
+
+    const content = toCsv([
+      ["GSTR-3B Style Summary", `${fromDate} to ${toDate}`],
+      [],
+      ["Section", "Taxable", "CGST", "SGST", "IGST", "Total GST"],
+      [
+        "Outward taxable supplies",
+        gstSummary.salesTaxableAmount,
+        gstSummary.salesCgstAmount,
+        gstSummary.salesSgstAmount,
+        gstSummary.salesIgstAmount,
+        gstSummary.salesCgstAmount + gstSummary.salesSgstAmount + gstSummary.salesIgstAmount,
+      ],
+      [
+        "Input tax credit",
+        gstSummary.purchaseTaxableAmount,
+        gstSummary.purchaseCgstAmount,
+        gstSummary.purchaseSgstAmount,
+        gstSummary.purchaseIgstAmount,
+        gstSummary.purchaseCgstAmount + gstSummary.purchaseSgstAmount + gstSummary.purchaseIgstAmount,
+      ],
+      ["Net GST Payable", "", "", "", "", gstSummary.netGstPayable],
+    ]);
+
+    downloadCsv({
+      fileName: `gstr-3b-summary-${fromDate}-to-${toDate}.csv`,
+      content,
+    });
+    toast.success("GSTR-3B style summary downloaded");
+  };
+
   const exportProfitLoss = () => {
     if (!profitLoss || !profitLoss.rows.length) {
       toast.info("No profit and loss rows to export");
@@ -921,6 +1000,30 @@ export function AccountingPage() {
       content,
     });
     toast.success("Monthly Summary CSV downloaded");
+  };
+
+  const exportLedgerMonthlySummary = () => {
+    if (!ledgerMonthlySummary.length) {
+      toast.info("No ledger monthly rows to export");
+      return;
+    }
+
+    const content = toCsv([
+      ["Month", "Ledger", "Debit", "Credit", "Net"],
+      ...ledgerMonthlySummary.map((row) => [
+        row.month,
+        row.ledgerName,
+        row.debit,
+        row.credit,
+        row.debit - row.credit,
+      ]),
+    ]);
+
+    downloadCsv({
+      fileName: `ledger-monthly-summary-${fromDate}-to-${toDate}.csv`,
+      content,
+    });
+    toast.success("Ledger Monthly Summary CSV downloaded");
   };
 
   const exportAging = (report: AgingReport | undefined) => {
@@ -2071,6 +2174,135 @@ export function AccountingPage() {
 
       <div
         hidden={workspace !== "REPORTS"}
+        className="grid gap-4 xl:grid-cols-2"
+      >
+        <Card className="rounded-lg">
+          <CardHeader className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+            <div>
+              <CardTitle>GSTR-1 Sales Register</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Sales invoice register for outward supplies review.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={exportGstr1}
+              disabled={!gstSummary?.rows.some((row) => row.type === "SALES")}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              CSV
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <InlineMetric
+                title="Sales Taxable"
+                value={formatCurrency(gstSummary?.salesTaxableAmount ?? 0)}
+                loading={gstSummaryFetching}
+              />
+              <InlineMetric
+                title="Sales GST"
+                value={formatCurrency(
+                  (gstSummary?.salesCgstAmount ?? 0) +
+                    (gstSummary?.salesSgstAmount ?? 0) +
+                    (gstSummary?.salesIgstAmount ?? 0)
+                )}
+                loading={gstSummaryFetching}
+              />
+            </div>
+            <div className="max-h-[320px] overflow-auto rounded-md border">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="p-3 text-left">Invoice</th>
+                    <th className="p-3 text-left">Customer</th>
+                    <th className="p-3 text-left">GSTIN</th>
+                    <th className="p-3 text-right">Taxable</th>
+                    <th className="p-3 text-right">GST</th>
+                    <th className="p-3 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(gstSummary?.rows ?? [])
+                    .filter((row) => row.type === "SALES")
+                    .map((row) => (
+                      <tr key={row.billNumber} className="border-t">
+                        <td className="p-3 font-medium">{row.billNumber}</td>
+                        <td className="p-3">{row.partyName}</td>
+                        <td className="p-3">{row.partyGstNumber || "-"}</td>
+                        <td className="p-3 text-right">
+                          {formatCurrency(row.taxableAmount)}
+                        </td>
+                        <td className="p-3 text-right">
+                          {formatCurrency(row.cgstAmount + row.sgstAmount + row.igstAmount)}
+                        </td>
+                        <td className="p-3 text-right font-semibold">
+                          {formatCurrency(row.grandTotal)}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-lg">
+          <CardHeader className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+            <div>
+              <CardTitle>GSTR-3B Summary</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Simple GST payable view from sales and purchase tax.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={exportGstr3b}
+              disabled={!gstSummary}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              CSV
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <InlineMetric
+                title="Output GST"
+                value={formatCurrency(
+                  (gstSummary?.salesCgstAmount ?? 0) +
+                    (gstSummary?.salesSgstAmount ?? 0) +
+                    (gstSummary?.salesIgstAmount ?? 0)
+                )}
+                loading={gstSummaryFetching}
+              />
+              <InlineMetric
+                title="Input GST"
+                value={formatCurrency(
+                  (gstSummary?.purchaseCgstAmount ?? 0) +
+                    (gstSummary?.purchaseSgstAmount ?? 0) +
+                    (gstSummary?.purchaseIgstAmount ?? 0)
+                )}
+                loading={gstSummaryFetching}
+              />
+              <InlineMetric
+                title="Net GST Payable"
+                value={formatCurrency(gstSummary?.netGstPayable ?? 0)}
+                loading={gstSummaryFetching}
+              />
+              <InlineMetric
+                title="Purchase Taxable"
+                value={formatCurrency(gstSummary?.purchaseTaxableAmount ?? 0)}
+                loading={gstSummaryFetching}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div
+        hidden={workspace !== "REPORTS"}
         className="grid gap-4 lg:grid-cols-2"
       >
         <Card className="rounded-lg">
@@ -2192,6 +2424,84 @@ export function AccountingPage() {
                         colSpan={7}
                       >
                         No vouchers found for monthly summary.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-lg lg:col-span-2">
+          <CardHeader className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+            <div>
+              <CardTitle>Ledger Monthly Summary</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Month-wise debit and credit movement by ledger.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={exportLedgerMonthlySummary}
+              disabled={!ledgerMonthlySummary.length}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              CSV
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="max-h-[420px] overflow-auto rounded-md border">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="p-3 text-left">Month</th>
+                    <th className="p-3 text-left">Ledger</th>
+                    <th className="p-3 text-right">Debit</th>
+                    <th className="p-3 text-right">Credit</th>
+                    <th className="p-3 text-right">Net</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ledgerMonthlySummary.map((row) => (
+                    <tr
+                      key={`${row.month}-${row.ledgerId}`}
+                      className="border-t"
+                    >
+                      <td className="p-3 font-medium">{row.month}</td>
+                      <td className="p-3">
+                        <button
+                          type="button"
+                          className="text-left font-medium text-blue-700 hover:underline"
+                          onClick={() =>
+                            openLedgerDrilldown({
+                              id: row.ledgerId,
+                              name: row.ledgerName,
+                            })
+                          }
+                        >
+                          {row.ledgerName}
+                        </button>
+                      </td>
+                      <td className="p-3 text-right">
+                        {formatCurrency(row.debit)}
+                      </td>
+                      <td className="p-3 text-right">
+                        {formatCurrency(row.credit)}
+                      </td>
+                      <td className="p-3 text-right font-semibold">
+                        {formatCurrency(row.debit - row.credit)}
+                      </td>
+                    </tr>
+                  ))}
+                  {!ledgerMonthlySummary.length ? (
+                    <tr>
+                      <td
+                        className="p-8 text-center text-muted-foreground"
+                        colSpan={5}
+                      >
+                        No ledger movement found.
                       </td>
                     </tr>
                   ) : null}
@@ -2962,6 +3272,51 @@ function summarizeMonthlyVouchers(vouchers: AccountingVoucher[]) {
   return [...summary.values()].sort((left, right) =>
     left.month.localeCompare(right.month)
   );
+}
+
+function summarizeLedgerMonthly(vouchers: AccountingVoucher[]) {
+  const summary = new Map<
+    string,
+    {
+      month: string;
+      ledgerId: string;
+      ledgerName: string;
+      debit: number;
+      credit: number;
+    }
+  >();
+
+  vouchers.forEach((voucher) => {
+    const month = voucher.voucherDate.slice(0, 7);
+
+    voucher.lines.forEach((line) => {
+      const key = `${month}-${line.ledgerId}`;
+      const row =
+        summary.get(key) ??
+        {
+          month,
+          ledgerId: line.ledgerId,
+          ledgerName: line.ledgerName ?? "Ledger",
+          debit: 0,
+          credit: 0,
+        };
+
+      if (line.entryType === "DR") {
+        row.debit += Number(line.amount || 0);
+      } else {
+        row.credit += Number(line.amount || 0);
+      }
+
+      summary.set(key, row);
+    });
+  });
+
+  return [...summary.values()].sort((left, right) => {
+    const monthCompare = left.month.localeCompare(right.month);
+    return monthCompare === 0
+      ? left.ledgerName.localeCompare(right.ledgerName)
+      : monthCompare;
+  });
 }
 
 function summarizeTrialBalanceByGroup(rows: NonNullable<TrialBalance["rows"]>) {

@@ -25,6 +25,12 @@ import {
 import { signupSchema, type SignupFormValues } from "../schemas/signup.schema";
 import { useAppDispatch } from "@/lib/hook";
 import { stateNameFromGstNumber } from "@/lib/gstState";
+import { LocationSuggestionHint } from "@/components/forms/LocationSuggestionHint";
+import {
+  getBestLocationSuggestion,
+  getLocationSuggestions,
+  type LocationSuggestion,
+} from "@/lib/locationSuggestions";
 
 export function SignupForm() {
   const router = useRouter();
@@ -44,6 +50,9 @@ export function SignupForm() {
       password: "",
       otp: "",
       location: "",
+      city: "",
+      pincode: "",
+      country: "India",
       industryType: "",
       employeeCountEstimate: 1,
       gstNumber: "",
@@ -60,7 +69,23 @@ export function SignupForm() {
     control: form.control,
     name: "gstNumber",
   }) ?? "";
+  const location = useWatch({
+    control: form.control,
+    name: "location",
+  }) ?? "";
+  const city = useWatch({
+    control: form.control,
+    name: "city",
+  }) ?? "";
+  const locationSuggestions = getLocationSuggestions(city || location);
   const otpRequested = otpSentTo === email.trim().toLowerCase();
+
+  const applyLocationSuggestion = (suggestion: LocationSuggestion) => {
+    form.setValue("city", suggestion.city, { shouldDirty: true });
+    form.setValue("state", suggestion.state, { shouldDirty: true });
+    form.setValue("pincode", suggestion.pincode, { shouldDirty: true });
+    form.setValue("country", suggestion.country, { shouldDirty: true });
+  };
 
   useEffect(() => {
     const state = stateNameFromGstNumber(gstNumber);
@@ -68,6 +93,26 @@ export function SignupForm() {
       form.setValue("state", state, { shouldDirty: true });
     }
   }, [form, gstNumber]);
+
+  useEffect(() => {
+    const suggestion = getBestLocationSuggestion(city || location);
+    if (!suggestion) {
+      return;
+    }
+
+    if (!form.getValues("city")) {
+      form.setValue("city", suggestion.city, { shouldDirty: true });
+    }
+    if (!form.getValues("state")) {
+      form.setValue("state", suggestion.state, { shouldDirty: true });
+    }
+    if (!form.getValues("pincode")) {
+      form.setValue("pincode", suggestion.pincode, { shouldDirty: true });
+    }
+    if (!form.getValues("country")) {
+      form.setValue("country", suggestion.country, { shouldDirty: true });
+    }
+  }, [city, form, location]);
 
   async function handleSendOtp() {
     const validEmail = await form.trigger("email");
@@ -104,6 +149,7 @@ export function SignupForm() {
       ...values,
       gstNumber: values.gstNumber?.trim().toUpperCase(),
       state: values.state || stateNameFromGstNumber(values.gstNumber),
+      country: values.country || "India",
       otp: values.otp,
     }).unwrap();
 
@@ -177,6 +223,18 @@ export function SignupForm() {
                   required
                 />
 
+                <div>
+                  <TextField<SignupFormValues>
+                    name="city"
+                    label="City"
+                    placeholder="Bengaluru"
+                  />
+                  <LocationSuggestionHint
+                    suggestions={locationSuggestions}
+                    onApply={applyLocationSuggestion}
+                  />
+                </div>
+
                 <TextField<SignupFormValues>
                   name="industryType"
                   label="Industry type"
@@ -212,6 +270,18 @@ export function SignupForm() {
                   name="state"
                   label="State"
                   placeholder="Karnataka"
+                />
+
+                <TextField<SignupFormValues>
+                  name="pincode"
+                  label="Pincode"
+                  placeholder="560001"
+                />
+
+                <TextField<SignupFormValues>
+                  name="country"
+                  label="Country"
+                  placeholder="India"
                 />
               </div>
             </div>

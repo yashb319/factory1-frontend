@@ -14,6 +14,9 @@ export interface OrganizationSettingsRequest {
   financialYearStartMonth: number;
   organizationName: string;
   location?: string;
+  city?: string;
+  pincode?: string;
+  country?: string;
   industryType?: string;
   employeeCountEstimate?: number;
   gstNumber?: string;

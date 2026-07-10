@@ -24,6 +24,8 @@ export type Supplier = {
   address?: string | null;
   city?: string | null;
   state?: string | null;
+  pincode?: string | null;
+  country?: string | null;
   contactPerson?: string | null;
   paymentTerms?: string | null;
   status: SupplierStatus;
@@ -40,6 +42,8 @@ export type SupplierRequest = {
   address?: string;
   city?: string;
   state?: string;
+  pincode?: string;
+  country?: string;
   contactPerson?: string;
   paymentTerms?: string;
   status?: SupplierStatus;
