@@ -34,8 +34,8 @@ export function PayrollToolbar({
   onGenerate,
 }: Props) {
   return (
-    <div className="grid gap-4 rounded-lg border bg-card p-4 lg:grid-cols-[1fr_280px]">
-      <div className="flex flex-col gap-3 md:flex-row">
+      <div className="grid items-start gap-4 rounded-lg border bg-card p-4 lg:grid-cols-[1fr_280px]">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center">
         <div className="hidden items-center gap-2 text-sm font-medium text-muted-foreground md:flex">
           <Filter className="h-4 w-4" />
           Filter

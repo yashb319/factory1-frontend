@@ -631,7 +631,7 @@ export function BillingPage() {
         />
       </div>
 
-      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_380px_180px]">
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_380px_180px]">
         <div className="space-y-5">
           <Card className="rounded-lg">
             <CardHeader className="border-b">
