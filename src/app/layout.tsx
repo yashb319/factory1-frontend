@@ -10,8 +10,13 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Factory1",
-  description: "Factory operations management platform",
+  title: "Factory1 - AI first ERP",
+  description: "Factory1 AI first ERP for factory operations management",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

@@ -105,9 +105,9 @@ export default function LandingPage() {
             <a href="#desktop" className="hover:text-slate-950">
               Apps
             </a>
-            <a href="#terms" className="hover:text-slate-950">
+            <Link href="/terms-of-service" className="hover:text-slate-950">
               Terms
-            </a>
+            </Link>
             <a href="#contact" className="hover:text-slate-950">
               Contact
             </a>
@@ -400,7 +400,7 @@ export default function LandingPage() {
       </section>
 
       <footer className="border-t bg-slate-950 text-white">
-        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 md:grid-cols-[1.2fr_0.8fr_0.8fr]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 md:grid-cols-2 lg:grid-cols-[1.2fr_0.8fr_1fr_0.8fr]">
           <div>
             <Link href="/" className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-950">
@@ -420,30 +420,79 @@ export default function LandingPage() {
           <div>
             <h3 className="text-sm font-semibold">Company</h3>
             <div className="mt-4 grid gap-3 text-sm text-slate-400">
-              <a href="#features" className="hover:text-white">
-                Features
-              </a>
+              <Link href="/about" className="hover:text-white">
+                About
+              </Link>
               <a href="#pricing" className="hover:text-white">
                 Pricing
               </a>
-              <a href="#desktop" className="hover:text-white">
-                Apps
-              </a>
-              <a href="#terms" className="hover:text-white">
-                Terms
-              </a>
-              <a href="#contact" className="hover:text-white">
+              <Link href="/contact" className="hover:text-white">
                 Contact
-              </a>
+              </Link>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold">Legal</h3>
+            <div className="mt-4 grid gap-3 text-sm text-slate-400">
+              <Link href="/privacy-policy" className="hover:text-white">
+                Privacy Policy
+              </Link>
+              <Link href="/terms-of-service" className="hover:text-white">
+                Terms of Service
+              </Link>
+              <Link href="/security-policy" className="hover:text-white">
+                Security
+              </Link>
+              <Link href="/data-processing-agreement" className="hover:text-white">
+                Data Processing Agreement
+              </Link>
+              <Link href="/cookie-policy" className="hover:text-white">
+                Cookie Policy
+              </Link>
+              <Link href="/refund-cancellation-policy" className="hover:text-white">
+                Refund Policy
+              </Link>
+              <Link href="/data-retention-deletion-policy" className="hover:text-white">
+                Data Retention & Deletion
+              </Link>
+              <Link href="/acceptable-use-policy" className="hover:text-white">
+                Acceptable Use
+              </Link>
+              <Link href="/service-level-agreement" className="hover:text-white">
+                SLA
+              </Link>
+              <Link href="/ai-usage-policy" className="hover:text-white">
+                AI Usage Policy
+              </Link>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold">Resources</h3>
+            <div className="mt-4 grid gap-3 text-sm text-slate-400">
+              <Link href="/documentation" className="hover:text-white">
+                Documentation
+              </Link>
+              <Link href="/api-info" className="hover:text-white">
+                API (future)
+              </Link>
+              <Link href="/status" className="hover:text-white">
+                Status Page (future)
+              </Link>
             </div>
           </div>
 
           <div>
             <h3 className="text-sm font-semibold">Support</h3>
             <div className="mt-4 grid gap-3 text-sm text-slate-400">
+              <Link href="/help-center" className="hover:text-white">
+                Help Center
+              </Link>
               <a href={`mailto:${contactEmail}`} className="hover:text-white">
-                {contactEmail}
+                Email Support
               </a>
+              <span>{contactEmail}</span>
               <span>Response time: 24 hours</span>
               <span>Made in Bangalore</span>
             </div>

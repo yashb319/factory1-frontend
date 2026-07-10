@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Copy, KeyRound, RefreshCw } from "lucide-react";
+import { Copy, CreditCard, KeyRound, RefreshCw, Send } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -16,9 +16,17 @@ import {
 
 import {
   useGetOrganizationSettingsQuery,
+  useGetOrganizationPlanOffersQuery,
+  useGetOrganizationPlanOptionsQuery,
   useRegenerateAttendanceCaptureKeyMutation,
+  useRequestPlanChangeMutation,
   useUpdateOrganizationSettingsMutation,
 } from "../api/organizationSettingsApi";
+import type {
+  OrganizationPlan,
+  PlanOffer,
+  PlanOption,
+} from "../types/organizationSettings.types";
 import { toast } from "sonner";
 import { stateNameFromGstNumber } from "@/lib/gstState";
 import { LocationSuggestionHint } from "@/components/forms/LocationSuggestionHint";
@@ -55,12 +63,76 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+const fallbackPlans: PlanOption[] = [
+  {
+    plan: "FREE",
+    label: "Free",
+    employeeLimit: 20,
+    aiPromptLimit: 10,
+    aiPromptWindowMinutes: 5,
+    aiUnlimited: false,
+    defaultMonthlyPrice: 0,
+    displayNote: "For a small factory trial",
+    serviceOfferings: "All Factory1 modules, Email OTP signup, Standard reports",
+  },
+  {
+    plan: "STARTER",
+    label: "Starter",
+    employeeLimit: 50,
+    aiPromptLimit: 20,
+    aiPromptWindowMinutes: 5,
+    aiUnlimited: false,
+    defaultMonthlyPrice: 999,
+    displayNote: "For growing daily operations",
+    serviceOfferings: "All Factory1 modules, Import and export history, Role-based access",
+  },
+  {
+    plan: "GROWTH",
+    label: "Growth",
+    employeeLimit: 100,
+    aiPromptLimit: 50,
+    aiPromptWindowMinutes: 5,
+    aiUnlimited: false,
+    defaultMonthlyPrice: 2499,
+    displayNote: "For multi-team factories",
+    serviceOfferings: "All Factory1 modules, Advanced dashboard, AI across modules, Priority onboarding help",
+  },
+  {
+    plan: "BUSINESS",
+    label: "Business",
+    employeeLimit: 250,
+    aiPromptLimit: 100,
+    aiPromptWindowMinutes: 5,
+    aiUnlimited: false,
+    defaultMonthlyPrice: 4999,
+    displayNote: "For larger operating teams",
+    serviceOfferings: "All Factory1 modules, Higher employee limits, Higher AI quota, Priority onboarding help",
+  },
+  {
+    plan: "ENTERPRISE",
+    label: "Enterprise",
+    employeeLimit: null,
+    aiPromptLimit: null,
+    aiPromptWindowMinutes: 5,
+    aiUnlimited: true,
+    defaultMonthlyPrice: 0,
+    displayNote: "Unlimited + dedicated support",
+    serviceOfferings: "All Factory1 modules, Unlimited employees, Unlimited hosted AI prompts, Dedicated setup support, Plan-level controls",
+  },
+];
+
+const planOrder: OrganizationPlan[] = ["FREE", "STARTER", "GROWTH", "BUSINESS", "ENTERPRISE"];
+
 export function OrganizationSettingsForm() {
   const { data, isLoading } = useGetOrganizationSettingsQuery();
+  const { data: plansResponse } = useGetOrganizationPlanOptionsQuery();
+  const { data: offersResponse } = useGetOrganizationPlanOffersQuery();
   const [updateSettings, { isLoading: isSaving }] =
     useUpdateOrganizationSettingsMutation();
   const [regenerateCaptureKey, { isLoading: isGeneratingKey }] =
     useRegenerateAttendanceCaptureKeyMutation();
+  const [requestPlanChange, { isLoading: isRequestingPlan }] =
+    useRequestPlanChangeMutation();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -193,13 +265,97 @@ export function OrganizationSettingsForm() {
     toast.success("Capture key copied");
   }
 
+  async function handleRequestPlanChange(plan: PlanOption) {
+    try {
+      await requestPlanChange({
+        requestedPlan: plan.plan,
+        note: `Requested from organization settings. Current plan: ${data?.data.plan ?? "UNKNOWN"}`,
+      }).unwrap();
+      toast.success("Plan change request sent. Factory1 team will contact you for payment.");
+    } catch {
+      toast.error("Could not send plan change request");
+    }
+  }
+
   if (isLoading) {
     return <p className="text-sm text-slate-500">Loading settings...</p>;
   }
 
+  const settings = data?.data;
+  const plans = mergePlans(plansResponse?.data);
+  const offers = offersResponse?.data ?? [];
+  const currentPlan =
+    plans.find((plan) => plan.plan === settings?.plan) ??
+    plans.find((plan) => plan.plan === "FREE") ??
+    fallbackPlans[0];
+
   return (
     <div className="rounded-2xl border bg-white p-6 shadow-sm">
       <AppForm form={form} onSubmit={onSubmit}>
+        <div className="mb-8">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                <CreditCard className="h-4 w-4" />
+                Plan & Billing
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Your current plan is active until Factory1 confirms any requested change.
+              </p>
+            </div>
+            <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm">
+              <span className="text-slate-500">Current plan: </span>
+              <span className="font-semibold text-slate-950">{currentPlan.label}</span>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {plans.map((plan) => {
+              const isCurrent = plan.plan === settings?.plan;
+              const offer = bestDiscountOffer(offers);
+
+              return (
+                <div
+                  key={plan.plan}
+                  className={`rounded-lg border p-4 ${
+                    isCurrent ? "border-blue-200 bg-blue-50" : "bg-white"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">{plan.label}</p>
+                      <p className="mt-1 text-lg font-semibold text-slate-950">
+                        <PlanPrice plan={plan} offer={offer} />
+                      </p>
+                    </div>
+                    {isCurrent && (
+                      <span className="rounded-full bg-blue-600 px-2 py-1 text-xs font-medium text-white">
+                        Active
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-4 space-y-2 text-sm text-slate-600">
+                    <p>{formatEmployeeLimit(plan.employeeLimit)}</p>
+                    <p>{formatAiLimit(plan)}</p>
+                    <p>{plan.displayNote}</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={isCurrent || isRequestingPlan}
+                    onClick={() => handleRequestPlanChange(plan)}
+                  >
+                    <Send className="h-4 w-4" />
+                    {isCurrent ? "Current Plan" : "Request Change"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="mb-6">
           <h2 className="text-sm font-semibold text-slate-950">
             Factory Profile
@@ -405,4 +561,95 @@ export function OrganizationSettingsForm() {
       </AppForm>
     </div>
   );
+}
+
+function mergePlans(remotePlans?: PlanOption[]) {
+  const planMap = new Map<OrganizationPlan, PlanOption>();
+
+  fallbackPlans.forEach((plan) => planMap.set(plan.plan, plan));
+  remotePlans?.forEach((plan) => planMap.set(plan.plan, plan));
+
+  return planOrder
+    .map((plan) => planMap.get(plan))
+    .filter(Boolean) as PlanOption[];
+}
+
+function formatPlanPrice(plan: PlanOption) {
+  const price = Number(plan.defaultMonthlyPrice ?? 0);
+
+  if (plan.plan === "ENTERPRISE" && price <= 0) {
+    return "Custom";
+  }
+
+  if (price <= 0) {
+    return "₹0";
+  }
+
+  return `₹${price.toLocaleString("en-IN")}/mo`;
+}
+
+function PlanPrice({
+  plan,
+  offer,
+}: {
+  plan: PlanOption;
+  offer?: PlanOffer;
+}) {
+  const price = Number(plan.defaultMonthlyPrice ?? 0);
+  const discount = Number(offer?.discountPercent ?? 0);
+
+  if (plan.plan === "ENTERPRISE" && price <= 0) {
+    return <span>Custom</span>;
+  }
+
+  if (price <= 0 || discount <= 0) {
+    return <span>{formatPlanPrice(plan)}</span>;
+  }
+
+  const discountedPrice = Math.max(0, Math.round(price * (1 - discount / 100)));
+  const code = offer?.code?.trim();
+  const validUntil = offer?.validUntil?.trim();
+  const tooltip = [
+    offer?.title?.trim(),
+    code ? `Code: ${code}` : undefined,
+    validUntil ? `Valid till: ${validUntil}` : undefined,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-2" title={tooltip}>
+      <span className="text-sm text-slate-400 line-through">
+        {formatCurrency(price)}
+      </span>
+      <span>{formatCurrency(discountedPrice)}/mo</span>
+    </span>
+  );
+}
+
+function bestDiscountOffer(offers: PlanOffer[]) {
+  return offers
+    .filter((offer) => Number(offer.discountPercent ?? 0) > 0)
+    .sort(
+      (first, second) =>
+        Number(second.discountPercent ?? 0) - Number(first.discountPercent ?? 0)
+    )[0];
+}
+
+function formatCurrency(price: number) {
+  return `₹${price.toLocaleString("en-IN")}`;
+}
+
+function formatEmployeeLimit(limit: number | null) {
+  return limit == null ? "Unlimited employees" : `Up to ${limit} employees`;
+}
+
+function formatAiLimit(plan: PlanOption) {
+  if (plan.aiUnlimited) {
+    return "Unlimited hosted AI prompts";
+  }
+
+  return `${plan.aiPromptLimit ?? 0} hosted AI prompts every ${
+    plan.aiPromptWindowMinutes ?? 5
+  } minutes`;
 }

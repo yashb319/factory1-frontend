@@ -2,8 +2,12 @@
 import { baseApi } from "@/services/baseApi";
 import {
   ApiResponse,
+  MessageResponse,
   OrganizationSettingsRequest,
   OrganizationSettingsResponse,
+  PlanChangeRequest,
+  PlanOffer,
+  PlanOption,
 } from "../types/organizationSettings.types";
 
 export const organizationSettingsApi = baseApi.injectEndpoints({
@@ -13,6 +17,16 @@ export const organizationSettingsApi = baseApi.injectEndpoints({
       void
     >({
       query: () => "/api/organization/settings",
+      providesTags: ["OrganizationSettings"],
+    }),
+
+    getOrganizationPlanOptions: builder.query<ApiResponse<PlanOption[]>, void>({
+      query: () => "/api/public/plans",
+      providesTags: ["OrganizationSettings"],
+    }),
+
+    getOrganizationPlanOffers: builder.query<ApiResponse<PlanOffer[]>, void>({
+      query: () => "/api/public/offers",
       providesTags: ["OrganizationSettings"],
     }),
 
@@ -38,11 +52,25 @@ export const organizationSettingsApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["OrganizationSettings"],
     }),
+
+    requestPlanChange: builder.mutation<
+      ApiResponse<MessageResponse>,
+      PlanChangeRequest
+    >({
+      query: (body) => ({
+        url: "/api/organization/settings/plan-change-request",
+        method: "POST",
+        body,
+      }),
+    }),
   }),
 });
 
 export const {
   useGetOrganizationSettingsQuery,
+  useGetOrganizationPlanOffersQuery,
+  useGetOrganizationPlanOptionsQuery,
   useRegenerateAttendanceCaptureKeyMutation,
+  useRequestPlanChangeMutation,
   useUpdateOrganizationSettingsMutation,
 } = organizationSettingsApi;
