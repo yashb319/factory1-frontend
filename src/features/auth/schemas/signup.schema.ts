@@ -6,6 +6,9 @@ export const signupSchema = z.object({
   email: z.string().email("Enter a valid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   location: z.string().min(2, "Factory location is required"),
+  city: z.string().optional(),
+  pincode: z.string().optional(),
+  country: z.string().optional(),
   industryType: z.string().min(2, "Industry type is required"),
   employeeCountEstimate: z.number().min(1, "Enter employee count"),
   gstNumber: z

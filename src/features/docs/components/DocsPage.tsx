@@ -385,6 +385,72 @@ const moduleDocs: ModuleDoc[] = [
   },
 ];
 
+const logicalTestingPath = [
+  {
+    title: "1. Login and check starter data",
+    checks: [
+      "Login with official.factory.one@gmail.com.",
+      "Open Dashboard and confirm employees, attendance, inventory, billing and accounting are not empty.",
+      "Open Docs from sidebar and keep this path open for reference.",
+    ],
+  },
+  {
+    title: "2. People and attendance flow",
+    checks: [
+      "Open Employees and search Rahul Kumar. Confirm phone, department and status are visible.",
+      "Open Attendance and check today's manual attendance plus punch activity.",
+      "Open Organization Settings and confirm the attendance capture key exists.",
+    ],
+  },
+  {
+    title: "3. Inventory and production flow",
+    checks: [
+      "Open Inventory and check raw materials plus finished goods.",
+      "Confirm low-stock items are visible, especially Copper Motor Coil or Powder Coating Paint.",
+      "Open Products & Production and check BOM for Industrial Control Cabinet.",
+      "Run or inspect production entry and verify it connects raw material to finished goods.",
+    ],
+  },
+  {
+    title: "4. Billing flow",
+    checks: [
+      "Open Billing and create a Sales voucher for Alpha Automation.",
+      "Confirm GST/address auto-fill after selecting the party.",
+      "Post the bill and check finished goods stock decreases.",
+      "Create a Purchase voucher from Bharat Steel Traders and check raw material stock increases.",
+      "Print a bill and export billing data.",
+    ],
+  },
+  {
+    title: "5. Accounting flow without CA knowledge",
+    checks: [
+      "Open Accounting > Overview. Receivables should show customer pending money and Payables should show supplier pending money.",
+      "Open Vouchers. Bill-generated vouchers show as Billing source and should not be editable here.",
+      "Create a manual Payment voucher: Debit Factory Electricity Expense and Credit HDFC Bank Current A/c with the same amount.",
+      "Use Auto Balance if debit and credit do not match.",
+      "Edit the manual voucher, then cancel it with a reason. This tests audit-safe voucher lifecycle.",
+    ],
+  },
+  {
+    title: "6. CA/report flow",
+    checks: [
+      "Open Accounting > Cash/Bank and check HDFC Bank Current A/c running balance.",
+      "Open Reports and download P&L, Balance Sheet, Trial Balance, Group Summary and Monthly Voucher Summary.",
+      "Open ledger drilldown by clicking a ledger name in reports.",
+      "Open Import / Export and confirm export jobs/history are visible.",
+    ],
+  },
+  {
+    title: "7. AI and role access flow",
+    checks: [
+      "Ask AI: What is Rahul Kumar's mobile number?",
+      "Ask AI: Show low stock items.",
+      "Ask AI: Summarize receivables and payables.",
+      "Login with a non-finance role if available and confirm finance/accounting answers are restricted.",
+    ],
+  },
+];
+
 export function DocsPage() {
   return (
     <div className="space-y-6">
@@ -420,6 +486,32 @@ export function DocsPage() {
               </a>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg">
+        <CardHeader>
+          <CardTitle>Recommended Testing Path</CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Follow this order when testing the demo data. It moves from simple
+            records to stock, billing, accounting and AI so each module has the
+            data it needs.
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-3 lg:grid-cols-2">
+          {logicalTestingPath.map((step) => (
+            <div key={step.title} className="rounded-md border bg-slate-50 p-4">
+              <h2 className="text-sm font-semibold">{step.title}</h2>
+              <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+                {step.checks.map((check) => (
+                  <li key={check} className="flex gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                    <span>{check}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </CardContent>
       </Card>
 

@@ -208,6 +208,7 @@ export const {
   useDeleteAccountGroupMutation,
   useDeleteAccountLedgerMutation,
   useGetAccountMastersQuery,
+  useGetAccountingGstSummaryQuery,
   useGetAccountingVouchersQuery,
   useGetAgingReportQuery,
   useGetBalanceSheetQuery,

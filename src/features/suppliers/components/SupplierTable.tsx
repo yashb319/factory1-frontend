@@ -67,7 +67,9 @@ export function SupplierTable({
                   <td className="px-4 py-3">{supplier.gstNumber || "-"}</td>
 
                   <td className="px-4 py-3">
-                    {[supplier.city, supplier.state].filter(Boolean).join(", ") || "-"}
+                    {[supplier.city, supplier.state, supplier.pincode]
+                      .filter(Boolean)
+                      .join(", ") || "-"}
                   </td>
 
                   <td className="px-4 py-3">{supplier.paymentTerms || "-"}</td>

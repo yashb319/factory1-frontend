@@ -70,7 +70,9 @@ export function CustomerTable({
                   <td className="px-4 py-3">{customer.gstNumber || "-"}</td>
 
                   <td className="px-4 py-3">
-                    {[customer.city, customer.state].filter(Boolean).join(", ") ||
+                    {[customer.city, customer.state, customer.pincode]
+                      .filter(Boolean)
+                      .join(", ") ||
                       "-"}
                   </td>
 

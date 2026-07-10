@@ -21,6 +21,12 @@ import {
 } from "../api/organizationSettingsApi";
 import { toast } from "sonner";
 import { stateNameFromGstNumber } from "@/lib/gstState";
+import { LocationSuggestionHint } from "@/components/forms/LocationSuggestionHint";
+import {
+  getBestLocationSuggestion,
+  getLocationSuggestions,
+  type LocationSuggestion,
+} from "@/lib/locationSuggestions";
 
 const schema = z.object({
   workingHoursPerDay: z.number().min(1, "Required"),
@@ -32,6 +38,9 @@ const schema = z.object({
   financialYearStartMonth: z.string().min(1, "Required"),
   organizationName: z.string().min(2, "Required"),
   location: z.string().optional(),
+  city: z.string().optional(),
+  pincode: z.string().optional(),
+  country: z.string().optional(),
   industryType: z.string().optional(),
   employeeCountEstimate: z.number().optional(),
   gstNumber: z
@@ -65,6 +74,9 @@ export function OrganizationSettingsForm() {
       financialYearStartMonth: "4",
       organizationName: "",
       location: "",
+      city: "",
+      pincode: "",
+      country: "India",
       industryType: "",
       employeeCountEstimate: undefined,
       gstNumber: "",
@@ -73,6 +85,16 @@ export function OrganizationSettingsForm() {
     },
   });
   const gstNumber = form.watch("gstNumber");
+  const city = form.watch("city");
+  const location = form.watch("location");
+  const locationSuggestions = getLocationSuggestions(city || location);
+
+  const applyLocationSuggestion = (suggestion: LocationSuggestion) => {
+    form.setValue("city", suggestion.city, { shouldDirty: true });
+    form.setValue("state", suggestion.state, { shouldDirty: true });
+    form.setValue("pincode", suggestion.pincode, { shouldDirty: true });
+    form.setValue("country", suggestion.country, { shouldDirty: true });
+  };
 
   useEffect(() => {
     if (!data?.data) return;
@@ -89,6 +111,9 @@ export function OrganizationSettingsForm() {
       ),
       organizationName: data.data.organizationName ?? "",
       location: data.data.location ?? "",
+      city: data.data.city ?? "",
+      pincode: data.data.pincode ?? "",
+      country: data.data.country ?? "India",
       industryType: data.data.industryType ?? "",
       employeeCountEstimate: data.data.employeeCountEstimate ?? undefined,
       gstNumber: data.data.gstNumber ?? "",
@@ -104,6 +129,26 @@ export function OrganizationSettingsForm() {
     }
   }, [form, gstNumber]);
 
+  useEffect(() => {
+    const suggestion = getBestLocationSuggestion(city || location);
+    if (!suggestion) {
+      return;
+    }
+
+    if (!form.getValues("city")) {
+      form.setValue("city", suggestion.city, { shouldDirty: true });
+    }
+    if (!form.getValues("state")) {
+      form.setValue("state", suggestion.state, { shouldDirty: true });
+    }
+    if (!form.getValues("pincode")) {
+      form.setValue("pincode", suggestion.pincode, { shouldDirty: true });
+    }
+    if (!form.getValues("country")) {
+      form.setValue("country", suggestion.country, { shouldDirty: true });
+    }
+  }, [city, form, location]);
+
   async function onSubmit(values: FormValues) {
     try {
       await updateSettings({
@@ -116,6 +161,9 @@ export function OrganizationSettingsForm() {
         financialYearStartMonth: Number(values.financialYearStartMonth),
         organizationName: values.organizationName,
         location: values.location,
+        city: values.city,
+        pincode: values.pincode,
+        country: values.country || "India",
         industryType: values.industryType,
         employeeCountEstimate: values.employeeCountEstimate,
         gstNumber: values.gstNumber?.trim().toUpperCase(),
@@ -175,6 +223,18 @@ export function OrganizationSettingsForm() {
             placeholder="Peenya, Bengaluru"
           />
 
+          <div>
+            <TextField<FormValues>
+              name="city"
+              label="City"
+              placeholder="Bengaluru"
+            />
+            <LocationSuggestionHint
+              suggestions={locationSuggestions}
+              onApply={applyLocationSuggestion}
+            />
+          </div>
+
           <TextField<FormValues>
             name="industryType"
             label="Industry Type"
@@ -208,6 +268,18 @@ export function OrganizationSettingsForm() {
             name="state"
             label="State"
             placeholder="Karnataka"
+          />
+
+          <TextField<FormValues>
+            name="pincode"
+            label="Pincode"
+            placeholder="560001"
+          />
+
+          <TextField<FormValues>
+            name="country"
+            label="Country"
+            placeholder="India"
           />
         </div>
 
