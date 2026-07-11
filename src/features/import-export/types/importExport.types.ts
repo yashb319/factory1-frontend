@@ -8,7 +8,9 @@ export type DataJobModule =
   | "SUPPLIER"
   | "CUSTOMER"
   | "PRODUCT"
-  | "BILLING";
+  | "BILLING"
+  | "ACCOUNTING"
+  | "OTHER";
 
 export type DataJobStatus =
   | "PENDING"
@@ -32,6 +34,7 @@ export interface DataJob {
   completedAt?: string;
   errorFileUrl?: string;
   outputFileUrl?: string;
+  parameters?: Record<string, unknown>;
   notes?: string;
 }
 
@@ -46,6 +49,7 @@ export type DataJobRequest = {
   failedRows?: number;
   errorFileUrl?: string;
   outputFileUrl?: string;
+  parameters?: Record<string, unknown>;
   notes?: string;
 };
 

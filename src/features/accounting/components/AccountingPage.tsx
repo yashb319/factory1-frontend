@@ -47,7 +47,10 @@ import {
 } from "@/components/ui/select";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 import { toCsv } from "@/features/import-export/utils/csv";
-import { downloadCsv } from "@/features/import-export/utils/localExportFiles";
+import {
+  downloadCsv,
+  printHtml,
+} from "@/features/import-export/utils/localExportFiles";
 import { exportGstReportCsv } from "@/features/billing/utils/gstReportExport";
 import {
   useCancelAccountingVoucherMutation,
@@ -671,13 +674,7 @@ export function AccountingPage() {
     toast.success("Ledger drill-down CSV downloaded");
   };
 
-  const printVoucher = (voucher: AccountingVoucher) => {
-    const printWindow = window.open("", "_blank", "width=900,height=720");
-    if (!printWindow) {
-      toast.error("Could not open print window");
-      return;
-    }
-
+  const printVoucher = async (voucher: AccountingVoucher) => {
     const rows = voucher.lines
       .map(
         (line) => `
@@ -691,7 +688,7 @@ export function AccountingPage() {
       )
       .join("");
 
-    printWindow.document.write(`
+    const html = `
       <!doctype html>
       <html>
         <head>
@@ -736,8 +733,12 @@ export function AccountingPage() {
           </script>
         </body>
       </html>
-    `);
-    printWindow.document.close();
+    `;
+
+    const ok = await printHtml(html);
+    if (!ok) {
+      toast.error("Could not open print window");
+    }
   };
 
   const exportLedger = () => {
@@ -758,6 +759,11 @@ export function AccountingPage() {
       successRows: data.parties.length,
       failedRows: 0,
       outputFileUrl: exported.outputFileUrl,
+      parameters: {
+        reportType: "LEDGER_REPORT",
+        fromDate,
+        toDate,
+      },
       notes: `Accounting ledger ${fromDate} to ${toDate}`,
     });
 

@@ -8,7 +8,12 @@ export function useLogDataJob() {
 
   return async (request: DataJobRequest) => {
     try {
-      await createJob(request).unwrap();
+      await createJob({
+        ...request,
+        parameters: request.parameters
+          ? JSON.stringify(request.parameters)
+          : undefined,
+      } as DataJobRequest).unwrap();
     } catch {
       // Export/import should not fail only because history logging failed.
     }

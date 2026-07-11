@@ -1,22 +1,8 @@
 import type { Bill } from "../types/billing.types";
+import { printHtml } from "@/features/import-export/utils/localExportFiles";
 
-export function printInvoice(bill: Bill) {
-  const printWindow = window.open("", "_blank");
-
-  if (!printWindow) {
-    return false;
-  }
-
-  try {
-    printWindow.document.open();
-    printWindow.document.write(invoiceHtml(bill));
-    printWindow.document.close();
-  } catch {
-    printWindow.close();
-    return false;
-  }
-
-  return true;
+export async function printInvoice(bill: Bill) {
+  return printHtml(invoiceHtml(bill));
 }
 
 function invoiceHtml(bill: Bill) {

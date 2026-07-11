@@ -16,6 +16,7 @@ import { MarkAttendanceDialog } from "./MarkAttendanceDialog";
 import { DailyAttendanceRegister } from "./DailyAttendanceRegister";
 import { exportAttendanceCsv } from "../utils/attendanceExport";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
+import { openExternalUrl } from "@/features/import-export/utils/localExportFiles";
 
 export function AttendancePage() {
   const [markOpen, setMarkOpen] = useState(false);
@@ -112,11 +113,7 @@ export function AttendancePage() {
           </Button>
           <Button
             onClick={() =>
-              window.open(
-                "https://attendance-capture.factory1.in/",
-                "_blank",
-                "noopener,noreferrer"
-              )
+              openExternalUrl("https://attendance-capture.factory1.in/")
             }
           >
             <ExternalLink className="mr-2 h-4 w-4" />

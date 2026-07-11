@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useBulkCreateInventoryItemsMutation } from "../api/inventoryApi";
+import { saveFile } from "@/features/import-export/utils/localExportFiles";
+import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
+import { toImportReportParams } from "@/features/import-export/utils/importReportParams";
 import type {
     InventoryItemRequest,
     InventoryItemType,
@@ -34,6 +37,7 @@ export function InventoryBulkImportDialog({ open, onClose }: Props) {
     const [message, setMessage] = useState<string>("");
 
     const [bulkCreate, state] = useBulkCreateInventoryItemsMutation();
+    const logDataJob = useLogDataJob();
 
     const validRows = useMemo(
         () => rows.filter((row) => !row.error),
@@ -74,12 +78,36 @@ export function InventoryBulkImportDialog({ open, onClose }: Props) {
             } else {
                 toast.success("Inventory items imported successfully");
             }
+
+            const report = toImportReportParams(rows as Array<Record<string, unknown>>);
+
+            logDataJob({
+                operation: "IMPORT",
+                module: "INVENTORY",
+                fileName: "inventory-import.csv",
+                status:
+                    response.data.failedCount > 0
+                        ? "PARTIAL_SUCCESS"
+                        : "COMPLETED",
+                progress: 100,
+                totalRows: validRows.length,
+                successRows: response.data.successCount,
+                failedRows: response.data.failedCount,
+                parameters: {
+                    reportType: "IMPORT_TEMPLATE",
+                    module: "INVENTORY",
+                    headers: report.headers,
+                    validRows: report.validRows,
+                    errorRows: report.errorRows,
+                },
+                notes: msg,
+            });
         } catch {
             toast.error("Failed to import inventory items");
         }
     };
 
-    const downloadTemplate = () => {
+    const downloadTemplate = async () => {
         const csv = [
             [
                 "itemCode",
@@ -117,14 +145,7 @@ export function InventoryBulkImportDialog({ open, onClose }: Props) {
             type: "text/csv;charset=utf-8;",
         });
 
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-
-        link.href = url;
-        link.download = "inventory-import-template.csv";
-        link.click();
-
-        URL.revokeObjectURL(url);
+        await saveFile({ fileName: "inventory-import-template.csv", content: blob });
 
         toast.success("Inventory import template downloaded");
     };

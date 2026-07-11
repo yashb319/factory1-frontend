@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
+import { saveFile } from "@/features/import-export/utils/localExportFiles";
+import { toEmployeeReportParams } from "@/features/import-export/utils/importReportParams";
 import { Download, FileText, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -183,7 +185,7 @@ function validateRows(mappedRows: ImportRow[]): ValidationRow[] {
   });
 }
 
-function downloadErrorRows(rows: ValidationRow[]) {
+async function downloadErrorRows(rows: ValidationRow[]) {
   const errorRows = rows.filter((row) => row.status === "ERROR");
 
   if (!errorRows.length) {
@@ -204,14 +206,7 @@ function downloadErrorRows(rows: ValidationRow[]) {
     type: "text/csv;charset=utf-8;",
   });
 
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = "employee-import-errors.csv";
-  link.click();
-
-  URL.revokeObjectURL(url);
+  await saveFile({ fileName: "employee-import-errors.csv", content: blob });
 }
 
 
@@ -254,6 +249,8 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   }, [validationRows, mapping]);
 
   function handleStartImport() {
+    const report = toEmployeeReportParams(validationRows);
+
     void logDataJob({
       operation: "IMPORT",
       module: "EMPLOYEE",
@@ -263,6 +260,13 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       totalRows: validationRows.length,
       successRows: importableRows.length,
       failedRows: validation.invalid,
+      parameters: {
+        reportType: "IMPORT_TEMPLATE",
+        module: "EMPLOYEE",
+        headers: report.headers,
+        validRows: report.validRows,
+        errorRows: report.errorRows,
+      },
       notes: "Client-side import validation completed. Backend bulk import integration pending.",
     });
     toast.success("Import job started. Track progress in Import / Export History.");

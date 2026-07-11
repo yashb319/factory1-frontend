@@ -10,6 +10,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useBulkCreateCustomersMutation } from "../api/customerApi";
+import { saveFile } from "@/features/import-export/utils/localExportFiles";
+import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
+import { toImportReportParams } from "@/features/import-export/utils/importReportParams";
 import type {
   CustomerRequest,
   CustomerStatus,
@@ -30,6 +33,7 @@ export function CustomerBulkImportDialog({ open, onClose }: Props) {
   const [message, setMessage] = useState("");
 
   const [bulkCreate, state] = useBulkCreateCustomersMutation();
+  const logDataJob = useLogDataJob();
 
   const validRows = useMemo(() => rows.filter((row) => !row.error), [rows]);
   const invalidRows = useMemo(() => rows.filter((row) => row.error), [rows]);
@@ -55,12 +59,34 @@ export function CustomerBulkImportDialog({ open, onClose }: Props) {
 
       if (response.data.failedCount > 0) toast.warning(msg);
       else toast.success("Customers imported successfully");
+
+      const report = toImportReportParams(rows as Array<Record<string, unknown>>);
+
+      logDataJob({
+        operation: "IMPORT",
+        module: "CUSTOMER",
+        fileName: "customers-import.csv",
+        status:
+          response.data.failedCount > 0 ? "PARTIAL_SUCCESS" : "COMPLETED",
+        progress: 100,
+        totalRows: validRows.length,
+        successRows: response.data.successCount,
+        failedRows: response.data.failedCount,
+        parameters: {
+          reportType: "IMPORT_TEMPLATE",
+          module: "CUSTOMER",
+          headers: report.headers,
+          validRows: report.validRows,
+          errorRows: report.errorRows,
+        },
+        notes: msg,
+      });
     } catch {
       toast.error("Failed to import customers");
     }
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     const csv = [
       [
         "customerCode",
@@ -98,14 +124,7 @@ export function CustomerBulkImportDialog({ open, onClose }: Props) {
       type: "text/csv;charset=utf-8;",
     });
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = "customer-import-template.csv";
-    link.click();
-
-    URL.revokeObjectURL(url);
+    await saveFile({ fileName: "customer-import-template.csv", content: blob });
     toast.success("Customer import template downloaded");
   };
 
