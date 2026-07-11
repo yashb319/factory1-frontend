@@ -1,10 +1,9 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   Bot,
-  CheckCircle2,
   Send,
   Sparkles,
   X,
@@ -17,13 +16,18 @@ import {
   useExecuteAiActionMutation,
   useSendAiMessageMutation,
 } from "../api/aiApi";
+import { useAiExport } from "../hooks/useAiExport";
 import type {
   AiActionProposal,
   AiChatMessage,
   AiChatResponse,
   AiMetric,
 } from "../types/ai.types";
+import { AiActionCard } from "./AiActionCard";
 import { AiChartView } from "./AiChartView";
+import { AiRecordsView } from "./AiRecordsView";
+import { AiThinkingView } from "./AiThinkingView";
+import { intentStyle } from "./intentStyles";
 
 type ThreadMessage = AiChatMessage & {
   response?: AiChatResponse;
@@ -184,6 +188,15 @@ export function FloatingAssistant() {
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [sendAiMessage, sendState] = useSendAiMessageMutation();
   const [executeAiAction, actionState] = useExecuteAiActionMutation();
+  const exportModule = useAiExport();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (node) {
+      node.scrollTop = node.scrollHeight;
+    }
+  }, [messages, sendState.isLoading, actionState.isLoading]);
 
   const history = useMemo(
     () =>
@@ -242,7 +255,28 @@ export function FloatingAssistant() {
     void ask(input);
   };
 
-  const applyAction = async (action: AiActionProposal) => {
+  const applyAction = async (
+    action: AiActionProposal,
+    fieldsOverride?: Record<string, string>
+  ) => {
+    if (action.export) {
+      const done = await exportModule(
+        (action.payload?.exportModule as string) ?? action.module
+      );
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: done
+            ? "Export started. You can download the CSV from the Import / Export screen."
+            : "I couldn't export that module yet.",
+        },
+      ]);
+
+      return;
+    }
+
     try {
       const result = await executeAiAction({
         actionId: action.id,
@@ -251,6 +285,14 @@ export function FloatingAssistant() {
         field: action.field,
         newValue: action.newValue,
         payload: action.payload,
+        create: action.create,
+        delete: action.delete,
+        restore: action.restore,
+        approve: action.approve,
+        export: action.export,
+        fields:
+          fieldsOverride ??
+          (action.newValues as Record<string, string> | undefined),
       }).unwrap();
 
       toast.success(result.message);
@@ -339,19 +381,33 @@ export function FloatingAssistant() {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+            <div
+              ref={scrollRef}
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3"
+            >
               {messages.length ? (
-                messages.map((message, index) => (
+                messages.map((message, index) => {
+                  const intent =
+                    message.role === "assistant"
+                      ? intentStyle(message.response?.intent)
+                      : null;
+
+                  return (
                   <div
                     key={`${message.role}-${index}`}
                     className={
                       message.role === "user"
                         ? "ml-auto max-w-[88%] rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
-                        : "max-w-[94%] space-y-3 rounded-md border bg-background px-3 py-2 text-sm"
+                        : `max-w-[94%] space-y-3 rounded-md border border-l-4 ${intent?.border ?? "border-l-slate-400"} bg-background px-3 py-2 text-sm`
                     }
                   >
                     <div className="flex items-center gap-2 text-xs font-medium opacity-80">
                       {message.role === "user" ? "You" : "Factory1 AI"}
+                      {intent ? (
+                        <Badge className={`h-5 rounded-md ${intent.badge}`}>
+                          {intent.label}
+                        </Badge>
+                      ) : null}
                       {message.response?.fallback ? (
                         <Badge variant="outline" className="h-5 rounded-md">
                           Local summary
@@ -379,50 +435,37 @@ export function FloatingAssistant() {
 
                     <AiChartView chart={message.response?.chart} />
 
+                    <AiRecordsView records={message.response?.records} />
+
+                    <AiThinkingView thinking={message.response?.thinking} />
+
+                    {message.response?.followUp ? (
+                      <div className="flex gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+                        <span className="mt-0.5 text-primary">💡</span>
+                        <span>
+                          <span className="font-medium text-primary">
+                            One more thing —{" "}
+                          </span>
+                          {message.response.followUp}
+                        </span>
+                      </div>
+                    ) : null}
+
                     {message.response?.actions?.length ? (
                       <div className="space-y-2">
                         {message.response.actions.map((action) => (
-                          <div
+                          <AiActionCard
                             key={action.id}
-                            className="rounded-md border bg-muted/20 p-3"
-                          >
-                            <div className="text-xs font-medium uppercase text-muted-foreground">
-                              {action.module}
-                            </div>
-                            <div className="mt-1 font-medium">
-                              {action.recordLabel}
-                            </div>
-                            <div className="mt-2 grid gap-2 text-xs">
-                              <div className="rounded-md bg-background p-2">
-                                Current {action.field}:{" "}
-                                <span className="font-medium">
-                                  {action.currentValue || "-"}
-                                </span>
-                              </div>
-                              <div className="rounded-md bg-background p-2">
-                                New {action.field}:{" "}
-                                <span className="font-medium">
-                                  {action.newValue}
-                                </span>
-                              </div>
-                            </div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="mt-3"
-                              disabled={actionState.isLoading}
-                              onClick={() => applyAction(action)}
-                            >
-                              <CheckCircle2 className="mr-2 h-4 w-4" />
-                              Apply update
-                            </Button>
-                          </div>
+                            action={action}
+                            loading={actionState.isLoading}
+                            onApply={applyAction}
+                          />
                         ))}
                       </div>
                     ) : null}
                   </div>
-                ))
-              ) : (
+                );
+              })) : (
                 <div className="rounded-md border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
                   Ask about {config.moduleName.toLowerCase()} or choose a quick
                   question above.
