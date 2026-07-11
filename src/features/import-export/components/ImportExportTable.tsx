@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  Download,
-  FileWarning,
-  MoreHorizontal,
-  RefreshCw,
-} from "lucide-react";
+import { Download, FileWarning, MoreHorizontal, RefreshCw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +24,10 @@ import { DataJob, DataJobStatus } from "../types/importExport.types";
 import {
   downloadCsv,
   getLocalExportFile,
+  openExternalUrl,
 } from "../utils/localExportFiles";
+import { regenerateJob } from "../utils/regenerate";
+import { toast } from "sonner";
 
 interface Props {
   jobs: DataJob[];
@@ -72,7 +70,29 @@ export function ImportExportTable({ jobs, isLoading, onRefresh }: Props) {
       return;
     }
 
-    window.open(job.outputFileUrl, "_blank", "noopener,noreferrer");
+    openExternalUrl(job.outputFileUrl);
+  }
+
+  function downloadErrorFile(job: DataJob) {
+    if (!job.errorFileUrl) return;
+
+    if (job.errorFileUrl.startsWith("factory1-local-export://")) {
+      const file = getLocalExportFile(job.errorFileUrl);
+
+      if (!file) {
+        alert("This error file is no longer available in this browser.");
+        return;
+      }
+
+      downloadCsv({
+        fileName: file.fileName,
+        content: file.content,
+        mimeType: file.mimeType,
+      });
+      return;
+    }
+
+    openExternalUrl(job.errorFileUrl);
   }
 
   return (
@@ -167,20 +187,36 @@ export function ImportExportTable({ jobs, isLoading, onRefresh }: Props) {
                         </DropdownMenuItem>
                       )}
 
+                      {job.operation === "IMPORT" && job.parameters && (
+                        <ImportActions job={job} />
+                      )}
+
+                      {job.operation === "EXPORT" &&
+                        job.parameters?.reportType === "LEDGER_REPORT" && (
+                          <DropdownMenuItem
+                            onClick={() => runRegen(job, "LEDGER_REPORT")}
+                          >
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Regenerate
+                          </DropdownMenuItem>
+                        )}
+
                       {job.errorFileUrl && (
-                        <DropdownMenuItem asChild>
-                          <a href={job.errorFileUrl} download>
+                        <DropdownMenuItem
+                          onClick={() => downloadErrorFile(job)}
+                        >
                           <FileWarning className="mr-2 h-4 w-4" />
                           Download Error File
-                          </a>
                         </DropdownMenuItem>
                       )}
 
-                      {!job.outputFileUrl && !job.errorFileUrl && (
-                        <DropdownMenuItem disabled>
-                          No file captured
-                        </DropdownMenuItem>
-                      )}
+                      {!job.outputFileUrl &&
+                        !job.errorFileUrl &&
+                        job.operation !== "IMPORT" && (
+                          <DropdownMenuItem disabled>
+                            No file captured
+                          </DropdownMenuItem>
+                        )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -204,4 +240,52 @@ export function ImportExportTable({ jobs, isLoading, onRefresh }: Props) {
 function formatDate(value?: string) {
   if (!value) return "-";
   return new Date(value).toLocaleString("en-IN");
+}
+
+async function runRegen(job: DataJob, reportType: string) {
+  try {
+    const ok = await regenerateJob(job, reportType);
+    if (ok) {
+      toast.success("Regenerated from saved parameters");
+    } else {
+      toast.info("Regeneration is not available for this job yet");
+    }
+  } catch {
+    toast.error("Regeneration failed");
+  }
+}
+
+function ImportActions({ job }: { job: DataJob }) {
+  const params = (job.parameters ?? {}) as Record<string, unknown>;
+  const errorRows = Array.isArray(params.errorRows)
+    ? (params.errorRows as unknown[])
+    : [];
+  const validRows = Array.isArray(params.validRows)
+    ? (params.validRows as unknown[])
+    : [];
+
+  return (
+    <>
+      <DropdownMenuItem onClick={() => runRegen(job, "IMPORT_TEMPLATE")}>
+        <Download className="mr-2 h-4 w-4" />
+        Download Template
+      </DropdownMenuItem>
+
+      {errorRows.length > 0 && (
+        <DropdownMenuItem
+          onClick={() => runRegen(job, "IMPORT_ERROR_REPORT")}
+        >
+          <FileWarning className="mr-2 h-4 w-4" />
+          Download Error Report
+        </DropdownMenuItem>
+      )}
+
+      {validRows.length > 0 && (
+        <DropdownMenuItem onClick={() => runRegen(job, "IMPORT_DATA")}>
+          <Download className="mr-2 h-4 w-4" />
+          Download Imported Data
+        </DropdownMenuItem>
+      )}
+    </>
+  );
 }

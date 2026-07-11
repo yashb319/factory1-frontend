@@ -28,8 +28,19 @@ export type AiChatResponse = {
   suggestions: string[];
   chart?: AiChart | null;
   actions?: AiActionProposal[];
+  records?: AiRelevantRecord[];
+  thinking?: string[];
+  followUp?: string;
   provider: string;
   fallback: boolean;
+  intent?: string;
+  entity?: string;
+};
+
+export type AiRelevantRecord = {
+  module: string;
+  title: string;
+  fields: Record<string, unknown>;
 };
 
 export type AiChatRequest = {
@@ -47,6 +58,13 @@ export type AiActionProposal = {
   newValue: string;
   confirmationText: string;
   payload?: Record<string, unknown>;
+  create?: boolean;
+  newValues?: Record<string, unknown>;
+  currentValues?: Record<string, unknown>;
+  delete?: boolean;
+  restore?: boolean;
+  approve?: boolean;
+  export?: boolean;
 };
 
 export type AiActionExecuteRequest = {
@@ -56,6 +74,12 @@ export type AiActionExecuteRequest = {
   field: string;
   newValue: string;
   payload?: Record<string, unknown>;
+  create?: boolean;
+  fields?: Record<string, string>;
+  delete?: boolean;
+  restore?: boolean;
+  approve?: boolean;
+  export?: boolean;
 };
 
 export type AiActionExecuteResponse = {

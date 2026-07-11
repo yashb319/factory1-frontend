@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
-import { Bot, CheckCircle2, Send, Sparkles, UserRound } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Bot, Send, Sparkles, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import {
   useExecuteAiActionMutation,
   useSendAiMessageMutation,
 } from "../api/aiApi";
+import { useAiExport } from "../hooks/useAiExport";
 import type {
   AiActionProposal,
   AiChatMessage,
@@ -18,6 +19,10 @@ import type {
   AiMetric,
 } from "../types/ai.types";
 import { AiChartView } from "./AiChartView";
+import { AiActionCard } from "./AiActionCard";
+import { AiRecordsView } from "./AiRecordsView";
+import { AiThinkingView } from "./AiThinkingView";
+import { intentStyle } from "./intentStyles";
 
 type ThreadMessage = AiChatMessage & {
   response?: AiChatResponse;
@@ -51,7 +56,16 @@ export function AiAssistantPage() {
 
   const [sendAiMessage, sendState] = useSendAiMessageMutation();
   const [executeAiAction, actionState] = useExecuteAiActionMutation();
+  const exportModule = useAiExport();
   const formRef = useRef<HTMLFormElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (node) {
+      node.scrollTop = node.scrollHeight;
+    }
+  }, [messages, sendState.isLoading, actionState.isLoading]);
 
   const history = useMemo(
     () =>
@@ -107,7 +121,28 @@ export function AiAssistantPage() {
     requestAnimationFrame(() => formRef.current?.requestSubmit());
   };
 
-  const applyAction = async (action: AiActionProposal) => {
+  const applyAction = async (
+    action: AiActionProposal,
+    fieldsOverride?: Record<string, string>
+  ) => {
+    if (action.export) {
+      const done = await exportModule(
+        (action.payload?.exportModule as string) ?? action.module
+      );
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: done
+            ? "Export started. You can download the CSV from the Import / Export screen."
+            : "I couldn't export that module yet.",
+        },
+      ]);
+
+      return;
+    }
+
     try {
       const result = await executeAiAction({
         actionId: action.id,
@@ -116,6 +151,14 @@ export function AiAssistantPage() {
         field: action.field,
         newValue: action.newValue,
         payload: action.payload,
+        create: action.create,
+        delete: action.delete,
+        restore: action.restore,
+        approve: action.approve,
+        export: action.export,
+        fields:
+          fieldsOverride ??
+          (action.newValues as Record<string, string> | undefined),
       }).unwrap();
 
       toast.success(result.message);
@@ -175,8 +218,17 @@ export function AiAssistantPage() {
               ))}
             </div>
 
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-              {messages.map((message, index) => (
+            <div
+              ref={scrollRef}
+              className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1"
+            >
+              {messages.map((message, index) => {
+                const intent =
+                  message.role === "assistant"
+                    ? intentStyle(message.response?.intent)
+                    : null;
+
+                return (
                 <div
                   key={`${message.role}-${index}`}
                   className={
@@ -189,7 +241,7 @@ export function AiAssistantPage() {
                     className={
                       message.role === "user"
                         ? "max-w-[82%] rounded-lg bg-primary px-4 py-3 text-sm text-primary-foreground"
-                        : "max-w-[88%] space-y-3 rounded-lg border bg-muted/30 px-4 py-3 text-sm"
+                        : `max-w-[88%] space-y-3 rounded-lg border border-l-4 ${intent?.border ?? "border-l-slate-400"} bg-muted/30 px-4 py-3 text-sm`
                     }
                   >
                     <div className="mb-1 flex items-center gap-2 text-xs font-medium opacity-80">
@@ -199,6 +251,11 @@ export function AiAssistantPage() {
                         <Bot className="h-3.5 w-3.5" />
                       )}
                       {message.role === "user" ? "You" : "Factory1 AI"}
+                      {intent && (
+                        <Badge className={`h-5 rounded-md ${intent.badge}`}>
+                          {intent.label}
+                        </Badge>
+                      )}
                       {message.response?.fallback && (
                         <Badge variant="outline" className="h-5 rounded-md">
                           Local summary
@@ -230,48 +287,31 @@ export function AiAssistantPage() {
 
                     <AiChartView chart={message.response?.chart} />
 
+                    <AiRecordsView records={message.response?.records} />
+
+                    <AiThinkingView thinking={message.response?.thinking} />
+
+                    {message.response?.followUp ? (
+                      <div className="flex gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+                        <span className="mt-0.5 text-primary">💡</span>
+                        <span>
+                          <span className="font-medium text-primary">
+                            One more thing —{" "}
+                          </span>
+                          {message.response.followUp}
+                        </span>
+                      </div>
+                    ) : null}
+
                     {message.response?.actions?.length ? (
                       <div className="space-y-2">
                         {message.response.actions.map((action) => (
-                          <div
+                          <AiActionCard
                             key={action.id}
-                            className="rounded-md border bg-background p-3"
-                          >
-                            <div className="text-xs font-medium uppercase text-muted-foreground">
-                              {action.module}
-                            </div>
-                            <div className="mt-1 font-medium">
-                              {action.recordLabel}
-                            </div>
-                            <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
-                              <div className="rounded-md bg-muted/60 p-2">
-                                <div className="text-muted-foreground">
-                                  Current {action.field}
-                                </div>
-                                <div className="mt-1 font-medium">
-                                  {action.currentValue || "-"}
-                                </div>
-                              </div>
-                              <div className="rounded-md bg-muted/60 p-2">
-                                <div className="text-muted-foreground">
-                                  New {action.field}
-                                </div>
-                                <div className="mt-1 font-medium">
-                                  {action.newValue}
-                                </div>
-                              </div>
-                            </div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="mt-3"
-                              disabled={actionState.isLoading}
-                              onClick={() => applyAction(action)}
-                            >
-                              <CheckCircle2 className="mr-2 h-4 w-4" />
-                              Apply update
-                            </Button>
-                          </div>
+                            action={action}
+                            loading={actionState.isLoading}
+                            onApply={applyAction}
+                          />
                         ))}
                       </div>
                     ) : null}
@@ -293,7 +333,8 @@ export function AiAssistantPage() {
                     ) : null}
                   </div>
                 </div>
-              ))}
+                );
+              })}
 
               {sendState.isLoading && (
                 <div className="flex justify-start">

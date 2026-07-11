@@ -5,6 +5,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useBulkCreateSuppliersMutation } from "../api/supplierApi";
+import { saveFile } from "@/features/import-export/utils/localExportFiles";
+import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
+import { toImportReportParams } from "@/features/import-export/utils/importReportParams";
 import type { SupplierRequest, SupplierStatus } from "../types/supplier.types";
 
 type Props = {
@@ -22,6 +25,7 @@ export function SupplierBulkImportDialog({ open, onClose }: Props) {
   const [message, setMessage] = useState("");
 
   const [bulkCreate, state] = useBulkCreateSuppliersMutation();
+  const logDataJob = useLogDataJob();
 
   const validRows = useMemo(() => rows.filter((row) => !row.error), [rows]);
   const invalidRows = useMemo(() => rows.filter((row) => row.error), [rows]);
@@ -46,12 +50,34 @@ export function SupplierBulkImportDialog({ open, onClose }: Props) {
 
       if (response.data.failedCount > 0) toast.warning(msg);
       else toast.success("Suppliers imported successfully");
+
+      const report = toImportReportParams(rows as Array<Record<string, unknown>>);
+
+      logDataJob({
+        operation: "IMPORT",
+        module: "SUPPLIER",
+        fileName: "suppliers-import.csv",
+        status:
+          response.data.failedCount > 0 ? "PARTIAL_SUCCESS" : "COMPLETED",
+        progress: 100,
+        totalRows: validRows.length,
+        successRows: response.data.successCount,
+        failedRows: response.data.failedCount,
+        parameters: {
+          reportType: "IMPORT_TEMPLATE",
+          module: "SUPPLIER",
+          headers: report.headers,
+          validRows: report.validRows,
+          errorRows: report.errorRows,
+        },
+        notes: msg,
+      });
     } catch {
       toast.error("Failed to import suppliers");
     }
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     const csv = [
       [
         "supplierCode",
@@ -84,14 +110,7 @@ export function SupplierBulkImportDialog({ open, onClose }: Props) {
     ].join("\n");
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = "supplier-import-template.csv";
-    link.click();
-
-    URL.revokeObjectURL(url);
+    await saveFile({ fileName: "supplier-import-template.csv", content: blob });
     toast.success("Supplier import template downloaded");
   };
 

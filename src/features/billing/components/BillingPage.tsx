@@ -1108,8 +1108,8 @@ export function BillingPage() {
                           cancelling={cancelState.isLoading}
                           posting={postState.isLoading}
                           recordingPayment={paymentState.isLoading}
-                          onPrint={() => {
-                            if (!printInvoice(bill)) {
+                          onPrint={async () => {
+                            if (!(await printInvoice(bill))) {
                               toast.error("Could not open invoice print window");
                             }
                           }}

@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import html2canvas from "html2canvas";
 import JSZip from "jszip";
 
@@ -6,6 +7,11 @@ import {
   PayrollRunDetailsResponse,
 } from "../types/payroll.types";
 import { buildPayslipHtml } from "./payrollPayslipHtml.utils";
+import {
+  dataUrlToBlob,
+  openExternalUrl,
+  saveFile,
+} from "@/features/import-export/utils/localExportFiles";
 
 export async function createPayslipJpg(
   payroll: PayrollRunDetailsResponse,
@@ -63,10 +69,10 @@ export async function downloadPayslipJpg(
   const image = await createPayslipJpg(payroll, item);
   if (!image) return;
 
-  const link = document.createElement("a");
-  link.href = image;
-  link.download = getPayslipFileName(payroll, item);
-  link.click();
+  await saveFile({
+    fileName: getPayslipFileName(payroll, item),
+    content: dataUrlToBlob(image),
+  });
 }
 
 export async function printPayslip(
@@ -77,7 +83,12 @@ export async function printPayslip(
   if (!image) return;
 
   const printWindow = window.open("", "_blank");
-  if (!printWindow) return;
+  if (!printWindow) {
+    if (Capacitor.isNativePlatform()) {
+      await openExternalUrl(image);
+    }
+    return;
+  }
 
   printWindow.document.write(`
     <!doctype html>
@@ -150,14 +161,10 @@ export async function downloadAllPayslipsZip(
     type: "blob",
   });
 
-  const url = URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `payslips-${payroll.payrollMonth}-${payroll.payrollYear}.zip`;
-  link.click();
-
-  URL.revokeObjectURL(url);
+  await saveFile({
+    fileName: `payslips-${payroll.payrollMonth}-${payroll.payrollYear}.zip`,
+    content: blob,
+  });
 }
 
 function getPayslipFileName(
