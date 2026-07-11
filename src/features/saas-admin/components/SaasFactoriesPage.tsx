@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Ban,
@@ -104,8 +104,38 @@ export function SaasFactoriesPage() {
   );
   const [selected, setSelected] = useState<SaasFactory | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
 
   const dashboard = data?.data;
+
+  const onSelectFactory = setSelected;
+  const onActionFactory = useCallback(
+    (factory: SaasFactory, kind: FactoryAction["kind"]) =>
+      setFactoryAction({ factory, kind }),
+    []
+  );
+  const onOpenMarkPaid = useCallback((factory: SaasFactory) => {
+    setMarkPaidMonths("1");
+    setMarkPaidDate("");
+    setMarkPaidTarget(factory);
+  }, []);
+  const onSaveFactory = useCallback((factory: SaasFactory) => {
+    const draft = draftsRef.current[factory.organizationId];
+
+    if (!draft) return;
+
+    updateFactory({
+      organizationId: factory.organizationId,
+      body: {
+        plan: draft.plan,
+        planMonthlyPrice: Number(draft.planMonthlyPrice || 0),
+      },
+    })
+      .unwrap()
+      .then(() => toast.success("Factory plan updated"))
+      .catch(() => toast.error("Could not update factory plan"));
+  }, [updateFactory]);
 
   useEffect(() => {
     if (!dashboard?.factories) return;
@@ -125,14 +155,6 @@ export function SaasFactoriesPage() {
       return next;
     });
   }, [dashboard?.factories]);
-
-  const plansByKey = useMemo(
-    () =>
-      new Map(
-        (dashboard?.plans ?? []).map((plan) => [plan.plan, plan])
-      ),
-    [dashboard?.plans]
-  );
 
   const filteredFactories = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -168,36 +190,19 @@ export function SaasFactoriesPage() {
     );
   }
 
-  async function saveFactory(factory: SaasFactory) {
-    const draft = drafts[factory.organizationId];
-
-    if (!draft) return;
-
-    try {
-      await updateFactory({
-        organizationId: factory.organizationId,
-        body: {
-          plan: draft.plan,
-          planMonthlyPrice: Number(draft.planMonthlyPrice || 0),
+  const updateDraft = useCallback(
+    (organizationId: string, patch: Partial<Draft>) => {
+      setDrafts((current) => ({
+        ...current,
+        [organizationId]: {
+          plan: current[organizationId]?.plan ?? "FREE",
+          planMonthlyPrice: current[organizationId]?.planMonthlyPrice ?? "0",
+          ...patch,
         },
-      }).unwrap();
-
-      toast.success("Factory plan updated");
-    } catch {
-      toast.error("Could not update factory plan");
-    }
-  }
-
-  function updateDraft(organizationId: string, patch: Partial<Draft>) {
-    setDrafts((current) => ({
-      ...current,
-      [organizationId]: {
-        plan: current[organizationId]?.plan ?? "FREE",
-        planMonthlyPrice: current[organizationId]?.planMonthlyPrice ?? "0",
-        ...patch,
-      },
-    }));
-  }
+      }));
+    },
+    []
+  );
 
   const updatingAction =
     updateStatusState.isLoading || terminateState.isLoading;
@@ -337,212 +342,29 @@ export function SaasFactoriesPage() {
             ) : null}
 
             {filteredFactories.map((factory) => {
-              const draft = drafts[factory.organizationId] ?? {
-                plan: factory.plan,
-                planMonthlyPrice: String(Number(factory.planMonthlyPrice ?? 0)),
-              };
-              const selectedPlan = plansByKey.get(draft.plan);
-              const dirty =
-                draft.plan !== factory.plan ||
-                Number(draft.planMonthlyPrice || 0) !==
-                  Number(factory.planMonthlyPrice ?? 0);
-              const status = factory.status ?? "ACTIVE";
+              const draft = drafts[factory.organizationId];
 
               return (
-                <TableRow key={factory.organizationId}>
-                  <TableCell className="min-w-56">
-                    <div className="font-medium">{factory.name}</div>
-                    <div className="text-xs text-slate-500">
-                      {factory.email || "No email"}{" "}
-                      {factory.phone ? `| ${factory.phone}` : ""}
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      Registered {formatDate(factory.registeredAt)}
-                    </div>
-                  </TableCell>
-
-                  <TableCell className="min-w-52">
-                    <div className="font-medium">
-                      {factory.owner?.name ?? "No owner"}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {factory.owner?.email ?? "Owner missing"}
-                    </div>
-                  </TableCell>
-
-                  <TableCell>
-                    <StatusBadge status={status} />
-                    {factory.subscriptionEndDate ? (
-                      <p className="mt-1 text-xs text-slate-500">
-                        renews {factory.subscriptionEndDate}
-                      </p>
-                    ) : (
-                      <p className="mt-1 text-xs text-slate-400">no end date</p>
-                    )}
-                  </TableCell>
-
-                  <TableCell>
-                    <div className="font-medium">
-                      {factory.employeeCount}
-                      <span className="text-slate-400">
-                        /{limitLabel(factory.employeeLimit)}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {usagePercent(factory.employeeCount, factory.employeeLimit)}
-                    </div>
-                  </TableCell>
-
-                  <TableCell className="min-w-44">
-                    <div className="font-medium">
-                      {factory.aiUsage.totalPrompts} total
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {factory.aiUsage.externalPrompts} hosted,{" "}
-                      {factory.aiUsage.localFallbackPrompts} local
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {factory.aiUnlimited
-                        ? "Unlimited hosted AI"
-                        : `${factory.aiPromptLimit} prompts / ${factory.aiPromptWindowMinutes} min`}
-                    </div>
-                  </TableCell>
-
-                  <TableCell className="min-w-44">
-                    <div className="font-medium">
-                      {factory.dbUsage.activeUsers}/{factory.dbUsage.users} active
-                      users
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {factory.dbUsage.totalRecords} tenant records
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {factory.dbUsage.bills} bills,{" "}
-                      {factory.dbUsage.importExportJobs} jobs
-                    </div>
-                  </TableCell>
-
-                  <TableCell>{formatDate(factory.lastLoginAt)}</TableCell>
-
-                  <TableCell>
-                    <Select
-                      value={draft.plan}
-                      onValueChange={(value) =>
-                        updateDraft(factory.organizationId, {
-                          plan: value as OrganizationPlan,
-                        })
-                      }
-                    >
-                      <SelectTrigger className="w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(dashboard?.plans ?? []).map((plan) => (
-                          <SelectItem key={plan.plan} value={plan.plan}>
-                            {plan.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {selectedPlan ? planLimitText(selectedPlan) : ""}
-                    </div>
-                  </TableCell>
-
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min={0}
-                      className="h-8 w-28"
-                      value={draft.planMonthlyPrice}
-                      onChange={(event) =>
-                        updateDraft(factory.organizationId, {
-                          planMonthlyPrice: event.target.value,
-                        })
-                      }
-                    />
-                  </TableCell>
-
-                  <TableCell className="text-right">
-                    <div className="flex flex-wrap justify-end gap-1.5">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setSelected(factory)}
-                      >
-                        <Eye size={14} />
-                        View
-                      </Button>
-                      {status === "ACTIVE" ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={updateStatusState.isLoading}
-                          onClick={() =>
-                            setFactoryAction({ factory, kind: "suspend" })
-                          }
-                        >
-                          <Ban size={14} />
-                          Suspend
-                        </Button>
-                      ) : status === "SUSPENDED" ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={updateStatusState.isLoading}
-                          onClick={() =>
-                            setFactoryAction({ factory, kind: "activate" })
-                          }
-                        >
-                          <CircleCheck size={14} />
-                          Activate
-                        </Button>
-                      ) : null}
-                      {status !== "TERMINATED" && factory.plan !== "FREE" ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={markPaidState.isLoading}
-                          onClick={() => {
-                            setMarkPaidMonths("1");
-                            setMarkPaidDate("");
-                            setMarkPaidTarget(factory);
-                          }}
-                        >
-                          <CircleCheck size={14} />
-                          Mark Paid
-                        </Button>
-                      ) : null}
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={!dirty || updateState.isLoading}
-                        onClick={() => saveFactory(factory)}
-                      >
-                        <Save size={14} />
-                        Save
-                      </Button>
-                      {status !== "TERMINATED" ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          disabled={terminateState.isLoading}
-                          onClick={() =>
-                            setFactoryAction({ factory, kind: "terminate" })
-                          }
-                        >
-                          <Trash2 size={14} />
-                          Terminate
-                        </Button>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                </TableRow>
+                <FactoryRow
+                  key={factory.organizationId}
+                  factory={factory}
+                  draftPlan={draft?.plan ?? factory.plan}
+                  draftPrice={
+                    draft?.planMonthlyPrice ??
+                    String(Number(factory.planMonthlyPrice ?? 0))
+                  }
+                  plans={dashboard?.plans ?? []}
+                  isStatusLoading={
+                    updateStatusState.isLoading || terminateState.isLoading
+                  }
+                  isMarkPaidLoading={markPaidState.isLoading}
+                  isUpdateLoading={updateState.isLoading}
+                  onSelect={onSelectFactory}
+                  onAction={onActionFactory}
+                  onOpenMarkPaid={onOpenMarkPaid}
+                  onSave={onSaveFactory}
+                  onDraftChange={updateDraft}
+                />
               );
             })}
 
@@ -681,6 +503,227 @@ export function SaasFactoriesPage() {
     </div>
   );
 }
+
+type FactoryRowProps = {
+  factory: SaasFactory;
+  draftPlan: OrganizationPlan;
+  draftPrice: string;
+  plans: SaasPlanOption[];
+  isStatusLoading: boolean;
+  isMarkPaidLoading: boolean;
+  isUpdateLoading: boolean;
+  onSelect: (factory: SaasFactory) => void;
+  onAction: (factory: SaasFactory, kind: FactoryAction["kind"]) => void;
+  onOpenMarkPaid: (factory: SaasFactory) => void;
+  onSave: (factory: SaasFactory) => void;
+  onDraftChange: (organizationId: string, patch: Partial<Draft>) => void;
+};
+
+const FactoryRow = memo(function FactoryRow({
+  factory,
+  draftPlan,
+  draftPrice,
+  plans,
+  isStatusLoading,
+  isMarkPaidLoading,
+  isUpdateLoading,
+  onSelect,
+  onAction,
+  onOpenMarkPaid,
+  onSave,
+  onDraftChange,
+}: FactoryRowProps) {
+  const selectedPlan = plans.find((option) => option.plan === draftPlan);
+  const status = factory.status ?? "ACTIVE";
+  const dirty =
+    draftPlan !== factory.plan ||
+    Number(draftPrice || 0) !== Number(factory.planMonthlyPrice ?? 0);
+
+  return (
+    <TableRow>
+      <TableCell className="min-w-56">
+        <div className="font-medium">{factory.name}</div>
+        <div className="text-xs text-slate-500">
+          {factory.email || "No email"}{" "}
+          {factory.phone ? `| ${factory.phone}` : ""}
+        </div>
+        <div className="text-xs text-slate-400">
+          Registered {formatDate(factory.registeredAt)}
+        </div>
+      </TableCell>
+
+      <TableCell className="min-w-52">
+        <div className="font-medium">
+          {factory.owner?.name ?? "No owner"}
+        </div>
+        <div className="text-xs text-slate-500">
+          {factory.owner?.email ?? "Owner missing"}
+        </div>
+      </TableCell>
+
+      <TableCell>
+        <StatusBadge status={status} />
+        {factory.subscriptionEndDate ? (
+          <p className="mt-1 text-xs text-slate-500">
+            renews {factory.subscriptionEndDate}
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-slate-400">no end date</p>
+        )}
+      </TableCell>
+
+      <TableCell>
+        <div className="font-medium">
+          {factory.employeeCount}
+          <span className="text-slate-400">
+            /{limitLabel(factory.employeeLimit)}
+          </span>
+        </div>
+        <div className="text-xs text-slate-500">
+          {usagePercent(factory.employeeCount, factory.employeeLimit)}
+        </div>
+      </TableCell>
+
+      <TableCell className="min-w-44">
+        <div className="font-medium">
+          {factory.aiUsage.totalPrompts} total
+        </div>
+        <div className="text-xs text-slate-500">
+          {factory.aiUsage.externalPrompts} hosted,{" "}
+          {factory.aiUsage.localFallbackPrompts} local
+        </div>
+        <div className="text-xs text-slate-500">
+          {factory.aiUnlimited
+            ? "Unlimited hosted AI"
+            : `${factory.aiPromptLimit} prompts / ${factory.aiPromptWindowMinutes} min`}
+        </div>
+      </TableCell>
+
+      <TableCell className="min-w-44">
+        <div className="font-medium">
+          {factory.dbUsage.activeUsers}/{factory.dbUsage.users} active users
+        </div>
+        <div className="text-xs text-slate-500">
+          {factory.dbUsage.totalRecords} tenant records
+        </div>
+        <div className="text-xs text-slate-500">
+          {factory.dbUsage.bills} bills, {factory.dbUsage.importExportJobs} jobs
+        </div>
+      </TableCell>
+
+      <TableCell>{formatDate(factory.lastLoginAt)}</TableCell>
+
+      <TableCell>
+        <Select
+          value={draftPlan}
+          onValueChange={(value) =>
+            onDraftChange(factory.organizationId, {
+              plan: value as OrganizationPlan,
+            })
+          }
+        >
+          <SelectTrigger className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {plans.map((plan) => (
+              <SelectItem key={plan.plan} value={plan.plan}>
+                {plan.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="mt-1 text-xs text-slate-500">
+          {selectedPlan ? planLimitText(selectedPlan) : ""}
+        </div>
+      </TableCell>
+
+      <TableCell>
+        <Input
+          type="number"
+          min={0}
+          className="h-8 w-28"
+          value={draftPrice}
+          onChange={(event) =>
+            onDraftChange(factory.organizationId, {
+              planMonthlyPrice: event.target.value,
+            })
+          }
+        />
+      </TableCell>
+
+      <TableCell className="text-right">
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => onSelect(factory)}
+          >
+            <Eye size={14} />
+            View
+          </Button>
+          {status === "ACTIVE" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isStatusLoading}
+              onClick={() => onAction(factory, "suspend")}
+            >
+              <Ban size={14} />
+              Suspend
+            </Button>
+          ) : status === "SUSPENDED" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isStatusLoading}
+              onClick={() => onAction(factory, "activate")}
+            >
+              <CircleCheck size={14} />
+              Activate
+            </Button>
+          ) : null}
+          {status !== "TERMINATED" && factory.plan !== "FREE" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isMarkPaidLoading}
+              onClick={() => onOpenMarkPaid(factory)}
+            >
+              <CircleCheck size={14} />
+              Mark Paid
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            disabled={!dirty || isUpdateLoading}
+            onClick={() => onSave(factory)}
+          >
+            <Save size={14} />
+            Save
+          </Button>
+          {status !== "TERMINATED" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={isStatusLoading}
+              onClick={() => onAction(factory, "terminate")}
+            >
+              <Trash2 size={14} />
+              Terminate
+            </Button>
+          ) : null}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 function FactoryDetail({
   factory,
