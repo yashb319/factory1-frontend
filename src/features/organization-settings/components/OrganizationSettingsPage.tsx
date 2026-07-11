@@ -1,4 +1,5 @@
 import { OrganizationSettingsForm } from "@/features/organization-settings/components/OrganizationSettingsForm";
+import { TerminateOrganizationPanel } from "@/features/organization-settings/components/TerminateOrganizationPanel";
 import { AccessManagementPanel } from "@/features/access/components/AccessManagementPanel";
 
 export default function OrganizationSettingsPage() {
@@ -15,6 +16,7 @@ export default function OrganizationSettingsPage() {
 
       <OrganizationSettingsForm />
       <AccessManagementPanel />
+      <TerminateOrganizationPanel />
     </div>
   );
 }

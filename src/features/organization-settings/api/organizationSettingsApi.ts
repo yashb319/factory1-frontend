@@ -63,6 +63,13 @@ export const organizationSettingsApi = baseApi.injectEndpoints({
         body,
       }),
     }),
+
+    terminateOrganization: builder.mutation<ApiResponse<MessageResponse>, void>({
+      query: () => ({
+        url: "/api/organization/settings/terminate",
+        method: "POST",
+      }),
+    }),
   }),
 });
 
@@ -73,4 +80,5 @@ export const {
   useRegenerateAttendanceCaptureKeyMutation,
   useRequestPlanChangeMutation,
   useUpdateOrganizationSettingsMutation,
+  useTerminateOrganizationMutation,
 } = organizationSettingsApi;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Copy, CreditCard, KeyRound, RefreshCw, Send } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -133,6 +133,7 @@ export function OrganizationSettingsForm() {
     useRegenerateAttendanceCaptureKeyMutation();
   const [requestPlanChange, { isLoading: isRequestingPlan }] =
     useRequestPlanChangeMutation();
+  const [tab, setTab] = useState<"plan" | "profile" | "operations">("plan");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -289,270 +290,308 @@ export function OrganizationSettingsForm() {
     plans.find((plan) => plan.plan === "FREE") ??
     fallbackPlans[0];
 
+  const tabs = [
+    { id: "plan" as const, label: "Plan & Billing" },
+    { id: "profile" as const, label: "Profile" },
+    { id: "operations" as const, label: "Operations" },
+  ];
+
   return (
-    <div className="rounded-2xl border bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-6">
+      <div className="mb-6 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1">
+        {tabs.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setTab(item.id)}
+            className={`flex-1 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition ${
+              tab === item.id
+                ? "bg-white text-slate-950 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
       <AppForm form={form} onSubmit={onSubmit}>
-        <div className="mb-8">
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-                <CreditCard className="h-4 w-4" />
-                Plan & Billing
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Your current plan is active until Factory1 confirms any requested change.
-              </p>
+        {tab === "plan" && (
+          <div>
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                  <CreditCard className="h-4 w-4" />
+                  Plan & Billing
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Your current plan is active until Factory1 confirms any requested change.
+                </p>
+              </div>
+              <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm">
+                <span className="text-slate-500">Current plan: </span>
+                <span className="font-semibold text-slate-950">{currentPlan.label}</span>
+                {settings?.subscriptionEndDate ? (
+                  <span className="ml-2 text-slate-500">
+                    · renews {settings.subscriptionEndDate}
+                  </span>
+                ) : (
+                  <span className="ml-2 text-slate-500">· no end date set</span>
+                )}
+              </div>
             </div>
-            <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm">
-              <span className="text-slate-500">Current plan: </span>
-              <span className="font-semibold text-slate-950">{currentPlan.label}</span>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {plans.map((plan) => {
+                const isCurrent = plan.plan === settings?.plan;
+                const offer = bestDiscountOffer(offers);
+
+                return (
+                  <div
+                    key={plan.plan}
+                    className={`rounded-lg border p-4 ${
+                      isCurrent ? "border-blue-200 bg-blue-50" : "bg-white"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950">{plan.label}</p>
+                        <p className="mt-1 text-lg font-semibold text-slate-950">
+                          <PlanPrice plan={plan} offer={offer} />
+                        </p>
+                      </div>
+                      {isCurrent && (
+                        <span className="rounded-full bg-blue-600 px-2 py-1 text-xs font-medium text-white">
+                          Active
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-4 space-y-2 text-sm text-slate-600">
+                      <p>{formatEmployeeLimit(plan.employeeLimit)}</p>
+                      <p>{formatAiLimit(plan)}</p>
+                      <p>{plan.displayNote}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={isCurrent || isRequestingPlan}
+                      onClick={() => handleRequestPlanChange(plan)}
+                    >
+                      <Send className="h-4 w-4" />
+                      {isCurrent ? "Current Plan" : "Request Change"}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
+        )}
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            {plans.map((plan) => {
-              const isCurrent = plan.plan === settings?.plan;
-              const offer = bestDiscountOffer(offers);
+        {tab === "profile" && (
+          <div>
+            <h2 className="text-sm font-semibold text-slate-950">
+              Factory Profile
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              These details power onboarding, GST context, dashboard setup and AI answers.
+            </p>
 
-              return (
-                <div
-                  key={plan.plan}
-                  className={`rounded-lg border p-4 ${
-                    isCurrent ? "border-blue-200 bg-blue-50" : "bg-white"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-950">{plan.label}</p>
-                      <p className="mt-1 text-lg font-semibold text-slate-950">
-                        <PlanPrice plan={plan} offer={offer} />
-                      </p>
-                    </div>
-                    {isCurrent && (
-                      <span className="rounded-full bg-blue-600 px-2 py-1 text-xs font-medium text-white">
-                        Active
-                      </span>
-                    )}
-                  </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <TextField<FormValues>
+                name="organizationName"
+                label="Factory Name"
+                placeholder="ABC Manufacturing"
+                required
+              />
 
-                  <div className="mt-4 space-y-2 text-sm text-slate-600">
-                    <p>{formatEmployeeLimit(plan.employeeLimit)}</p>
-                    <p>{formatAiLimit(plan)}</p>
-                    <p>{plan.displayNote}</p>
-                  </div>
+              <TextField<FormValues>
+                name="location"
+                label="Factory Location"
+                placeholder="Peenya, Bengaluru"
+              />
 
+              <div>
+                <TextField<FormValues>
+                  name="city"
+                  label="City"
+                  placeholder="Bengaluru"
+                />
+                <LocationSuggestionHint
+                  suggestions={locationSuggestions}
+                  onApply={applyLocationSuggestion}
+                />
+              </div>
+
+              <TextField<FormValues>
+                name="industryType"
+                label="Industry Type"
+                placeholder="Textile, fabrication, food processing"
+              />
+
+              <NumberField<FormValues>
+                name="employeeCountEstimate"
+                label="Employee Estimate"
+                min={1}
+              />
+
+              <TextField<FormValues>
+                name="gstNumber"
+                label="GST Number"
+                placeholder="Optional"
+              />
+
+              <SelectField<FormValues>
+                name="businessType"
+                label="Business Type"
+                options={[
+                  { label: "Manufacturing", value: "MANUFACTURING" },
+                  { label: "Trading", value: "TRADING" },
+                  { label: "Job work", value: "JOB_WORK" },
+                  { label: "Services", value: "SERVICES" },
+                ]}
+              />
+
+              <TextField<FormValues>
+                name="state"
+                label="State"
+                placeholder="Karnataka"
+              />
+
+              <TextField<FormValues>
+                name="pincode"
+                label="Pincode"
+                placeholder="560001"
+              />
+
+              <TextField<FormValues>
+                name="country"
+                label="Country"
+                placeholder="India"
+              />
+            </div>
+          </div>
+        )}
+
+        {tab === "operations" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-950">
+                Operations Settings
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Payroll and reporting defaults for this organization.
+              </p>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <NumberField<FormValues>
+                  name="workingHoursPerDay"
+                  label="Working Hours Per Day"
+                  required
+                />
+
+                <NumberField<FormValues>
+                  name="workingDaysPerMonth"
+                  label="Working Days Per Month"
+                  required
+                />
+
+                <NumberField<FormValues>
+                  name="overtimeMultiplier"
+                  label="Overtime Multiplier"
+                  required
+                />
+
+                <TextField<FormValues>
+                  name="currency"
+                  label="Currency"
+                  placeholder="INR"
+                  required
+                />
+
+                <TextField<FormValues>
+                  name="timezone"
+                  label="Timezone"
+                  placeholder="Asia/Kolkata"
+                  required
+                />
+
+                <SelectField<FormValues>
+                  name="weekStartDay"
+                  label="Week Start Day"
+                  required
+                  options={[
+                    { label: "Monday", value: "MONDAY" },
+                    { label: "Tuesday", value: "TUESDAY" },
+                    { label: "Wednesday", value: "WEDNESDAY" },
+                    { label: "Thursday", value: "THURSDAY" },
+                    { label: "Friday", value: "FRIDAY" },
+                    { label: "Saturday", value: "SATURDAY" },
+                    { label: "Sunday", value: "SUNDAY" },
+                  ]}
+                />
+
+                <SelectField<FormValues>
+                  name="financialYearStartMonth"
+                  label="Financial Year Start Month"
+                  required
+                  options={[
+                    { label: "January", value: "1" },
+                    { label: "February", value: "2" },
+                    { label: "March", value: "3" },
+                    { label: "April", value: "4" },
+                    { label: "May", value: "5" },
+                    { label: "June", value: "6" },
+                    { label: "July", value: "7" },
+                    { label: "August", value: "8" },
+                    { label: "September", value: "9" },
+                    { label: "October", value: "10" },
+                    { label: "November", value: "11" },
+                    { label: "December", value: "12" },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div className="border-t pt-6">
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                    <KeyRound className="h-4 w-4" />
+                    Attendance Capture Key
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Put this key in the Factory1 capture app. Rotate it if a phone or kiosk is lost.
+                  </p>
+                </div>
+                <div className="flex gap-2">
                   <button
                     type="button"
-                    className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={isCurrent || isRequestingPlan}
-                    onClick={() => handleRequestPlanChange(plan)}
+                    className="inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
+                    onClick={handleCopyCaptureKey}
+                    disabled={!data?.data.attendanceCaptureKey}
                   >
-                    <Send className="h-4 w-4" />
-                    {isCurrent ? "Current Plan" : "Request Change"}
+                    <Copy className="h-4 w-4" />
+                    Copy
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-950 px-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                    onClick={handleGenerateCaptureKey}
+                    disabled={isGeneratingKey}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isGeneratingKey ? "animate-spin" : ""}`} />
+                    {data?.data.attendanceCaptureKey ? "Regenerate" : "Generate"}
                   </button>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-slate-950">
-            Factory Profile
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            These details power onboarding, GST context, dashboard setup and AI answers.
-          </p>
-        </div>
-
-        <div className="mb-8 grid gap-4 md:grid-cols-2">
-          <TextField<FormValues>
-            name="organizationName"
-            label="Factory Name"
-            placeholder="ABC Manufacturing"
-            required
-          />
-
-          <TextField<FormValues>
-            name="location"
-            label="Factory Location"
-            placeholder="Peenya, Bengaluru"
-          />
-
-          <div>
-            <TextField<FormValues>
-              name="city"
-              label="City"
-              placeholder="Bengaluru"
-            />
-            <LocationSuggestionHint
-              suggestions={locationSuggestions}
-              onApply={applyLocationSuggestion}
-            />
-          </div>
-
-          <TextField<FormValues>
-            name="industryType"
-            label="Industry Type"
-            placeholder="Textile, fabrication, food processing"
-          />
-
-          <NumberField<FormValues>
-            name="employeeCountEstimate"
-            label="Employee Estimate"
-            min={1}
-          />
-
-          <TextField<FormValues>
-            name="gstNumber"
-            label="GST Number"
-            placeholder="Optional"
-          />
-
-          <SelectField<FormValues>
-            name="businessType"
-            label="Business Type"
-            options={[
-              { label: "Manufacturing", value: "MANUFACTURING" },
-              { label: "Trading", value: "TRADING" },
-              { label: "Job work", value: "JOB_WORK" },
-              { label: "Services", value: "SERVICES" },
-            ]}
-          />
-
-          <TextField<FormValues>
-            name="state"
-            label="State"
-            placeholder="Karnataka"
-          />
-
-          <TextField<FormValues>
-            name="pincode"
-            label="Pincode"
-            placeholder="560001"
-          />
-
-          <TextField<FormValues>
-            name="country"
-            label="Country"
-            placeholder="India"
-          />
-        </div>
-
-        <div className="mb-6 border-t pt-6">
-          <h2 className="text-sm font-semibold text-slate-950">
-            Operations Settings
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Payroll and reporting defaults for this organization.
-          </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <NumberField<FormValues>
-            name="workingHoursPerDay"
-            label="Working Hours Per Day"
-            required
-          />
-
-          <NumberField<FormValues>
-            name="workingDaysPerMonth"
-            label="Working Days Per Month"
-            required
-          />
-
-          <NumberField<FormValues>
-            name="overtimeMultiplier"
-            label="Overtime Multiplier"
-            required
-          />
-
-          <TextField<FormValues>
-            name="currency"
-            label="Currency"
-            placeholder="INR"
-            required
-          />
-
-          <TextField<FormValues>
-            name="timezone"
-            label="Timezone"
-            placeholder="Asia/Kolkata"
-            required
-          />
-
-          <SelectField<FormValues>
-            name="weekStartDay"
-            label="Week Start Day"
-            required
-            options={[
-              { label: "Monday", value: "MONDAY" },
-              { label: "Tuesday", value: "TUESDAY" },
-              { label: "Wednesday", value: "WEDNESDAY" },
-              { label: "Thursday", value: "THURSDAY" },
-              { label: "Friday", value: "FRIDAY" },
-              { label: "Saturday", value: "SATURDAY" },
-              { label: "Sunday", value: "SUNDAY" },
-            ]}
-          />
-
-          <SelectField<FormValues>
-            name="financialYearStartMonth"
-            label="Financial Year Start Month"
-            required
-            options={[
-              { label: "January", value: "1" },
-              { label: "February", value: "2" },
-              { label: "March", value: "3" },
-              { label: "April", value: "4" },
-              { label: "May", value: "5" },
-              { label: "June", value: "6" },
-              { label: "July", value: "7" },
-              { label: "August", value: "8" },
-              { label: "September", value: "9" },
-              { label: "October", value: "10" },
-              { label: "November", value: "11" },
-              { label: "December", value: "12" },
-            ]}
-          />
-        </div>
-
-        <div className="mt-8 border-t pt-6">
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-                <KeyRound className="h-4 w-4" />
-                Attendance Capture Key
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Put this key in the Factory1 capture app. Rotate it if a phone or kiosk is lost.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
-                onClick={handleCopyCaptureKey}
-                disabled={!data?.data.attendanceCaptureKey}
-              >
-                <Copy className="h-4 w-4" />
-                Copy
-              </button>
-              <button
-                type="button"
-                className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-950 px-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-                onClick={handleGenerateCaptureKey}
-                disabled={isGeneratingKey}
-              >
-                <RefreshCw className={`h-4 w-4 ${isGeneratingKey ? "animate-spin" : ""}`} />
-                {data?.data.attendanceCaptureKey ? "Regenerate" : "Generate"}
-              </button>
+              </div>
+              <div className="rounded-lg border bg-slate-50 p-3 font-mono text-xs text-slate-700">
+                {data?.data.attendanceCaptureKey || "No key generated yet"}
+              </div>
             </div>
           </div>
-          <div className="rounded-lg border bg-slate-50 p-3 font-mono text-xs text-slate-700">
-            {data?.data.attendanceCaptureKey || "No key generated yet"}
-          </div>
-        </div>
+        )}
 
         <FormActions
           submitLabel="Save Settings"

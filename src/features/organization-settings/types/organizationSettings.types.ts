@@ -61,6 +61,8 @@ export interface OrganizationSettingsResponse
   aiExternalPromptLimit: number | null;
   aiExternalPromptWindowMinutes: number;
   aiExternalPromptUnlimited: boolean;
+  subscriptionStartDate?: string | null;
+  subscriptionEndDate?: string | null;
 }
 
 export interface PlanChangeRequest {

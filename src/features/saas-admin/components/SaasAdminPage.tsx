@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
+  Activity,
+  BarChart3,
   Building2,
   Database,
   IndianRupee,
@@ -17,38 +20,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useAppSelector } from "@/lib/hook";
 import {
   useCreateSaasOfferMutation,
   useGetSaasAdminDashboardQuery,
-  useUpdateSaasFactoryMutation,
+  useGetSaasAdminInsightsQuery,
   useUpdateSaasPlanMutation,
 } from "../api/saasAdminApi";
 import type {
   OrganizationPlan,
-  SaasFactory,
+  OrganizationStatus,
   SaasPlanOption,
 } from "../types/saasAdmin.types";
-
-type Draft = {
-  plan: OrganizationPlan;
-  planMonthlyPrice: string;
-};
 
 type PlanDraft = {
   employeeLimit: string;
@@ -77,10 +60,12 @@ export function SaasAdminPage() {
       skip: !user?.platformAdmin,
     }
   );
-  const [updateFactory, updateState] = useUpdateSaasFactoryMutation();
   const [updatePlan, updatePlanState] = useUpdateSaasPlanMutation();
   const [createOffer, createOfferState] = useCreateSaasOfferMutation();
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const { data: insightsData } =
+    useGetSaasAdminInsightsQuery(undefined, {
+      skip: !user?.platformAdmin,
+    });
   const [planDrafts, setPlanDrafts] = useState<Record<string, PlanDraft>>({});
   const [offerDraft, setOfferDraft] = useState<OfferDraft>({
     title: "",
@@ -92,25 +77,6 @@ export function SaasAdminPage() {
   });
 
   const dashboard = data?.data;
-
-  useEffect(() => {
-    if (!dashboard?.factories) return;
-
-    setDrafts((current) => {
-      const next = { ...current };
-
-      for (const factory of dashboard.factories) {
-        if (!next[factory.organizationId]) {
-          next[factory.organizationId] = {
-            plan: factory.plan,
-            planMonthlyPrice: String(Number(factory.planMonthlyPrice ?? 0)),
-          };
-        }
-      }
-
-      return next;
-    });
-  }, [dashboard?.factories]);
 
   useEffect(() => {
     if (!dashboard?.plans) return;
@@ -158,26 +124,6 @@ export function SaasAdminPage() {
     );
   }
 
-  async function saveFactory(factory: SaasFactory) {
-    const draft = drafts[factory.organizationId];
-
-    if (!draft) return;
-
-    try {
-      await updateFactory({
-        organizationId: factory.organizationId,
-        body: {
-          plan: draft.plan,
-          planMonthlyPrice: Number(draft.planMonthlyPrice || 0),
-        },
-      }).unwrap();
-
-      toast.success("Factory plan updated");
-    } catch {
-      toast.error("Could not update factory plan");
-    }
-  }
-
   async function savePlan(plan: SaasPlanOption) {
     const draft = planDrafts[plan.plan];
 
@@ -207,20 +153,6 @@ export function SaasAdminPage() {
     } catch {
       toast.error("Could not update plan settings");
     }
-  }
-
-  function updateDraft(
-    organizationId: string,
-    patch: Partial<Draft>
-  ) {
-    setDrafts((current) => ({
-      ...current,
-      [organizationId]: {
-        plan: current[organizationId]?.plan ?? "FREE",
-        planMonthlyPrice: current[organizationId]?.planMonthlyPrice ?? "0",
-        ...patch,
-      },
-    }));
   }
 
   function updatePlanDraft(
@@ -334,6 +266,47 @@ export function SaasAdminPage() {
           value={dashboard?.totalDbRecords ?? 0}
           icon={Database}
         />
+      </div>
+
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+        <Link
+          href="/saas-admin/insights"
+          className="rounded-lg border bg-white p-4 transition hover:border-blue-300 hover:bg-blue-50"
+        >
+          <p className="text-xs font-medium uppercase text-slate-500">
+            Renewals due (30d)
+          </p>
+          <p className="mt-1 text-2xl font-semibold">
+            {insightsData?.data?.expiringIn30Days ?? 0}
+          </p>
+          <p className="text-xs text-slate-500">factories expiring soon</p>
+        </Link>
+        <Link
+          href="/saas-admin/insights"
+          className="rounded-lg border bg-white p-4 transition hover:border-blue-300 hover:bg-blue-50"
+        >
+          <p className="text-xs font-medium uppercase text-slate-500">
+            Renewals due (14d)
+          </p>
+          <p className="mt-1 text-2xl font-semibold text-amber-600">
+            {insightsData?.data?.expiringIn14Days ?? 0}
+          </p>
+          <p className="text-xs text-slate-500">final reminder window</p>
+        </Link>
+        <Link
+          href="/saas-admin/insights"
+          className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-4 transition hover:bg-blue-100"
+        >
+          <div>
+            <p className="text-xs font-medium uppercase text-blue-600">
+              Revenue & Usage
+            </p>
+            <p className="mt-1 text-sm font-semibold text-blue-900">
+              Open insights
+            </p>
+          </div>
+          <BarChart3 size={28} className="text-blue-600" />
+        </Link>
       </div>
 
       <div className="grid gap-3 grid-cols-2">
@@ -480,174 +453,25 @@ export function SaasAdminPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border bg-white">
-        <div className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">Registered Factories</h2>
-          <p className="text-xs text-slate-500">
-            Plan changes apply limits immediately for new employee creation and hosted AI quota.
+      <Link
+        href="/saas-admin/factories"
+        className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-4 transition hover:bg-blue-100"
+      >
+        <div>
+          <p className="text-xs font-medium uppercase text-blue-600">
+            Registered Factories
+          </p>
+          <p className="mt-1 text-sm font-semibold text-blue-900">
+            {factories.length} onboarded
+            {factories.length === 1 ? "" : "s"} • open full directory
+          </p>
+          <p className="text-xs text-blue-700">
+            Manage plans, lifecycle and view each company&apos;s complete
+            entitlement breakdown.
           </p>
         </div>
-
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Factory</TableHead>
-              <TableHead>Owner</TableHead>
-              <TableHead>Employees</TableHead>
-              <TableHead>AI Usage</TableHead>
-              <TableHead>Software / DB</TableHead>
-              <TableHead>Last Login</TableHead>
-              <TableHead>Plan</TableHead>
-              <TableHead>Price</TableHead>
-              <TableHead className="text-right">Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isFetching && !dashboard ? (
-              <TableRow>
-                <TableCell colSpan={9} className="py-8 text-center text-slate-500">
-                  Loading factories...
-                </TableCell>
-              </TableRow>
-            ) : null}
-
-            {(dashboard?.factories ?? []).map((factory) => {
-              const draft = drafts[factory.organizationId] ?? {
-                plan: factory.plan,
-                planMonthlyPrice: String(Number(factory.planMonthlyPrice ?? 0)),
-              };
-              const selectedPlan = plansByKey.get(draft.plan);
-              const dirty =
-                draft.plan !== factory.plan ||
-                Number(draft.planMonthlyPrice || 0) !==
-                  Number(factory.planMonthlyPrice ?? 0);
-
-              return (
-                <TableRow key={factory.organizationId}>
-                  <TableCell className="min-w-56">
-                    <div className="font-medium">{factory.name}</div>
-                    <div className="text-xs text-slate-500">
-                      {factory.email || "No email"} {factory.phone ? `| ${factory.phone}` : ""}
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      Registered {formatDate(factory.registeredAt)}
-                    </div>
-                  </TableCell>
-
-                  <TableCell className="min-w-52">
-                    <div className="font-medium">
-                      {factory.owner?.name ?? "No owner"}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {factory.owner?.email ?? "Owner missing"}
-                    </div>
-                  </TableCell>
-
-                  <TableCell>
-                    <div className="font-medium">
-                      {factory.employeeCount}
-                      <span className="text-slate-400">
-                        /{limitLabel(factory.employeeLimit)}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {usagePercent(factory.employeeCount, factory.employeeLimit)}
-                    </div>
-                  </TableCell>
-
-                  <TableCell className="min-w-44">
-                    <div className="font-medium">
-                      {factory.aiUsage.totalPrompts} total
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {factory.aiUsage.externalPrompts} hosted,{" "}
-                      {factory.aiUsage.localFallbackPrompts} local
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {factory.aiUnlimited
-                        ? "Unlimited hosted AI"
-                        : `${factory.aiPromptLimit} prompts / ${factory.aiPromptWindowMinutes} min`}
-                    </div>
-                  </TableCell>
-
-                  <TableCell className="min-w-44">
-                    <div className="font-medium">
-                      {factory.dbUsage.activeUsers}/{factory.dbUsage.users} active users
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {factory.dbUsage.totalRecords} tenant records
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {factory.dbUsage.bills} bills, {factory.dbUsage.importExportJobs} jobs
-                    </div>
-                  </TableCell>
-
-                  <TableCell>{formatDate(factory.lastLoginAt)}</TableCell>
-
-                  <TableCell>
-                    <Select
-                      value={draft.plan}
-                      onValueChange={(value) =>
-                        updateDraft(factory.organizationId, {
-                          plan: value as OrganizationPlan,
-                        })
-                      }
-                    >
-                      <SelectTrigger className="w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(dashboard?.plans ?? []).map((plan) => (
-                          <SelectItem key={plan.plan} value={plan.plan}>
-                            {plan.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {selectedPlan ? planLimitText(selectedPlan) : ""}
-                    </div>
-                  </TableCell>
-
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min={0}
-                      className="h-8 w-28"
-                      value={draft.planMonthlyPrice}
-                      onChange={(event) =>
-                        updateDraft(factory.organizationId, {
-                          planMonthlyPrice: event.target.value,
-                        })
-                      }
-                    />
-                  </TableCell>
-
-                  <TableCell className="text-right">
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={!dirty || updateState.isLoading}
-                      onClick={() => saveFactory(factory)}
-                    >
-                      <Save size={14} />
-                      Save
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-
-            {!isFetching && dashboard?.factories.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="py-8 text-center text-slate-500">
-                  No factories registered yet.
-                </TableCell>
-              </TableRow>
-            ) : null}
-          </TableBody>
-        </Table>
-      </div>
+        <Building2 size={28} className="text-blue-600" />
+      </Link>
     </div>
   );
 }
@@ -858,4 +682,24 @@ function planLimitText(plan: SaasPlanOption) {
     : `${plan.aiPromptLimit}/${plan.aiPromptWindowMinutes}m AI`;
 
   return `${employees}, ${ai}`;
+}
+
+export function StatusBadge({ status }: { status: OrganizationStatus }) {
+  const map: Record<
+    OrganizationStatus,
+    { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+  > = {
+    ACTIVE: { label: "Active", variant: "default" },
+    SUSPENDED: { label: "Suspended", variant: "secondary" },
+    TERMINATED: { label: "Terminated", variant: "destructive" },
+  };
+
+  const { label, variant } = map[status];
+
+  return (
+    <Badge variant={variant} className="gap-1">
+      <Activity size={12} />
+      {label}
+    </Badge>
+  );
 }

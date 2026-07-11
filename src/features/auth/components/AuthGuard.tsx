@@ -82,7 +82,10 @@ export function AuthGuard({ children }: AuthGuardProps) {
       return;
     }
 
-    if (user?.platformAdmin && pathname !== "/saas-admin") {
+    if (
+      user?.platformAdmin &&
+      !pathname.startsWith("/saas-admin")
+    ) {
       router.replace("/saas-admin");
     }
   }, [mounted, pathname, token, user?.platformAdmin, router]);
