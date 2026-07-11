@@ -75,6 +75,67 @@ export interface SaasFactory {
   employeeCount: number;
   aiUsage: SaasAiUsage;
   dbUsage: SaasDbUsage;
+  status?: "ACTIVE" | "SUSPENDED" | "TERMINATED";
+  subscriptionEndDate?: string | null;
+  serviceTimeMs?: number | null;
+  dataVolumeBytes?: number | null;
+}
+
+export type OrganizationStatus = "ACTIVE" | "SUSPENDED" | "TERMINATED";
+
+export interface SaasRevenueByPlan {
+  plan: OrganizationPlan;
+  label: string;
+  factoryCount: number;
+  mrr: number;
+}
+
+export interface SaasTopFactory {
+  organizationId: string;
+  name: string;
+  plan: string;
+  records: number;
+  employees: number;
+}
+
+export interface SaasAdminInsights {
+  mrr: number;
+  annualRecurringRevenue: number;
+  arpu: number;
+  activeFactories: number;
+  suspendedFactories: number;
+  trialFactories: number;
+  newFactoriesThisMonth: number;
+  upsellOpportunities: number;
+  revenueByPlan: SaasRevenueByPlan[];
+  topFactoriesByRecords: SaasTopFactory[];
+  expiringIn30Days: number;
+  expiringIn14Days: number;
+  renewals: SaasRenewalAlert[];
+  totalServiceTimeMs: number;
+  totalDataVolumeBytes: number;
+}
+
+export interface SaasRenewalAlert {
+  organizationId: string;
+  name: string;
+  plan: string;
+  subscriptionEndDate: string;
+  daysLeft: number;
+}
+
+export interface SaasMarkPaidRequest {
+  months: number;
+  paidDate?: string;
+}
+
+export interface SaasMarketingRequest {
+  subject: string;
+  body: string;
+}
+
+export interface SaasFactoryStatusRequest {
+  status: OrganizationStatus;
 }
 
 export interface SaasAdminDashboard {

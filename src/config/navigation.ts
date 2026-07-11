@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Users,
+  Building2,
   CalendarCheck,
   Wallet,
   Package,
@@ -13,6 +14,8 @@ import {
   FileSpreadsheet,
   PackageCheck,
   ShieldCheck,
+  BarChart3,
+  Megaphone,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import type { AuthUser, UserRole } from "@/features/auth/types";
@@ -63,6 +66,27 @@ export const navigationItems: NavigationItem[] = [
     title: "SaaS Admin",
     href: "/saas-admin",
     icon: ShieldCheck,
+    roles: ["SAAS_OWNER"],
+    platformAdminOnly: true,
+  },
+  {
+    title: "SaaS Insights",
+    href: "/saas-admin/insights",
+    icon: BarChart3,
+    roles: ["SAAS_OWNER"],
+    platformAdminOnly: true,
+  },
+  {
+    title: "SaaS Marketing",
+    href: "/saas-admin/marketing",
+    icon: Megaphone,
+    roles: ["SAAS_OWNER"],
+    platformAdminOnly: true,
+  },
+  {
+    title: "Registered Factories",
+    href: "/saas-admin/factories",
+    icon: Building2,
     roles: ["SAAS_OWNER"],
     platformAdminOnly: true,
   },
