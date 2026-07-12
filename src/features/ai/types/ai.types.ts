@@ -46,6 +46,52 @@ export type AiRelevantRecord = {
 export type AiChatRequest = {
   message: string;
   history: AiChatMessage[];
+  businessInsight?: boolean;
+  benchmark?: string;
+};
+
+export type BenchmarkProfile = {
+  key: string;
+  label: string;
+  description: string;
+  type: "OWN" | "INDUSTRY" | "LISTED" | "SIZE";
+  grossLow: number;
+  grossHigh: number;
+  netLow: number;
+  netHigh: number;
+  payrollLow: number;
+  payrollHigh: number;
+  turnoverLow: number;
+  turnoverHigh: number;
+  source?: string;
+};
+
+export type ListedCompanyRef = {
+  provider: "indian" | "roic";
+  symbol: string;
+  name: string;
+  exchange?: string;
+};
+
+export type BusinessInsightDrilldown = {
+  topic: string;
+  title: string;
+  summary: string;
+  items: {
+    label: string;
+    detail: string;
+    value: string;
+    action: string;
+  }[];
+  benchmarkNote: string;
+  chart: {
+    label: string;
+    value: number;
+  }[];
+  rangeFrom?: string;
+  rangeTo?: string;
+  benchmark?: string;
+  benchmarkLabel?: string;
 };
 
 export type AiActionProposal = {

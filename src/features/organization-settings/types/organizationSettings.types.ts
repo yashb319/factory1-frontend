@@ -46,6 +46,14 @@ export interface OrganizationSettingsRequest {
   gstNumber?: string;
   businessType?: string;
   state?: string;
+  activeAccountingPeriodStart?: string;
+  activeAccountingPeriodEnd?: string;
+  accountingMastersEnabled?: boolean;
+  accountingVouchersEnabled?: boolean;
+  accountingTaxationEnabled?: boolean;
+  accountingReportsEnabled?: boolean;
+  tdsEnabled?: boolean;
+  tcsEnabled?: boolean;
 }
 
 export interface OrganizationSettingsResponse

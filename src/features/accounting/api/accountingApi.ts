@@ -10,6 +10,9 @@ import type {
   AccountingVoucherMutationRequest,
   AgingReport,
   AgingReportRequest,
+  AccountingTaxSection,
+  AccountingTaxSectionMutationRequest,
+  AccountingTaxSectionRequest,
   BalanceSheet,
   CancelAccountingVoucherRequest,
   CreateAccountGroupRequest,
@@ -74,6 +77,40 @@ export const accountingApi = baseApi.injectEndpoints({
     getAccountMasters: builder.query<AccountMasters, void>({
       query: () => "/api/accounting/masters",
       providesTags: ["Accounting"],
+    }),
+
+    getAccountingTaxSectionCatalog: builder.query<AccountingTaxSection[], void>({
+      query: () => "/api/accounting/tax-sections/catalog",
+      providesTags: ["Accounting"],
+    }),
+
+    getAccountingTaxSections: builder.query<AccountingTaxSection[], void>({
+      query: () => "/api/accounting/tax-sections",
+      providesTags: ["Accounting"],
+    }),
+
+    createAccountingTaxSection: builder.mutation<
+      { data: AccountingTaxSection; message: string; success: boolean },
+      AccountingTaxSectionRequest
+    >({
+      query: (body) => ({
+        url: "/api/accounting/tax-sections",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Accounting"],
+    }),
+
+    updateAccountingTaxSection: builder.mutation<
+      { data: AccountingTaxSection; message: string; success: boolean },
+      AccountingTaxSectionMutationRequest
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/api/accounting/tax-sections/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["Accounting"],
     }),
 
     createAccountGroup: builder.mutation<
@@ -208,7 +245,10 @@ export const {
   useDeleteAccountGroupMutation,
   useDeleteAccountLedgerMutation,
   useGetAccountMastersQuery,
+  useCreateAccountingTaxSectionMutation,
   useGetAccountingGstSummaryQuery,
+  useGetAccountingTaxSectionCatalogQuery,
+  useGetAccountingTaxSectionsQuery,
   useGetAccountingVouchersQuery,
   useGetAgingReportQuery,
   useGetBalanceSheetQuery,
@@ -217,6 +257,7 @@ export const {
   useGetTrialBalanceQuery,
   useLazyGetAccountingGstSummaryQuery,
   useUpdateAccountingVoucherMutation,
+  useUpdateAccountingTaxSectionMutation,
   useUpdateAccountGroupMutation,
   useUpdateAccountLedgerMutation,
 } = accountingApi;

@@ -270,9 +270,8 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
             <div className="grid gap-4 md:grid-cols-2">
               <TextField
                 name="itemCode"
-                label="Item Code"
+                label="Item Code (optional)"
                 disabled={isEdit}
-                required
               />
 
               <TextField name="name" label="Item Name" required />

@@ -123,7 +123,13 @@ export type AccountGroupType = "ASSET" | "LIABILITY" | "INCOME" | "EXPENSE";
 
 export type BalanceType = "DR" | "CR";
 
-export type VoucherType = "PAYMENT" | "RECEIPT" | "CONTRA" | "JOURNAL";
+export type VoucherType =
+  | "PAYMENT"
+  | "RECEIPT"
+  | "CONTRA"
+  | "JOURNAL"
+  | "DEBIT_NOTE"
+  | "CREDIT_NOTE";
 
 export type AccountGroup = {
   id: string;
@@ -229,5 +235,30 @@ export type CancelAccountingVoucherRequest = {
   id: string;
   reason?: string | null;
 };
+
+export type AccountingTaxSection = {
+  id?: string | null;
+  taxType: string;
+  sectionCode: string;
+  name: string;
+  rate: number;
+  applicableFor?: string | null;
+  active: boolean;
+  systemDefault: boolean;
+};
+
+export type AccountingTaxSectionRequest = {
+  taxType: string;
+  sectionCode: string;
+  name: string;
+  rate: number;
+  applicableFor?: string | null;
+  active: boolean;
+};
+
+export type AccountingTaxSectionMutationRequest =
+  AccountingTaxSectionRequest & {
+    id: string;
+  };
 
 export type { GstReport };

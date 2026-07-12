@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Copy,
   Download,
   Edit2,
   FileSpreadsheet,
-  Keyboard,
   Landmark,
+  LockKeyhole,
   Plus,
   Printer,
   ReceiptText,
+  Search,
+  Settings,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -39,12 +41,28 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 import { toCsv } from "@/features/import-export/utils/csv";
 import {
@@ -55,11 +73,14 @@ import { exportGstReportCsv } from "@/features/billing/utils/gstReportExport";
 import {
   useCancelAccountingVoucherMutation,
   useCreateAccountingVoucherMutation,
+  useCreateAccountingTaxSectionMutation,
   useCreateAccountGroupMutation,
   useCreateAccountLedgerMutation,
   useDeleteAccountGroupMutation,
   useDeleteAccountLedgerMutation,
   useGetAccountingGstSummaryQuery,
+  useGetAccountingTaxSectionCatalogQuery,
+  useGetAccountingTaxSectionsQuery,
   useGetAccountingVouchersQuery,
   useGetAgingReportQuery,
   useGetAccountMastersQuery,
@@ -69,13 +90,20 @@ import {
   useGetTrialBalanceQuery,
   useLazyGetAccountingGstSummaryQuery,
   useUpdateAccountingVoucherMutation,
+  useUpdateAccountingTaxSectionMutation,
   useUpdateAccountGroupMutation,
   useUpdateAccountLedgerMutation,
 } from "../api/accountingApi";
+import {
+  useGetOrganizationSettingsQuery,
+  useUpdateOrganizationSettingsMutation,
+} from "@/features/organization-settings/api/organizationSettingsApi";
+import type { OrganizationSettingsRequest } from "@/features/organization-settings/types/organizationSettings.types";
 import type {
   AccountGroup,
   AccountGroupType,
   AccountLedger,
+  AccountingTaxSection,
   AccountingVoucher,
   AgingReport,
   BalanceSheetRow,
@@ -109,12 +137,51 @@ const groupTypes: AccountGroupType[] = [
 
 const balanceTypes: BalanceType[] = ["DR", "CR"];
 
+const weekStartOptions = [
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+  "SUNDAY",
+];
+
+const monthOptions = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+].map((label, index) => ({
+  label,
+  value: String(index + 1),
+}));
+
 const voucherTypes: VoucherType[] = [
   "PAYMENT",
   "RECEIPT",
   "CONTRA",
   "JOURNAL",
+  "DEBIT_NOTE",
+  "CREDIT_NOTE",
 ];
+
+const voucherHelp: Record<VoucherType, string> = {
+  PAYMENT: "Money paid out to suppliers, expenses, employees or bank charges.",
+  RECEIPT: "Money received from customers, owners, banks or other income.",
+  CONTRA: "Transfer between cash and bank ledgers without changing profit.",
+  JOURNAL: "Manual adjustment entry for provisions, corrections and transfers.",
+  DEBIT_NOTE: "Increase receivable or reduce supplier payable for returns, shortages or rate differences.",
+  CREDIT_NOTE: "Reduce customer receivable or increase payable for sales returns, discounts or corrections.",
+};
 
 type VoucherLineDraft = {
   id: string;
@@ -126,8 +193,34 @@ type VoucherLineDraft = {
 
 type DayBookFilter = VoucherType | "ALL";
 
+type AccountingSettingsDraft = {
+  currency: string;
+  timezone: string;
+  weekStartDay: string;
+  financialYearStartMonth: string;
+  activeAccountingPeriodStart: string;
+  activeAccountingPeriodEnd: string;
+  accountingMastersEnabled: boolean;
+  accountingVouchersEnabled: boolean;
+  accountingTaxationEnabled: boolean;
+  accountingReportsEnabled: boolean;
+  tdsEnabled: boolean;
+  tcsEnabled: boolean;
+};
+
+type TaxSectionDraft = {
+  id: string | null;
+  taxType: string;
+  sectionCode: string;
+  name: string;
+  rate: string;
+  applicableFor: string;
+  active: boolean;
+};
+
 export function AccountingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [fromDate, setFromDate] = useState(
     () => currentQuarterRange().fromDate
   );
@@ -136,6 +229,8 @@ export function AccountingPage() {
   );
   const [dayBookFilter, setDayBookFilter] = useState<DayBookFilter>("ALL");
   const [agingAsOfDate, setAgingAsOfDate] = useState(() => todayDate());
+  const [masterSearch, setMasterSearch] = useState("");
+  const [masterLedgerGroupFilter, setMasterLedgerGroupFilter] = useState("ALL");
   const [groupName, setGroupName] = useState("");
   const [groupType, setGroupType] = useState<AccountGroupType>("ASSET");
   const [editingGroup, setEditingGroup] = useState<AccountGroup | null>(null);
@@ -172,8 +267,30 @@ export function AccountingPage() {
   const [cancelVoucherTarget, setCancelVoucherTarget] =
     useState<AccountingVoucher | null>(null);
   const [cancelVoucherReason, setCancelVoucherReason] = useState("");
+  const [accountingSettingsOpen, setAccountingSettingsOpen] = useState(false);
+  const [accountingSettingsDraft, setAccountingSettingsDraft] =
+    useState<AccountingSettingsDraft>({
+      currency: "INR",
+      timezone: "Asia/Kolkata",
+      weekStartDay: "MONDAY",
+      financialYearStartMonth: "4",
+      activeAccountingPeriodStart: currentFinancialYearRange().fromDate,
+      activeAccountingPeriodEnd: currentFinancialYearRange().toDate,
+      accountingMastersEnabled: true,
+      accountingVouchersEnabled: true,
+      accountingTaxationEnabled: true,
+      accountingReportsEnabled: true,
+      tdsEnabled: true,
+      tcsEnabled: true,
+    });
+  const [taxSectionDraft, setTaxSectionDraft] = useState<TaxSectionDraft>(() =>
+    emptyTaxSectionDraft()
+  );
   const range = { fromDate, toDate };
   const { data, isLoading, isFetching } = useGetLedgerReportQuery(range);
+  const { data: organizationSettingsResponse } =
+    useGetOrganizationSettingsQuery();
+  const organizationSettings = organizationSettingsResponse?.data;
   const { data: trialBalance, isFetching: trialBalanceFetching } =
     useGetTrialBalanceQuery(range);
   const { data: profitLoss, isFetching: profitLossFetching } =
@@ -192,8 +309,14 @@ export function AccountingPage() {
   });
   const { data: masters, isFetching: mastersFetching } =
     useGetAccountMastersQuery();
+  const { data: taxSectionCatalog = [] } =
+    useGetAccountingTaxSectionCatalogQuery();
+  const { data: taxSections = [], isFetching: taxSectionsFetching } =
+    useGetAccountingTaxSectionsQuery();
   const { data: vouchers, isFetching: vouchersFetching } =
     useGetAccountingVouchersQuery(range);
+  const [updateOrganizationSettings, updateOrganizationSettingsState] =
+    useUpdateOrganizationSettingsMutation();
   const [createVoucher, createVoucherState] =
     useCreateAccountingVoucherMutation();
   const [updateVoucher, updateVoucherState] =
@@ -204,6 +327,10 @@ export function AccountingPage() {
   const [createLedger, createLedgerState] = useCreateAccountLedgerMutation();
   const [updateGroup, updateGroupState] = useUpdateAccountGroupMutation();
   const [updateLedger, updateLedgerState] = useUpdateAccountLedgerMutation();
+  const [createTaxSection, createTaxSectionState] =
+    useCreateAccountingTaxSectionMutation();
+  const [updateTaxSection, updateTaxSectionState] =
+    useUpdateAccountingTaxSectionMutation();
   const [deleteGroup] = useDeleteAccountGroupMutation();
   const [deleteLedger] = useDeleteAccountLedgerMutation();
   const [getGstSummary, gstState] = useLazyGetAccountingGstSummaryQuery();
@@ -231,6 +358,75 @@ export function AccountingPage() {
   const monthlySummary = summarizeMonthlyVouchers(vouchers ?? []);
   const ledgerMonthlySummary = summarizeLedgerMonthly(vouchers ?? []);
   const groupSummary = summarizeTrialBalanceByGroup(trialBalance?.rows ?? []);
+  const taxLedgerSummary = summarizeTaxLedgers(vouchers ?? [], masters?.ledgers ?? []);
+  const gstSalesRows = (gstSummary?.rows ?? []).filter((row) => row.type === "SALES");
+  const outputGstTotal =
+    (gstSummary?.salesCgstAmount ?? 0) +
+    (gstSummary?.salesSgstAmount ?? 0) +
+    (gstSummary?.salesIgstAmount ?? 0);
+  const inputGstTotal =
+    (gstSummary?.purchaseCgstAmount ?? 0) +
+    (gstSummary?.purchaseSgstAmount ?? 0) +
+    (gstSummary?.purchaseIgstAmount ?? 0);
+  const activeTaxSections = taxSections.filter((section) => section.active).length;
+  const taxSectionsByType = taxSections.reduce<Record<string, number>>((summary, section) => {
+    summary[section.taxType] = (summary[section.taxType] ?? 0) + 1;
+    return summary;
+  }, {});
+  const masterGroups = masters?.groups ?? [];
+  const masterLedgers = masters?.ledgers ?? [];
+  const masterSearchTerm = masterSearch.trim().toLowerCase();
+  const editableGroupCount = masterGroups.filter((group) => !group.systemGroup).length;
+  const editableLedgerCount = masterLedgers.filter((ledger) => !ledger.systemLedger).length;
+  const lockedMasterCount =
+    masterGroups.filter((group) => group.systemGroup).length +
+    masterLedgers.filter((ledger) => ledger.systemLedger).length;
+  const filteredMasterLedgers = masterLedgers.filter((ledger) => {
+    const matchesGroup =
+      masterLedgerGroupFilter === "ALL" ||
+      ledger.accountGroupId === masterLedgerGroupFilter;
+    const matchesSearch =
+      !masterSearchTerm ||
+      [ledger.name, ledger.groupName, ledger.gstNumber, ledger.contactName]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(masterSearchTerm));
+
+    return matchesGroup && matchesSearch;
+  });
+  const accountingFeatureFlags = {
+    accountingMastersEnabled: organizationSettings?.accountingMastersEnabled ?? true,
+    accountingVouchersEnabled: organizationSettings?.accountingVouchersEnabled ?? true,
+    accountingTaxationEnabled: organizationSettings?.accountingTaxationEnabled ?? true,
+    accountingReportsEnabled: organizationSettings?.accountingReportsEnabled ?? true,
+  };
+  const disabledWorkspaceReasons: Partial<Record<AccountingWorkspace, string>> = {
+    MASTERS: accountingFeatureFlags.accountingMastersEnabled
+      ? undefined
+      : "Accounting masters are disabled. Enable them from Accounting Settings.",
+    VOUCHERS: accountingFeatureFlags.accountingVouchersEnabled
+      ? undefined
+      : "Accounting vouchers are disabled. Enable them from Accounting Settings.",
+    CASH_BANK: accountingFeatureFlags.accountingReportsEnabled
+      ? undefined
+      : "Accounting reports are disabled. Enable them from Accounting Settings.",
+    TAXES: accountingFeatureFlags.accountingTaxationEnabled
+      ? undefined
+      : "Taxation is disabled. Enable it from Accounting Settings.",
+    REPORTS: accountingFeatureFlags.accountingReportsEnabled
+      ? undefined
+      : "Accounting reports are disabled. Enable them from Accounting Settings.",
+  };
+  const vouchersDisabledReason = disabledWorkspaceReasons.VOUCHERS;
+
+  function handleWorkspaceChange(nextWorkspace: AccountingWorkspace) {
+    const disabledReason = disabledWorkspaceReasons[nextWorkspace];
+    if (disabledReason) {
+      toast.info(disabledReason);
+      return;
+    }
+
+    setWorkspace(nextWorkspace);
+  }
 
   useEffect(() => {
     const handleVoucherShortcut = (event: KeyboardEvent) => {
@@ -254,6 +450,13 @@ export function AccountingPage() {
       }
 
       event.preventDefault();
+      if (!accountingFeatureFlags.accountingVouchersEnabled) {
+        toast.info(
+          "Accounting vouchers are disabled. Enable them from Accounting Settings."
+        );
+        return;
+      }
+
       setWorkspace("VOUCHERS");
       setVoucherType(nextType);
       toast.info(`${labelCase(nextType)} voucher selected`);
@@ -261,7 +464,26 @@ export function AccountingPage() {
 
     window.addEventListener("keydown", handleVoucherShortcut);
     return () => window.removeEventListener("keydown", handleVoucherShortcut);
-  }, []);
+  }, [accountingFeatureFlags.accountingVouchersEnabled]);
+
+  useEffect(() => {
+    const voucherParam = searchParams.get("voucher") as VoucherType | null;
+    const workspaceParam = searchParams.get("workspace") as AccountingWorkspace | null;
+
+    if (voucherParam && voucherTypes.includes(voucherParam)) {
+      selectVoucherType(voucherParam);
+      return;
+    }
+
+    if (
+      workspaceParam &&
+      ["OVERVIEW", "MASTERS", "VOUCHERS", "CASH_BANK", "TAXES", "REPORTS"].includes(
+        workspaceParam
+      )
+    ) {
+      handleWorkspaceChange(workspaceParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     function handleAccountingShortcut(event: Event) {
@@ -287,7 +509,62 @@ export function AccountingPage() {
       );
   });
 
+  useEffect(() => {
+    if (!organizationSettings) {
+      return;
+    }
+
+    setAccountingSettingsDraft({
+      currency: organizationSettings.currency || "INR",
+      timezone: organizationSettings.timezone || "Asia/Kolkata",
+      weekStartDay: organizationSettings.weekStartDay || "MONDAY",
+      financialYearStartMonth: String(
+        organizationSettings.financialYearStartMonth || 4
+      ),
+      activeAccountingPeriodStart:
+        organizationSettings.activeAccountingPeriodStart ||
+        currentFinancialYearRange().fromDate,
+      activeAccountingPeriodEnd:
+        organizationSettings.activeAccountingPeriodEnd ||
+        currentFinancialYearRange().toDate,
+      accountingMastersEnabled:
+        organizationSettings.accountingMastersEnabled ?? true,
+      accountingVouchersEnabled:
+        organizationSettings.accountingVouchersEnabled ?? true,
+      accountingTaxationEnabled:
+        organizationSettings.accountingTaxationEnabled ?? true,
+      accountingReportsEnabled:
+        organizationSettings.accountingReportsEnabled ?? true,
+      tdsEnabled: organizationSettings.tdsEnabled ?? true,
+      tcsEnabled: organizationSettings.tcsEnabled ?? true,
+    });
+
+    if (
+      organizationSettings.activeAccountingPeriodStart &&
+      organizationSettings.activeAccountingPeriodEnd
+    ) {
+      setFromDate(organizationSettings.activeAccountingPeriodStart);
+      setToDate(organizationSettings.activeAccountingPeriodEnd);
+      setAgingAsOfDate(organizationSettings.activeAccountingPeriodEnd);
+    }
+  }, [organizationSettings]);
+
+  useEffect(() => {
+    if (taxSectionDraft.sectionCode || !taxSectionCatalog.length) {
+      return;
+    }
+
+    applyTaxCatalogSection(taxSectionCatalog[0]);
+  }, [taxSectionCatalog]);
+
   function selectVoucherType(nextType: VoucherType) {
+    if (!accountingFeatureFlags.accountingVouchersEnabled) {
+      toast.info(
+        "Accounting vouchers are disabled. Enable them from Accounting Settings."
+      );
+      return;
+    }
+
     setWorkspace("VOUCHERS");
     setVoucherType(nextType);
     toast.info(`${labelCase(nextType)} voucher selected`);
@@ -295,12 +572,12 @@ export function AccountingPage() {
 
   function handleAccountingShortcutKey(key: string) {
     if (key === "F2") {
-      document.getElementById("accounting-from-date")?.focus();
+      setAccountingSettingsOpen(true);
       return;
     }
 
     if (key === "F3") {
-      setWorkspace("MASTERS");
+      router.push("/organization-settings");
       return;
     }
 
@@ -335,19 +612,155 @@ export function AccountingPage() {
     }
 
     if (key === "F10") {
-      setWorkspace("CASH_BANK");
+      selectVoucherType("DEBIT_NOTE");
       return;
     }
 
     if (key === "F11") {
-      setWorkspace("REPORTS");
+      handleWorkspaceChange("REPORTS");
       return;
     }
 
     if (key === "F12") {
-      router.push("/organization-settings");
+      setAccountingSettingsOpen(true);
     }
   }
+
+  const saveAccountingSettings = async () => {
+    if (!organizationSettings) {
+      toast.error("Organization settings are still loading");
+      return;
+    }
+
+    const financialYearStartMonth = Number(
+      accountingSettingsDraft.financialYearStartMonth || 4
+    );
+
+    if (financialYearStartMonth < 1 || financialYearStartMonth > 12) {
+      toast.error("Financial year start month must be between 1 and 12");
+      return;
+    }
+
+    if (
+      accountingSettingsDraft.activeAccountingPeriodStart &&
+      accountingSettingsDraft.activeAccountingPeriodEnd &&
+      accountingSettingsDraft.activeAccountingPeriodEnd <
+        accountingSettingsDraft.activeAccountingPeriodStart
+    ) {
+      toast.error("Active accounting period end cannot be before start");
+      return;
+    }
+
+    const payload: OrganizationSettingsRequest = {
+      workingHoursPerDay: Number(organizationSettings.workingHoursPerDay || 8),
+      workingDaysPerMonth: Number(organizationSettings.workingDaysPerMonth || 26),
+      overtimeMultiplier: Number(organizationSettings.overtimeMultiplier || 1.5),
+      currency: accountingSettingsDraft.currency.trim() || "INR",
+      timezone: accountingSettingsDraft.timezone.trim() || "Asia/Kolkata",
+      weekStartDay: accountingSettingsDraft.weekStartDay,
+      financialYearStartMonth,
+      organizationName: organizationSettings.organizationName || "",
+      location: organizationSettings.location || "",
+      city: organizationSettings.city || "",
+      pincode: organizationSettings.pincode || "",
+      country: organizationSettings.country || "India",
+      industryType: organizationSettings.industryType || "",
+      employeeCountEstimate: organizationSettings.employeeCountEstimate || 1,
+      gstNumber: organizationSettings.gstNumber || "",
+      businessType: organizationSettings.businessType || "",
+      state: organizationSettings.state || "",
+      activeAccountingPeriodStart:
+        accountingSettingsDraft.activeAccountingPeriodStart,
+      activeAccountingPeriodEnd:
+        accountingSettingsDraft.activeAccountingPeriodEnd,
+      accountingMastersEnabled:
+        accountingSettingsDraft.accountingMastersEnabled,
+      accountingVouchersEnabled:
+        accountingSettingsDraft.accountingVouchersEnabled,
+      accountingTaxationEnabled:
+        accountingSettingsDraft.accountingTaxationEnabled,
+      accountingReportsEnabled:
+        accountingSettingsDraft.accountingReportsEnabled,
+      tdsEnabled: accountingSettingsDraft.tdsEnabled,
+      tcsEnabled: accountingSettingsDraft.tcsEnabled,
+    };
+
+    try {
+      await updateOrganizationSettings(payload).unwrap();
+      setFromDate(accountingSettingsDraft.activeAccountingPeriodStart);
+      setToDate(accountingSettingsDraft.activeAccountingPeriodEnd);
+      setAgingAsOfDate(accountingSettingsDraft.activeAccountingPeriodEnd);
+      toast.success("Accounting settings updated");
+    } catch {
+      toast.error("Could not update accounting settings");
+    }
+  };
+
+  function applyTaxCatalogSection(section: AccountingTaxSection) {
+    setTaxSectionDraft({
+      id: null,
+      taxType: section.taxType,
+      sectionCode: section.sectionCode,
+      name: section.name,
+      rate: String(section.rate ?? 0),
+      applicableFor: section.applicableFor ?? "",
+      active: true,
+    });
+  }
+
+  function editTaxSection(section: AccountingTaxSection) {
+    setTaxSectionDraft({
+      id: section.id ?? null,
+      taxType: section.taxType,
+      sectionCode: section.sectionCode,
+      name: section.name,
+      rate: String(section.rate ?? 0),
+      applicableFor: section.applicableFor ?? "",
+      active: section.active,
+    });
+  }
+
+  const saveTaxSection = async () => {
+    if (
+      !taxSectionDraft.taxType.trim() ||
+      !taxSectionDraft.sectionCode.trim() ||
+      !taxSectionDraft.name.trim()
+    ) {
+      toast.info("Tax type, section and name are required");
+      return;
+    }
+
+    const rate = Number(taxSectionDraft.rate || 0);
+    if (Number.isNaN(rate) || rate < 0 || rate > 100) {
+      toast.error("Tax rate must be between 0 and 100");
+      return;
+    }
+
+    const payload = {
+      taxType: taxSectionDraft.taxType.trim().toUpperCase(),
+      sectionCode: taxSectionDraft.sectionCode.trim().toUpperCase(),
+      name: taxSectionDraft.name.trim(),
+      rate,
+      applicableFor: taxSectionDraft.applicableFor.trim() || null,
+      active: taxSectionDraft.active,
+    };
+
+    try {
+      if (taxSectionDraft.id) {
+        await updateTaxSection({
+          id: taxSectionDraft.id,
+          ...payload,
+        }).unwrap();
+        toast.success("Tax section updated");
+      } else {
+        await createTaxSection(payload).unwrap();
+        toast.success("Tax section added");
+      }
+      setTaxSectionDraft(emptyTaxSectionDraft());
+    } catch {
+      toast.error("Could not save tax section");
+    }
+  };
 
   const submitGroup = async () => {
     if (!groupName.trim()) {
@@ -363,8 +776,8 @@ export function AccountingPage() {
       }).unwrap();
       toast.success("Account group created");
       resetGroupForm();
-    } catch {
-      toast.error("Could not create account group");
+    } catch (error) {
+      toast.error(apiErrorMessage(error) ?? "Could not create account group");
     }
   };
 
@@ -383,8 +796,8 @@ export function AccountingPage() {
       }).unwrap();
       toast.success("Account ledger created");
       resetLedgerForm();
-    } catch {
-      toast.error("Could not create account ledger");
+    } catch (error) {
+      toast.error(apiErrorMessage(error) ?? "Could not create account ledger");
     }
   };
 
@@ -410,8 +823,8 @@ export function AccountingPage() {
       }).unwrap();
       setEditingGroup(null);
       toast.success("Account group updated");
-    } catch {
-      toast.error("Could not update account group");
+    } catch (error) {
+      toast.error(apiErrorMessage(error) ?? "Could not update account group");
     }
   };
 
@@ -439,8 +852,8 @@ export function AccountingPage() {
       }).unwrap();
       setEditingLedger(null);
       toast.success("Account ledger updated");
-    } catch {
-      toast.error("Could not update account ledger");
+    } catch (error) {
+      toast.error(apiErrorMessage(error) ?? "Could not update account ledger");
     }
   };
 
@@ -456,12 +869,6 @@ export function AccountingPage() {
     setBalanceType("DR");
   };
 
-  const applyPeriod = (period: "TODAY" | "MONTH" | "QUARTER" | "FY") => {
-    const nextRange = periodRange(period);
-    setFromDate(nextRange.fromDate);
-    setToDate(nextRange.toDate);
-  };
-
   const confirmDeleteGroup = async () => {
     if (!deleteGroupTarget) {
       return;
@@ -471,8 +878,8 @@ export function AccountingPage() {
       await deleteGroup(deleteGroupTarget.id).unwrap();
       setDeleteGroupTarget(null);
       toast.success("Account group deleted");
-    } catch {
-      toast.error("Could not delete account group");
+    } catch (error) {
+      toast.error(apiErrorMessage(error) ?? "Could not delete account group");
     }
   };
 
@@ -485,12 +892,17 @@ export function AccountingPage() {
       await deleteLedger(deleteLedgerTarget.id).unwrap();
       setDeleteLedgerTarget(null);
       toast.success("Account ledger deleted or marked inactive");
-    } catch {
-      toast.error("Could not delete account ledger");
+    } catch (error) {
+      toast.error(apiErrorMessage(error) ?? "Could not delete account ledger");
     }
   };
 
   const submitVoucher = async () => {
+    if (vouchersDisabledReason) {
+      toast.info(vouchersDisabledReason);
+      return;
+    }
+
     const lines = voucherLines
       .filter((line) => line.ledgerId && Number(line.amount || 0) > 0)
       .map((line) => ({
@@ -552,6 +964,11 @@ export function AccountingPage() {
   };
 
   const copyVoucherToEntry = (voucher: AccountingVoucher) => {
+    if (vouchersDisabledReason) {
+      toast.info(vouchersDisabledReason);
+      return;
+    }
+
     setEditingVoucher(null);
     setVoucherType(voucher.voucherType);
     setVoucherDate(todayDate());
@@ -573,6 +990,11 @@ export function AccountingPage() {
   };
 
   const editVoucherInEntry = (voucher: AccountingVoucher) => {
+    if (vouchersDisabledReason) {
+      toast.info(vouchersDisabledReason);
+      return;
+    }
+
     if (voucher.sourceType) {
       toast.info("Bill generated vouchers are edited from Billing");
       return;
@@ -596,6 +1018,11 @@ export function AccountingPage() {
 
   const confirmCancelVoucher = async () => {
     if (!cancelVoucherTarget) {
+      return;
+    }
+
+    if (vouchersDisabledReason) {
+      toast.info(vouchersDisabledReason);
       return;
     }
 
@@ -989,7 +1416,17 @@ export function AccountingPage() {
     }
 
     const content = toCsv([
-      ["Month", "Vouchers", "Payment", "Receipt", "Contra", "Journal", "Movement"],
+      [
+        "Month",
+        "Vouchers",
+        "Payment",
+        "Receipt",
+        "Contra",
+        "Journal",
+        "Debit Note",
+        "Credit Note",
+        "Movement",
+      ],
       ...monthlySummary.map((row) => [
         row.month,
         row.voucherCount,
@@ -997,6 +1434,8 @@ export function AccountingPage() {
         row.receipt,
         row.contra,
         row.journal,
+        row.debitNote,
+        row.creditNote,
         row.totalMovement,
       ]),
     ]);
@@ -1092,78 +1531,64 @@ export function AccountingPage() {
           </p>
         </div>
 
-        <div className="grid gap-2 rounded-lg border bg-white p-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-[150px_150px_auto_auto_auto_auto]">
-          <Input
-            id="accounting-from-date"
-            type="date"
-            value={fromDate}
-            onChange={(event) => setFromDate(event.target.value)}
-          />
-          <Input
-            type="date"
-            value={toDate}
-            onChange={(event) => setToDate(event.target.value)}
-          />
-          <Button
-            variant="outline"
-            onClick={exportLedger}
-            disabled={!data?.parties.length}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Ledger CSV
-          </Button>
-          <Button
-            onClick={exportGst}
-            disabled={gstState.isFetching}
-          >
-            <FileSpreadsheet className="mr-2 h-4 w-4" />
-            GST CSV
-          </Button>
-          <Button
-            variant="outline"
-            onClick={exportProfitLoss}
-            disabled={!profitLoss?.rows.length}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            P&L CSV
-          </Button>
-          <Button
-            variant="outline"
-            onClick={exportBalanceSheet}
-            disabled={!balanceSheet?.assets.length && !balanceSheet?.liabilities.length}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            B/S CSV
-          </Button>
-          <div className="flex flex-wrap gap-1 sm:col-span-6">
-            {[
-              ["TODAY", "Today"],
-              ["MONTH", "Month"],
-              ["QUARTER", "Quarter"],
-              ["FY", "FY"],
-            ].map(([value, label]) => (
-              <Button
-                key={value}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  applyPeriod(value as "TODAY" | "MONTH" | "QUARTER" | "FY")
-                }
-              >
-                {label}
+        <div className="flex flex-wrap gap-2 rounded-lg border bg-white p-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Export
               </Button>
-            ))}
-          </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52">
+              <DropdownMenuLabel>Download reports</DropdownMenuLabel>
+              <DropdownMenuItem
+                disabled={!data?.parties.length}
+                onClick={exportLedger}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Ledger CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={gstState.isFetching}
+                onClick={exportGst}
+              >
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                GST CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!profitLoss?.rows.length}
+                onClick={exportProfitLoss}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Profit & Loss CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={
+                  !balanceSheet?.assets.length &&
+                  !balanceSheet?.liabilities.length
+                }
+                onClick={exportBalanceSheet}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Balance Sheet CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button
+            variant="outline"
+            onClick={() => setAccountingSettingsOpen(true)}
+          >
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </Button>
         </div>
       </div>
 
-      <AccountingWorkspaceNav value={workspace} onChange={setWorkspace} />
-
-      <AccountingCommandPanel
-        workspace={workspace}
-        voucherType={voucherType}
-        onShortcut={handleAccountingShortcutKey}
+      <AccountingWorkspaceNav
+        value={workspace}
+        onChange={handleWorkspaceChange}
+        disabledReasons={disabledWorkspaceReasons}
       />
 
       <div
@@ -1225,119 +1650,253 @@ export function AccountingPage() {
         hidden={workspace !== "MASTERS"}
         className="grid scroll-mt-24 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
       >
-        <Card className="rounded-lg">
-          <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle>Account Masters</CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Tally-style groups and ledgers for vouchers, GST and CA reports.
-              </p>
-            </div>
-            <Badge variant="outline">
-              {mastersFetching
-                ? "Loading"
-                : `${masters?.ledgers.length ?? 0} ledgers`}
-            </Badge>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto rounded-md border">
-              <table className="responsive-table w-full min-w-[820px] text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="p-3 text-left">Group</th>
-                    <th className="p-3 text-left">Type</th>
-                    <th className="p-3 text-right">Ledgers</th>
-                    <th className="p-3 text-left">Nature</th>
-                    <th className="p-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(masters?.groups ?? []).map((group) => (
-                    <tr key={group.id} className="border-t">
-                      <td className="p-3" data-label="Group">
-                        <div className="font-medium">{group.name}</div>
-                        {group.systemGroup ? (
-                          <div className="text-xs text-muted-foreground">
-                            Default master
+        <div className="space-y-4">
+          <Card className="rounded-lg">
+            <CardHeader className="flex flex-col items-start gap-3 border-b sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Account Masters</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Groups define reporting buckets. Ledgers are the accounts used
+                  in vouchers, bills, GST and CA reports.
+                </p>
+              </div>
+              <Badge variant="outline">
+                {mastersFetching ? "Loading" : `${masterLedgers.length} ledgers`}
+              </Badge>
+            </CardHeader>
+            <CardContent className="space-y-4 p-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <MasterMetric
+                  label="Groups"
+                  value={String(masterGroups.length)}
+                  helper={`${editableGroupCount} editable`}
+                />
+                <MasterMetric
+                  label="Ledgers"
+                  value={String(masterLedgers.length)}
+                  helper={`${editableLedgerCount} editable`}
+                />
+                <MasterMetric
+                  label="Protected"
+                  value={String(lockedMasterCount)}
+                  helper="Required by system"
+                />
+              </div>
+
+              <div className="rounded-lg border bg-slate-50/70 p-3">
+                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold">Groups</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Locked groups are Factory1 defaults used by reports and posting.
+                    </p>
+                  </div>
+                  <Badge variant="secondary">
+                    {masterGroups.filter((group) => group.systemGroup).length} locked
+                  </Badge>
+                </div>
+
+                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {masterGroups.map((group) => {
+                    const groupLockedReason = group.systemGroup
+                      ? "Default system group. It is required for billing, GST, reports and voucher posting, so it cannot be edited or deleted."
+                      : "";
+                    const groupDeleteReason =
+                      !group.systemGroup && group.ledgerCount > 0
+                        ? "This group has ledgers attached. Move or delete those ledgers before deleting the group."
+                        : "";
+
+                    return (
+                      <div
+                        key={group.id}
+                        title={groupLockedReason || groupDeleteReason || undefined}
+                        className={[
+                          "rounded-md border bg-white p-3 shadow-sm transition",
+                          group.systemGroup
+                            ? "border-slate-200 bg-slate-100 text-slate-500"
+                            : "hover:border-slate-300 hover:shadow",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">{group.name}</div>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              <Badge variant="secondary">
+                                {labelCase(group.groupType)}
+                              </Badge>
+                              {group.systemGroup ? (
+                                <Badge variant="outline" className="gap-1">
+                                  <LockKeyhole className="h-3 w-3" />
+                                  Locked
+                                </Badge>
+                              ) : null}
+                            </div>
                           </div>
-                        ) : null}
-                      </td>
-                      <td className="p-3" data-label="Type">{labelCase(group.groupType)}</td>
-                      <td className="p-3 text-right" data-label="Ledgers">{group.ledgerCount}</td>
-                      <td className="p-3" data-label="Nature">
-                        {group.affectsGrossProfit
-                          ? "Trading / gross profit"
-                          : "Balance sheet / indirect"}
-                      </td>
-                      <td className="p-3" data-label="Actions">
-                        <div className="flex justify-end gap-2">
+                          <div className="text-right">
+                            <div className="text-lg font-semibold">
+                              {group.ledgerCount}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              ledgers
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2">
+                          <span className="text-xs text-muted-foreground">
+                            {group.affectsGrossProfit
+                              ? "Trading / gross profit"
+                              : "Balance sheet / indirect"}
+                          </span>
+                          <div className="flex gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={group.systemGroup}
+                              title={groupLockedReason || "Edit group"}
+                              onClick={() => editGroup(group)}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={group.systemGroup || group.ledgerCount > 0}
+                              title={
+                                groupLockedReason ||
+                                groupDeleteReason ||
+                                "Delete group"
+                              }
+                              onClick={() => setDeleteGroupTarget(group)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-white">
+                <div className="flex flex-col gap-3 border-b p-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold">Ledger Register</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Search ledgers by name, group, GST or contact details.
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_220px]">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={masterSearch}
+                        onChange={(event) => setMasterSearch(event.target.value)}
+                        placeholder="Search ledgers"
+                        className="pl-8"
+                      />
+                    </div>
+                    <Select
+                      value={masterLedgerGroupFilter}
+                      onValueChange={setMasterLedgerGroupFilter}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All groups</SelectItem>
+                        {masterGroups.map((group) => (
+                          <SelectItem key={group.id} value={group.id}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="divide-y">
+                  {filteredMasterLedgers.map((ledger) => {
+                    const ledgerLockedReason = ledger.systemLedger
+                      ? "Default system ledger. It is required for posting, GST, opening balances or reports, so it cannot be edited or deleted."
+                      : "";
+
+                    return (
+                      <div
+                        key={ledger.id}
+                        title={ledgerLockedReason || undefined}
+                        className={[
+                          "grid gap-3 p-3 transition lg:grid-cols-[minmax(0,1.4fr)_minmax(160px,0.8fr)_120px_112px]",
+                          ledger.systemLedger
+                            ? "bg-slate-50 text-slate-500"
+                            : "hover:bg-slate-50",
+                        ].join(" ")}
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="truncate font-medium">
+                              {ledger.name}
+                            </div>
+                            {!ledger.active ? (
+                              <Badge variant="outline">Inactive</Badge>
+                            ) : null}
+                            {ledger.systemLedger ? (
+                              <Badge variant="outline" className="gap-1">
+                                <LockKeyhole className="h-3 w-3" />
+                                Locked
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 truncate text-xs text-muted-foreground">
+                            {ledger.contactName || ledger.gstNumber || "No contact details"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Under</div>
+                          <div className="truncate text-sm font-medium">
+                            {ledger.groupName}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Balance</div>
+                          <div className="text-sm font-semibold">
+                            {ledger.balanceType}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={group.systemGroup}
-                            onClick={() => editGroup(group)}
+                            disabled={ledger.systemLedger}
+                            title={ledgerLockedReason || "Edit ledger"}
+                            onClick={() => editLedger(ledger)}
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={group.systemGroup}
-                            onClick={() => setDeleteGroupTarget(group)}
+                            disabled={ledger.systemLedger}
+                            title={ledgerLockedReason || "Delete ledger"}
+                            onClick={() => setDeleteLedgerTarget(ledger)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {(masters?.ledgers ?? []).map((ledger) => (
-                <div
-                  key={ledger.id}
-                  className="rounded-md border bg-muted/20 p-3"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{ledger.name}</div>
-                      <div className="truncate text-xs text-muted-foreground">
-                        {ledger.groupName}
                       </div>
+                    );
+                  })}
+
+                  {!filteredMasterLedgers.length ? (
+                    <div className="p-6 text-center text-sm text-muted-foreground">
+                      No ledgers match the current search or group filter.
                     </div>
-                    <div className="flex items-center gap-2">
-                      {!ledger.active ? (
-                        <Badge variant="outline">Inactive</Badge>
-                      ) : null}
-                      <Badge variant="secondary">{ledger.balanceType}</Badge>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex justify-end gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={ledger.systemLedger}
-                      onClick={() => editLedger(ledger)}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={ledger.systemLedger}
-                      onClick={() => setDeleteLedgerTarget(ledger)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  ) : null}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="space-y-4">
           <Card className="rounded-lg">
@@ -1469,15 +2028,20 @@ export function AccountingPage() {
       <div
         id="voucher-entry"
         hidden={workspace !== "VOUCHERS"}
-        className="grid scroll-mt-24 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+        className="grid scroll-mt-24 gap-4 2xl:grid-cols-[minmax(0,1fr)_390px]"
       >
-        <Card id="day-book" className="rounded-lg scroll-mt-24">
-          <CardHeader>
+        <Card className="rounded-lg scroll-mt-24">
+          <CardHeader className="border-b">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <CardTitle className="flex items-center gap-2">
-                <ReceiptText className="h-5 w-5" />
-                {editingVoucher ? "Edit Voucher" : "Voucher Entry"}
-              </CardTitle>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <ReceiptText className="h-5 w-5" />
+                  {editingVoucher ? "Edit Voucher" : "Voucher Entry"}
+                </CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Select type, enter ledger lines, and keep debit and credit balanced.
+                </p>
+              </div>
               {editingVoucher ? (
                 <Badge variant="outline">
                   Editing {editingVoucher.voucherNumber}
@@ -1486,15 +2050,11 @@ export function AccountingPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
-              <Keyboard className="h-4 w-4" />
-              <span className="font-medium text-foreground">Tally shortcuts</span>
-              <ShortcutPill label="F4 Contra" />
-              <ShortcutPill label="F5 Payment" />
-              <ShortcutPill label="F6 Receipt" />
-              <ShortcutPill label="F7 Journal" />
-              <span>Alt+C/P/R/J also works while typing.</span>
-            </div>
+            {vouchersDisabledReason ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                {vouchersDisabledReason}
+              </div>
+            ) : null}
 
             {editingVoucher ? (
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -1503,32 +2063,34 @@ export function AccountingPage() {
               </div>
             ) : null}
 
-            <div className="grid gap-3 md:grid-cols-[170px_170px_1fr]">
-              <div className="space-y-2">
-                <Label>Voucher type</Label>
-                <Select
-                  value={voucherType}
-                  onValueChange={(value) =>
-                    setVoucherType(value as VoucherType)
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {voucherTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {labelCase(type)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="flex flex-wrap gap-2">
+              {voucherTypes.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    disabled={Boolean(vouchersDisabledReason)}
+                    onClick={() => setVoucherType(type)}
+                    className={[
+                      "rounded-full border px-3 py-2 text-sm font-medium transition",
+                      vouchersDisabledReason
+                        ? "cursor-not-allowed bg-slate-100 text-slate-400 opacity-60"
+                        : voucherType === type
+                        ? "border-slate-900 bg-slate-950 text-white"
+                        : "bg-white hover:border-slate-300 hover:bg-slate-50",
+                    ].join(" ")}
+                  >
+                    {labelCase(type)}
+                  </button>
+              ))}
+            </div>
+
+            <div className="grid gap-3 rounded-lg border bg-slate-50/70 p-3 md:grid-cols-[180px_minmax(0,1fr)]">
               <div className="space-y-2">
                 <Label>Date</Label>
                 <Input
                   type="date"
                   value={voucherDate}
+                  disabled={Boolean(vouchersDisabledReason)}
                   onChange={(event) => setVoucherDate(event.target.value)}
                 />
               </div>
@@ -1536,14 +2098,50 @@ export function AccountingPage() {
                 <Label>Narration</Label>
                 <Input
                   value={voucherNarration}
+                  disabled={Boolean(vouchersDisabledReason)}
                   onChange={(event) => setVoucherNarration(event.target.value)}
-                  placeholder="Example: Bank payment for freight"
+                  placeholder={voucherHelp[voucherType]}
                 />
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-md border">
-              <table className="w-full min-w-[900px] text-sm">
+            <div className="rounded-lg border">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-slate-50 px-3 py-2">
+                <div>
+                  <h3 className="text-sm font-semibold">Ledger Lines</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Add at least one debit and one credit line.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={Boolean(vouchersDisabledReason)}
+                    onClick={() => handleWorkspaceChange("MASTERS")}
+                  >
+                    <Landmark className="mr-2 h-4 w-4" />
+                    Ledger
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={Boolean(vouchersDisabledReason)}
+                    onClick={() =>
+                      setVoucherLines((current) => [
+                        ...current,
+                        newVoucherLine("DR"),
+                      ])
+                    }
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Line
+                  </Button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] text-sm">
                 <thead className="bg-muted">
                   <tr>
                     <th className="p-3 text-left">Ledger</th>
@@ -1559,6 +2157,7 @@ export function AccountingPage() {
                       <td className="p-3">
                         <Select
                           value={line.ledgerId}
+                          disabled={Boolean(vouchersDisabledReason)}
                           onValueChange={(value) =>
                             updateVoucherLine(line.id, { ledgerId: value })
                           }
@@ -1578,6 +2177,7 @@ export function AccountingPage() {
                       <td className="p-3">
                         <Select
                           value={line.entryType}
+                          disabled={Boolean(vouchersDisabledReason)}
                           onValueChange={(value) =>
                             updateVoucherLine(line.id, {
                               entryType: value as BalanceType,
@@ -1600,6 +2200,7 @@ export function AccountingPage() {
                         <Input
                           className="text-right"
                           type="number"
+                          disabled={Boolean(vouchersDisabledReason)}
                           min="0"
                           step="0.01"
                           value={line.amount}
@@ -1613,6 +2214,7 @@ export function AccountingPage() {
                       <td className="p-3">
                         <Input
                           value={line.description}
+                          disabled={Boolean(vouchersDisabledReason)}
                           onChange={(event) =>
                             updateVoucherLine(line.id, {
                               description: event.target.value,
@@ -1625,7 +2227,10 @@ export function AccountingPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={voucherLines.length <= 2}
+                          disabled={
+                            Boolean(vouchersDisabledReason) ||
+                            voucherLines.length <= 2
+                          }
                           onClick={() =>
                             setVoucherLines((current) =>
                               current.filter((item) => item.id !== line.id)
@@ -1639,54 +2244,46 @@ export function AccountingPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
 
-            <div className="flex flex-col justify-between gap-3 rounded-md border bg-muted/20 p-3 md:flex-row md:items-center">
-              <div className="grid grid-cols-2 gap-3 text-sm md:min-w-[320px]">
-                <div>
-                  <div className="text-muted-foreground">Debit</div>
-                  <div className="font-semibold">
-                    {formatCurrency(voucherTotals.debit)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Credit</div>
-                  <div className="font-semibold">
-                    {formatCurrency(voucherTotals.credit)}
-                  </div>
-                </div>
+            <div className="rounded-lg border bg-slate-950 p-3 text-white">
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-center">
+                <VoucherTotalTile label="Debit" value={formatCurrency(voucherTotals.debit)} />
+                <VoucherTotalTile label="Credit" value={formatCurrency(voucherTotals.credit)} />
+                <Badge
+                  variant="outline"
+                  className={[
+                    "justify-center border-white/20 px-3 py-1 text-white",
+                    Math.abs(voucherTotals.debit - voucherTotals.credit) <= 0.009
+                      ? "bg-emerald-500/20"
+                      : "bg-amber-500/20",
+                  ].join(" ")}
+                >
+                  {Math.abs(voucherTotals.debit - voucherTotals.credit) <= 0.009
+                    ? "Balanced"
+                    : `Diff ${formatCurrency(Math.abs(voucherTotals.debit - voucherTotals.credit))}`}
+                </Badge>
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="mt-3 flex flex-col gap-2 border-t border-white/10 pt-3 sm:flex-row sm:justify-end">
                 <Button
-                  variant="outline"
-                  onClick={() => setWorkspace("MASTERS")}
+                  disabled={Boolean(vouchersDisabledReason)}
+                  onClick={autoBalanceVoucher}
                 >
-                  <Landmark className="mr-2 h-4 w-4" />
-                  New Ledger
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    setVoucherLines((current) => [
-                      ...current,
-                      newVoucherLine("DR"),
-                    ])
-                  }
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Line
-                </Button>
-                <Button variant="outline" onClick={autoBalanceVoucher}>
                   Auto Balance
                 </Button>
                 {editingVoucher ? (
-                  <Button variant="outline" onClick={resetVoucherForm}>
+                  <Button
+                    disabled={Boolean(vouchersDisabledReason)}
+                    onClick={resetVoucherForm}
+                  >
                     Cancel Edit
                   </Button>
                 ) : null}
                 <Button
                   onClick={submitVoucher}
                   disabled={
+                      Boolean(vouchersDisabledReason) ||
                     createVoucherState.isLoading ||
                     updateVoucherState.isLoading ||
                     Math.abs(voucherTotals.debit - voucherTotals.credit) > 0.009
@@ -1700,7 +2297,8 @@ export function AccountingPage() {
         </Card>
 
         <Card className="rounded-lg">
-          <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardHeader className="border-b">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Day Book</CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -1736,33 +2334,24 @@ export function AccountingPage() {
                 CSV
               </Button>
             </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              {voucherTypes.map((type) => (
-                <div key={type} className="rounded-md border bg-muted/20 p-2">
-                  <div className="text-xs text-muted-foreground">
-                    {labelCase(type)}
-                  </div>
-                  <div className="mt-1 font-semibold">
-                    {dayBookSummary.countByType[type] ?? 0}
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-3 gap-2 text-sm">
+              <DayBookMetric label="Vouchers" value={String(filteredVouchers.length)} />
+              <DayBookMetric
+                label="Movement"
+                value={vouchersFetching ? "..." : formatCurrency(dayBookSummary.totalDebit)}
+              />
+              <DayBookMetric
+                label="Type"
+                value={dayBookFilter === "ALL" ? "All" : labelCase(dayBookFilter)}
+              />
             </div>
 
-            <div className="rounded-md border bg-slate-950 p-3 text-white">
-              <div className="text-xs uppercase tracking-wide text-slate-300">
-                Total Movement
-              </div>
-              <div className="mt-1 text-xl font-semibold">
-                {vouchersFetching ? "..." : formatCurrency(dayBookSummary.totalDebit)}
-              </div>
-            </div>
-
-            <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
+            <div className="max-h-[620px] space-y-2 overflow-y-auto pr-1">
               {filteredVouchers.map((voucher) => (
-                <div key={voucher.id} className="rounded-md border p-3">
+                <div key={voucher.id} className="rounded-md border bg-white p-3 hover:bg-slate-50">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1779,7 +2368,7 @@ export function AccountingPage() {
                         {labelCase(voucher.voucherType)} · {voucher.voucherDate}
                       </div>
                     </div>
-                    <Badge variant="outline">
+                    <Badge variant="secondary">
                       {formatCurrency(voucher.totalDebit)}
                     </Badge>
                   </div>
@@ -1808,53 +2397,61 @@ export function AccountingPage() {
                       </div>
                     ) : null}
                   </div>
-                  <div className="mt-3 flex flex-wrap justify-end gap-2 border-t pt-2">
+                  <div className="mt-3 flex flex-wrap justify-end gap-1.5 border-t pt-2">
                     {voucher.sourceBillId ? (
                       <Button
                         size="sm"
                         variant="outline"
+                        title="Open source bill"
                         onClick={() => router.push("/billing")}
                       >
                         Source
                       </Button>
                     ) : null}
+		                    <Button
+		                      size="sm"
+		                      variant="outline"
+	                      disabled={
+                          Boolean(vouchersDisabledReason) ||
+                          Boolean(voucher.sourceType)
+                        }
+                          title="Edit voucher"
+		                      onClick={() => editVoucherInEntry(voucher)}
+		                    >
+	                      <Edit2 className="h-4 w-4" />
+	                    </Button>
+		                    <Button
+		                      size="sm"
+		                      variant="outline"
+                        disabled={Boolean(vouchersDisabledReason)}
+                        title="Copy to entry"
+		                      onClick={() => copyVoucherToEntry(voucher)}
+		                    >
+	                      <Copy className="h-4 w-4" />
+	                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={Boolean(voucher.sourceType)}
-                      onClick={() => editVoucherInEntry(voucher)}
-                    >
-                      <Edit2 className="mr-2 h-4 w-4" />
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyVoucherToEntry(voucher)}
-                    >
-                      <Copy className="mr-2 h-4 w-4" />
-                      Copy
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
+                      title="Print voucher"
                       onClick={() => printVoucher(voucher)}
                     >
-                      <Printer className="mr-2 h-4 w-4" />
-                      Print
+                      <Printer className="h-4 w-4" />
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={Boolean(voucher.sourceType)}
-                      onClick={() => {
+		                    <Button
+		                      size="sm"
+	                      variant="outline"
+	                      disabled={
+                          Boolean(vouchersDisabledReason) ||
+                          Boolean(voucher.sourceType)
+                        }
+                          title="Cancel voucher"
+		                      onClick={() => {
                         setCancelVoucherTarget(voucher);
                         setCancelVoucherReason("");
                       }}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Cancel
-                    </Button>
+	                      <Trash2 className="h-4 w-4" />
+	                    </Button>
                   </div>
                 </div>
               ))}
@@ -1924,7 +2521,7 @@ export function AccountingPage() {
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
             <div className="overflow-x-auto rounded-md border">
-              <table className="responsive-table w-full min-w-[720px] text-sm">
+              <table className="responsive-table w-full min-w-[920px] text-sm">
                 <thead className="bg-muted">
                   <tr>
                     <th className="p-3 text-left">Ledger</th>
@@ -2179,26 +2776,66 @@ export function AccountingPage() {
       </Card>
 
       <div
-        hidden={workspace !== "REPORTS"}
+        hidden={workspace !== "TAXES"}
         className="grid gap-4 xl:grid-cols-2"
       >
-        <Card className="rounded-lg">
-          <CardHeader className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+        <Card className="rounded-lg xl:col-span-2">
+          <CardHeader className="border-b">
             <div>
-              <CardTitle>GSTR-1 Sales Register</CardTitle>
+              <CardTitle>Tax Centre</CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
-                Sales invoice register for outward supplies review.
+                GST returns, TDS/TCS tracking and tax-section setup for the active accounting period.
               </p>
             </div>
+          </CardHeader>
+          <CardContent className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+            <TaxMetric
+              label="Output GST"
+              value={formatCurrency(outputGstTotal)}
+              helper="Sales tax collected"
+              loading={gstSummaryFetching}
+            />
+            <TaxMetric
+              label="Input GST"
+              value={formatCurrency(inputGstTotal)}
+              helper="Purchase tax credit"
+              loading={gstSummaryFetching}
+            />
+            <TaxMetric
+              label="Net Payable"
+              value={formatCurrency(gstSummary?.netGstPayable ?? 0)}
+              helper="Output minus input"
+              loading={gstSummaryFetching}
+              tone={(gstSummary?.netGstPayable ?? 0) > 0 ? "dark" : "light"}
+            />
+            <TaxMetric
+              label="Tax Sections"
+              value={`${activeTaxSections}/${taxSections.length}`}
+              helper="Active / total"
+              loading={taxSectionsFetching}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-lg">
+          <CardHeader className="border-b">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+              <div>
+                <CardTitle>GSTR-1 Sales Register</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Outward supplies from posted sales bills.
+                </p>
+              </div>
             <Button
               size="sm"
               variant="outline"
               onClick={exportGstr1}
-              disabled={!gstSummary?.rows.some((row) => row.type === "SALES")}
+                disabled={!gstSalesRows.length}
             >
               <Download className="mr-2 h-4 w-4" />
               CSV
             </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -2209,11 +2846,7 @@ export function AccountingPage() {
               />
               <InlineMetric
                 title="Sales GST"
-                value={formatCurrency(
-                  (gstSummary?.salesCgstAmount ?? 0) +
-                    (gstSummary?.salesSgstAmount ?? 0) +
-                    (gstSummary?.salesIgstAmount ?? 0)
-                )}
+                value={formatCurrency(outputGstTotal)}
                 loading={gstSummaryFetching}
               />
             </div>
@@ -2230,9 +2863,7 @@ export function AccountingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(gstSummary?.rows ?? [])
-                    .filter((row) => row.type === "SALES")
-                    .map((row) => (
+                  {gstSalesRows.map((row) => (
                       <tr key={row.billNumber} className="border-t">
                         <td className="p-3 font-medium" data-label="Invoice">{row.billNumber}</td>
                         <td className="p-3" data-label="Customer">{row.partyName}</td>
@@ -2255,46 +2886,42 @@ export function AccountingPage() {
         </Card>
 
         <Card className="rounded-lg">
-          <CardHeader className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-            <div>
-              <CardTitle>GSTR-3B Summary</CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Simple GST payable view from sales and purchase tax.
-              </p>
+          <CardHeader className="border-b">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+              <div>
+                <CardTitle>GSTR-3B Summary</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Payable view from sales and purchase tax.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportGstr3b}
+                disabled={!gstSummary}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                CSV
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={exportGstr3b}
-              disabled={!gstSummary}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              CSV
-            </Button>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-lg border bg-slate-950 p-4 text-white">
+              <div className="text-xs uppercase tracking-wide text-slate-300">
+                Net GST Payable
+              </div>
+              <div className="mt-1 text-2xl font-semibold">
+                {gstSummaryFetching ? "..." : formatCurrency(gstSummary?.netGstPayable ?? 0)}
+              </div>
+              <div className="mt-4 grid gap-3 border-t border-white/10 pt-3 sm:grid-cols-2">
+                <VoucherTotalTile label="Output" value={formatCurrency(outputGstTotal)} />
+                <VoucherTotalTile label="Input" value={formatCurrency(inputGstTotal)} />
+              </div>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <InlineMetric
-                title="Output GST"
-                value={formatCurrency(
-                  (gstSummary?.salesCgstAmount ?? 0) +
-                    (gstSummary?.salesSgstAmount ?? 0) +
-                    (gstSummary?.salesIgstAmount ?? 0)
-                )}
-                loading={gstSummaryFetching}
-              />
-              <InlineMetric
-                title="Input GST"
-                value={formatCurrency(
-                  (gstSummary?.purchaseCgstAmount ?? 0) +
-                    (gstSummary?.purchaseSgstAmount ?? 0) +
-                    (gstSummary?.purchaseIgstAmount ?? 0)
-                )}
-                loading={gstSummaryFetching}
-              />
-              <InlineMetric
-                title="Net GST Payable"
-                value={formatCurrency(gstSummary?.netGstPayable ?? 0)}
+                title="Sales Taxable"
+                value={formatCurrency(gstSummary?.salesTaxableAmount ?? 0)}
                 loading={gstSummaryFetching}
               />
               <InlineMetric
@@ -2302,6 +2929,311 @@ export function AccountingPage() {
                 value={formatCurrency(gstSummary?.purchaseTaxableAmount ?? 0)}
                 loading={gstSummaryFetching}
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-lg xl:col-span-2">
+          <CardHeader className="border-b">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+              <div>
+                <CardTitle>Tax Sections Setup</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Pick from catalog, edit rates, and disable unused GST/TDS/TCS sections.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {["GST", "TDS", "TCS"].map((type) => (
+                  <Badge key={type} variant="outline">
+                    {type}: {taxSectionsByType[type] ?? 0}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+            <div className="space-y-3 rounded-lg border bg-slate-50/70 p-4">
+              <div>
+                <h3 className="text-sm font-semibold">
+                  {taxSectionDraft.id ? "Edit Section" : "Add Section"}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Suggestions are editable because tax applicability can vary.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Catalog suggestion</Label>
+                <Select
+                  value={`${taxSectionDraft.taxType}:${taxSectionDraft.sectionCode}`}
+                  onValueChange={(value) => {
+                    const [taxType, sectionCode] = value.split(":");
+                    const section = taxSectionCatalog.find(
+                      (item) =>
+                        item.taxType === taxType &&
+                        item.sectionCode === sectionCode
+                    );
+                    if (section) {
+                      applyTaxCatalogSection(section);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select tax section" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {taxSectionCatalog.map((section) => (
+                      <SelectItem
+                        key={`${section.taxType}:${section.sectionCode}`}
+                        value={`${section.taxType}:${section.sectionCode}`}
+                      >
+                        {section.taxType} {section.sectionCode} - {section.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="space-y-2">
+                  <Label>Tax type</Label>
+                  <Select
+                    value={taxSectionDraft.taxType}
+                    onValueChange={(value) =>
+                      setTaxSectionDraft((current) => ({
+                        ...current,
+                        taxType: value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["GST", "TDS", "TCS"].map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Section code</Label>
+                  <Input
+                    value={taxSectionDraft.sectionCode}
+                    onChange={(event) =>
+                      setTaxSectionDraft((current) => ({
+                        ...current,
+                        sectionCode: event.target.value.toUpperCase(),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2 xl:col-span-1">
+                  <Label>Name</Label>
+                  <Input
+                    value={taxSectionDraft.name}
+                    onChange={(event) =>
+                      setTaxSectionDraft((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Rate %</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.001"
+                    value={taxSectionDraft.rate}
+                    onChange={(event) =>
+                      setTaxSectionDraft((current) => ({
+                        ...current,
+                        rate: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={taxSectionDraft.active ? "ACTIVE" : "INACTIVE"}
+                    onValueChange={(value) =>
+                      setTaxSectionDraft((current) => ({
+                        ...current,
+                        active: value === "ACTIVE",
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ACTIVE">Active</SelectItem>
+                      <SelectItem value="INACTIVE">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 sm:col-span-2 xl:col-span-1">
+                  <Label>Applicable for</Label>
+                  <Input
+                    value={taxSectionDraft.applicableFor}
+                    onChange={(event) =>
+                      setTaxSectionDraft((current) => ({
+                        ...current,
+                        applicableFor: event.target.value,
+                      }))
+                    }
+                    placeholder="Example: Contractor payments"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  onClick={saveTaxSection}
+                  disabled={
+                    createTaxSectionState.isLoading ||
+                    updateTaxSectionState.isLoading
+                  }
+                >
+                  {taxSectionDraft.id ? "Save Section" : "Add Section"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setTaxSectionDraft(emptyTaxSectionDraft())}
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-white">
+              <div className="flex items-center justify-between border-b p-3">
+                <div>
+                  <h3 className="text-sm font-semibold">Configured Sections</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {taxSectionsFetching ? "Loading sections" : `${taxSections.length} sections configured`}
+                  </p>
+                </div>
+                <Badge variant="secondary">{activeTaxSections} active</Badge>
+              </div>
+              <div className="grid gap-2 p-3 md:grid-cols-2">
+                {taxSections.map((section) => (
+                  <div
+                    key={section.id ?? section.sectionCode}
+                    className={[
+                      "rounded-md border p-3",
+                      section.active ? "bg-white" : "bg-slate-50 text-slate-500",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary">{section.taxType}</Badge>
+                          <span className="font-semibold">{section.sectionCode}</span>
+                        </div>
+                        <div className="mt-2 truncate text-sm font-medium">
+                          {section.name}
+                        </div>
+                        <div className="mt-1 truncate text-xs text-muted-foreground">
+                          {section.applicableFor || "General applicability"}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-semibold">
+                          {Number(section.rate || 0)}%
+                        </div>
+                        <Badge variant={section.active ? "outline" : "secondary"}>
+                          {section.active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end border-t pt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => editTaxSection(section)}
+                      >
+                        <Edit2 className="mr-2 h-4 w-4" />
+                        Edit
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {!taxSections.length && !taxSectionsFetching ? (
+                  <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground md:col-span-2">
+                    No tax sections configured yet.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-lg xl:col-span-2">
+          <CardHeader className="border-b">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+              <div>
+                <CardTitle>TDS / TCS Control</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Deduction and collection movement from tax ledgers.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setWorkspace("VOUCHERS");
+                  setVoucherType("JOURNAL");
+                  setVoucherNarration("TDS/TCS adjustment");
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Journal Entry
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {taxLedgerSummary.rows.map((row) => (
+                <TaxMetric
+                  key={row.name}
+                  label={row.name}
+                  value={formatCurrency(row.net)}
+                  helper={row.description}
+                  loading={vouchersFetching || mastersFetching}
+                />
+              ))}
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-2">
+              {taxLedgerSummary.rows.map((row) => (
+                <div key={row.name} className="rounded-md border bg-white p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium">{row.name}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {row.description}
+                      </div>
+                    </div>
+                    <Badge variant="outline">{formatCurrency(row.net)}</Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-2 text-sm">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Debit</div>
+                      <div className="font-semibold">{formatCurrency(row.debit)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Credit</div>
+                      <div className="font-semibold">{formatCurrency(row.credit)}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -2398,6 +3330,8 @@ export function AccountingPage() {
                     <th className="p-3 text-right">Receipt</th>
                     <th className="p-3 text-right">Contra</th>
                     <th className="p-3 text-right">Journal</th>
+                    <th className="p-3 text-right">Debit Note</th>
+                    <th className="p-3 text-right">Credit Note</th>
                     <th className="p-3 text-right">Movement</th>
                   </tr>
                 </thead>
@@ -2418,6 +3352,12 @@ export function AccountingPage() {
                       <td className="p-3 text-right" data-label="Journal">
                         {formatCurrency(row.journal)}
                       </td>
+                      <td className="p-3 text-right" data-label="Debit Note">
+                        {formatCurrency(row.debitNote)}
+                      </td>
+                      <td className="p-3 text-right" data-label="Credit Note">
+                        {formatCurrency(row.creditNote)}
+                      </td>
                       <td className="p-3 text-right font-semibold" data-label="Movement">
                         {formatCurrency(row.totalMovement)}
                       </td>
@@ -2427,7 +3367,7 @@ export function AccountingPage() {
                     <tr>
                       <td
                         className="p-8 text-center text-muted-foreground"
-                        colSpan={7}
+                        colSpan={9}
                       >
                         No vouchers found for monthly summary.
                       </td>
@@ -2734,6 +3674,281 @@ export function AccountingPage() {
         </DialogContent>
       </Dialog>
 
+      <Sheet
+        open={accountingSettingsOpen}
+        onOpenChange={setAccountingSettingsOpen}
+      >
+        <SheetContent className="overflow-y-auto sm:max-w-xl">
+          <SheetHeader>
+            <SheetTitle>Accounting Settings</SheetTitle>
+            <SheetDescription>
+              Tally-style controls for masters, vouchers, tax ledgers and reporting defaults.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="space-y-4 px-4">
+            <div className="rounded-lg border bg-slate-950 p-4 text-white">
+              <div className="text-xs uppercase tracking-wide text-slate-300">
+                Active accounting period
+              </div>
+              <div className="mt-1 text-lg font-semibold">
+                {fromDate} to {toDate}
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                <div>
+                  <div className="text-slate-300">Groups</div>
+                  <div className="font-semibold">{masters?.groups.length ?? 0}</div>
+                </div>
+                <div>
+                  <div className="text-slate-300">Ledgers</div>
+                  <div className="font-semibold">{masters?.ledgers.length ?? 0}</div>
+                </div>
+                <div>
+                  <div className="text-slate-300">Vouchers</div>
+                  <div className="font-semibold">{vouchers?.length ?? 0}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3">
+              <div className="rounded-lg border p-4">
+                <h3 className="text-sm font-semibold">Core settings</h3>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Active period from</Label>
+                    <Input
+                      type="date"
+                      value={accountingSettingsDraft.activeAccountingPeriodStart}
+                      onChange={(event) =>
+                        setAccountingSettingsDraft((current) => ({
+                          ...current,
+                          activeAccountingPeriodStart: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Active period to</Label>
+                    <Input
+                      type="date"
+                      value={accountingSettingsDraft.activeAccountingPeriodEnd}
+                      onChange={(event) =>
+                        setAccountingSettingsDraft((current) => ({
+                          ...current,
+                          activeAccountingPeriodEnd: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Currency</Label>
+                    <Input
+                      value={accountingSettingsDraft.currency}
+                      onChange={(event) =>
+                        setAccountingSettingsDraft((current) => ({
+                          ...current,
+                          currency: event.target.value.toUpperCase(),
+                        }))
+                      }
+                      placeholder="INR"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Timezone</Label>
+                    <Input
+                      value={accountingSettingsDraft.timezone}
+                      onChange={(event) =>
+                        setAccountingSettingsDraft((current) => ({
+                          ...current,
+                          timezone: event.target.value,
+                        }))
+                      }
+                      placeholder="Asia/Kolkata"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Financial year starts</Label>
+                    <Select
+                      value={accountingSettingsDraft.financialYearStartMonth}
+                      onValueChange={(value) =>
+                        setAccountingSettingsDraft((current) => ({
+                          ...current,
+                          financialYearStartMonth: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {monthOptions.map((month) => (
+                          <SelectItem key={month.value} value={month.value}>
+                            {month.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Week starts</Label>
+                    <Select
+                      value={accountingSettingsDraft.weekStartDay}
+                      onValueChange={(value) =>
+                        setAccountingSettingsDraft((current) => ({
+                          ...current,
+                          weekStartDay: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {weekStartOptions.map((day) => (
+                          <SelectItem key={day} value={day}>
+                            {labelCase(day)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <AccountingSettingToggle
+                title="Accounting masters"
+                description="Groups and ledgers are enabled with protected system masters."
+                checked={accountingSettingsDraft.accountingMastersEnabled}
+                meta={`${masters?.groups.length ?? 0} groups`}
+                onChange={(checked) =>
+                  setAccountingSettingsDraft((current) => ({
+                    ...current,
+                    accountingMastersEnabled: checked,
+                  }))
+                }
+              />
+              <AccountingSettingToggle
+                title="Voucher controls"
+                description="Payment, receipt, contra, journal, debit note and credit note are enabled."
+                checked={accountingSettingsDraft.accountingVouchersEnabled}
+                meta={accountingSettingsDraft.accountingVouchersEnabled ? "Enabled" : "Disabled"}
+                onChange={(checked) =>
+                  setAccountingSettingsDraft((current) => ({
+                    ...current,
+                    accountingVouchersEnabled: checked,
+                  }))
+                }
+              />
+              <AccountingSettingToggle
+                title="Taxation"
+                description="GST, TDS and TCS ledgers are available under Duties & Taxes."
+                checked={accountingSettingsDraft.accountingTaxationEnabled}
+                meta={`${taxLedgerSummary.readyCount}/4 ready`}
+                onChange={(checked) =>
+                  setAccountingSettingsDraft((current) => ({
+                    ...current,
+                    accountingTaxationEnabled: checked,
+                  }))
+                }
+              />
+              <AccountingSettingToggle
+                title="Reports"
+                description="Trial balance, P&L, balance sheet, GST, aging and day book use posted vouchers."
+                checked={accountingSettingsDraft.accountingReportsEnabled}
+                meta="Posted only"
+                onChange={(checked) =>
+                  setAccountingSettingsDraft((current) => ({
+                    ...current,
+                    accountingReportsEnabled: checked,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="rounded-lg border p-4">
+              <h3 className="text-sm font-semibold">Tax ledgers</h3>
+              <div className="mt-3 grid gap-2">
+                {taxLedgerSummary.rows.map((row) => (
+                  <div
+                    key={row.name}
+                    className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-sm"
+                  >
+                    <div>
+                      <div className="font-medium">{row.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {row.ledgerId ? "Mapped under accounting masters" : "Will be created when masters refresh"}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={row.ledgerId ? "outline" : "secondary"}>
+                        {row.ledgerId ? "Ready" : "Pending"}
+                      </Badge>
+                      {row.name.startsWith("TDS") ? (
+                        <MiniToggle
+                          checked={accountingSettingsDraft.tdsEnabled}
+                          onChange={(checked) =>
+                            setAccountingSettingsDraft((current) => ({
+                              ...current,
+                              tdsEnabled: checked,
+                            }))
+                          }
+                        />
+                      ) : null}
+                      {row.name.startsWith("TCS") ? (
+                        <MiniToggle
+                          checked={accountingSettingsDraft.tcsEnabled}
+                          onChange={(checked) =>
+                            setAccountingSettingsDraft((current) => ({
+                              ...current,
+                              tcsEnabled: checked,
+                            }))
+                          }
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setWorkspace("MASTERS");
+                  setAccountingSettingsOpen(false);
+                }}
+              >
+                <Landmark className="mr-2 h-4 w-4" />
+                Open Masters
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setWorkspace("TAXES");
+                  setAccountingSettingsOpen(false);
+                }}
+              >
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Open Taxes
+              </Button>
+            </div>
+          </div>
+
+          <SheetFooter>
+            <Button
+              onClick={saveAccountingSettings}
+              disabled={updateOrganizationSettingsState.isLoading}
+            >
+              Save Settings
+            </Button>
+            <SheetClose asChild>
+              <Button variant="outline">Done</Button>
+            </SheetClose>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
       <AlertDialog
         open={Boolean(deleteGroupTarget)}
         onOpenChange={(open) => {
@@ -2771,8 +3986,9 @@ export function AccountingPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete account ledger?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will delete {deleteLedgerTarget?.name}. If the ledger has
-              voucher history, it will be marked inactive instead.
+              This will delete {deleteLedgerTarget?.name}. Ledgers with voucher
+              entries, bills or accounting history are protected and cannot be
+              deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2849,6 +4065,99 @@ function SummaryCard({
   );
 }
 
+function MasterMetric({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="rounded-md border bg-white p-3">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="mt-1 text-2xl font-semibold">{value}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{helper}</div>
+    </div>
+  );
+}
+
+function VoucherTotalTile({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wide text-slate-300">{label}</div>
+      <div className="mt-1 text-xl font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function DayBookMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-md border bg-slate-50 p-2">
+      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 truncate text-sm font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function TaxMetric({
+  label,
+  value,
+  helper,
+  loading,
+  tone = "light",
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  loading: boolean;
+  tone?: "light" | "dark";
+}) {
+  return (
+    <div
+      className={[
+        "rounded-md border p-3",
+        tone === "dark"
+          ? "border-slate-900 bg-slate-950 text-white"
+          : "bg-white",
+      ].join(" ")}
+    >
+      <div
+        className={[
+          "text-xs font-medium uppercase tracking-wide",
+          tone === "dark" ? "text-slate-300" : "text-muted-foreground",
+        ].join(" ")}
+      >
+        {label}
+      </div>
+      <div className="mt-1 text-xl font-semibold">{loading ? "..." : value}</div>
+      <div
+        className={[
+          "mt-1 line-clamp-2 text-xs",
+          tone === "dark" ? "text-slate-300" : "text-muted-foreground",
+        ].join(" ")}
+      >
+        {helper}
+      </div>
+    </div>
+  );
+}
+
 function InlineMetric({
   title,
   value,
@@ -2868,128 +4177,75 @@ function InlineMetric({
   );
 }
 
-function ShortcutPill({ label }: { label: string }) {
+function AccountingSettingRow({
+  title,
+  description,
+  value,
+}: {
+  title: string;
+  description: string;
+  value: string;
+}) {
   return (
-    <span className="rounded border bg-white px-2 py-1 font-medium text-foreground">
-      {label}
-    </span>
+    <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
+      <div>
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="mt-1 text-xs text-muted-foreground">{description}</div>
+      </div>
+      <Badge variant="outline" className="shrink-0">
+        {value}
+      </Badge>
+    </div>
   );
 }
 
-function AccountingCommandPanel({
-  workspace,
-  voucherType,
-  onShortcut,
+function AccountingSettingToggle({
+  title,
+  description,
+  checked,
+  meta,
+  onChange,
 }: {
-  workspace: AccountingWorkspace;
-  voucherType: VoucherType;
-  onShortcut: (key: string) => void;
+  title: string;
+  description: string;
+  checked: boolean;
+  meta: string;
+  onChange: (checked: boolean) => void;
 }) {
-  const commands = [
-    {
-      key: "F2",
-      label: "Period",
-      active: false,
-      description: "Change date",
-    },
-    {
-      key: "F3",
-      label: "Masters",
-      active: workspace === "MASTERS",
-      description: "Groups & ledgers",
-    },
-    {
-      key: "F4",
-      label: "Contra",
-      active: workspace === "VOUCHERS" && voucherType === "CONTRA",
-      description: "Cash/bank transfer",
-    },
-    {
-      key: "F5",
-      label: "Payment",
-      active: workspace === "VOUCHERS" && voucherType === "PAYMENT",
-      description: "Pay supplier/expense",
-    },
-    {
-      key: "F6",
-      label: "Receipt",
-      active: workspace === "VOUCHERS" && voucherType === "RECEIPT",
-      description: "Receive money",
-    },
-    {
-      key: "F7",
-      label: "Journal",
-      active: workspace === "VOUCHERS" && voucherType === "JOURNAL",
-      description: "Adjustment entry",
-    },
-    {
-      key: "F8",
-      label: "Sales",
-      active: false,
-      description: "Open sales bill",
-    },
-    {
-      key: "F9",
-      label: "Purchase",
-      active: false,
-      description: "Open supplier bill",
-    },
-    {
-      key: "F10",
-      label: "Cash/Bank",
-      active: workspace === "CASH_BANK",
-      description: "Running book",
-    },
-    {
-      key: "F11",
-      label: "Reports",
-      active: workspace === "REPORTS",
-      description: "P&L, B/S, TB",
-    },
-    {
-      key: "F12",
-      label: "Configure",
-      active: false,
-      description: "Org settings",
-    },
-  ];
-
   return (
-    <Card className="rounded-lg border-slate-200 bg-white">
-      <CardContent className="p-3">
-        <div className="flex gap-2 overflow-x-auto xl:grid xl:grid-cols-[repeat(11,minmax(86px,1fr))]">
-          {commands.map((command) => (
-            <button
-              key={command.key}
-              type="button"
-              onClick={() => onShortcut(command.key)}
-              className={[
-                "min-w-[92px] rounded-md border p-2 text-left transition",
-                command.active
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white",
-              ].join(" ")}
-            >
-              <span className="block text-[11px] font-semibold">
-                {command.key}
-              </span>
-              <span className="mt-1 block text-sm font-semibold">
-                {command.label}
-              </span>
-              <span
-                className={
-                  command.active
-                    ? "mt-0.5 block text-[11px] text-slate-200"
-                    : "mt-0.5 block text-[11px] text-muted-foreground"
-                }
-              >
-                {command.description}
-              </span>
-            </button>
-          ))}
+    <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
+      <div>
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="mt-1 text-xs text-muted-foreground">{description}</div>
+        <div className="mt-2">
+          <Badge variant="outline">{meta}</Badge>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+      <MiniToggle checked={checked} onChange={onChange} />
+    </div>
+  );
+}
+
+function MiniToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <Select
+      value={checked ? "YES" : "NO"}
+      onValueChange={(value) => onChange(value === "YES")}
+    >
+      <SelectTrigger className="h-8 w-[84px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="YES">Yes</SelectItem>
+        <SelectItem value="NO">No</SelectItem>
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -3170,36 +4426,15 @@ function currentQuarterRange() {
   };
 }
 
-function periodRange(period: "TODAY" | "MONTH" | "QUARTER" | "FY") {
+function currentFinancialYearRange(startMonth = 4) {
   const now = new Date();
+  const startYear =
+    now.getMonth() + 1 >= startMonth ? now.getFullYear() : now.getFullYear() - 1;
 
-  if (period === "TODAY") {
-    const today = toIsoDate(now);
-    return {
-      fromDate: today,
-      toDate: today,
-    };
-  }
-
-  if (period === "MONTH") {
-    return {
-      fromDate: toIsoDate(new Date(now.getFullYear(), now.getMonth(), 1)),
-      toDate: toIsoDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-    };
-  }
-
-  if (period === "FY") {
-    const startYear = now.getMonth() >= 3
-      ? now.getFullYear()
-      : now.getFullYear() - 1;
-
-    return {
-      fromDate: toIsoDate(new Date(startYear, 3, 1)),
-      toDate: toIsoDate(new Date(startYear + 1, 2, 31)),
-    };
-  }
-
-  return currentQuarterRange();
+  return {
+    fromDate: toIsoDate(new Date(startYear, startMonth - 1, 1)),
+    toDate: toIsoDate(new Date(startYear + 1, startMonth - 1, 0)),
+  };
 }
 
 function todayDate() {
@@ -3212,6 +4447,29 @@ function toIsoDate(date: Date) {
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function apiErrorMessage(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const maybeError = error as {
+    data?: {
+      message?: unknown;
+    };
+    error?: unknown;
+  };
+
+  if (typeof maybeError.data?.message === "string") {
+    return maybeError.data.message;
+  }
+
+  if (typeof maybeError.error === "string") {
+    return maybeError.error;
+  }
+
+  return null;
 }
 
 function summarizeVouchers(vouchers: AccountingVoucher[]) {
@@ -3241,6 +4499,8 @@ function summarizeMonthlyVouchers(vouchers: AccountingVoucher[]) {
       receipt: number;
       contra: number;
       journal: number;
+      debitNote: number;
+      creditNote: number;
       totalMovement: number;
     }
   >();
@@ -3256,6 +4516,8 @@ function summarizeMonthlyVouchers(vouchers: AccountingVoucher[]) {
         receipt: 0,
         contra: 0,
         journal: 0,
+        debitNote: 0,
+        creditNote: 0,
         totalMovement: 0,
       };
 
@@ -3268,6 +4530,10 @@ function summarizeMonthlyVouchers(vouchers: AccountingVoucher[]) {
       row.receipt += Number(voucher.totalDebit || 0);
     } else if (voucher.voucherType === "CONTRA") {
       row.contra += Number(voucher.totalDebit || 0);
+    } else if (voucher.voucherType === "DEBIT_NOTE") {
+      row.debitNote += Number(voucher.totalDebit || 0);
+    } else if (voucher.voucherType === "CREDIT_NOTE") {
+      row.creditNote += Number(voucher.totalDebit || 0);
     } else {
       row.journal += Number(voucher.totalDebit || 0);
     }
@@ -3323,6 +4589,66 @@ function summarizeLedgerMonthly(vouchers: AccountingVoucher[]) {
       ? left.ledgerName.localeCompare(right.ledgerName)
       : monthCompare;
   });
+}
+
+function summarizeTaxLedgers(
+  vouchers: AccountingVoucher[],
+  ledgers: AccountLedger[]
+) {
+  const taxDefinitions = [
+    {
+      name: "TDS Receivable",
+      description: "TDS deducted by customers and recoverable/creditable.",
+    },
+    {
+      name: "TDS Payable",
+      description: "TDS deducted by factory and payable to government.",
+    },
+    {
+      name: "TCS Receivable",
+      description: "TCS paid/collected by counterparties and recoverable.",
+    },
+    {
+      name: "TCS Payable",
+      description: "TCS collected from customers and payable to government.",
+    },
+  ];
+
+  const rows = taxDefinitions.map((definition) => {
+    const ledger = ledgers.find(
+      (item) => item.name.toLowerCase() === definition.name.toLowerCase()
+    );
+
+    const movement = vouchers.reduce(
+      (total, voucher) => {
+        voucher.lines
+          .filter((line) => line.ledgerId === ledger?.id)
+          .forEach((line) => {
+            if (line.entryType === "DR") {
+              total.debit += Number(line.amount || 0);
+            } else {
+              total.credit += Number(line.amount || 0);
+            }
+          });
+
+        return total;
+      },
+      { debit: 0, credit: 0 }
+    );
+
+    return {
+      ...definition,
+      ledgerId: ledger?.id ?? null,
+      debit: movement.debit,
+      credit: movement.credit,
+      net: Math.abs(movement.debit - movement.credit),
+    };
+  });
+
+  return {
+    rows,
+    readyCount: rows.filter((row) => row.ledgerId).length,
+  };
 }
 
 function summarizeTrialBalanceByGroup(rows: NonNullable<TrialBalance["rows"]>) {
@@ -3405,6 +4731,18 @@ function newVoucherLine(entryType: BalanceType): VoucherLineDraft {
   };
 }
 
+function emptyTaxSectionDraft(): TaxSectionDraft {
+  return {
+    id: null,
+    taxType: "TDS",
+    sectionCode: "",
+    name: "",
+    rate: "0",
+    applicableFor: "",
+    active: true,
+  };
+}
+
 function voucherTypeFromShortcut(event: KeyboardEvent): VoucherType | null {
   if (event.key === "F4") {
     return "CONTRA";
@@ -3422,22 +4760,7 @@ function voucherTypeFromShortcut(event: KeyboardEvent): VoucherType | null {
     return "JOURNAL";
   }
 
-  if (!event.altKey) {
-    return null;
-  }
-
-  switch (event.key.toLowerCase()) {
-    case "c":
-      return "CONTRA";
-    case "p":
-      return "PAYMENT";
-    case "r":
-      return "RECEIPT";
-    case "j":
-      return "JOURNAL";
-    default:
-      return null;
-  }
+  return null;
 }
 
 function escapeHtml(value: string) {

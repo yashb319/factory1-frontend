@@ -197,9 +197,9 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           <DropdownMenuContent align="end" className="w-96">
             <DropdownMenuLabel>
               <div>
-                <p className="text-sm font-medium">Tally-Style Shortcuts</p>
+                <p className="text-sm font-medium">Tally Shortcuts</p>
                 <p className="text-xs text-muted-foreground">
-                  Press function keys anywhere after login for quick access.
+                  Function keys follow Tally voucher conventions.
                 </p>
               </div>
             </DropdownMenuLabel>
@@ -227,7 +227,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                   </span>
                 </span>
                 <DropdownMenuShortcut>
-                  {shortcut.opensMenu ? "Menu" : "Go"}
+                  {shortcut.opensMenu ? "Menu" : shortcut.href ? "Go" : "Screen"}
                 </DropdownMenuShortcut>
               </DropdownMenuItem>
             ))}

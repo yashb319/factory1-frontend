@@ -78,7 +78,6 @@ type PartyLike = {
 type VoucherMode = {
   type: BillType;
   title: string;
-  tallyKey: string;
   subtitle: string;
   icon: typeof ArrowUpFromLine;
 };
@@ -89,14 +88,12 @@ const voucherModes: VoucherMode[] = [
   {
     type: "SALES",
     title: "Sales Voucher",
-    tallyKey: "F8",
     subtitle: "Customer invoice, stock out, output GST",
     icon: ArrowUpFromLine,
   },
   {
     type: "PURCHASE",
     title: "Purchase Voucher",
-    tallyKey: "F9",
     subtitle: "Supplier bill, stock in, input GST",
     icon: ArrowDownToLine,
   },
@@ -194,6 +191,24 @@ export function BillingPage() {
     factoryState,
     selectedParty?.state || stateNameFromGstNumber(selectedParty?.gstNumber) || placeOfSupply
   );
+
+  useEffect(() => {
+    if (!orgSettings?.activeAccountingPeriodStart || !orgSettings.activeAccountingPeriodEnd) {
+      return;
+    }
+    const activePeriodStart = orgSettings.activeAccountingPeriodStart;
+    const activePeriodEnd = orgSettings.activeAccountingPeriodEnd;
+
+    setBillDate((current) =>
+      dateWithinRange(
+        current,
+        activePeriodStart,
+        activePeriodEnd
+      )
+        ? current
+        : activePeriodEnd
+    );
+  }, [orgSettings?.activeAccountingPeriodStart, orgSettings?.activeAccountingPeriodEnd]);
 
   const switchVoucher = (billType: BillType) => {
     setType(billType);
@@ -433,22 +448,22 @@ export function BillingPage() {
     }
 
     if (key === "F4") {
-      router.push("/inventory");
+      router.push("/accounting?voucher=CONTRA");
       return;
     }
 
     if (key === "F5") {
-      router.push("/payroll");
+      router.push("/accounting?voucher=PAYMENT");
       return;
     }
 
     if (key === "F6") {
-      router.push("/customers");
+      router.push("/accounting?voucher=RECEIPT");
       return;
     }
 
     if (key === "F7") {
-      router.push("/accounting");
+      router.push("/accounting?voucher=JOURNAL");
       return;
     }
 
@@ -463,12 +478,12 @@ export function BillingPage() {
     }
 
     if (key === "F10") {
-      router.push("/products");
+      router.push("/accounting?voucher=DEBIT_NOTE");
       return;
     }
 
     if (key === "F11") {
-      router.push("/import-export");
+      router.push("/accounting?workspace=REPORTS");
       return;
     }
 
@@ -507,25 +522,6 @@ export function BillingPage() {
       setIntraState(inferred);
     }
   }, [factoryState, placeOfSupply]);
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (isAddLineShortcut(event)) {
-        event.preventDefault();
-        addItem();
-        return;
-      }
-
-      if (isPostVoucherShortcut(event)) {
-        event.preventDefault();
-        void handleCreate();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  });
 
   useEffect(() => {
     function handleBillingShortcut(event: Event) {
@@ -589,13 +585,6 @@ export function BillingPage() {
                 <span className="min-w-0">
                   <span className="flex items-center gap-2 text-sm font-semibold">
                     {entry.title}
-                    <kbd
-                      className={`rounded border px-1.5 py-0.5 text-[10px] ${
-                        active ? "border-white/30" : "bg-white text-slate-500"
-                      }`}
-                    >
-                      {entry.tallyKey}
-                    </kbd>
                   </span>
                   <span
                     className={`mt-1 block text-xs leading-5 ${
@@ -631,7 +620,7 @@ export function BillingPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_380px_180px]">
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-5">
           <Card className="rounded-lg">
             <CardHeader className="border-b">
@@ -639,17 +628,6 @@ export function BillingPage() {
                 <span className="flex items-center gap-2 text-base">
                   <ReceiptIndianRupee className="h-5 w-5" />
                   {mode.title}
-                </span>
-                <span className="flex flex-wrap gap-2 text-xs font-normal text-muted-foreground">
-                  <kbd className="rounded border bg-slate-50 px-2 py-1">
-                    Win Alt+A / Mac Cmd+Shift+A
-                  </kbd>
-                  <kbd className="rounded border bg-slate-50 px-2 py-1">
-                    Win Alt+S / Mac Cmd+Enter
-                  </kbd>
-                  <span className="rounded border bg-slate-50 px-2 py-1 sm:hidden">
-                    Mobile: use buttons
-                  </span>
                 </span>
               </CardTitle>
             </CardHeader>
@@ -999,7 +977,6 @@ export function BillingPage() {
                     onClick={() => handleCreate("POSTED")}
                     disabled={createState.isLoading}
                     className="w-full"
-                    title="Post voucher. Windows: Alt+S. Mac: Cmd+Enter."
                   >
                     <FileText className="mr-2 h-4 w-4" />
                     {createState.isLoading ? "Saving..." : `Post ${mode.title}`}
@@ -1143,13 +1120,6 @@ export function BillingPage() {
             </CardContent>
           </Card>
         </div>
-
-        <TallyActionRail
-          activeType={type}
-          onSales={() => switchVoucher("SALES")}
-          onPurchase={() => switchVoucher("PURCHASE")}
-          onNavigate={(href) => router.push(href)}
-        />
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-white p-3 shadow-lg md:hidden">
@@ -1239,129 +1209,6 @@ export function BillingPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function TallyActionRail({
-  activeType,
-  onSales,
-  onPurchase,
-  onNavigate,
-}: {
-  activeType: BillType;
-  onSales: () => void;
-  onPurchase: () => void;
-  onNavigate: (href: string) => void;
-}) {
-  const actions = [
-    {
-      key: "F2",
-      label: "Date",
-      hint: "Change voucher date",
-      onClick: () => document.querySelector<HTMLInputElement>("input[type='date']")?.focus(),
-    },
-    {
-      key: "F4",
-      label: "Contra",
-      hint: "Stock movement",
-      onClick: () => onNavigate("/inventory"),
-    },
-    {
-      key: "F5",
-      label: "Payment",
-      hint: "Payroll/payment",
-      onClick: () => onNavigate("/payroll"),
-    },
-    {
-      key: "F6",
-      label: "Receipt",
-      hint: "Customers",
-      onClick: () => onNavigate("/customers"),
-    },
-    {
-      key: "F7",
-      label: "Journal",
-      hint: "Ledgers",
-      onClick: () => onNavigate("/accounting"),
-    },
-    {
-      key: "F8",
-      label: "Sales",
-      hint: "Sales voucher",
-      active: activeType === "SALES",
-      onClick: onSales,
-    },
-    {
-      key: "F9",
-      label: "Purchase",
-      hint: "Purchase voucher",
-      active: activeType === "PURCHASE",
-      onClick: onPurchase,
-    },
-    {
-      key: "F10",
-      label: "Other Vch",
-      hint: "Products/BOM",
-      onClick: () => onNavigate("/products"),
-    },
-    {
-      key: "F11",
-      label: "Features",
-      hint: "Import/export",
-      onClick: () => onNavigate("/import-export"),
-    },
-    {
-      key: "F12",
-      label: "Configure",
-      hint: "Settings",
-      onClick: () => onNavigate("/organization-settings"),
-    },
-  ];
-
-  return (
-    <aside className="hidden 2xl:block">
-      <div className="sticky top-20 rounded-lg border bg-white p-2 shadow-sm">
-        <div className="border-b px-2 py-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Tally Keys
-          </p>
-        </div>
-        <div className="mt-2 space-y-1">
-          {actions.map((action) => (
-            <button
-              key={action.key}
-              type="button"
-              onClick={action.onClick}
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
-                action.active
-                  ? "bg-slate-950 text-white"
-                  : "hover:bg-slate-100"
-              }`}
-            >
-              <kbd
-                className={`min-w-9 rounded border px-1.5 py-0.5 text-center text-[11px] font-semibold ${
-                  action.active
-                    ? "border-white/30 text-white"
-                    : "bg-slate-50 text-slate-600"
-                }`}
-              >
-                {action.key}
-              </kbd>
-              <span className="min-w-0">
-                <span className="block truncate font-medium">{action.label}</span>
-                <span
-                  className={`block truncate text-[11px] ${
-                    action.active ? "text-slate-200" : "text-muted-foreground"
-                  }`}
-                >
-                  {action.hint}
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </aside>
   );
 }
 
@@ -1678,22 +1525,6 @@ function addDaysIso(isoDate: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-function isAddLineShortcut(event: KeyboardEvent) {
-  const key = event.key.toLowerCase();
-
-  return (
-    (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && key === "a")
-    || (event.metaKey && event.shiftKey && !event.altKey && !event.ctrlKey && key === "a")
-    || (event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey && key === "a")
-  );
-}
-
-function isPostVoucherShortcut(event: KeyboardEvent) {
-  const key = event.key.toLowerCase();
-
-  return (
-    (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && key === "s")
-    || ((event.metaKey || event.ctrlKey) && !event.altKey && key === "enter")
-    || ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && key === "s")
-  );
+function dateWithinRange(date: string, fromDate: string, toDate: string) {
+  return date >= fromDate && date <= toDate;
 }
