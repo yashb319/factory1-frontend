@@ -29,7 +29,6 @@ type Props = {
 };
 
 type FormValues = {
-  productCode: string;
   name: string;
   description: string;
   finishedGoodInventoryItemId: string;
@@ -58,7 +57,6 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
 
   const form = useForm<FormValues>({
     defaultValues: {
-      productCode: "",
       name: "",
       description: "",
       finishedGoodInventoryItemId: "",
@@ -75,7 +73,6 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
     if (!open) return;
 
     form.reset({
-      productCode: product?.productCode ?? "",
       name: product?.name ?? "",
       description: product?.description ?? "",
       finishedGoodInventoryItemId: product?.finishedGoodInventoryItemId ?? "",
@@ -112,7 +109,6 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       }
 
       const body: ProductRequest = {
-        productCode: values.productCode,
         name: values.name,
         description: values.description,
         finishedGoodInventoryItemId: values.finishedGoodInventoryItemId,
@@ -146,8 +142,6 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
 
         <AppForm form={form} onSubmit={onSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
-            <TextField name="productCode" label="Product Code" disabled={isEdit} required />
-
             <TextField name="name" label="Product Name" required />
 
             <div className="md:col-span-2">

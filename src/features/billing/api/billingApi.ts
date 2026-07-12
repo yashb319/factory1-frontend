@@ -2,8 +2,12 @@ import { baseApi } from "@/services/baseApi";
 import type {
   ApiResponse,
   Bill,
+  BillNumberAvailability,
+  BillNumberSuggestion,
   BillRequest,
   BillType,
+  EwayBillApiResponse,
+  EwayPartBRequest,
   GstReport,
   GstRateSuggestion,
   PageResponse,
@@ -38,6 +42,22 @@ export const billingApi = baseApi.injectEndpoints({
       invalidatesTags: ["Billing", "Inventory"],
     }),
 
+    getBillNumberSuggestion: builder.query<BillNumberSuggestion, BillType>({
+      query: (type) => ({
+        url: "/api/billing/bills/number-suggestion",
+        params: { type },
+      }),
+      providesTags: ["Billing"],
+    }),
+
+    checkBillNumberAvailability: builder.query<BillNumberAvailability, string>({
+      query: (billNumber) => ({
+        url: "/api/billing/bills/number-availability",
+        params: { billNumber },
+      }),
+      providesTags: ["Billing"],
+    }),
+
     cancelBill: builder.mutation<Bill, string>({
       query: (id) => ({
         url: `/api/billing/bills/${id}/cancel`,
@@ -69,6 +89,50 @@ export const billingApi = baseApi.injectEndpoints({
       invalidatesTags: ["Billing", "Accounting"],
     }),
 
+    generateEwayBill: builder.mutation<EwayBillApiResponse, string>({
+      query: (id) => ({
+        url: `/api/billing/bills/${id}/eway/generate`,
+        method: "POST",
+      }),
+      transformResponse: (response: ApiResponse<EwayBillApiResponse>) => response.data,
+      invalidatesTags: ["Billing"],
+    }),
+
+    getEwayBillDetails: builder.mutation<EwayBillApiResponse, string>({
+      query: (id) => ({
+        url: `/api/billing/bills/${id}/eway/details`,
+        method: "POST",
+      }),
+      transformResponse: (response: ApiResponse<EwayBillApiResponse>) => response.data,
+      invalidatesTags: ["Billing"],
+    }),
+
+    cancelEwayBill: builder.mutation<
+      EwayBillApiResponse,
+      { id: string; cancelReasonCode?: string; cancelRemark?: string }
+    >({
+      query: ({ id, cancelReasonCode = "2", cancelRemark = "Cancelled from Factory1" }) => ({
+        url: `/api/billing/bills/${id}/eway/cancel`,
+        method: "POST",
+        body: { cancelReasonCode, cancelRemark },
+      }),
+      transformResponse: (response: ApiResponse<EwayBillApiResponse>) => response.data,
+      invalidatesTags: ["Billing"],
+    }),
+
+    updateEwayPartB: builder.mutation<
+      EwayBillApiResponse,
+      { id: string; body: EwayPartBRequest }
+    >({
+      query: ({ id, body }) => ({
+        url: `/api/billing/bills/${id}/eway/update-part-b`,
+        method: "POST",
+        body,
+      }),
+      transformResponse: (response: ApiResponse<EwayBillApiResponse>) => response.data,
+      invalidatesTags: ["Billing"],
+    }),
+
     getGstSuggestions: builder.query<GstRateSuggestion[], string>({
       query: (query) => ({
         url: "/api/billing/gst-suggestions",
@@ -91,9 +155,15 @@ export const billingApi = baseApi.injectEndpoints({
 export const {
   useGetBillsQuery,
   useCreateBillMutation,
+  useCheckBillNumberAvailabilityQuery,
   useCancelBillMutation,
+  useGetBillNumberSuggestionQuery,
   usePostBillMutation,
   useRecordBillPaymentMutation,
+  useGenerateEwayBillMutation,
+  useGetEwayBillDetailsMutation,
+  useCancelEwayBillMutation,
+  useUpdateEwayPartBMutation,
   useLazyGetGstSuggestionsQuery,
   useLazyGetGstReportQuery,
 } = billingApi;

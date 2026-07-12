@@ -41,7 +41,6 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
 
   const form = useForm<FormValues>({
     defaultValues: {
-      customerCode: "",
       name: "",
       phone: "",
       email: "",
@@ -76,7 +75,6 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
     if (!open) return;
 
     form.reset({
-      customerCode: customer?.customerCode ?? "",
       name: customer?.name ?? "",
       phone: customer?.phone ?? "",
       email: customer?.email ?? "",
@@ -170,13 +168,6 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
 
         <AppForm form={form} onSubmit={onSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
-            <TextField
-              name="customerCode"
-              label="Customer Code"
-              disabled={isEdit}
-              required
-            />
-
             <TextField name="name" label="Customer Name" required />
 
             <TextField name="phone" label="Phone" />

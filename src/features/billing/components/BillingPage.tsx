@@ -9,6 +9,8 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   ReceiptIndianRupee,
   Search,
@@ -37,8 +39,13 @@ import type { InventoryItem } from "@/features/inventory/types/inventory.types";
 import type { Product } from "@/features/products/types/product.types";
 import {
   useCancelBillMutation,
+  useCancelEwayBillMutation,
+  useCheckBillNumberAvailabilityQuery,
   useCreateBillMutation,
+  useGenerateEwayBillMutation,
   useGetBillsQuery,
+  useGetEwayBillDetailsMutation,
+  useGetBillNumberSuggestionQuery,
   usePostBillMutation,
   useLazyGetGstReportQuery,
   useLazyGetGstSuggestionsQuery,
@@ -50,6 +57,7 @@ import { exportGstReportCsv } from "../utils/gstReportExport";
 import { printInvoice } from "../utils/invoicePrint";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 import { inferIntraState, stateNameFromGstNumber } from "@/lib/gstState";
+import { GstIntegrationPanel } from "@/features/gst-integration/components/GstIntegrationPanel";
 
 type DraftItem = {
   rowId: string;
@@ -121,6 +129,7 @@ export function BillingPage() {
   );
   const [partyId, setPartyId] = useState("");
   const [billNumber, setBillNumber] = useState("");
+  const [billNumberTouched, setBillNumberTouched] = useState(false);
   const [billDate, setBillDate] = useState(today);
   const [dueDate, setDueDate] = useState("");
   const [placeOfSupply, setPlaceOfSupply] = useState("");
@@ -129,7 +138,15 @@ export function BillingPage() {
   const [paymentBill, setPaymentBill] = useState<Bill | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [notes, setNotes] = useState("");
+  const [ewayBillNumber, setEwayBillNumber] = useState("");
+  const [ewayBillDate, setEwayBillDate] = useState("");
+  const [ewayBillValidUntil, setEwayBillValidUntil] = useState("");
+  const [transporterName, setTransporterName] = useState("");
+  const [vehicleNumber, setVehicleNumber] = useState("");
+  const [dispatchFrom, setDispatchFrom] = useState("");
+  const [shipTo, setShipTo] = useState("");
   const [items, setItems] = useState<DraftItem[]>([newItem()]);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const { data: customers = [] } = useGetActiveCustomersQuery();
   const { data: suppliers = [] } = useGetActiveSuppliersQuery();
@@ -140,6 +157,14 @@ export function BillingPage() {
   });
   const { data: productsPage } = useGetProductsQuery({ page: 0, size: 300 });
   const { data: orgSettingsResponse } = useGetOrganizationSettingsQuery();
+  const { data: billNumberSuggestion } = useGetBillNumberSuggestionQuery(type);
+  const billNumberForCheck = billNumber.trim();
+  const {
+    data: billNumberAvailability,
+    isFetching: billNumberChecking,
+  } = useCheckBillNumberAvailabilityQuery(billNumberForCheck, {
+    skip: !billNumberForCheck,
+  });
   const { data: billsPage, isLoading: billsLoading } = useGetBillsQuery({
     type,
     page: 0,
@@ -150,6 +175,9 @@ export function BillingPage() {
   const [cancelBill, cancelState] = useCancelBillMutation();
   const [postBill, postState] = usePostBillMutation();
   const [recordBillPayment, paymentState] = useRecordBillPaymentMutation();
+  const [generateEwayBill, generateEwayState] = useGenerateEwayBillMutation();
+  const [getEwayBillDetails, ewayDetailsState] = useGetEwayBillDetailsMutation();
+  const [cancelEwayBill, cancelEwayState] = useCancelEwayBillMutation();
   const [getGstSuggestions, gstState] = useLazyGetGstSuggestionsQuery();
   const [getGstReport, gstReportState] = useLazyGetGstReportQuery();
   const logDataJob = useLogDataJob();
@@ -191,6 +219,25 @@ export function BillingPage() {
     factoryState,
     selectedParty?.state || stateNameFromGstNumber(selectedParty?.gstNumber) || placeOfSupply
   );
+  const billNumberUnavailable =
+    Boolean(billNumberForCheck) && billNumberAvailability?.available === false;
+
+  useEffect(() => {
+    const factoryDispatch =
+      [orgSettings?.city, orgSettings?.state].filter(Boolean).join(", ") ||
+      orgSettings?.location ||
+      "";
+
+    if (factoryDispatch) {
+      setDispatchFrom(factoryDispatch);
+    }
+  }, [orgSettings?.city, orgSettings?.location, orgSettings?.state]);
+
+  useEffect(() => {
+    if (!billNumberTouched && billNumberSuggestion?.billNumber) {
+      setBillNumber(billNumberSuggestion.billNumber);
+    }
+  }, [billNumberSuggestion?.billNumber, billNumberTouched]);
 
   useEffect(() => {
     if (!orgSettings?.activeAccountingPeriodStart || !orgSettings.activeAccountingPeriodEnd) {
@@ -214,6 +261,8 @@ export function BillingPage() {
     setType(billType);
     setPartyId("");
     setItems([newItem()]);
+    setBillNumber("");
+    setBillNumberTouched(false);
   };
 
   const addItem = () => {
@@ -341,6 +390,11 @@ export function BillingPage() {
       return;
     }
 
+    if (billNumberUnavailable) {
+      toast.error("Bill number already exists. Please change it before posting.");
+      return;
+    }
+
     try {
       await createBill({
         type,
@@ -354,6 +408,13 @@ export function BillingPage() {
         placeOfSupply: placeOfSupply || selectedPartyDestination || selectedParty?.state || undefined,
         intraState,
         notes,
+        ewayBillNumber: ewayBillNumber || undefined,
+        ewayBillDate: ewayBillDate || undefined,
+        ewayBillValidUntil: ewayBillValidUntil || undefined,
+        transporterName: transporterName || undefined,
+        vehicleNumber: vehicleNumber || undefined,
+        dispatchFrom: dispatchFrom || undefined,
+        shipTo: shipTo || undefined,
         items: validItems.map((item) => ({
           inventoryItemId: type === "PURCHASE" ? item.inventoryItemId : undefined,
           productId: type === "SALES" ? item.productId || undefined : undefined,
@@ -376,8 +437,16 @@ export function BillingPage() {
       );
 
       setBillNumber("");
+      setBillNumberTouched(false);
       setPartyId("");
       setNotes("");
+      setEwayBillNumber("");
+      setEwayBillDate("");
+      setEwayBillValidUntil("");
+      setTransporterName("");
+      setVehicleNumber("");
+      setDispatchFrom("");
+      setShipTo("");
       setItems([newItem()]);
     } catch {
       toast.error("Failed to post voucher");
@@ -500,6 +569,12 @@ export function BillingPage() {
     const destination = getPartyDestination(selectedParty);
     if (destination) {
       setPlaceOfSupply(destination);
+      setShipTo(destination);
+    }
+
+    const address = getPartyAddress(selectedParty);
+    if (address) {
+      setShipTo(address);
     }
 
     const paymentTermDays = parsePaymentTermDays(selectedParty.paymentTerms);
@@ -559,44 +634,59 @@ export function BillingPage() {
           </p>
         </div>
 
-        <div className="grid gap-2 rounded-lg border bg-white p-2 sm:grid-cols-2">
-          {voucherModes.map((entry) => {
-            const Icon = entry.icon;
-            const active = type === entry.type;
+        <div className="space-y-2">
+          <div className="grid gap-2 rounded-lg border bg-white p-2 sm:grid-cols-2">
+            {voucherModes.map((entry) => {
+              const Icon = entry.icon;
+              const active = type === entry.type;
 
-            return (
-              <button
-                key={entry.type}
-                type="button"
-                onClick={() => switchVoucher(entry.type)}
-                className={`flex items-start gap-3 rounded-md border p-3 text-left transition ${
-                  active
-                    ? "border-slate-950 bg-slate-950 text-white"
-                    : "border-transparent bg-slate-50 text-slate-700 hover:border-slate-300"
-                }`}
-              >
-                <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
-                    active ? "bg-white/15" : "bg-white"
+              return (
+                <button
+                  key={entry.type}
+                  type="button"
+                  onClick={() => switchVoucher(entry.type)}
+                  className={`flex items-start gap-3 rounded-md border p-3 text-left transition ${
+                    active
+                      ? "border-slate-950 bg-slate-950 text-white"
+                      : "border-transparent bg-slate-50 text-slate-700 hover:border-slate-300"
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
-                </span>
-                <span className="min-w-0">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    {entry.title}
-                  </span>
                   <span
-                    className={`mt-1 block text-xs leading-5 ${
-                      active ? "text-slate-200" : "text-muted-foreground"
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
+                      active ? "bg-white/15" : "bg-white"
                     }`}
                   >
-                    {entry.subtitle}
+                    <Icon className="h-4 w-4" />
                   </span>
-                </span>
-              </button>
-            );
-          })}
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2 text-sm font-semibold">
+                      {entry.title}
+                    </span>
+                    <span
+                      className={`mt-1 block text-xs leading-5 ${
+                        active ? "text-slate-200" : "text-muted-foreground"
+                      }`}
+                    >
+                      {entry.subtitle}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <Button
+            type="button"
+            variant={detailsOpen ? "default" : "outline"}
+            className="w-full justify-center"
+            onClick={() => setDetailsOpen((current) => !current)}
+          >
+            {detailsOpen ? (
+              <PanelRightClose className="mr-2 h-4 w-4" />
+            ) : (
+              <PanelRightOpen className="mr-2 h-4 w-4" />
+            )}
+            {detailsOpen ? "Hide details" : "Show preview, reports & GST"}
+          </Button>
         </div>
       </div>
 
@@ -620,7 +710,13 @@ export function BillingPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div
+        className={
+          detailsOpen
+            ? "grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_380px]"
+            : "grid grid-cols-1 gap-5"
+        }
+      >
         <div className="space-y-5">
           <Card className="rounded-lg">
             <CardHeader className="border-b">
@@ -654,11 +750,38 @@ export function BillingPage() {
                   </Field>
 
                   <Field label="Voucher Number">
-                    <Input
-                      value={billNumber}
-                      onChange={(event) => setBillNumber(event.target.value)}
-                      placeholder="Auto if blank"
-                    />
+                    <div className="space-y-1.5">
+                      <Input
+                        value={billNumber}
+                        onChange={(event) => {
+                          setBillNumber(event.target.value);
+                          setBillNumberTouched(true);
+                        }}
+                        placeholder="Auto generated"
+                        className={
+                          billNumberUnavailable
+                            ? "border-red-300 focus-visible:ring-red-500"
+                            : billNumberAvailability?.available
+                              ? "border-emerald-300 focus-visible:ring-emerald-500"
+                              : undefined
+                        }
+                      />
+                      <p
+                        className={`text-xs ${
+                          billNumberUnavailable
+                            ? "text-red-600"
+                            : billNumberAvailability?.available
+                              ? "text-emerald-700"
+                              : "text-muted-foreground"
+                        }`}
+                      >
+                        {billNumberChecking
+                          ? "Checking bill number..."
+                          : billNumberForCheck
+                            ? billNumberAvailability?.message ?? "Backend generated, editable"
+                            : "Backend will generate this number"}
+                      </p>
+                    </div>
                   </Field>
 
                   <Field label="Voucher Date">
@@ -761,6 +884,74 @@ export function BillingPage() {
                           }`
                         : "Add factory state or GSTIN in organization settings to infer IGST automatically."}
                     </p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-md border bg-white p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-semibold">E-way Bill</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Optional transport details for GST movement and printed invoices.
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="rounded-md">
+                    Editable
+                  </Badge>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-4">
+                  <Field label="E-way Bill No.">
+                    <Input
+                      value={ewayBillNumber}
+                      onChange={(event) => setEwayBillNumber(event.target.value)}
+                      placeholder="Example: 1712..."
+                    />
+                  </Field>
+                  <Field label="E-way Date">
+                    <Input
+                      type="date"
+                      value={ewayBillDate}
+                      onChange={(event) => setEwayBillDate(event.target.value)}
+                    />
+                  </Field>
+                  <Field label="Valid Until">
+                    <Input
+                      type="date"
+                      value={ewayBillValidUntil}
+                      onChange={(event) => setEwayBillValidUntil(event.target.value)}
+                    />
+                  </Field>
+                  <Field label="Vehicle No.">
+                    <Input
+                      value={vehicleNumber}
+                      onChange={(event) => setVehicleNumber(event.target.value.toUpperCase())}
+                      placeholder="KA01AB1234"
+                    />
+                  </Field>
+                  <Field label="Transporter">
+                    <Input
+                      value={transporterName}
+                      onChange={(event) => setTransporterName(event.target.value)}
+                      placeholder="Transporter name"
+                    />
+                  </Field>
+                  <Field label="Dispatch From">
+                    <Input
+                      value={dispatchFrom}
+                      onChange={(event) => setDispatchFrom(event.target.value)}
+                      placeholder="Factory / warehouse"
+                    />
+                  </Field>
+                  <Field label="Ship To">
+                    <Input
+                      value={shipTo}
+                      onChange={(event) => setShipTo(event.target.value)}
+                      placeholder="Delivery address"
+                    />
+                  </Field>
+                  <div className="rounded-md border bg-slate-50 p-3 text-xs leading-5 text-muted-foreground">
+                    Govt e-way generation can be integrated later with NIC APIs. For now, these details are stored with the bill and printed/exported.
                   </div>
                 </div>
               </section>
@@ -967,7 +1158,7 @@ export function BillingPage() {
                     size="lg"
                     variant="outline"
                     onClick={() => handleCreate("DRAFT")}
-                    disabled={createState.isLoading}
+                    disabled={createState.isLoading || billNumberUnavailable}
                     className="w-full"
                   >
                     Save Draft
@@ -975,7 +1166,7 @@ export function BillingPage() {
                   <Button
                     size="lg"
                     onClick={() => handleCreate("POSTED")}
-                    disabled={createState.isLoading}
+                    disabled={createState.isLoading || billNumberUnavailable}
                     className="w-full"
                   >
                     <FileText className="mr-2 h-4 w-4" />
@@ -987,6 +1178,7 @@ export function BillingPage() {
           </Card>
         </div>
 
+        {detailsOpen ? (
         <div className="space-y-5">
           <VoucherPreview
             mode={mode.title}
@@ -995,6 +1187,8 @@ export function BillingPage() {
             billDate={billDate}
             paymentStatus={paymentStatus}
             intraState={intraState}
+            ewayBillNumber={ewayBillNumber}
+            vehicleNumber={vehicleNumber}
             totals={totals}
           />
 
@@ -1032,6 +1226,8 @@ export function BillingPage() {
             </CardContent>
           </Card>
 
+          <GstIntegrationPanel compact />
+
           <Card className="rounded-lg">
             <CardHeader className="border-b">
               <CardTitle className="text-base">
@@ -1057,6 +1253,18 @@ export function BillingPage() {
                           <div className="mt-1 text-xs text-muted-foreground">
                             {bill.billDate}
                           </div>
+                          {bill.ewayStatus || bill.ewayBillNumber ? (
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                              <Badge variant="outline" className="rounded-md">
+                                E-way {bill.ewayStatus ?? "Saved"}
+                              </Badge>
+                              {bill.ewayBillNumber ? (
+                                <span className="text-muted-foreground">
+                                  {bill.ewayBillNumber}
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                         <Badge
                           variant={bill.status === "CANCELLED" ? "destructive" : "secondary"}
@@ -1085,6 +1293,11 @@ export function BillingPage() {
                           cancelling={cancelState.isLoading}
                           posting={postState.isLoading}
                           recordingPayment={paymentState.isLoading}
+                          ewayLoading={
+                            generateEwayState.isLoading ||
+                            ewayDetailsState.isLoading ||
+                            cancelEwayState.isLoading
+                          }
                           onPrint={async () => {
                             if (!(await printInvoice(bill))) {
                               toast.error("Could not open invoice print window");
@@ -1107,6 +1320,45 @@ export function BillingPage() {
                             }
                           }}
                           onPayment={() => openPaymentDialog(bill)}
+                          onGenerateEway={async () => {
+                            try {
+                              const response = await generateEwayBill(bill.id).unwrap();
+                              if (response.success) {
+                                toast.success(response.alert || "E-way bill generated");
+                              } else {
+                                toast.error(response.message || "E-way bill generation failed");
+                              }
+                            } catch {
+                              toast.error("Could not generate e-way bill");
+                            }
+                          }}
+                          onEwayDetails={async () => {
+                            try {
+                              const response = await getEwayBillDetails(bill.id).unwrap();
+                              if (response.success) {
+                                toast.success(response.alert || "E-way bill details refreshed");
+                              } else {
+                                toast.error(response.message || "Could not fetch e-way bill details");
+                              }
+                            } catch {
+                              toast.error("Could not fetch e-way bill details");
+                            }
+                          }}
+                          onCancelEway={async () => {
+                            try {
+                              const response = await cancelEwayBill({
+                                id: bill.id,
+                                cancelRemark: "Cancelled from Factory1",
+                              }).unwrap();
+                              if (response.success) {
+                                toast.success(response.alert || "E-way bill cancelled");
+                              } else {
+                                toast.error(response.message || "Could not cancel e-way bill");
+                              }
+                            } catch {
+                              toast.error("Could not cancel e-way bill");
+                            }
+                          }}
                         />
                       </div>
                     </div>
@@ -1120,6 +1372,7 @@ export function BillingPage() {
             </CardContent>
           </Card>
         </div>
+        ) : null}
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-white p-3 shadow-lg md:hidden">
@@ -1246,6 +1499,8 @@ function VoucherPreview({
   billDate,
   paymentStatus,
   intraState,
+  ewayBillNumber,
+  vehicleNumber,
   totals,
 }: {
   mode: string;
@@ -1254,6 +1509,8 @@ function VoucherPreview({
   billDate: string;
   paymentStatus: PaymentStatus;
   intraState: boolean;
+  ewayBillNumber: string;
+  vehicleNumber: string;
   totals: ReturnType<typeof calculateTotals>;
 }) {
   return (
@@ -1277,6 +1534,17 @@ function VoucherPreview({
           <PreviewRow label="Date" value={billDate} />
           <PreviewRow label="Payment" value={paymentStatus} />
           <PreviewRow label="GST" value={intraState ? "CGST + SGST" : "IGST"} />
+          {ewayBillNumber || vehicleNumber ? (
+            <PreviewRow
+              label="E-way"
+              value={[
+                ewayBillNumber || "No e-way no.",
+                vehicleNumber ? `Vehicle ${vehicleNumber}` : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            />
+          ) : null}
         </div>
 
         <div className="space-y-2 rounded-md border bg-slate-50 p-3 text-sm">
@@ -1304,19 +1572,27 @@ function RecentVoucherActions({
   cancelling,
   posting,
   recordingPayment,
+  ewayLoading,
   onPrint,
   onPost,
   onCancel,
   onPayment,
+  onGenerateEway,
+  onEwayDetails,
+  onCancelEway,
 }: {
   bill: Bill;
   cancelling: boolean;
   posting: boolean;
   recordingPayment: boolean;
+  ewayLoading: boolean;
   onPrint: () => void;
   onPost: () => void;
   onCancel: () => void;
   onPayment: () => void;
+  onGenerateEway: () => void;
+  onEwayDetails: () => void;
+  onCancelEway: () => void;
 }) {
   return (
     <div className="flex flex-wrap justify-end gap-2">
@@ -1338,6 +1614,39 @@ function RecentVoucherActions({
           onClick={onPayment}
         >
           Payment
+        </Button>
+      ) : null}
+
+      {bill.status === "POSTED" && !bill.ewayBillNumber ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={ewayLoading}
+          onClick={onGenerateEway}
+        >
+          Gen E-way
+        </Button>
+      ) : null}
+
+      {bill.ewayBillNumber ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={ewayLoading}
+          onClick={onEwayDetails}
+        >
+          E-way Details
+        </Button>
+      ) : null}
+
+      {bill.ewayBillNumber && bill.ewayStatus !== "CANCELLED" ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={ewayLoading}
+          onClick={onCancelEway}
+        >
+          Cancel E-way
         </Button>
       ) : null}
 

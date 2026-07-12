@@ -33,7 +33,6 @@ export interface EmployeeListParams {
 }
 
 export interface CreateEmployeeRequest {
-  employeeCode: string;
   name: string;
   phone?: string;
   email?: string;

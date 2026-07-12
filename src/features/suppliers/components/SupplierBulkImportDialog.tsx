@@ -18,6 +18,7 @@ type Props = {
 type ParsedRow = SupplierRequest & {
   rowNumber: number;
   error?: string;
+  supplierCode?: string;
 };
 
 export function SupplierBulkImportDialog({ open, onClose }: Props) {
@@ -42,7 +43,9 @@ export function SupplierBulkImportDialog({ open, onClose }: Props) {
   const handleImport = async () => {
     try {
       const response = await bulkCreate({
-        suppliers: validRows.map(({ rowNumber, error, ...supplier }) => supplier),
+        suppliers: validRows.map(
+          ({ rowNumber, error, supplierCode, ...supplier }) => supplier
+        ),
       }).unwrap();
 
       const msg = `Imported ${response.data.successCount} supplier(s). Failed ${response.data.failedCount}.`;
@@ -233,7 +236,6 @@ function parseCsv(text: string): ParsedRow[] {
 }
 
 function validateRow(row: ParsedRow) {
-  if (!row.supplierCode) return "Supplier code is required";
   if (!row.name) return "Name is required";
   if (row.status && !["ACTIVE", "INACTIVE"].includes(row.status)) {
     return "Invalid status";

@@ -19,6 +19,29 @@ type Props = {
   onSelect: (profile: BenchmarkProfile) => void;
 };
 
+const searchCache = new Map<string, ListedCompanyRef[]>();
+
+function cachedSearch(
+  trigger: (arg: { provider: string; query: string }) => unknown,
+  provider: string,
+  term: string
+): Promise<ListedCompanyRef[]> {
+  const key = provider + ":" + term;
+  const cached = searchCache.get(key);
+  if (cached) {
+    return Promise.resolve(cached);
+  }
+  const result = (
+    trigger({ provider, query: term }) as {
+      unwrap: () => Promise<ListedCompanyRef[]>;
+    }
+  ).unwrap();
+  return result.then((res) => {
+    searchCache.set(key, res);
+    return res;
+  });
+}
+
 const optionClass =
   "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent hover:text-accent-foreground";
 
@@ -56,16 +79,25 @@ export function BenchmarkCombobox({ profiles, selected, onSelect }: Props) {
       clearTimeout(debounce.current);
     }
     debounce.current = setTimeout(async () => {
+      const term = query.trim();
       try {
-        const result = await searchListed({
-          provider: "auto",
-          query: query.trim(),
-        }).unwrap();
-        setSuggestions(result);
+        const indian = await cachedSearch(searchListed, "indian", term);
+        if (indian.length > 0) {
+          setSuggestions(indian);
+          return;
+        }
+      } catch {
+        // fall through to a single Roic lookup below
+      }
+
+      // Indian returned nothing (or failed): make exactly one Roic call.
+      try {
+        const roic = await cachedSearch(searchListed, "roic", term);
+        setSuggestions(roic);
       } catch {
         setSuggestions([]);
       }
-    }, 300);
+    }, 500);
 
     return () => {
       if (debounce.current) {

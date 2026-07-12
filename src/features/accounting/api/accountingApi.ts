@@ -18,6 +18,7 @@ import type {
   CreateAccountGroupRequest,
   CreateAccountLedgerRequest,
   CreateAccountingVoucherRequest,
+  VoucherType,
   GstReport,
   LedgerReport,
   ProfitLoss,
@@ -234,6 +235,22 @@ export const accountingApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Accounting"],
     }),
+
+     suggestVoucherNumber: builder.query<string, VoucherType>({
+      query: (type) => ({
+        url: "/api/accounting/vouchers/suggest-voucher-number",
+        params: { type },
+      }),
+      transformResponse: (response: { data: string }) => response.data,
+    }),
+
+    checkVoucherNumber: builder.query<boolean, { number: string; excludeId?: string }>({
+      query: ({ number, excludeId }) => ({
+        url: "/api/accounting/vouchers/check-voucher-number",
+        params: excludeId ? { number, excludeId } : { number },
+      }),
+      transformResponse: (response: { data: boolean }) => response.data,
+    }),
   }),
 });
 
@@ -260,4 +277,6 @@ export const {
   useUpdateAccountingTaxSectionMutation,
   useUpdateAccountGroupMutation,
   useUpdateAccountLedgerMutation,
+  useLazySuggestVoucherNumberQuery,
+  useLazyCheckVoucherNumberQuery,
 } = accountingApi;

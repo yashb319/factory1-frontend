@@ -104,43 +104,55 @@ export function CashBankBook({ vouchers, ledgers }: Props) {
 
   return (
     <Card id="cash-bank-book" className="rounded-lg scroll-mt-24">
-      <CardHeader className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-        <div>
-          <CardTitle>Cash/Bank Book</CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Tally-style cash and bank movement with running balance from posted vouchers.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="space-y-2">
-            <Label>Ledger</Label>
-            <Select
-              value={selectedLedger?.id ?? ""}
-              onValueChange={setSelectedLedgerId}
-            >
-              <SelectTrigger className="w-[240px]">
-                <SelectValue placeholder="Select cash/bank ledger" />
-              </SelectTrigger>
-              <SelectContent>
-                {cashBankLedgers.map((ledger) => (
-                  <SelectItem key={ledger.id} value={ledger.id}>
-                    {ledger.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <CardHeader className="border-b">
+        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+          <div>
+            <CardTitle>Cash/Bank Book</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Running balance from posted cash and bank voucher lines.
+            </p>
           </div>
-          <Button variant="outline" onClick={exportRows} disabled={!rows.length}>
-            <Download className="mr-2 h-4 w-4" />
-            CSV
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="space-y-2">
+              <Label>Ledger</Label>
+              <Select
+                value={selectedLedger?.id ?? ""}
+                onValueChange={setSelectedLedgerId}
+              >
+                <SelectTrigger className="w-[240px]">
+                  <SelectValue placeholder="Select cash/bank ledger" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cashBankLedgers.map((ledger) => (
+                    <SelectItem key={ledger.id} value={ledger.id}>
+                      {ledger.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" onClick={exportRows} disabled={!rows.length}>
+              <Download className="mr-2 h-4 w-4" />
+              CSV
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 grid-cols-3">
+        <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr_0.8fr]">
+          <div className="rounded-lg border border-slate-900 bg-slate-950 p-4 text-white">
+            <div className="text-xs uppercase tracking-wide text-slate-300">
+              Closing Balance
+            </div>
+            <div className="mt-1 text-2xl font-semibold">
+              {formatCurrency(totals.closing)}
+            </div>
+            <div className="mt-2 text-xs text-slate-300">
+              {selectedLedger?.name ?? "No cash/bank ledger selected"}
+            </div>
+          </div>
           <Metric title="Receipts / Debits" value={formatCurrency(totals.debit)} />
           <Metric title="Payments / Credits" value={formatCurrency(totals.credit)} />
-          <Metric title="Closing Balance" value={formatCurrency(totals.closing)} />
         </div>
 
         <div className="overflow-x-auto rounded-md border">
@@ -255,7 +267,7 @@ function openingBalance(ledger: AccountLedger | undefined) {
 
 function Metric({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-md border bg-muted/20 p-3">
+    <div className="rounded-lg border bg-white p-4">
       <div className="text-xs font-medium text-muted-foreground">{title}</div>
       <div className="mt-1 text-xl font-semibold">{value}</div>
     </div>

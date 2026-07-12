@@ -31,7 +31,6 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
 
   const form = useForm<FormValues>({
     defaultValues: {
-      supplierCode: "",
       name: "",
       phone: "",
       email: "",
@@ -65,7 +64,6 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
     if (!open) return;
 
     form.reset({
-      supplierCode: supplier?.supplierCode ?? "",
       name: supplier?.name ?? "",
       phone: supplier?.phone ?? "",
       email: supplier?.email ?? "",
@@ -156,7 +154,6 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
 
         <AppForm form={form} onSubmit={onSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
-            <TextField name="supplierCode" label="Supplier Code" disabled={isEdit} required />
             <TextField name="name" label="Supplier Name" required />
             <TextField name="phone" label="Phone" />
             <TextField name="email" label="Email" />

@@ -1,6 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  ClipboardList,
+  Download,
+  PackagePlus,
+  SearchCheck,
+  Upload,
+  Warehouse,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +28,7 @@ import { InventoryDashboardCards } from "./InventoryDashboardCards";
 import { InventoryDetailsDialog } from "./InventoryDetailsDialog";
 import { InventoryFilters } from "./InventoryFilters";
 import { InventoryFormDialog } from "./InventoryFormDialog";
+import { InventoryInsightsPanel } from "./InventoryInsightsPanel";
 import { InventoryTable } from "./InventoryTable";
 import { StockMovementDialog } from "./StockMovementDialog";
 
@@ -108,34 +117,80 @@ export function InventoryPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+    <div className="space-y-5">
+      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Stock Control
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Inventory</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Manage raw materials, finished goods, stock movements and low-stock
             alerts.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 rounded-lg border bg-white p-2">
           <Button
             variant="outline"
             onClick={handleExport}
             disabled={items.length === 0}
           >
+            <Download className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
 
           <Button variant="outline" onClick={() => setBulkImportOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
             Import CSV
           </Button>
 
-          <Button onClick={openCreate}>Add Item</Button>
+          <Button onClick={openCreate}>
+            <PackagePlus className="mr-2 h-4 w-4" />
+            Add Item
+          </Button>
         </div>
       </div>
 
+      <InventoryInsightsPanel items={items} loading={isLoading} />
+
       <InventoryDashboardCards data={dashboard} isLoading={dashboardLoading} />
+
+      <div className="grid gap-3 md:grid-cols-3">
+        {[
+          {
+            title: "Create item masters",
+            description: "Maintain HSN, GST, minimum stock and valuation fields.",
+            icon: ClipboardList,
+          },
+          {
+            title: "Record movements",
+            description: "Use stock movement for adjustments outside billing and production.",
+            icon: Warehouse,
+          },
+          {
+            title: "Review exceptions",
+            description: "Filter low stock and inactive records before purchase planning.",
+            icon: SearchCheck,
+          },
+        ].map((step) => {
+          const Icon = step.icon;
+
+          return (
+            <div key={step.title} className="flex gap-3 rounded-lg border bg-white p-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                <Icon className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-950">{step.title}</h2>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {step.description}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       <InventoryFilters filters={filters} onChange={setFilters} />
 

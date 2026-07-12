@@ -10,7 +10,6 @@ export type Product = {
 };
 
 export type ProductRequest = {
-  productCode: string;
   name: string;
   description?: string;
   finishedGoodInventoryItemId: string;

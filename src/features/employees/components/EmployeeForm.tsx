@@ -52,16 +52,6 @@ export function EmployeeForm({
     <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-6 pb-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Employee Code *</label>
-          <Input placeholder="EMP001" {...form.register("employeeCode")} />
-          {errors.employeeCode && (
-            <p className="text-xs text-destructive">
-              {errors.employeeCode.message}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
           <label className="text-sm font-medium">Name *</label>
           <Input placeholder="Rahul Kumar" {...form.register("name")} />
           {errors.name && (

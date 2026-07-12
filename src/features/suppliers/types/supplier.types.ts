@@ -34,7 +34,6 @@ export type Supplier = {
 };
 
 export type SupplierRequest = {
-  supplierCode: string;
   name: string;
   phone?: string;
   email?: string;

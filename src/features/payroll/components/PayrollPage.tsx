@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Banknote, CalendarPlus, ShieldCheck, WalletCards } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 import {
   useApprovePayrollMutation,
@@ -16,6 +18,7 @@ import { PayrollGenerateDialog } from "@/features/payroll/components/PayrollGene
 import { PayrollListTable } from "@/features/payroll/components/PayrollListTable";
 import { PayrollToolbar } from "@/features/payroll/components/PayrollToolbar";
 import { PayrollConfirmDialog } from "@/features/payroll/components/PayrollConfirmDialog";
+import { PayrollInsightsPanel } from "@/features/payroll/components/PayrollInsightsPanel";
 
 import {
   PayrollSearchParams,
@@ -124,20 +127,86 @@ export function PayrollPage() {
   const confirmContent = getConfirmContent(confirm.action);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Payroll
-        </h1>
-        <p className="text-sm text-slate-500">
-          Generate, approve, pay and export monthly salary runs.
-        </p>
+    <div className="space-y-5">
+      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Salary Operations
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+            Payroll
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Generate, approve, pay and audit monthly salary runs from one workspace.
+          </p>
+        </div>
+
+        <div className="grid gap-2 rounded-lg border bg-white p-2 sm:grid-cols-3">
+          {[
+            {
+              title: "Generate",
+              description: "Create salary run after attendance is ready.",
+              icon: CalendarPlus,
+            },
+            {
+              title: "Approve",
+              description: "Lock reviewed payroll before payment.",
+              icon: ShieldCheck,
+            },
+            {
+              title: "Pay",
+              description: "Mark final salary payout as completed.",
+              icon: WalletCards,
+            },
+          ].map((step) => {
+            const Icon = step.icon;
+
+            return (
+              <div key={step.title} className="flex items-start gap-3 rounded-md bg-slate-50 p-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-slate-700">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span>
+                  <span className="text-sm font-semibold text-slate-950">{step.title}</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                    {step.description}
+                  </span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+      <PayrollInsightsPanel
+        payrollRuns={payrollRuns?.content ?? []}
+        loading={payrollLoading}
+      />
 
       <PayrollDashboardCards
         data={dashboard}
         isLoading={dashboardLoading}
       />
+
+      <div className="rounded-lg border bg-white p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+              <Banknote className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-950">Monthly salary run</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Generate only after attendance, salary structure and deductions are reviewed.
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => setGenerateOpen(true)} className="md:w-auto">
+            <CalendarPlus className="mr-2 h-4 w-4" />
+            Generate Payroll
+          </Button>
+        </div>
+      </div>
 
       <PayrollToolbar
         month={month}
@@ -156,7 +225,6 @@ export function PayrollPage() {
           setPage(0);
         }}
         onReset={resetFilters}
-        onGenerate={() => setGenerateOpen(true)}
       />
 
       <PayrollListTable
