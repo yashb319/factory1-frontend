@@ -16,6 +16,7 @@ import type {
 } from "../types/inventory.types";
 import { useAddStockMovementMutation } from "../api/inventoryApi";
 import { toast } from "sonner";
+import { useGetOrganizationSettingsQuery } from "@/features/organization-settings/api/organizationSettingsApi";
 
 type Props = {
     open: boolean;
@@ -32,11 +33,17 @@ type FormValues = {
 };
 
 export function StockMovementDialog({ open, item, onClose }: Props) {
+    const { data: orgSettingsResponse } = useGetOrganizationSettingsQuery();
+    const orgSettings = orgSettingsResponse?.data;
+    const defaultMovementDate = activePeriodDefaultDate(
+        orgSettings?.activeAccountingPeriodStart,
+        orgSettings?.activeAccountingPeriodEnd
+    );
     const form = useForm<FormValues>({
         defaultValues: {
             movementType: "STOCK_IN",
             quantity: 1,
-            movementDate: new Date().toISOString().slice(0, 10),
+            movementDate: defaultMovementDate,
             referenceNumber: "",
             remarks: "",
         },
@@ -57,12 +64,12 @@ export function StockMovementDialog({ open, item, onClose }: Props) {
             form.reset({
                 movementType: "STOCK_IN",
                 quantity: 1,
-                movementDate: new Date().toISOString().slice(0, 10),
+                movementDate: defaultMovementDate,
                 referenceNumber: "",
                 remarks: "",
             });
         }
-    }, [open, form]);
+    }, [open, form, defaultMovementDate]);
 
     const onSubmit = async (values: FormValues) => {
         if (!item) return;
@@ -165,4 +172,17 @@ export function StockMovementDialog({ open, item, onClose }: Props) {
             </DialogContent>
         </Dialog>
     );
+}
+
+function activePeriodDefaultDate(
+    fromDate?: string,
+    toDate?: string
+) {
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (!fromDate || !toDate) {
+        return today;
+    }
+
+    return today >= fromDate && today <= toDate ? today : toDate;
 }

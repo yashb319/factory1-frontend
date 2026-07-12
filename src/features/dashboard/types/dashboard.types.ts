@@ -16,6 +16,11 @@ export type DashboardSummary = {
   bills: number;
   salesThisMonth: number;
   purchasesThisMonth: number;
+  rangeFrom?: string;
+  rangeTo?: string;
+  accountingPeriodStart?: string;
+  accountingPeriodEnd?: string;
+  isAccountingPeriod?: boolean;
   recentActivity: string[];
   insights: string[];
   setupCompleted: boolean;
@@ -28,4 +33,16 @@ export type DashboardSetupItem = {
   description: string;
   href: string;
   completed: boolean;
+};
+
+export type DashboardTrendBucket = {
+  period: string;
+  label: string;
+  sales: number;
+  purchases: number;
+  net: number;
+};
+
+export type DashboardTrends = {
+  buckets: DashboardTrendBucket[];
 };
