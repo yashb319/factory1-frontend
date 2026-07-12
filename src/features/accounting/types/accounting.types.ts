@@ -219,6 +219,7 @@ export type CreateAccountingVoucherRequest = {
   voucherType: VoucherType;
   voucherDate: string;
   narration?: string | null;
+  voucherNumber?: string;
   lines: Array<{
     ledgerId: string;
     entryType: BalanceType;

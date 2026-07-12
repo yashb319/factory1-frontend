@@ -39,7 +39,6 @@ type Props = {
 };
 
 type FormValues = {
-  itemCode: string;
   name: string;
   category: string;
   itemType: string;
@@ -66,7 +65,6 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
 
   const form = useForm<FormValues>({
     defaultValues: {
-      itemCode: "",
       name: "",
       category: "",
       itemType: "RAW_MATERIAL",
@@ -100,7 +98,6 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
     if (item) {
       setGstSuggestions([]);
       form.reset({
-        itemCode: item.itemCode,
         name: item.name,
         category: item.category ?? "",
         itemType: item.itemType,
@@ -119,7 +116,6 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
     } else {
       setGstSuggestions([]);
       form.reset({
-        itemCode: "",
         name: "",
         category: "",
         itemType: "RAW_MATERIAL",
@@ -192,7 +188,6 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
       }
 
       const body: InventoryItemRequest = {
-        itemCode: values.itemCode,
         name: values.name,
         category: values.category,
         itemType: values.itemType as InventoryItemRequest["itemType"],
@@ -268,12 +263,6 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
 
           <AppForm form={form} onSubmit={onSubmit}>
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField
-                name="itemCode"
-                label="Item Code (optional)"
-                disabled={isEdit}
-              />
-
               <TextField name="name" label="Item Name" required />
 
               <TextField name="category" label="Category" />

@@ -21,6 +21,7 @@ type Props = {
 type ParsedRow = InventoryItemRequest & {
     rowNumber: number;
     error?: string;
+    itemCode?: string;
 };
 
 const validTypes: InventoryItemType[] = [
@@ -66,7 +67,9 @@ export function InventoryBulkImportDialog({ open, onClose }: Props) {
     const handleImport = async () => {
         try {
             const response = await bulkCreate({
-                items: validRows.map(({ rowNumber, error, ...item }) => item),
+                items: validRows.map(
+                    ({ rowNumber, error, itemCode, ...item }) => item
+                ),
             }).unwrap();
 
             const msg = `Imported ${response.data.successCount} item(s). Failed ${response.data.failedCount}.`;
@@ -282,7 +285,6 @@ function parseCsv(text: string): ParsedRow[] {
 }
 
 function validateRow(row: ParsedRow) {
-    if (!row.itemCode) return "Item code is required";
     if (!row.name) return "Name is required";
     if (!row.unit) return "Unit is required";
     if (!validTypes.includes(row.itemType)) return "Invalid item type";

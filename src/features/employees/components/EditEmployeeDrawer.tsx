@@ -27,7 +27,6 @@ interface Props {
 }
 
 const defaultValues: EmployeeFormValues = {
-  employeeCode: "",
   name: "",
   phone: "",
   email: "",
@@ -53,7 +52,6 @@ export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
     if (!employee) return;
 
     form.reset({
-      employeeCode: employee.employeeCode,
       name: employee.name,
       phone: employee.phone ?? "",
       email: employee.email ?? "",

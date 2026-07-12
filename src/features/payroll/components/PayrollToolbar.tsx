@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarPlus, Filter, RotateCcw } from "lucide-react";
+import { Filter, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -20,7 +20,6 @@ interface Props {
   onYearChange: (year?: number) => void;
   onStatusChange: (status?: PayrollStatus) => void;
   onReset: () => void;
-  onGenerate: () => void;
 }
 
 export function PayrollToolbar({
@@ -31,10 +30,9 @@ export function PayrollToolbar({
   onYearChange,
   onStatusChange,
   onReset,
-  onGenerate,
 }: Props) {
   return (
-      <div className="grid items-start gap-4 rounded-lg border bg-card p-4 lg:grid-cols-[1fr_280px]">
+      <div className="rounded-lg border bg-card p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
         <div className="hidden items-center gap-2 text-sm font-medium text-muted-foreground md:flex">
           <Filter className="h-4 w-4" />
@@ -100,19 +98,6 @@ export function PayrollToolbar({
         <Button variant="outline" onClick={onReset}>
           <RotateCcw className="mr-2 h-4 w-4" />
           Reset
-        </Button>
-      </div>
-
-      <div className="rounded-md border bg-slate-50 p-3">
-        <p className="text-sm font-semibold text-slate-950">
-          Monthly salary run
-        </p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Generate after attendance and salary details are ready.
-        </p>
-        <Button className="mt-3 w-full" onClick={onGenerate}>
-          <CalendarPlus className="mr-2 h-4 w-4" />
-          Generate Payroll
         </Button>
       </div>
     </div>

@@ -9,6 +9,8 @@ import {
   FileSpreadsheet,
   Landmark,
   LockKeyhole,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   Printer,
   ReceiptText,
@@ -89,6 +91,8 @@ import {
   useGetProfitLossQuery,
   useGetTrialBalanceQuery,
   useLazyGetAccountingGstSummaryQuery,
+  useLazySuggestVoucherNumberQuery,
+  useLazyCheckVoucherNumberQuery,
   useUpdateAccountingVoucherMutation,
   useUpdateAccountingTaxSectionMutation,
   useUpdateAccountGroupMutation,
@@ -255,15 +259,49 @@ export function AccountingPage() {
   );
   const [workspace, setWorkspace] =
     useState<AccountingWorkspace>("OVERVIEW");
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [voucherType, setVoucherType] = useState<VoucherType>("JOURNAL");
   const [voucherDate, setVoucherDate] = useState(() => todayDate());
   const [voucherNarration, setVoucherNarration] = useState("");
+  const [voucherNumber, setVoucherNumber] = useState("");
+  const [suggestVoucherNumber, { isFetching: suggestingNumber }] =
+    useLazySuggestVoucherNumberQuery();
+  const [
+    checkVoucherNumber,
+    { data: voucherNumberTaken, isFetching: checkingVoucherNumber },
+  ] = useLazyCheckVoucherNumberQuery();
   const [voucherLines, setVoucherLines] = useState<VoucherLineDraft[]>(() => [
     newVoucherLine("DR"),
     newVoucherLine("CR"),
   ]);
+
   const [editingVoucher, setEditingVoucher] =
     useState<AccountingVoucher | null>(null);
+
+  useEffect(() => {
+    if (editingVoucher) return;
+    let cancelled = false;
+    suggestVoucherNumber(voucherType)
+      .unwrap()
+      .then((number) => {
+        if (!cancelled) setVoucherNumber(number ? String(number) : "");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [voucherType, editingVoucher, suggestVoucherNumber]);
+
+  useEffect(() => {
+    const trimmed = String(voucherNumber).trim();
+    if (!trimmed) return;
+    if (editingVoucher && trimmed === editingVoucher.voucherNumber) return;
+    const handle = setTimeout(() => {
+      checkVoucherNumber({ number: trimmed, excludeId: editingVoucher?.id });
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [voucherNumber, editingVoucher, checkVoucherNumber]);
+
   const [cancelVoucherTarget, setCancelVoucherTarget] =
     useState<AccountingVoucher | null>(null);
   const [cancelVoucherReason, setCancelVoucherReason] = useState("");
@@ -373,6 +411,12 @@ export function AccountingPage() {
     summary[section.taxType] = (summary[section.taxType] ?? 0) + 1;
     return summary;
   }, {});
+  const overviewParties = data?.parties ?? [];
+  const topOutstandingParties = [...overviewParties]
+    .sort((first, second) => Math.abs(second.outstandingAmount) - Math.abs(first.outstandingAmount))
+    .slice(0, 6);
+  const reportNetProfit = profitLoss?.netProfit ?? 0;
+  const balanceDifference = balanceSheet?.difference ?? 0;
   const masterGroups = masters?.groups ?? [];
   const masterLedgers = masters?.ledgers ?? [];
   const masterSearchTerm = masterSearch.trim().toLowerCase();
@@ -903,6 +947,11 @@ export function AccountingPage() {
       return;
     }
 
+    if (voucherNumberTaken) {
+      toast.error("This voucher number already exists");
+      return;
+    }
+
     const lines = voucherLines
       .filter((line) => line.ledgerId && Number(line.amount || 0) > 0)
       .map((line) => ({
@@ -926,6 +975,7 @@ export function AccountingPage() {
       voucherType,
       voucherDate,
       narration: voucherNarration.trim() || null,
+      voucherNumber: String(voucherNumber).trim() || undefined,
       lines,
     };
 
@@ -949,6 +999,7 @@ export function AccountingPage() {
   const resetVoucherForm = () => {
     setEditingVoucher(null);
     setVoucherType("JOURNAL");
+    setVoucherNumber("");
     setVoucherDate(todayDate());
     setVoucherNarration("");
     setVoucherLines([newVoucherLine("DR"), newVoucherLine("CR")]);
@@ -1003,6 +1054,7 @@ export function AccountingPage() {
     setEditingVoucher(voucher);
     setWorkspace("VOUCHERS");
     setVoucherType(voucher.voucherType);
+    setVoucherNumber(voucher.voucherNumber ? String(voucher.voucherNumber) : "");
     setVoucherDate(voucher.voucherDate);
     setVoucherNarration(voucher.narration ?? "");
     setVoucherLines(
@@ -1519,6 +1571,11 @@ export function AccountingPage() {
     toast.success("Day Book CSV exported successfully");
   };
 
+  const detailsPanelAvailable =
+    workspace === "OVERVIEW" ||
+    workspace === "MASTERS" ||
+    workspace === "VOUCHERS";
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
@@ -1532,6 +1589,20 @@ export function AccountingPage() {
         </div>
 
         <div className="flex flex-wrap gap-2 rounded-lg border bg-white p-3">
+          {detailsPanelAvailable ? (
+            <Button
+              variant={detailsOpen ? "default" : "outline"}
+              onClick={() => setDetailsOpen((current) => !current)}
+            >
+              {detailsOpen ? (
+                <PanelRightClose className="mr-2 h-4 w-4" />
+              ) : (
+                <PanelRightOpen className="mr-2 h-4 w-4" />
+              )}
+              {detailsOpen ? "Hide details" : "Show details"}
+            </Button>
+          ) : null}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -1594,23 +1665,65 @@ export function AccountingPage() {
       <div
         id="accounting-overview"
         hidden={workspace !== "OVERVIEW"}
-        className="grid scroll-mt-24 gap-4 md:grid-cols-3"
+        className={
+          detailsOpen
+            ? "grid scroll-mt-24 gap-4 lg:grid-cols-[1.2fr_0.8fr]"
+            : "grid scroll-mt-24 gap-4"
+        }
       >
-        <SummaryCard
-          title="Receivables"
-          value={formatCurrency(data?.totalReceivables ?? 0)}
-          loading={isLoading || isFetching}
-        />
-        <SummaryCard
-          title="Payables"
-          value={formatCurrency(data?.totalPayables ?? 0)}
-          loading={isLoading || isFetching}
-        />
-        <SummaryCard
-          title="Net Receivable"
-          value={formatCurrency(data?.netReceivable ?? 0)}
-          loading={isLoading || isFetching}
-        />
+        <Card className="rounded-lg border-slate-900 bg-slate-950 text-white">
+          <CardContent className="p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-300">
+              Net Receivable Position
+            </div>
+            <div className="mt-2 text-3xl font-semibold">
+              {isLoading || isFetching
+                ? "..."
+                : formatCurrency(data?.netReceivable ?? 0)}
+            </div>
+            <div className="mt-4 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2">
+              <VoucherTotalTile
+                label="Receivables"
+                value={formatCurrency(data?.totalReceivables ?? 0)}
+              />
+              <VoucherTotalTile
+                label="Payables"
+                value={formatCurrency(data?.totalPayables ?? 0)}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {detailsOpen ? (
+        <Card className="rounded-lg">
+          <CardHeader className="border-b">
+            <CardTitle className="text-base">Top Outstanding</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {topOutstandingParties.map((party) => (
+              <div
+                key={`${party.type}-${party.partyName}-${party.partyGstNumber ?? ""}`}
+                className="flex items-center justify-between gap-3 rounded-md border bg-slate-50 p-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{party.partyName}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {party.type} · {party.billCount} bills
+                  </div>
+                </div>
+                <div className="text-right font-semibold">
+                  {formatCurrency(party.outstandingAmount)}
+                </div>
+              </div>
+            ))}
+            {!isLoading && !topOutstandingParties.length ? (
+              <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                No posted party balances found.
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+        ) : null}
       </div>
 
       <Card className="rounded-lg" hidden={workspace !== "OVERVIEW"}>
@@ -1648,7 +1761,11 @@ export function AccountingPage() {
       <div
         id="account-masters"
         hidden={workspace !== "MASTERS"}
-        className="grid scroll-mt-24 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+        className={
+          detailsOpen
+            ? "grid scroll-mt-24 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+            : "grid scroll-mt-24 gap-4"
+        }
       >
         <div className="space-y-4">
           <Card className="rounded-lg">
@@ -1898,6 +2015,7 @@ export function AccountingPage() {
           </Card>
         </div>
 
+        {detailsOpen ? (
         <div className="space-y-4">
           <Card className="rounded-lg">
             <CardHeader>
@@ -2023,12 +2141,17 @@ export function AccountingPage() {
             </CardContent>
           </Card>
         </div>
+        ) : null}
       </div>
 
       <div
         id="voucher-entry"
         hidden={workspace !== "VOUCHERS"}
-        className="grid scroll-mt-24 gap-4 2xl:grid-cols-[minmax(0,1fr)_390px]"
+        className={
+          detailsOpen
+            ? "grid scroll-mt-24 gap-4 2xl:grid-cols-[minmax(0,1fr)_390px]"
+            : "grid scroll-mt-24 gap-4"
+        }
       >
         <Card className="rounded-lg scroll-mt-24">
           <CardHeader className="border-b">
@@ -2103,6 +2226,25 @@ export function AccountingPage() {
                   placeholder={voucherHelp[voucherType]}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Voucher Number</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={voucherNumber}
+                  disabled={Boolean(vouchersDisabledReason)}
+                  onChange={(event) => setVoucherNumber(event.target.value)}
+                  placeholder={suggestingNumber ? "Generating…" : "Auto"}
+                />
+              </div>
+              {voucherNumberTaken ? (
+                <p className="text-xs text-destructive">
+                  This voucher number already exists. Use a different one.
+                </p>
+              ) : checkingVoucherNumber ? (
+                <p className="text-xs text-slate-400">Checking availability…</p>
+              ) : null}
             </div>
 
             <div className="rounded-lg border">
@@ -2286,6 +2428,8 @@ export function AccountingPage() {
                       Boolean(vouchersDisabledReason) ||
                     createVoucherState.isLoading ||
                     updateVoucherState.isLoading ||
+                    voucherNumberTaken ||
+                    checkingVoucherNumber ||
                     Math.abs(voucherTotals.debit - voucherTotals.credit) > 0.009
                   }
                 >
@@ -2296,6 +2440,7 @@ export function AccountingPage() {
           </CardContent>
         </Card>
 
+        {detailsOpen ? (
         <Card className="rounded-lg">
           <CardHeader className="border-b">
             <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2464,6 +2609,7 @@ export function AccountingPage() {
             ) : null}
           </CardContent>
         </Card>
+        ) : null}
       </div>
 
       <div hidden={workspace !== "CASH_BANK"}>
@@ -2478,43 +2624,44 @@ export function AccountingPage() {
         hidden={workspace !== "REPORTS"}
         className="rounded-lg scroll-mt-24"
       >
-        <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <div>
-            <CardTitle>Profit & Loss</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Income and expenses from accounting voucher movement in this period.
-            </p>
+        <CardHeader className="border-b">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+            <div>
+              <CardTitle>Profit & Loss</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Income and expenses from accounting voucher movement.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={exportProfitLoss}
+              disabled={!profitLoss?.rows.length}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              CSV
+            </Button>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={exportProfitLoss}
-            disabled={!profitLoss?.rows.length}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            CSV
-          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-            <InlineMetric
-              title="Trading Income"
+          <div className="grid gap-3 md:grid-cols-[1.1fr_0.9fr_0.9fr]">
+            <TaxMetric
+              label="Net Profit"
+              value={formatCurrency(reportNetProfit)}
+              helper="After indirect income and expenses"
+              loading={profitLossFetching}
+              tone={reportNetProfit >= 0 ? "dark" : "light"}
+            />
+            <TaxMetric
+              label="Trading Income"
               value={formatCurrency(profitLoss?.tradingIncome ?? 0)}
+              helper="Direct sales and operating income"
               loading={profitLossFetching}
             />
-            <InlineMetric
-              title="Trading Expense"
+            <TaxMetric
+              label="Trading Expense"
               value={formatCurrency(profitLoss?.tradingExpense ?? 0)}
-              loading={profitLossFetching}
-            />
-            <InlineMetric
-              title="Gross Profit"
-              value={formatCurrency(profitLoss?.grossProfit ?? 0)}
-              loading={profitLossFetching}
-            />
-            <InlineMetric
-              title="Net Profit"
-              value={formatCurrency(profitLoss?.netProfit ?? 0)}
+              helper="Purchases and direct expenses"
               loading={profitLossFetching}
             />
           </div>
@@ -2597,57 +2744,66 @@ export function AccountingPage() {
       </Card>
 
       <Card className="rounded-lg" hidden={workspace !== "REPORTS"}>
-        <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <div>
-            <CardTitle>Balance Sheet</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Assets, liabilities and current period profit as of the selected range.
-            </p>
+        <CardHeader className="border-b">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+            <div>
+              <CardTitle>Balance Sheet</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Assets, liabilities and current period profit.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge
+                variant={
+                  Math.abs(balanceDifference) > 0.009
+                    ? "destructive"
+                    : "outline"
+                }
+              >
+                {balanceSheetFetching
+                  ? "Loading"
+                  : Math.abs(balanceDifference) > 0.009
+                    ? "Check totals"
+                    : "Balanced"}
+              </Badge>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportBalanceSheet}
+                disabled={!balanceSheet?.assets.length && !balanceSheet?.liabilities.length}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                CSV
+              </Button>
+            </div>
           </div>
-          <Badge
-            variant={
-              Math.abs(balanceSheet?.difference ?? 0) > 0.009
-                ? "destructive"
-                : "outline"
-            }
-          >
-            {balanceSheetFetching
-              ? "Loading"
-              : Math.abs(balanceSheet?.difference ?? 0) > 0.009
-                ? "Check totals"
-                : "Balanced"}
-          </Badge>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={exportBalanceSheet}
-            disabled={!balanceSheet?.assets.length && !balanceSheet?.liabilities.length}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            CSV
-          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-            <InlineMetric
-              title="Assets"
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <TaxMetric
+              label="Assets"
               value={formatCurrency(balanceSheet?.totalAssets ?? 0)}
+              helper="Total asset balances"
               loading={balanceSheetFetching}
             />
-            <InlineMetric
-              title="Liabilities"
+            <TaxMetric
+              label="Liabilities"
               value={formatCurrency(balanceSheet?.totalLiabilities ?? 0)}
+              helper="Capital and liabilities"
               loading={balanceSheetFetching}
             />
-            <InlineMetric
-              title="Current Profit"
+            <TaxMetric
+              label="Current Profit"
               value={formatCurrency(balanceSheet?.netProfit ?? 0)}
+              helper="From Profit & Loss"
               loading={balanceSheetFetching}
             />
-            <InlineMetric
-              title="Difference"
-              value={formatCurrency(balanceSheet?.difference ?? 0)}
+            <TaxMetric
+              label="Difference"
+              value={formatCurrency(balanceDifference)}
+              helper="Balance check"
               loading={balanceSheetFetching}
+              tone={Math.abs(balanceDifference) > 0.009 ? "dark" : "light"}
             />
           </div>
 
@@ -3244,22 +3400,24 @@ export function AccountingPage() {
         className="grid gap-4 lg:grid-cols-2"
       >
         <Card className="rounded-lg">
-          <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle>Group Summary</CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Tally-style group totals from closing balances.
-              </p>
+          <CardHeader className="border-b">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Group Summary</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Closing balances by account group.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportGroupSummary}
+                disabled={!groupSummary.length}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                CSV
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={exportGroupSummary}
-              disabled={!groupSummary.length}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              CSV
-            </Button>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto rounded-md border">
@@ -3302,22 +3460,24 @@ export function AccountingPage() {
         </Card>
 
         <Card className="rounded-lg">
-          <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle>Monthly Voucher Summary</CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Month-wise voucher movement for review.
-              </p>
+          <CardHeader className="border-b">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Monthly Voucher Summary</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Month-wise voucher movement for review.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportMonthlySummary}
+                disabled={!monthlySummary.length}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                CSV
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={exportMonthlySummary}
-              disabled={!monthlySummary.length}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              CSV
-            </Button>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto rounded-md border">
@@ -3380,22 +3540,24 @@ export function AccountingPage() {
         </Card>
 
         <Card className="rounded-lg lg:col-span-2">
-          <CardHeader className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-            <div>
-              <CardTitle>Ledger Monthly Summary</CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Month-wise debit and credit movement by ledger.
-              </p>
+          <CardHeader className="border-b">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+              <div>
+                <CardTitle>Ledger Monthly Summary</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Month-wise debit and credit movement by ledger.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportLedgerMonthlySummary}
+                disabled={!ledgerMonthlySummary.length}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                CSV
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={exportLedgerMonthlySummary}
-              disabled={!ledgerMonthlySummary.length}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              CSV
-            </Button>
           </CardHeader>
           <CardContent>
             <div className="max-h-[420px] overflow-auto rounded-md border">
@@ -3457,66 +3619,6 @@ export function AccountingPage() {
           </CardContent>
         </Card>
       </div>
-
-      <Card className="rounded-lg" hidden={workspace !== "OVERVIEW"}>
-        <CardHeader>
-          <CardTitle>Account Ledgers</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto rounded-md border">
-            <table className="responsive-table w-full min-w-[980px] text-sm">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="p-3 text-left">Party</th>
-                  <th className="p-3 text-left">Type</th>
-                  <th className="p-3 text-left">GST</th>
-                  <th className="p-3 text-right">Bills</th>
-                  <th className="p-3 text-right">Taxable</th>
-                  <th className="p-3 text-right">GST Amount</th>
-                  <th className="p-3 text-right">Grand Total</th>
-                  <th className="p-3 text-right">Outstanding</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(data?.parties ?? []).map((party) => (
-                  <tr
-                    key={`${party.type}-${party.partyName}-${party.partyGstNumber ?? ""}`}
-                    className="border-t"
-                  >
-                    <td className="p-3 font-medium" data-label="Party">{party.partyName}</td>
-                    <td className="p-3" data-label="Type">{party.type}</td>
-                    <td className="p-3" data-label="GST">{party.partyGstNumber || "-"}</td>
-                    <td className="p-3 text-right" data-label="Bills">{party.billCount}</td>
-                    <td className="p-3 text-right" data-label="Taxable">
-                      {formatCurrency(party.taxableAmount)}
-                    </td>
-                    <td className="p-3 text-right" data-label="GST Amount">
-                      {formatCurrency(party.gstAmount)}
-                    </td>
-                    <td className="p-3 text-right" data-label="Grand Total">
-                      {formatCurrency(party.grandTotal)}
-                    </td>
-                    <td className="p-3 text-right font-semibold" data-label="Outstanding">
-                      {formatCurrency(party.outstandingAmount)}
-                    </td>
-                  </tr>
-                ))}
-
-                {!isLoading && !data?.parties.length ? (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="p-8 text-center text-muted-foreground"
-                    >
-                      No posted bills found in this period.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
 
       <LedgerDrilldownDialog
         selectedLedger={selectedLedger}

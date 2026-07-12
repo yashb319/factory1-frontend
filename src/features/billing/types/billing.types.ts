@@ -1,6 +1,11 @@
 export type BillType = "SALES" | "PURCHASE";
 export type BillStatus = "DRAFT" | "POSTED" | "CANCELLED";
 export type PaymentStatus = "UNPAID" | "PARTIAL" | "PAID";
+export type EwayBillApplicability =
+  | "REQUIRED"
+  | "NOT_REQUIRED"
+  | "OPTIONAL"
+  | "REVIEW_REQUIRED";
 
 export type ApiResponse<T> = {
   success: boolean;
@@ -40,6 +45,17 @@ export type BillRequest = {
   placeOfSupply?: string;
   intraState: boolean;
   notes?: string;
+  ewayBillNumber?: string;
+  ewayBillDate?: string;
+  ewayBillValidUntil?: string;
+  transporterName?: string;
+  vehicleNumber?: string;
+  dispatchFrom?: string;
+  shipTo?: string;
+  movementOfGoods?: boolean;
+  ewayBillApplicability?: EwayBillApplicability;
+  ewayBillApplicabilityReason?: string;
+  ewayBillRequested?: boolean;
   items: BillItemRequest[];
 };
 
@@ -82,7 +98,55 @@ export type Bill = {
   grandTotal: number;
   paidAmount: number;
   notes?: string | null;
+  ewayBillNumber?: string | null;
+  ewayBillDate?: string | null;
+  ewayBillValidUntil?: string | null;
+  transporterName?: string | null;
+  vehicleNumber?: string | null;
+  dispatchFrom?: string | null;
+  shipTo?: string | null;
+  movementOfGoods?: boolean | null;
+  ewayBillApplicability?: EwayBillApplicability | null;
+  ewayBillApplicabilityReason?: string | null;
+  ewayBillRequested?: boolean | null;
+  ewayStatus?: string | null;
+  ewayAlert?: string | null;
+  ewayLastResponse?: string | null;
+  ewayGeneratedAt?: string | null;
+  ewayCancelledAt?: string | null;
   items: BillItem[];
+};
+
+export type BillNumberSuggestion = {
+  billNumber: string;
+};
+
+export type BillNumberAvailability = {
+  billNumber: string;
+  available: boolean;
+  message: string;
+};
+
+export type EwayBillApiResponse = {
+  configured: boolean;
+  success: boolean;
+  action: string;
+  message: string;
+  data?: unknown;
+  errorCodes?: string | null;
+  alert?: string | null;
+};
+
+export type EwayPartBRequest = {
+  transMode?: string;
+  transDocNo?: string;
+  transDocDate?: string;
+  vehicleNo?: string;
+  vehicleType?: string;
+  fromPlace?: string;
+  fromState?: number;
+  reasonCode?: string;
+  reasonRemark?: string;
 };
 
 export type GstRateSuggestion = {

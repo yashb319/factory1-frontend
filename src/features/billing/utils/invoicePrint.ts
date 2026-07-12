@@ -7,6 +7,14 @@ export async function printInvoice(bill: Bill) {
 
 function invoiceHtml(bill: Bill) {
   const gstLabel = bill.intraState ? "CGST + SGST" : "IGST";
+  const hasEwayDetails =
+    bill.ewayBillNumber ||
+    bill.ewayBillDate ||
+    bill.ewayBillValidUntil ||
+    bill.transporterName ||
+    bill.vehicleNumber ||
+    bill.dispatchFrom ||
+    bill.shipTo;
 
   return `
 <!doctype html>
@@ -58,6 +66,20 @@ function invoiceHtml(bill: Bill) {
       <p class="muted">Due date: ${bill.dueDate ?? "-"}<br/>Place of supply: ${escapeHtml(bill.placeOfSupply ?? "-")}<br/>Payment: ${bill.paymentStatus}</p>
     </div>
   </div>
+  ${hasEwayDetails ? `
+  <div class="box" style="margin-top: 18px;">
+    <h2>E-way Bill / Transport</h2>
+    <p class="muted">
+      E-way Bill No: ${escapeHtml(bill.ewayBillNumber ?? "-")}<br/>
+      E-way Date: ${bill.ewayBillDate ?? "-"}<br/>
+      Valid Until: ${bill.ewayBillValidUntil ?? "-"}<br/>
+      Transporter: ${escapeHtml(bill.transporterName ?? "-")}<br/>
+      Vehicle No: ${escapeHtml(bill.vehicleNumber ?? "-")}<br/>
+      Dispatch From: ${escapeHtml(bill.dispatchFrom ?? "-")}<br/>
+      Ship To: ${escapeHtml(bill.shipTo ?? "-")}
+    </p>
+  </div>
+  ` : ""}
   <table>
     <thead>
       <tr>

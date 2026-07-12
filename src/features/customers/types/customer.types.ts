@@ -35,7 +35,6 @@ export type Customer = {
 };
 
 export type CustomerRequest = {
-  customerCode: string;
   name: string;
   phone?: string;
   email?: string;

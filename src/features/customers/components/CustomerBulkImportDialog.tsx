@@ -26,6 +26,7 @@ type Props = {
 type ParsedRow = CustomerRequest & {
   rowNumber: number;
   error?: string;
+  customerCode?: string;
 };
 
 export function CustomerBulkImportDialog({ open, onClose }: Props) {
@@ -51,7 +52,9 @@ export function CustomerBulkImportDialog({ open, onClose }: Props) {
   const handleImport = async () => {
     try {
       const response = await bulkCreate({
-        customers: validRows.map(({ rowNumber, error, ...customer }) => customer),
+        customers: validRows.map(
+          ({ rowNumber, error, customerCode, ...customer }) => customer
+        ),
       }).unwrap();
 
       const msg = `Imported ${response.data.successCount} customer(s). Failed ${response.data.failedCount}.`;
@@ -255,7 +258,6 @@ function parseCsv(text: string): ParsedRow[] {
 }
 
 function validateRow(row: ParsedRow) {
-  if (!row.customerCode) return "Customer code is required";
   if (!row.name) return "Name is required";
 
   if (row.status && !["ACTIVE", "INACTIVE"].includes(row.status)) {

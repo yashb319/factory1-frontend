@@ -1,6 +1,7 @@
 import { OrganizationSettingsForm } from "@/features/organization-settings/components/OrganizationSettingsForm";
 import { TerminateOrganizationPanel } from "@/features/organization-settings/components/TerminateOrganizationPanel";
 import { AccessManagementPanel } from "@/features/access/components/AccessManagementPanel";
+import { GstIntegrationPanel } from "@/features/gst-integration/components/GstIntegrationPanel";
 
 export default function OrganizationSettingsPage() {
   return (
@@ -15,6 +16,7 @@ export default function OrganizationSettingsPage() {
       </div>
 
       <OrganizationSettingsForm />
+      <GstIntegrationPanel />
       <AccessManagementPanel />
       <TerminateOrganizationPanel />
     </div>

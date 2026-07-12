@@ -24,7 +24,6 @@ interface Props {
 }
 
 const defaultValues: EmployeeFormValues = {
-  employeeCode: "",
   name: "",
   phone: "",
   email: "",

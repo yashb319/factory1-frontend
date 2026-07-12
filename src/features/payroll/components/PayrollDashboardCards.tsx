@@ -1,6 +1,14 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  BadgeCheck,
+  Banknote,
+  CircleDollarSign,
+  Clock3,
+  FileCheck2,
+  ReceiptText,
+} from "lucide-react";
+import { StatCard } from "@/components/cards/StatCard";
 import { PayrollDashboardResponse } from "../types/payroll.types";
 import { formatCurrency } from "../utils/payroll.utils";
 
@@ -14,43 +22,50 @@ const cards = [
   {
     title: "Total Payrolls",
     value: data?.totalPayrolls ?? 0,
+    description: "Generated salary runs",
+    icon: ReceiptText,
   },
   {
     title: "Generated",
     value: data?.generated ?? 0,
+    description: "Waiting for approval",
+    icon: Clock3,
   },
   {
     title: "Approved",
     value: data?.approved ?? 0,
+    description: "Ready for payout",
+    icon: BadgeCheck,
   },
   {
     title: "Paid",
     value: data?.paid ?? 0,
+    description: "Completed payrolls",
+    icon: FileCheck2,
   },
   {
     title: "This Month Payroll",
     value: formatCurrency(data?.thisMonthPayroll),
+    description: "Current month net outflow",
+    icon: Banknote,
   },
   {
     title: "This Year Payroll",
     value: formatCurrency(data?.thisYearPayroll),
+    description: "Year-to-date salary cost",
+    icon: CircleDollarSign,
   },
 ];
   return (
     <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
       {cards.map((card) => (
-        <Card key={card.title}>
-          <CardHeader className="p-3 pb-1 sm:p-6 sm:pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground sm:text-sm">
-              {card.title}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-xl font-semibold sm:text-2xl">
-              {isLoading ? "..." : card.value}
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          key={card.title}
+          title={card.title}
+          value={isLoading ? "..." : String(card.value)}
+          description={card.description}
+          icon={card.icon}
+        />
       ))}
     </div>
   );
