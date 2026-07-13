@@ -17,14 +17,16 @@ import {
   BarChart3,
   Megaphone,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import type { ComponentType, CSSProperties } from "react";
 import type { AuthUser, UserRole } from "@/features/auth/types";
+import type { ModuleKey } from "@/config/theme";
 
 type NavigationItem = {
   title: string;
   href: string;
-  icon: ComponentType<{ size?: number; className?: string }>;
+  icon: ComponentType<{ size?: number; className?: string; style?: CSSProperties }>;
   roles: UserRole[];
+  module: ModuleKey;
   platformAdminOnly?: boolean;
 };
 
@@ -33,40 +35,44 @@ const operationsRoles: UserRole[] = ["OWNER", "ADMIN", "MANAGEMENT"];
 const financeRoles: UserRole[] = ["OWNER", "ADMIN", "FINANCE"];
 
 export const navigationItems: NavigationItem[] = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: allRoles },
-  { title: "Employees", href: "/employees", icon: Users, roles: operationsRoles },
-  { title: "Attendance", href: "/attendance", icon: CalendarCheck, roles: operationsRoles },
-  { title: "Payroll", href: "/payroll", icon: Wallet, roles: financeRoles },
-  { title: "Inventory", href: "/inventory", icon: Package, roles: operationsRoles },
+  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: allRoles, module: "dashboard" },
+  { title: "Employees", href: "/employees", icon: Users, roles: operationsRoles, module: "employees" },
+  { title: "Attendance", href: "/attendance", icon: CalendarCheck, roles: operationsRoles, module: "attendance" },
+  { title: "Payroll", href: "/payroll", icon: Wallet, roles: financeRoles, module: "payroll" },
+  { title: "Inventory", href: "/inventory", icon: Package, roles: operationsRoles, module: "inventory" },
   {
     title: "Products & Production",
     href: "/products",
     icon: PackageCheck,
     roles: operationsRoles,
+    module: "production",
   },
-  { title: "Billing", href: "/billing", icon: FileText, roles: financeRoles },
-  { title: "Accounting", href: "/accounting", icon: Landmark, roles: financeRoles },
-  { title: "Suppliers", href: "/suppliers", icon: Truck, roles: operationsRoles },
-  { title: "Customers", href: "/customers", icon: UserRound, roles: financeRoles },
+  { title: "Billing", href: "/billing", icon: FileText, roles: financeRoles, module: "sales" },
+  { title: "Accounting", href: "/accounting", icon: Landmark, roles: financeRoles, module: "finance" },
+  { title: "Suppliers", href: "/suppliers", icon: Truck, roles: operationsRoles, module: "suppliers" },
+  { title: "Customers", href: "/customers", icon: UserRound, roles: financeRoles, module: "customers" },
   {
     title: "Import / Export",
     href: "/import-export",
     icon: FileSpreadsheet,
     roles: ["OWNER", "ADMIN"],
+    module: "documents",
   },
-  { title: "AI Assistant", href: "/ai", icon: Bot, roles: allRoles },
+  { title: "AI Assistant", href: "/ai", icon: Bot, roles: allRoles, module: "aiInsights" },
   // { title: "Docs", href: "/docs", icon: BookOpen, roles: allRoles },
   {
     title: "Organization Settings",
     href: "/organization-settings",
     icon: Settings,
     roles: ["OWNER", "ADMIN"],
+    module: "organization",
   },
   {
     title: "SaaS Admin",
     href: "/saas-admin",
     icon: ShieldCheck,
     roles: ["SAAS_OWNER"],
+    module: "settings",
     platformAdminOnly: true,
   },
   {
@@ -74,6 +80,7 @@ export const navigationItems: NavigationItem[] = [
     href: "/saas-admin/insights",
     icon: BarChart3,
     roles: ["SAAS_OWNER"],
+    module: "reports",
     platformAdminOnly: true,
   },
   {
@@ -81,6 +88,7 @@ export const navigationItems: NavigationItem[] = [
     href: "/saas-admin/marketing",
     icon: Megaphone,
     roles: ["SAAS_OWNER"],
+    module: "notifications",
     platformAdminOnly: true,
   },
   {
@@ -88,6 +96,7 @@ export const navigationItems: NavigationItem[] = [
     href: "/saas-admin/factories",
     icon: Building2,
     roles: ["SAAS_OWNER"],
+    module: "organization",
     platformAdminOnly: true,
   },
 

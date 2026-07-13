@@ -10,12 +10,12 @@ export function ImportExportPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
+    <div className="space-y-2 text-[12px]">
+      <div className="rounded-lg border border-[var(--factory1-border)] bg-[var(--factory1-background)] px-3 py-2">
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--factory1-text-primary)]">
           Import / Export History
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-[var(--factory1-text-muted)]">
           Track imports and exports initiated across Factory1 modules.
         </p>
       </div>

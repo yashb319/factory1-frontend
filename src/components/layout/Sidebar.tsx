@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, Factory } from "lucide-react";
 import { canAccessNavigationItem, navigationItems } from "@/config/navigation";
+import { moduleTheme } from "@/config/theme";
 import { useAppSelector } from "@/lib/hook";
 import { cn } from "@/lib/utils";
 import {
@@ -18,6 +19,7 @@ type SidebarProps = {
   mobileOpen: boolean;
   onMobileOpenChange: (open: boolean) => void;
   onToggleCollapsed: () => void;
+  desktopVisible?: boolean;
 };
 
 export function Sidebar({
@@ -25,6 +27,7 @@ export function Sidebar({
   mobileOpen,
   onMobileOpenChange,
   onToggleCollapsed,
+  desktopVisible = true,
 }: SidebarProps) {
   const pathname = usePathname();
   const user = useAppSelector((state) => state.auth.user);
@@ -38,7 +41,8 @@ export function Sidebar({
       <aside
         data-tour="sidebar"
         className={cn(
-          "fixed left-0 top-0 z-40 hidden h-screen border-r bg-slate-950 text-white transition-all duration-200 lg:block",
+          "fixed left-0 top-0 z-40 hidden h-screen border-r border-[var(--factory1-border)] bg-white text-[var(--factory1-text-primary)] transition-all duration-200",
+          desktopVisible && "lg:block",
           collapsed ? "w-20" : "w-64"
         )}
       >
@@ -53,7 +57,7 @@ export function Sidebar({
       <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
         <SheetContent
           side="left"
-          className="w-72 border-r bg-slate-950 p-0 text-white"
+          className="w-72 border-r border-[var(--factory1-border)] bg-white p-0 text-[var(--factory1-text-primary)]"
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Factory1 navigation</SheetTitle>
@@ -89,18 +93,18 @@ function SidebarContent({
     <div className="flex h-full flex-col">
       <div
         className={cn(
-          "flex h-16 items-center gap-3 border-b border-slate-800 px-5",
+          "flex h-16 items-center gap-3 border-b border-[var(--factory1-border)] px-5",
           collapsed && "justify-center px-3"
         )}
       >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--factory1-primary)] text-white">
           <Factory size={20} />
         </div>
 
         {!collapsed ? (
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold">Factory1</h1>
-            <p className="truncate text-xs text-slate-400">Operations OS</p>
+            <p className="truncate text-xs text-[var(--factory1-text-muted)]">Operations OS</p>
           </div>
         ) : null}
       </div>
@@ -109,6 +113,7 @@ function SidebarContent({
         {items.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;
+          const theme = moduleTheme[item.module];
 
           return (
             <Link
@@ -117,14 +122,22 @@ function SidebarContent({
               title={collapsed ? item.title : undefined}
               onClick={onNavigate}
               className={cn(
-                "flex h-10 items-center rounded-lg text-sm transition",
+                "flex h-10 items-center border-l-4 text-sm transition",
                 collapsed ? "justify-center px-2" : "gap-3 px-3",
                 active
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-300 hover:bg-slate-900 hover:text-white"
+                  ? "text-[var(--factory1-text-primary)]"
+                  : "border-transparent text-[var(--factory1-text-secondary)] hover:bg-[var(--factory1-surface-muted)]"
               )}
+              style={
+                active
+                  ? {
+                      backgroundColor: theme.light,
+                      borderLeftColor: theme.color,
+                    }
+                  : undefined
+              }
             >
-              <Icon size={18} className="shrink-0" />
+              <Icon size={18} className="shrink-0" style={{ color: theme.color }} />
               {!collapsed ? <span className="truncate">{item.title}</span> : null}
             </Link>
           );
@@ -132,13 +145,13 @@ function SidebarContent({
       </nav>
 
       {onToggleCollapsed ? (
-        <div className="border-t border-slate-800 p-3">
+        <div className="border-t border-[var(--factory1-border)] p-3">
           <button
             type="button"
             onClick={onToggleCollapsed}
             data-tour="sidebar-collapse"
             className={cn(
-              "flex h-10 w-full items-center rounded-lg text-sm text-slate-300 hover:bg-slate-900 hover:text-white",
+              "flex h-10 w-full items-center rounded-lg text-sm text-[var(--factory1-text-secondary)] hover:bg-[var(--factory1-surface-muted)]",
               collapsed ? "justify-center" : "justify-between px-3"
             )}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}

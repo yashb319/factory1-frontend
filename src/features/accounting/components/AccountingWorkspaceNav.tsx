@@ -27,7 +27,7 @@ export function AccountingWorkspaceNav({
   disabledReasons?: Partial<Record<AccountingWorkspace, string>>;
 }) {
   return (
-    <div className="sticky top-0 z-10 -mx-1 flex gap-2 overflow-x-auto bg-background/95 px-1 py-2 backdrop-blur">
+    <div className="sticky top-12 z-10 -mx-1 flex gap-1 overflow-x-auto border border-[var(--factory1-border)] bg-[var(--factory1-background)] px-1 py-1">
       {workspaces.map((workspace) => {
         const disabledReason = disabledReasons[workspace.id];
 
@@ -40,6 +40,11 @@ export function AccountingWorkspaceNav({
             disabled={Boolean(disabledReason)}
             title={disabledReason}
             onClick={() => onChange(workspace.id)}
+            className={
+              value === workspace.id
+                ? "h-7 rounded-md bg-[var(--factory1-primary)] px-2 text-xs text-white"
+                : "h-7 rounded-md border-[var(--factory1-border)] bg-white px-2 text-xs text-[var(--factory1-text-secondary)]"
+            }
           >
             {workspace.label}
           </Button>

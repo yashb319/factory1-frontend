@@ -57,7 +57,14 @@ import { exportGstReportCsv } from "../utils/gstReportExport";
 import { printInvoice } from "../utils/invoicePrint";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 import { inferIntraState, stateNameFromGstNumber } from "@/lib/gstState";
+import { handleTallyFieldNavigation } from "@/lib/tallyKeyboard";
+import { playUiSound } from "@/lib/uiSounds";
 import { GstIntegrationPanel } from "@/features/gst-integration/components/GstIntegrationPanel";
+import {
+  getFactoryUiMode,
+  UI_MODE_CHANGED_EVENT,
+} from "@/lib/uiModePreference";
+import { useAppSelector } from "@/lib/hook";
 
 type DraftItem = {
   rowId: string;
@@ -124,6 +131,7 @@ const newItem = (): DraftItem => ({
 export function BillingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const user = useAppSelector((state) => state.auth.user);
   const [type, setType] = useState<BillType>(() =>
     initialBillType(searchParams.get("type"))
   );
@@ -147,6 +155,8 @@ export function BillingPage() {
   const [shipTo, setShipTo] = useState("");
   const [items, setItems] = useState<DraftItem[]>([newItem()]);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [postConfirmOpen, setPostConfirmOpen] = useState(false);
+  const [tallyMode, setTallyMode] = useState(false);
 
   const { data: customers = [] } = useGetActiveCustomersQuery();
   const { data: suppliers = [] } = useGetActiveSuppliersQuery();
@@ -219,8 +229,18 @@ export function BillingPage() {
     factoryState,
     selectedParty?.state || stateNameFromGstNumber(selectedParty?.gstNumber) || placeOfSupply
   );
+  const voucherSurface = "var(--factory1-surface)";
+  const voucherSubtleSurface = "var(--factory1-background)";
   const billNumberUnavailable =
     Boolean(billNumberForCheck) && billNumberAvailability?.available === false;
+
+  useEffect(() => {
+    const syncMode = () => setTallyMode(getFactoryUiMode(user) === "tally");
+    syncMode();
+
+    window.addEventListener(UI_MODE_CHANGED_EVENT, syncMode);
+    return () => window.removeEventListener(UI_MODE_CHANGED_EVENT, syncMode);
+  }, [user]);
 
   useEffect(() => {
     const factoryDispatch =
@@ -257,13 +277,37 @@ export function BillingPage() {
     );
   }, [orgSettings?.activeAccountingPeriodStart, orgSettings?.activeAccountingPeriodEnd]);
 
-  const switchVoucher = (billType: BillType) => {
+  const switchVoucher = (
+    billType: BillType,
+    options: { syncUrl?: boolean } = {}
+  ) => {
     setType(billType);
     setPartyId("");
     setItems([newItem()]);
     setBillNumber("");
     setBillNumberTouched(false);
+
+    if (options.syncUrl === false) {
+      return;
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("type", billType);
+    router.replace(`/billing?${params.toString()}`, { scroll: false });
   };
+
+  useEffect(() => {
+    const requestedType = searchParams.get("type");
+
+    if (!requestedType) {
+      return;
+    }
+
+    const nextType = initialBillType(requestedType);
+    if (nextType !== type) {
+      switchVoucher(nextType, { syncUrl: false });
+    }
+  }, [searchParams, type]);
 
   const addItem = () => {
     setItems((current) => [...current, newItem()]);
@@ -435,6 +479,9 @@ export function BillingPage() {
             ? "Sales voucher posted and stock reduced"
             : "Purchase voucher posted and stock increased"
       );
+      if (status === "POSTED") {
+        playUiSound("post");
+      }
 
       setBillNumber("");
       setBillNumberTouched(false);
@@ -552,7 +599,7 @@ export function BillingPage() {
     }
 
     if (key === "F11") {
-      router.push("/accounting?workspace=REPORTS");
+      toast.info("Features are managed from Accounting Settings and Organization Settings.");
       return;
     }
 
@@ -619,65 +666,362 @@ export function BillingPage() {
       );
   });
 
+  if (tallyMode) {
+    return (
+      <div
+        className="tally-entry-screen"
+        data-tally-nav-scope
+        onKeyDown={handleTallyFieldNavigation}
+      >
+        <div className="tally-entry-title">
+          <span>Accounting Voucher Creation</span>
+          <span>Factory1</span>
+          <span>Ctrl + M</span>
+        </div>
+
+        <div className="tally-entry-meta">
+          <div>
+            <div>
+              <span className="tally-hotkey">{mode.title.split(" ")[0]}</span>
+              <span className="ml-2">No.</span>
+              <Input
+                value={billNumber}
+                onChange={(event) => {
+                  setBillNumber(event.target.value);
+                  setBillNumberTouched(true);
+                }}
+                placeholder="Auto"
+                className="tally-inline-input ml-1 w-28"
+              />
+            </div>
+            <div>
+              Reference no. :
+              <Input
+                value={billNumber}
+                onChange={(event) => {
+                  setBillNumber(event.target.value);
+                  setBillNumberTouched(true);
+                }}
+                placeholder="0"
+                className="tally-inline-input ml-1 w-28"
+              />
+            </div>
+          </div>
+          <div className="text-right">
+            <div>{billDate ? formatDisplayDate(billDate) : ""}</div>
+            <Input
+              type="date"
+              value={billDate}
+              onChange={(event) => setBillDate(event.target.value)}
+              className="tally-inline-input w-36 text-right"
+            />
+          </div>
+        </div>
+
+        <div className="tally-party-lines">
+          <div>
+            Party A/c name :
+            <select
+              value={partyId}
+              onChange={(event) => setPartyId(event.target.value)}
+              className="tally-select ml-2 min-w-72"
+            >
+              <option value="">Select {type === "SALES" ? "Customer" : "Supplier"}</option>
+              {parties.map((party) => (
+                <option key={party.id} value={party.id}>
+                  {party.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            Current balance :
+            <span className="ml-2 font-bold">
+              {selectedParty ? "As per ledger" : "0.00 Dr"}
+            </span>
+          </div>
+          <div>
+            {type === "SALES" ? "Sales ledger" : "Purchase ledger"} :
+            <span className="ml-2 font-bold">
+              {type === "SALES" ? "Sales A/c" : "Purchase A/c"}
+            </span>
+          </div>
+        </div>
+
+        <div className="tally-table-wrap">
+          <table className="tally-entry-table">
+            <thead>
+              <tr>
+                <th className="text-left">Name of Item</th>
+                <th className="w-28 text-right">Quantity</th>
+                <th className="w-28 text-right">Rate</th>
+                <th className="w-20 text-left">per</th>
+                <th className="w-36 text-right">Amount</th>
+                <th className="w-12" />
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => {
+                const line = calculateLine(item, intraState);
+
+                return (
+                  <tr key={item.rowId}>
+                    <td>
+                      {type === "SALES" ? (
+                        <select
+                          value={item.productId}
+                          onChange={(event) =>
+                            selectProduct(item.rowId, event.target.value)
+                          }
+                          className="tally-select w-full"
+                        >
+                          <option value="">Select product</option>
+                          {products.map((product: Product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <select
+                          value={item.inventoryItemId}
+                          onChange={(event) =>
+                            selectInventoryItem(item.rowId, event.target.value)
+                          }
+                          className="tally-select w-full"
+                        >
+                          <option value="">Select inventory item</option>
+                          {inventoryItems.map((inventoryItem: InventoryItem) => (
+                            <option key={inventoryItem.id} value={inventoryItem.id}>
+                              {inventoryItem.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <Input
+                        value={item.itemName}
+                        onChange={(event) =>
+                          updateItem(item.rowId, { itemName: event.target.value })
+                        }
+                        placeholder="Printed item name"
+                        className="tally-line-input mt-1"
+                      />
+                    </td>
+                    <td>
+                      <NumberInput
+                        value={item.quantity}
+                        onChange={(value) =>
+                          updateItem(item.rowId, { quantity: value })
+                        }
+                      />
+                    </td>
+                    <td>
+                      <NumberInput
+                        value={item.rate}
+                        onChange={(value) => updateItem(item.rowId, { rate: value })}
+                      />
+                    </td>
+                    <td>
+                      <Input
+                        value={item.unit}
+                        onChange={(event) =>
+                          updateItem(item.rowId, { unit: event.target.value })
+                        }
+                        className="tally-line-input"
+                      />
+                    </td>
+                    <td className="text-right font-bold">
+                      {formatPlainCurrency(line.taxable)}
+                    </td>
+                    <td data-ignore-tally-nav="true">
+                      <button
+                        type="button"
+                        className="tally-small-action"
+                        onClick={() =>
+                          setItems((prev) =>
+                            prev.length === 1
+                              ? [newItem()]
+                              : prev.filter((entry) => entry.rowId !== item.rowId)
+                          )
+                        }
+                      >
+                        Del
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr>
+                <td className="font-bold">GST</td>
+                <td />
+                <td />
+                <td />
+                <td className="text-right font-bold">
+                  {formatPlainCurrency(intraState ? totals.cgst + totals.sgst : totals.igst)}
+                </td>
+                <td />
+              </tr>
+              <tr>
+                <td className="font-bold">Round Off</td>
+                <td />
+                <td />
+                <td />
+                <td className="text-right font-bold">
+                  {formatPlainCurrency(totals.roundOff)}
+                </td>
+                <td />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="tally-total-strip">
+          <button type="button" onClick={addItem}>
+            A: Add Line
+          </button>
+          <span>{items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)} Nos</span>
+          <strong>{formatPlainCurrency(totals.grandTotal)}</strong>
+        </div>
+
+        <div className="tally-narration">
+          <label>Narration:</label>
+          <Textarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                event.stopPropagation();
+                playUiSound("enter");
+                setPostConfirmOpen(true);
+              }
+            }}
+            placeholder="Total goods to be delivered at buyer's address..."
+          />
+        </div>
+
+        <div className="tally-command-strip">
+          <button type="button" onClick={() => handleCreate("DRAFT")}>
+            Q: Quit
+          </button>
+          <button
+            type="button"
+            onClick={() => handleCreate("POSTED")}
+            disabled={createState.isLoading || billNumberUnavailable}
+          >
+            A: Accept
+          </button>
+          <button type="button" disabled>
+            D: Delete
+          </button>
+          <button type="button" onClick={() => setPostConfirmOpen(false)}>
+            X: Cancel
+          </button>
+        </div>
+
+        <Dialog open={postConfirmOpen} onOpenChange={setPostConfirmOpen}>
+          <DialogContent className="w-full max-w-[calc(100%-2rem)] rounded-none border-[#0f766e] sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Accept Voucher?</DialogTitle>
+              <DialogDescription>
+                This will post the {type === "SALES" ? "sales" : "purchase"} voucher
+                and update stock and accounting entries.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none"
+                onClick={() => setPostConfirmOpen(false)}
+              >
+                Esc: Cancel
+              </Button>
+              <Button
+                type="button"
+                className="rounded-none"
+                onClick={() => {
+                  setPostConfirmOpen(false);
+                  void handleCreate("POSTED");
+                }}
+              >
+                A: Accept
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
+    <div
+      className={`space-y-2 text-[12px] ${tallyMode ? "tally-voucher-screen" : ""}`}
+      data-tally-nav-scope
+      onKeyDown={handleTallyFieldNavigation}
+    >
+      <div
+        className="flex flex-col justify-between gap-2 rounded-lg border border-[var(--factory1-border)] px-3 py-2 xl:flex-row xl:items-end"
+        style={{ backgroundColor: voucherSurface }}
+      >
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--factory1-text-secondary)]">
             Accounting Voucher Entry
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            Billing
+          <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-[var(--factory1-text-primary)]">
+            {tallyMode ? mode.title : "Billing"}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-0.5 text-[11px] text-[var(--factory1-text-muted)]">
             Post sales and purchase vouchers with stock movement, GST, ledger impact and exports.
           </p>
         </div>
 
         <div className="space-y-2">
-          <div className="grid gap-2 rounded-lg border bg-white p-2 sm:grid-cols-2">
-            {voucherModes.map((entry) => {
-              const Icon = entry.icon;
-              const active = type === entry.type;
+          {!tallyMode ? (
+            <div className="grid gap-1 rounded-md border border-[var(--factory1-border)] bg-white p-1 sm:grid-cols-2">
+              {voucherModes.map((entry) => {
+                const Icon = entry.icon;
+                const active = type === entry.type;
 
-              return (
-                <button
-                  key={entry.type}
-                  type="button"
-                  onClick={() => switchVoucher(entry.type)}
-                  className={`flex items-start gap-3 rounded-md border p-3 text-left transition ${
-                    active
-                      ? "border-slate-950 bg-slate-950 text-white"
-                      : "border-transparent bg-slate-50 text-slate-700 hover:border-slate-300"
-                  }`}
-                >
-                  <span
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
-                      active ? "bg-white/15" : "bg-white"
+                return (
+                  <button
+                    key={entry.type}
+                    type="button"
+                    onClick={() => switchVoucher(entry.type)}
+                    className={`flex items-start gap-2 border p-2 text-left transition ${
+                      active
+                        ? "border-[var(--factory1-primary)] bg-[var(--factory1-primary)] text-white"
+                        : "border-[var(--factory1-border)] bg-[var(--factory1-background)] text-[var(--factory1-text-primary)] hover:border-[var(--factory1-primary)]"
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-2 text-sm font-semibold">
-                      {entry.title}
-                    </span>
                     <span
-                      className={`mt-1 block text-xs leading-5 ${
-                        active ? "text-slate-200" : "text-muted-foreground"
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
+                        active ? "bg-white/15" : "bg-white"
                       }`}
                     >
-                      {entry.subtitle}
+                      <Icon className="h-4 w-4" />
                     </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2 text-sm font-semibold">
+                        {entry.title}
+                      </span>
+                      <span
+                        className={`mt-1 block text-xs leading-5 ${
+                          active ? "text-slate-200" : "text-muted-foreground"
+                        }`}
+                      >
+                        {entry.subtitle}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
           <Button
             type="button"
             variant={detailsOpen ? "default" : "outline"}
-            className="w-full justify-center"
+            className="h-8 w-full justify-center rounded-md border-[var(--factory1-border-strong)] text-xs"
             onClick={() => setDetailsOpen((current) => !current)}
           >
             {detailsOpen ? (
@@ -685,55 +1029,38 @@ export function BillingPage() {
             ) : (
               <PanelRightOpen className="mr-2 h-4 w-4" />
             )}
-            {detailsOpen ? "Hide details" : "Show preview, reports & GST"}
+            {detailsOpen ? "Hide details" : "Show details"}
           </Button>
         </div>
-      </div>
-
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-        <MetricTile
-          label="Voucher Total"
-          value={formatCurrency(totals.grandTotal)}
-          tone="dark"
-        />
-        <MetricTile
-          label={intraState ? "CGST + SGST" : "IGST"}
-          value={formatCurrency(intraState ? totals.cgst + totals.sgst : totals.igst)}
-        />
-        <MetricTile
-          label="Taxable Value"
-          value={formatCurrency(totals.taxable)}
-        />
-        <MetricTile
-          label="Lines"
-          value={String(items.length)}
-        />
       </div>
 
       <div
         className={
           detailsOpen
-            ? "grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_380px]"
-            : "grid grid-cols-1 gap-5"
+            ? "grid grid-cols-1 gap-2 2xl:grid-cols-[minmax(0,1fr)_380px]"
+            : "grid grid-cols-1 gap-2"
         }
       >
-        <div className="space-y-5">
-          <Card className="rounded-lg">
-            <CardHeader className="border-b">
+        <div className="space-y-2">
+          <Card
+            className="rounded-lg border-[var(--factory1-border)] shadow-none"
+            style={{ backgroundColor: voucherSurface }}
+          >
+            <CardHeader className="border-b border-[var(--factory1-border)] bg-[var(--factory1-background)] px-3 py-2">
               <CardTitle className="flex flex-wrap items-center justify-between gap-3">
-                <span className="flex items-center gap-2 text-base">
-                  <ReceiptIndianRupee className="h-5 w-5" />
+                <span className="flex items-center gap-2 text-xs font-bold text-[var(--factory1-text-primary)]">
+                  <ReceiptIndianRupee className="h-4 w-4" />
                   {mode.title}
                 </span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-5 p-5">
+            <CardContent className="space-y-2 p-2">
               <section>
-                <div className="mb-3 flex items-center gap-2">
-                  <BadgeIndianRupee className="h-4 w-4 text-slate-500" />
-                  <h2 className="text-sm font-semibold">Voucher Details</h2>
+                <div className="mb-2 flex items-center gap-2 border-b border-[var(--factory1-border)] pb-1">
+                  <BadgeIndianRupee className="h-4 w-4 text-[var(--factory1-primary)]" />
+                  <h2 className="text-xs font-bold text-[var(--factory1-text-primary)]">Voucher Details</h2>
                 </div>
-                <div className="grid gap-4 lg:grid-cols-4">
+                <div className="grid gap-2 lg:grid-cols-4">
                   <Field label={type === "SALES" ? "Customer Ledger" : "Supplier Ledger"}>
                     <select
                       value={partyId}
@@ -831,7 +1158,10 @@ export function BillingPage() {
                     </select>
                   </Field>
 
-                  <div className="rounded-md border bg-slate-50 p-3 text-sm">
+                  <div
+                    className="rounded-md border border-[var(--factory1-border)] p-2 text-xs"
+                    style={{ backgroundColor: voucherSubtleSurface }}
+                  >
                     <p className="font-medium text-slate-950">Stock impact</p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {type === "SALES"
@@ -841,8 +1171,11 @@ export function BillingPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                  <div className="rounded-md border bg-slate-50 p-3 text-sm">
+                <div className="mt-2 grid gap-2 lg:grid-cols-2">
+                  <div
+                    className="rounded-md border border-[var(--factory1-border)] p-2 text-xs"
+                    style={{ backgroundColor: voucherSubtleSurface }}
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-medium text-slate-950">
                         {type === "SALES" ? "Customer details" : "Supplier details"}
@@ -868,7 +1201,10 @@ export function BillingPage() {
                     </p>
                   </div>
 
-                  <div className="rounded-md border bg-slate-50 p-3 text-sm">
+                  <div
+                    className="rounded-md border border-[var(--factory1-border)] p-2 text-xs"
+                    style={{ backgroundColor: voucherSubtleSurface }}
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-medium text-slate-950">Tax auto-fill</p>
                       <Badge variant="outline" className="rounded-md">
@@ -888,10 +1224,13 @@ export function BillingPage() {
                 </div>
               </section>
 
-              <section className="rounded-md border bg-white p-4">
+              <section
+                className="rounded-lg border border-[var(--factory1-border)] p-2"
+                style={{ backgroundColor: voucherSurface }}
+              >
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h2 className="text-sm font-semibold">E-way Bill</h2>
+                    <h2 className="text-xs font-bold text-[var(--factory1-text-primary)]">E-way Bill</h2>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Optional transport details for GST movement and printed invoices.
                     </p>
@@ -950,40 +1289,54 @@ export function BillingPage() {
                       placeholder="Delivery address"
                     />
                   </Field>
-                  <div className="rounded-md border bg-slate-50 p-3 text-xs leading-5 text-muted-foreground">
+                  <div
+                    className="rounded-md border border-[var(--factory1-border)] p-2 text-xs leading-5 text-[var(--factory1-text-secondary)]"
+                    style={{ backgroundColor: voucherSubtleSurface }}
+                  >
                     Govt e-way generation can be integrated later with NIC APIs. For now, these details are stored with the bill and printed/exported.
                   </div>
                 </div>
               </section>
 
-              <section>
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <section
+                className="rounded-lg border border-[var(--factory1-border)]"
+                style={{ backgroundColor: voucherSurface }}
+              >
+                <div
+                  className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--factory1-border)] px-3 py-2"
+                  style={{ backgroundColor: voucherSubtleSurface }}
+                >
                   <div>
-                    <h2 className="text-sm font-semibold">Item Register</h2>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Select stock item, verify HSN/GST, quantity and rate before posting.
+                    <h2 className="text-xs font-bold text-[var(--factory1-text-primary)]">Name of Item</h2>
+                    <p className="mt-0.5 text-[11px] text-slate-700">
+                      Press Enter to move across fields. Use the buttons only when you need lookup or row actions.
                     </p>
                   </div>
-                  <Button type="button" variant="outline" onClick={addItem}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-ignore-tally-nav="true"
+                    onClick={addItem}
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Line
                   </Button>
                 </div>
 
-                <div className="overflow-x-auto rounded-md border">
+                <div className="overflow-x-auto">
                   <table className="w-full min-w-[1120px] text-sm">
-                    <thead className="bg-slate-100 text-xs uppercase text-slate-500">
+                    <thead className="bg-white text-xs text-[var(--factory1-text-primary)]">
                       <tr>
-                        <th className="p-3 text-left">Stock / Product</th>
-                        <th className="p-3 text-left">HSN</th>
-                        <th className="p-3 text-right">Qty</th>
-                        <th className="p-3 text-left">Unit</th>
-                        <th className="p-3 text-right">Rate</th>
-                        <th className="p-3 text-right">Discount</th>
-                        <th className="p-3 text-right">GST %</th>
-                        <th className="p-3 text-right">Taxable</th>
-                        <th className="p-3 text-right">Total</th>
-                        <th className="w-14 p-3 text-right" />
+                        <th className="w-12 border-b p-2 text-center">Sl</th>
+                        <th className="border-b p-2 text-left">Name of Item</th>
+                        <th className="w-36 border-b p-2 text-left">HSN/SAC</th>
+                        <th className="w-28 border-b p-2 text-right">Quantity</th>
+                        <th className="w-24 border-b p-2 text-left">Unit</th>
+                        <th className="w-28 border-b p-2 text-right">Rate</th>
+                        <th className="w-28 border-b p-2 text-right">Disc.</th>
+                        <th className="w-24 border-b p-2 text-right">GST %</th>
+                        <th className="w-32 border-b p-2 text-right">Amount</th>
+                        <th className="w-12 border-b p-2 text-right" />
                       </tr>
                     </thead>
                     <tbody>
@@ -991,11 +1344,11 @@ export function BillingPage() {
                         const line = calculateLine(item, intraState);
 
                         return (
-                          <tr key={item.rowId} className="border-t align-top">
-                            <td className="w-80 p-3">
-                              <div className="mb-2 text-xs font-medium text-muted-foreground">
-                                #{index + 1}
-                              </div>
+                          <tr key={item.rowId} className="border-t border-[var(--factory1-border)] align-top hover:bg-[var(--factory1-background)]">
+                            <td className="p-2 text-center text-muted-foreground">
+                              {index + 1}
+                            </td>
+                            <td className="min-w-80 p-2">
                               {type === "SALES" ? (
                                 <select
                                   value={item.productId}
@@ -1032,17 +1385,18 @@ export function BillingPage() {
                                 onChange={(event) =>
                                   updateItem(item.rowId, { itemName: event.target.value })
                                 }
-                                className="mt-2"
+                                className="mt-1 h-9 rounded-sm"
                                 placeholder="Printed item name"
                               />
                             </td>
-                            <td className="w-52 p-3">
-                              <div className="flex gap-2">
+                            <td className="p-2">
+                              <div className="flex gap-1">
                                 <Input
                                   value={item.hsnCode}
                                   onChange={(event) =>
                                     updateItem(item.rowId, { hsnCode: event.target.value })
                                   }
+                                  data-no-auto-select="false"
                                   placeholder="HSN"
                                 />
                                 <Button
@@ -1057,13 +1411,13 @@ export function BillingPage() {
                                 </Button>
                               </div>
                               {item.suggestions.length > 0 ? (
-                                <div className="mt-2 space-y-1">
+                                <div className="mt-2 space-y-1" data-ignore-tally-nav="true">
                                   {item.suggestions.slice(0, 2).map((suggestion) => (
                                     <button
                                       key={`${suggestion.hsnCode}-${suggestion.description}`}
                                       type="button"
                                       onClick={() => applySuggestion(item.rowId, suggestion)}
-                                      className="block w-full rounded-md border bg-slate-50 px-2 py-1 text-left text-xs hover:bg-slate-100"
+                                      className="block w-full rounded-md border border-[var(--factory1-border)] bg-[var(--factory1-background)] px-2 py-1 text-left text-xs hover:bg-white"
                                     >
                                       <span className="block font-medium">
                                         {suggestion.hsnCode || "HSN/SAC"} - {suggestion.igstRate}% GST
@@ -1078,28 +1432,28 @@ export function BillingPage() {
                                 </div>
                               ) : null}
                             </td>
-                            <td className="p-3">
+                            <td className="p-2">
                               <NumberInput
                                 value={item.quantity}
                                 onChange={(value) => updateItem(item.rowId, { quantity: value })}
                               />
                             </td>
-                            <td className="p-3">
+                            <td className="p-2">
                               <Input
                                 value={item.unit}
                                 onChange={(event) =>
                                   updateItem(item.rowId, { unit: event.target.value })
                                 }
-                                className="min-w-20"
+                                className="h-9 min-w-20 rounded-sm"
                               />
                             </td>
-                            <td className="p-3">
+                            <td className="p-2">
                               <NumberInput
                                 value={item.rate}
                                 onChange={(value) => updateItem(item.rowId, { rate: value })}
                               />
                             </td>
-                            <td className="p-3">
+                            <td className="p-2">
                               <NumberInput
                                 value={item.discountAmount}
                                 onChange={(value) =>
@@ -1107,19 +1461,16 @@ export function BillingPage() {
                                 }
                               />
                             </td>
-                            <td className="p-3">
+                            <td className="p-2">
                               <NumberInput
                                 value={item.gstRate}
                                 onChange={(value) => updateItem(item.rowId, { gstRate: value })}
                               />
                             </td>
-                            <td className="p-3 text-right">
+                            <td className="p-2 text-right font-semibold">
                               {formatCurrency(line.taxable)}
                             </td>
-                            <td className="p-3 text-right font-semibold">
-                              {formatCurrency(line.lineTotal)}
-                            </td>
-                            <td className="p-3 text-right">
+                            <td className="p-2 text-right" data-ignore-tally-nav="true">
                               <Button
                                 type="button"
                                 size="icon"
@@ -1140,17 +1491,73 @@ export function BillingPage() {
                         );
                       })}
                     </tbody>
+                    <tfoot className="border-t bg-slate-50 text-sm">
+                      <tr>
+                        <td className="p-2" />
+                        <td className="p-2 text-right font-semibold">Taxable Value</td>
+                        <td className="p-2" />
+                        <td className="p-2 text-right font-semibold">
+                          {items.length} line{items.length === 1 ? "" : "s"}
+                        </td>
+                        <td className="p-2" />
+                        <td className="p-2" />
+                        <td className="p-2" />
+                        <td className="p-2 text-right font-semibold">
+                          {intraState ? "CGST + SGST" : "IGST"}
+                        </td>
+                        <td className="p-2 text-right font-semibold">
+                          {formatCurrency(totals.taxable)}
+                        </td>
+                        <td className="p-2" />
+                      </tr>
+                      <tr>
+                        <td className="p-2" />
+                        <td className="p-2 text-right font-semibold">Tax</td>
+                        <td className="p-2" />
+                        <td className="p-2" />
+                        <td className="p-2" />
+                        <td className="p-2" />
+                        <td className="p-2" />
+                        <td className="p-2" />
+                        <td className="p-2 text-right font-semibold">
+                          {formatCurrency(intraState ? totals.cgst + totals.sgst : totals.igst)}
+                        </td>
+                        <td className="p-2" />
+                      </tr>
+                      <tr className="border-t border-[var(--factory1-primary)] bg-[var(--factory1-primary)] text-white">
+                        <td className="p-2" />
+                        <td className="p-2 text-right font-semibold">Total</td>
+                        <td className="p-2" />
+                        <td className="p-2" />
+                        <td className="p-2" />
+                        <td className="p-2" />
+                        <td className="p-2" />
+                        <td className="p-2" />
+                        <td className="p-2 text-right text-base font-bold">
+                          {formatCurrency(totals.grandTotal)}
+                        </td>
+                        <td className="p-2" />
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </section>
 
-              <section className="grid gap-4 lg:grid-cols-[1fr_280px]">
+              <section className="grid gap-2 lg:grid-cols-[1fr_280px]">
                 <Field label="Narration">
                   <Textarea
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        playUiSound("enter");
+                        setPostConfirmOpen(true);
+                      }
+                    }}
                     placeholder="Transport, LR number, payment terms, dispatch note..."
-                    className="min-h-24"
+                    className="min-h-20 rounded-md border-[var(--factory1-border-strong)] bg-white text-xs"
                   />
                 </Field>
                 <div className="flex flex-col justify-end gap-2">
@@ -1159,7 +1566,7 @@ export function BillingPage() {
                     variant="outline"
                     onClick={() => handleCreate("DRAFT")}
                     disabled={createState.isLoading || billNumberUnavailable}
-                    className="w-full"
+                    className="w-full rounded-md border-[var(--factory1-border-strong)]"
                   >
                     Save Draft
                   </Button>
@@ -1167,7 +1574,7 @@ export function BillingPage() {
                     size="lg"
                     onClick={() => handleCreate("POSTED")}
                     disabled={createState.isLoading || billNumberUnavailable}
-                    className="w-full"
+                    className="w-full rounded-md"
                   >
                     <FileText className="mr-2 h-4 w-4" />
                     {createState.isLoading ? "Saving..." : `Post ${mode.title}`}
@@ -1179,7 +1586,7 @@ export function BillingPage() {
         </div>
 
         {detailsOpen ? (
-        <div className="space-y-5">
+        <div className="space-y-2">
           <VoucherPreview
             mode={mode.title}
             partyName={selectedParty?.name ?? "Select ledger"}
@@ -1299,7 +1706,7 @@ export function BillingPage() {
                             cancelEwayState.isLoading
                           }
                           onPrint={async () => {
-                            if (!(await printInvoice(bill))) {
+                            if (!(await printInvoice(bill, orgSettings))) {
                               toast.error("Could not open invoice print window");
                             }
                           }}
@@ -1457,6 +1864,38 @@ export function BillingPage() {
             </Button>
             <Button onClick={submitPayment} disabled={paymentState.isLoading}>
               Save Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={postConfirmOpen} onOpenChange={setPostConfirmOpen}>
+        <DialogContent className="w-full max-w-[calc(100%-2rem)] rounded-lg border-[var(--factory1-border)] sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Accept Voucher?</DialogTitle>
+            <DialogDescription>
+              This will post the {type === "SALES" ? "sales" : "purchase"} voucher
+              and update stock and accounting entries.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-md"
+              onClick={() => setPostConfirmOpen(false)}
+            >
+              Esc: Cancel
+            </Button>
+            <Button
+              type="button"
+              className="rounded-md"
+              onClick={() => {
+                setPostConfirmOpen(false);
+                void handleCreate("POSTED");
+              }}
+            >
+              A: Accept
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1672,8 +2111,8 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium">{label}</label>
+    <div className="space-y-1">
+      <label className="text-[11px] font-bold text-[var(--factory1-text-primary)]">{label}</label>
       {children}
     </div>
   );
@@ -1693,7 +2132,7 @@ function NumberInput({
       step="0.01"
       value={Number.isFinite(value) ? value : 0}
       onChange={(event) => onChange(Number(event.target.value || 0))}
-      className="min-w-24 text-right"
+      className="h-9 min-w-24 rounded-md border-[var(--factory1-border-strong)] bg-white text-right text-xs"
     />
   );
 }
@@ -1785,6 +2224,30 @@ function formatCurrency(value: number) {
     currency: "INR",
     maximumFractionDigits: 2,
   }).format(value || 0);
+}
+
+function formatPlainCurrency(value: number) {
+  return new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  }).format(value || 0);
+}
+
+function formatDisplayDate(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function currentMonthRange() {
