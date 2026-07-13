@@ -25,6 +25,7 @@ import {
   openShortcutsMenuEvent,
   visibleShortcuts,
 } from "@/config/shortcuts";
+import type { FactoryUiMode } from "@/lib/uiModePreference";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,9 +40,10 @@ import { cn } from "@/lib/utils";
 
 type TopbarProps = {
   onMenuClick: () => void;
+  uiMode?: FactoryUiMode;
 };
 
-export function Topbar({ onMenuClick }: TopbarProps) {
+export function Topbar({ onMenuClick, uiMode = "modern" }: TopbarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const dispatch = useAppDispatch();
@@ -99,7 +101,13 @@ export function Topbar({ onMenuClick }: TopbarProps) {
     [dashboard]
   );
 
-  const shortcuts = useMemo(() => visibleShortcuts(user), [user]);
+  const shortcuts = useMemo(
+    () =>
+      visibleShortcuts(user).filter((shortcut) =>
+        uiMode === "tally" ? shortcut.exactTally : !shortcut.exactTally
+      ),
+    [uiMode, user]
+  );
 
   const unreadCount = notifications.filter(
     (notification) => notification.tone !== "good"
@@ -125,23 +133,33 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-white/90 px-6 backdrop-blur">
+    <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b border-[var(--factory1-border)] bg-white px-4 text-[var(--factory1-text-primary)]">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <button
           type="button"
           onClick={onMenuClick}
           data-tour="mobile-menu"
-          className="rounded-lg border p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
+          className="rounded-md border border-[var(--factory1-border)] p-1 text-[var(--factory1-text-secondary)] hover:bg-[var(--factory1-surface-muted)] lg:hidden"
           aria-label="Open navigation"
         >
-          <Menu size={18} />
+          <Menu size={15} />
         </button>
+
+        <div className="hidden min-w-0 items-center gap-2 text-[11px] font-semibold lg:flex">
+          <span className="rounded bg-[var(--factory1-primary)] px-2 py-0.5 text-white">
+            Factory1
+          </span>
+          <span className="truncate text-[var(--factory1-text-secondary)]">
+            {navigationItems.find((item) => item.href === pathname)?.title ??
+              "Gateway of Factory1"}
+          </span>
+        </div>
 
         <div
           data-tour="global-search"
-          className="relative hidden w-full max-w-md items-center gap-2 rounded-lg border bg-slate-50 px-3 py-2 text-sm text-slate-500 sm:flex"
+          className="relative ml-2 hidden w-full max-w-sm items-center gap-2 rounded-md border border-[var(--factory1-border)] bg-[var(--factory1-background)] px-2 py-1.5 text-xs text-[var(--factory1-text-secondary)] sm:flex"
         >
-          <Search size={16} />
+          <Search size={13} />
           <input
             value={query}
             onChange={(event) => {
@@ -160,11 +178,11 @@ export function Topbar({ onMenuClick }: TopbarProps) {
               }
             }}
             placeholder="Search modules, invoices, stock..."
-            className="w-full bg-transparent outline-none"
+            className="w-full bg-transparent outline-none placeholder:text-[var(--factory1-text-disabled)]"
           />
 
           {searchOpen ? (
-            <div className="absolute left-0 top-12 z-50 w-full overflow-hidden rounded-lg border bg-white shadow-xl">
+            <div className="absolute left-0 top-9 z-50 w-full overflow-hidden rounded-md border border-[var(--factory1-border)] bg-white text-slate-950 shadow-xl">
               <SearchResults
                 items={filteredItems}
                 activeHref={pathname}
@@ -182,14 +200,14 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 sm:hidden"
           aria-label="Search"
         >
-          <Search size={18} />
+          <Search size={15} />
         </button>
 
         <DropdownMenu open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
-          <DropdownMenuTrigger className="hidden items-center gap-2 rounded-lg border px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 md:flex">
-            <Keyboard size={16} />
+          <DropdownMenuTrigger className="hidden items-center gap-1 rounded-md border border-[var(--factory1-border)] px-2 py-1.5 text-[11px] text-[var(--factory1-text-secondary)] hover:bg-[var(--factory1-surface-muted)] md:flex">
+            <Keyboard size={13} />
             <span>Shortcuts</span>
-            <kbd className="rounded border bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+            <kbd className="rounded border border-[var(--factory1-border)] bg-[var(--factory1-background)] px-1 text-[10px] font-semibold text-[var(--factory1-text-secondary)]">
               F1
             </kbd>
           </DropdownMenuTrigger>
@@ -235,8 +253,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         </DropdownMenu>
 
         <DropdownMenu>
-          <DropdownMenuTrigger className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100">
-            <Bell size={18} />
+          <DropdownMenuTrigger className="relative rounded-md p-1.5 text-[var(--factory1-text-secondary)] hover:bg-[var(--factory1-surface-muted)]">
+            <Bell size={15} />
             {unreadCount > 0 ? (
               <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white">
                 {unreadCount}

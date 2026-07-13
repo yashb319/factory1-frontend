@@ -117,20 +117,20 @@ export function InventoryPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
+    <div className="space-y-2 text-[12px]">
+      <div className="flex flex-col justify-between gap-2 rounded-lg border border-[var(--factory1-border)] bg-[var(--factory1-background)] px-3 py-2 xl:flex-row xl:items-end">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Stock Control
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Inventory</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-[var(--factory1-text-primary)]">Inventory</h1>
+          <p className="mt-0.5 text-xs text-slate-500">
             Manage raw materials, finished goods, stock movements and low-stock
             alerts.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2 rounded-lg border bg-white p-2">
+        <div className="flex flex-wrap gap-2 rounded-lg border border-[var(--factory1-border)] bg-white p-2">
           <Button
             variant="outline"
             onClick={handleExport}

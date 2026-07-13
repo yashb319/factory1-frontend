@@ -127,21 +127,21 @@ export function PayrollPage() {
   const confirmContent = getConfirmContent(confirm.action);
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
+    <div className="space-y-2 text-[12px]">
+      <div className="flex flex-col justify-between gap-2 rounded-lg border border-[var(--factory1-border)] bg-[var(--factory1-background)] px-3 py-2 xl:flex-row xl:items-end">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Salary Operations
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+          <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-[var(--factory1-text-primary)]">
             Payroll
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-0.5 text-xs text-slate-500">
             Generate, approve, pay and audit monthly salary runs from one workspace.
           </p>
         </div>
 
-        <div className="grid gap-2 rounded-lg border bg-white p-2 sm:grid-cols-3">
+        <div className="grid gap-2 rounded-lg border border-[var(--factory1-border)] bg-white p-2 sm:grid-cols-3">
           {[
             {
               title: "Generate",
@@ -196,7 +196,7 @@ export function PayrollPage() {
             </div>
             <div>
               <h2 className="text-sm font-semibold text-slate-950">Monthly salary run</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-0.5 text-xs text-slate-500">
                 Generate only after attendance, salary structure and deductions are reviewed.
               </p>
             </div>

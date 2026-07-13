@@ -95,15 +95,15 @@ export function ProductsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
+    <div className="space-y-2 text-[12px]">
+      <Card className="border-[var(--factory1-border)]">
         <CardHeader className="flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               <PackageCheck className="h-5 w-5" />
               Products / BOM / Production
             </CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-0.5 text-xs text-slate-500">
               Manage finished goods, optional BOM and production entries.
             </p>
           </div>

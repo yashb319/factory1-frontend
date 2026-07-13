@@ -88,11 +88,11 @@ export function SupplierPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+    <div className="space-y-2 text-[12px]">
+      <div className="flex flex-col justify-between gap-2 rounded-lg border border-[var(--factory1-border)] bg-[var(--factory1-background)] px-3 py-2 md:flex-row md:items-center">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Suppliers</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--factory1-text-primary)]">Suppliers</h1>
+          <p className="text-xs text-slate-500">
             Manage vendor records for inventory purchases and future billing flows.
           </p>
         </div>

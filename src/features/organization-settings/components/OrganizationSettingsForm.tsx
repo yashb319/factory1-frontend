@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, CreditCard, KeyRound, RefreshCw, Send } from "lucide-react";
+import {
+  Copy,
+  CreditCard,
+  KeyRound,
+  Keyboard,
+  LayoutDashboard,
+  RefreshCw,
+  Send,
+} from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -35,6 +43,14 @@ import {
   getLocationSuggestions,
   type LocationSuggestion,
 } from "@/lib/locationSuggestions";
+import {
+  type FactoryUiMode,
+  getFactoryUiMode,
+  getNextFactoryUiModePromptDate,
+  setFactoryUiMode,
+  UI_MODE_CHANGED_EVENT,
+} from "@/lib/uiModePreference";
+import { useAppSelector } from "@/lib/hook";
 
 const schema = z.object({
   workingHoursPerDay: z.number().min(1, "Required"),
@@ -124,6 +140,7 @@ const fallbackPlans: PlanOption[] = [
 const planOrder: OrganizationPlan[] = ["FREE", "STARTER", "GROWTH", "BUSINESS", "ENTERPRISE"];
 
 export function OrganizationSettingsForm() {
+  const user = useAppSelector((state) => state.auth.user);
   const { data, isLoading } = useGetOrganizationSettingsQuery();
   const { data: plansResponse } = useGetOrganizationPlanOptionsQuery();
   const { data: offersResponse } = useGetOrganizationPlanOffersQuery();
@@ -133,7 +150,9 @@ export function OrganizationSettingsForm() {
     useRegenerateAttendanceCaptureKeyMutation();
   const [requestPlanChange, { isLoading: isRequestingPlan }] =
     useRequestPlanChangeMutation();
-  const [tab, setTab] = useState<"plan" | "profile" | "operations">("plan");
+  const [tab, setTab] = useState<"plan" | "profile" | "operations" | "interface">("plan");
+  const [uiMode, setUiMode] = useState<FactoryUiMode>("modern");
+  const [nextPromptDate, setNextPromptDate] = useState<Date | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -161,6 +180,21 @@ export function OrganizationSettingsForm() {
   const city = form.watch("city");
   const location = form.watch("location");
   const locationSuggestions = getLocationSuggestions(city || location);
+
+  useEffect(() => {
+    setUiMode(getFactoryUiMode(user));
+    setNextPromptDate(getNextFactoryUiModePromptDate(user));
+
+    function handleModeChange() {
+      setUiMode(getFactoryUiMode(user));
+      setNextPromptDate(getNextFactoryUiModePromptDate(user));
+    }
+
+    window.addEventListener(UI_MODE_CHANGED_EVENT, handleModeChange);
+
+    return () =>
+      window.removeEventListener(UI_MODE_CHANGED_EVENT, handleModeChange);
+  }, [user]);
 
   const applyLocationSuggestion = (suggestion: LocationSuggestion) => {
     form.setValue("city", suggestion.city, { shouldDirty: true });
@@ -278,6 +312,17 @@ export function OrganizationSettingsForm() {
     }
   }
 
+  function updateUiMode(mode: FactoryUiMode) {
+    setFactoryUiMode(mode, user);
+    setUiMode(mode);
+    setNextPromptDate(getNextFactoryUiModePromptDate(user));
+    toast.success(
+      mode === "tally"
+        ? "Tally-like workspace enabled"
+        : "New Factory1 workspace enabled"
+    );
+  }
+
   if (isLoading) {
     return <p className="text-sm text-slate-500">Loading settings...</p>;
   }
@@ -294,6 +339,7 @@ export function OrganizationSettingsForm() {
     { id: "plan" as const, label: "Plan & Billing" },
     { id: "profile" as const, label: "Profile" },
     { id: "operations" as const, label: "Operations" },
+    { id: "interface" as const, label: "Interface" },
   ];
 
   return (
@@ -589,6 +635,82 @@ export function OrganizationSettingsForm() {
               <div className="rounded-lg border bg-slate-50 p-3 font-mono text-xs text-slate-700">
                 {data?.data.attendanceCaptureKey || "No key generated yet"}
               </div>
+            </div>
+          </div>
+        )}
+
+        {tab === "interface" && (
+          <div>
+            <h2 className="text-sm font-semibold text-slate-950">
+              Workspace Interface
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Choose the layout that feels natural for your operators. Factory1 will ask again once a week.
+            </p>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => updateUiMode("modern")}
+                className={`rounded-lg border p-4 text-left transition ${
+                  uiMode === "modern"
+                    ? "border-blue-200 bg-blue-50"
+                    : "bg-white hover:border-blue-200 hover:bg-blue-50/60"
+                }`}
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-md bg-blue-100 text-blue-700">
+                  <LayoutDashboard className="h-5 w-5" />
+                </span>
+                <span className="mt-4 block text-base font-semibold text-slate-950">
+                  New UI
+                </span>
+                <span className="mt-2 block text-sm leading-6 text-slate-600">
+                  Left navigation, modern dashboards, guided screens and visual workflows for new users.
+                </span>
+                {uiMode === "modern" ? (
+                  <span className="mt-4 inline-flex rounded-full bg-blue-600 px-2 py-1 text-xs font-semibold text-white">
+                    Active
+                  </span>
+                ) : null}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => updateUiMode("tally")}
+                className={`rounded-lg border p-4 text-left transition ${
+                  uiMode === "tally"
+                    ? "border-emerald-300 bg-emerald-50"
+                    : "bg-white hover:border-emerald-300 hover:bg-emerald-50/60"
+                }`}
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-100 text-emerald-700">
+                  <Keyboard className="h-5 w-5" />
+                </span>
+                <span className="mt-4 block text-base font-semibold text-slate-950">
+                  Tally-like UI
+                </span>
+                <span className="mt-2 block text-sm leading-6 text-slate-600">
+                  Gateway home screen, function-key shortcuts and keyboard-first voucher entry for Tally users.
+                </span>
+                {uiMode === "tally" ? (
+                  <span className="mt-4 inline-flex rounded-full bg-emerald-600 px-2 py-1 text-xs font-semibold text-white">
+                    Active
+                  </span>
+                ) : null}
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-lg border bg-slate-50 p-3 text-sm text-slate-600">
+              Weekly chooser:{" "}
+              <span className="font-medium text-slate-950">
+                {nextPromptDate
+                  ? `next shown around ${nextPromptDate.toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}`
+                  : "will appear on next login"}
+              </span>
             </div>
           </div>
         )}
