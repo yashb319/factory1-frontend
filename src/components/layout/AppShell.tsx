@@ -103,6 +103,14 @@ export function AppShell({ children }: Props) {
           router.push("/gateway?menu=payroll");
           return;
         }
+        if (pathname.startsWith("/tally/dashboard")) {
+          router.push("/gateway?menu=dashboard");
+          return;
+        }
+        if (pathname.startsWith("/tally/org-settings")) {
+          router.push("/gateway");
+          return;
+        }
         if (window.history.length > 1) {
           router.back();
         } else {

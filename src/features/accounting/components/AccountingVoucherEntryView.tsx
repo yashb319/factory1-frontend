@@ -14,9 +14,6 @@ import type {
 } from "@/features/accounting/types/accounting.types";
 import { labelCase } from "@/features/accounting/utils/accountingFormat";
 import { voucherHtml } from "@/features/accounting/utils/voucherPrint";
-import {
-  useGetOrganizationSettingsQuery,
-} from "@/features/organization-settings/api/organizationSettingsApi";
 import { downloadDocument, printDocument, shareDocument } from "@/lib/tallyDocuments";
 import { playUiSound } from "@/lib/uiSounds";
 
@@ -52,8 +49,6 @@ export function AccountingVoucherEntryView({
   onBack: () => void;
 }) {
   const { data: masters } = useGetAccountMastersQuery();
-  const { data: orgSettingsResponse } = useGetOrganizationSettingsQuery();
-  const orgSettings = orgSettingsResponse?.data;
 
   const [createVoucher, createState] = useCreateAccountingVoucherMutation();
   const [updateVoucher, updateState] = useUpdateAccountingVoucherMutation();
@@ -209,7 +204,7 @@ export function AccountingVoucherEntryView({
         description: line.description,
       })),
     };
-    return voucherHtml(draft, orgSettings, ledgerNames);
+    return voucherHtml(draft);
   }
 
   async function onPrint() {
@@ -296,62 +291,61 @@ export function AccountingVoucherEntryView({
   return (
     <div
       ref={rootRef}
-      className="flex h-full flex-col bg-[var(--factory1-surface)] px-6 py-4 text-[13px] text-[var(--factory1-text)]"
+      className="h-[calc(100vh-2rem)] overflow-hidden border border-[#0F766E] bg-[#FEFCE8] font-mono text-[13px] text-[#0F172A]"
     >
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-base font-bold uppercase tracking-wide">
+      <div className="grid grid-cols-3 border-b border-[#0F766E] bg-[#C8E6C9] text-xs">
+        <div className="px-3 py-1 font-bold">
           {labelCase(voucherType)} Voucher {mode === "alter" ? "Alteration" : "Creation"}
         </div>
-        <div className="text-xs text-[var(--factory1-text-muted)]">
-          {voucher?.voucherNumber ? `No: ${voucher.voucherNumber}` : "New Voucher"}
-        </div>
+        <div className="px-3 py-1 text-center text-[11px] text-slate-700">Factory1</div>
+        <div className="px-3 py-1 text-right text-[11px] text-slate-700">Ctrl + M</div>
       </div>
 
-      <div className="mb-3 grid grid-cols-2 gap-3 border-y border-[var(--factory1-border)] py-2">
-        <label className="flex items-center gap-2">
-          <span className="w-28 text-[var(--factory1-text-muted)]">Voucher Date</span>
+      <div className="grid grid-cols-2 gap-3 border-b border-[#0F766E] bg-[#D9F99D]/40 px-4 py-2">
+        <label className="grid grid-cols-[120px_1fr] items-center gap-3">
+          <span className="px-1 font-bold">Voucher Date</span>
           <input
             data-tally-focus
             type="date"
             value={voucherDate}
             onChange={(e) => setVoucherDate(e.target.value)}
-            className="flex-1 rounded border border-[var(--factory1-border)] bg-[var(--factory1-input)] px-2 py-1"
+            className="h-6 border-0 border-b border-[#0F766E] bg-transparent px-1 outline-none focus:bg-[#FFF7C2]"
           />
         </label>
-        <label className="flex items-center gap-2">
-          <span className="w-20 text-[var(--factory1-text-muted)]">Narration</span>
+        <label className="grid grid-cols-[100px_1fr] items-center gap-3">
+          <span className="px-1 font-bold">Narration</span>
           <input
             data-tally-focus
             type="text"
             value={narration}
             onChange={(e) => setNarration(e.target.value)}
             placeholder="Optional"
-            className="flex-1 rounded border border-[var(--factory1-border)] bg-[var(--factory1-input)] px-2 py-1"
+            className="h-6 border-0 border-b border-[#0F766E] bg-transparent px-1 outline-none focus:bg-[#FFF7C2]"
           />
         </label>
       </div>
 
-      <div className="mb-1 grid grid-cols-[24px_1fr_90px_140px_1fr_28px] gap-2 px-1 text-[11px] uppercase text-[var(--factory1-text-muted)]">
-        <span>#</span>
+      <div className="grid grid-cols-[40px_1fr_80px_140px_1fr_28px] gap-2 border-b border-[#0F766E] bg-[#C8E6C9] px-4 py-1 text-[11px] uppercase">
+        <span className="text-center">#</span>
         <span>Ledger</span>
         <span>Type</span>
-        <span>Amount</span>
+        <span className="text-right">Amount</span>
         <span>Description</span>
         <span />
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div className="h-[calc(100%-15rem)] overflow-auto px-4">
         {lines.map((line, index) => (
           <div
             key={index}
-            className="mb-1 grid grid-cols-[24px_1fr_90px_140px_1fr_28px] items-center gap-2 px-1"
+            className="my-1 grid grid-cols-[40px_1fr_80px_140px_1fr_28px] items-center gap-2"
           >
             <span className="text-center text-[var(--factory1-text-muted)]">{index + 1}</span>
             <select
               data-tally-focus
               value={line.ledgerId}
               onChange={(e) => updateLine(index, { ledgerId: e.target.value })}
-              className="rounded border border-[var(--factory1-border)] bg-[var(--factory1-input)] px-2 py-1"
+              className="h-6 w-full border-0 border-b border-[#0F766E] bg-transparent outline-none focus:bg-[#FFF7C2]"
             >
               <option value="">Select Ledger</option>
               {ledgers.map((ledger) => (
@@ -363,10 +357,8 @@ export function AccountingVoucherEntryView({
             <select
               data-tally-focus
               value={line.entryType}
-              onChange={(e) =>
-                updateLine(index, { entryType: e.target.value as BalanceType })
-              }
-              className="rounded border border-[var(--factory1-border)] bg-[var(--factory1-input)] px-2 py-1"
+              onChange={(e) => updateLine(index, { entryType: e.target.value as BalanceType })}
+              className="h-6 w-full border-0 border-b border-[#0F766E] bg-transparent outline-none focus:bg-[#FFF7C2]"
             >
               <option value="DR">Dr</option>
               <option value="CR">Cr</option>
@@ -378,7 +370,7 @@ export function AccountingVoucherEntryView({
               step="0.01"
               value={line.amount}
               onChange={(e) => updateLine(index, { amount: e.target.value })}
-              className="rounded border border-[var(--factory1-border)] bg-[var(--factory1-input)] px-2 py-1 text-right"
+              className="h-6 border-0 border-b border-[#0F766E] bg-transparent px-1 text-right outline-none focus:bg-[#FFF7C2]"
             />
             <input
               data-tally-focus
@@ -386,13 +378,13 @@ export function AccountingVoucherEntryView({
               value={line.description}
               onChange={(e) => updateLine(index, { description: e.target.value })}
               placeholder="Optional"
-              className="rounded border border-[var(--factory1-border)] bg-[var(--factory1-input)] px-2 py-1"
+              className="h-6 border-0 border-b border-[#0F766E] bg-transparent px-1 outline-none focus:bg-[#FFF7C2]"
             />
             <button
               type="button"
               data-tally-focus
               onClick={() => removeLine(index)}
-              className="rounded border border-[var(--factory1-border)] px-1 py-1 text-xs hover:bg-[var(--factory1-hover)]"
+              className="h-6 rounded border border-[#0F766E] hover:bg-[#6366F1] hover:text-white"
             >
               X
             </button>
@@ -400,12 +392,12 @@ export function AccountingVoucherEntryView({
         ))}
       </div>
 
-      <div className="mt-2 flex items-center justify-between border-t border-[var(--factory1-border)] py-2 text-xs">
+      <div className="flex items-center justify-between border-t border-[#0F766E] bg-[#D9F99D]/40 px-4 py-1 text-xs">
         <button
           type="button"
           data-tally-focus
           onClick={addLine}
-          className="rounded border border-[var(--factory1-border)] px-3 py-1 hover:bg-[var(--factory1-hover)]"
+          className="rounded border border-[#0F766E] px-3 py-1 hover:bg-[#6366F1] hover:text-white"
         >
           + Add Line (Ins)
         </button>
@@ -422,27 +414,53 @@ export function AccountingVoucherEntryView({
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-3 border-t border-[var(--factory1-border)] pt-2 text-xs">
-        <ActionHint keys="A" label="Accept" />
-        <ActionHint keys="Q" label="Back" />
-        <ActionHint keys="Ins" label="Add Line" />
-        <ActionHint keys="Del" label="Remove Line" />
-        <ActionHint keys="P" label="Print" />
-        <ActionHint keys="H" label="Share" />
-        <ActionHint keys="D" label="Download" />
-        {saving && <span className="text-[var(--factory1-accent)]">Saving…</span>}
+      <div className="grid grid-cols-4 border-t border-[#0F766E] bg-[#BBF7D0] text-xs">
+        <button
+          type="button"
+          className="border-r border-[#0F766E] px-2 py-1 text-left hover:bg-[#6366F1] hover:text-white"
+          onClick={onBack}
+        >
+          Q: Back
+        </button>
+        <button
+          type="button"
+          className="border-r border-[#0F766E] px-2 py-1 text-left font-bold hover:bg-[#6366F1] hover:text-white disabled:opacity-60"
+          disabled={saving}
+          onClick={() => {
+            playUiSound("post");
+            void accept();
+          }}
+        >
+          A: Accept
+        </button>
+        <button
+          type="button"
+          className="border-r border-[#0F766E] px-2 py-1 text-left hover:bg-[#6366F1] hover:text-white"
+          onClick={onPrint}
+        >
+          P: Print
+        </button>
+        <button
+          type="button"
+          className="px-2 py-1 text-left hover:bg-[#6366F1] hover:text-white"
+          onClick={onShare}
+        >
+          H: Share
+        </button>
+      </div>
+      <div className="grid grid-cols-3 border-t border-[#0F766E] bg-[#BBF7D0] text-xs">
+        <button
+          type="button"
+          className="border-r border-[#0F766E] px-2 py-1 text-left hover:bg-[#6366F1] hover:text-white"
+          onClick={onDownload}
+        >
+          D: Download
+        </button>
+        <span className="border-r border-[#0F766E] px-2 py-1 text-slate-600">
+          Ins: Add Line
+        </span>
+        <span className="px-2 py-1 text-slate-600">Del: Remove Line</span>
       </div>
     </div>
-  );
-}
-
-function ActionHint({ keys, label }: { keys: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <kbd className="rounded border border-[var(--factory1-border)] bg-[var(--factory1-surface-2)] px-1.5 py-0.5 font-mono text-[10px]">
-        {keys}
-      </kbd>
-      {label}
-    </span>
   );
 }

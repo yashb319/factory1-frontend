@@ -125,7 +125,7 @@ type AlterCompanyDraft = {
 };
 
 export const gatewayMenuItems: GatewayItem[] = [
-  { key: "D", label: "Dashboard", href: "/dashboard" },
+  { key: "D", label: "Dashboard", href: "/tally/dashboard" },
   { key: "E", label: "Employees", href: "/tally/employees" },
   { key: "A", label: "Attendance", href: "/tally/attendance" },
   { key: "R", label: "Payroll", href: "/tally/payroll" },
@@ -137,7 +137,7 @@ export const gatewayMenuItems: GatewayItem[] = [
   { key: "U", label: "Customers", href: "/tally/customers" },
   { key: "X", label: "Import / Export", href: "/import-export" },
   { key: "F", label: "AI Assistant", href: "/ai" },
-  { key: "O", label: "Organization Settings", href: "/organization-settings" },
+  { key: "O", label: "Organization Settings", href: "/tally/org-settings" },
 ];
 
 const inventoryMenuItems: GatewayItem[] = [
