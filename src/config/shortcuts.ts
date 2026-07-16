@@ -32,7 +32,7 @@ export const appShortcuts: AppShortcut[] = [
     title: "Gateway",
     tallyHint: "Gateway",
     description: "Return to Gateway of Factory1.",
-    href: "/dashboard",
+    href: "/gateway",
     roles: allFactoryRoles,
     section: "tally",
     exactTally: true,

@@ -129,7 +129,9 @@ export type VoucherType =
   | "CONTRA"
   | "JOURNAL"
   | "DEBIT_NOTE"
-  | "CREDIT_NOTE";
+  | "CREDIT_NOTE"
+  | "SALES"
+  | "PURCHASE";
 
 export type AccountGroup = {
   id: string;

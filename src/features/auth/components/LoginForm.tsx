@@ -17,6 +17,7 @@ import {
 import { useLoginMutation, useSendLoginOtpMutation } from "../authApi";
 import { loginSchema, type LoginFormValues } from "../schemas/login.schema";
 import { useAppDispatch } from "@/lib/hook";
+import { getFactoryUiMode } from "@/lib/uiModePreference";
 import { Button } from "@/components/ui/button";
 
 export function LoginForm() {
@@ -57,7 +58,12 @@ export function LoginForm() {
         })
       );
 
-      router.push(response.user?.platformAdmin ? "/saas-admin" : "/dashboard");
+      const landingRoute = response.user?.platformAdmin
+        ? "/saas-admin"
+        : getFactoryUiMode(response.user ?? null) === "tally"
+          ? "/gateway"
+          : "/dashboard";
+      router.push(landingRoute);
     } catch (caughtError) {
       if (isLoginOtpRequired(caughtError)) {
         setOtpRequired(true);
