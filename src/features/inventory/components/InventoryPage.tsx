@@ -16,10 +16,7 @@ import {
   useGetInventoryDashboardQuery,
   useGetInventoryItemsQuery,
 } from "../api/inventoryApi";
-import type {
-  InventoryItem,
-  InventorySearchParams,
-} from "../types/inventory.types";
+import type { InventoryItem, InventorySearchParams } from "../types/inventory.types";
 import { exportInventoryCsv } from "../utils/inventoryExport";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 import { InventoryBulkImportDialog } from "./InventoryBulkImportDialog";

@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  Fragment,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import type { AuthUser } from "@/features/auth/types";
@@ -39,10 +40,27 @@ import type {
 import { useGetInventoryDashboardQuery } from "@/features/inventory/api/inventoryApi";
 import type { InventoryDashboard } from "@/features/inventory/types/inventory.types";
 import type { GstReport } from "@/features/billing/types/billing.types";
+import { useSearchParams } from "next/navigation";
+
+const GATEWAY_MENU_PARAMS: CompanyScreen[] = [
+  "company",
+  "dashboard",
+  "masters",
+  "inventory",
+  "product",
+  "suppliers",
+  "customers",
+  "employees",
+  "attendance",
+  "accounting",
+  "billing",
+  "payroll",
+];
 
 type TallyGatewayHomeProps = {
   user: AuthUser | null;
   onNavigate: (href: string) => void;
+  onLogout: () => void;
 };
 
 type GatewayItem = {
@@ -51,6 +69,7 @@ type GatewayItem = {
   label: string;
   href: string;
   developed?: boolean;
+  group?: string;
 };
 
 type CompanyScreen =
@@ -58,7 +77,25 @@ type CompanyScreen =
   | "company"
   | "alterCompany"
   | "dashboard"
-  | "dashboardReport";
+  | "dashboardReport"
+  | "masters"
+  | "mastersSection"
+  | "inventory"
+  | "product"
+  | "suppliers"
+  | "customers"
+  | "employees"
+  | "attendance"
+  | "accounting"
+  | "billing"
+  | "payroll";
+
+type MasterSectionKey =
+  | "ACCOUNTING"
+  | "INVENTORY"
+  | "PAYROLL"
+  | "GST"
+  | "BANKING";
 
 type DashboardReportKey =
   | "BUSINESS_OVERVIEW"
@@ -88,17 +125,74 @@ type AlterCompanyDraft = {
 };
 
 export const gatewayMenuItems: GatewayItem[] = [
-  { key: "C", label: "Company", href: "/organization-settings?section=company" },
   { key: "D", label: "Dashboard", href: "/dashboard" },
-  { key: "M", label: "Masters", href: "/accounting?workspace=MASTERS" },
-  { key: "T", label: "Transactions", href: "/accounting?workspace=VOUCHERS" },
-  { key: "B", label: "Banking", href: "/accounting?workspace=CASH_BANK" },
-  { key: "R", label: "Reports", href: "/accounting?workspace=REPORTS" },
-  { key: "U", label: "Utilities", href: "/import-export" },
-  { key: "I", label: "Import", href: "/import-export" },
-  { key: "E", label: "Export", href: "/import-export" },
-  { shortcut: "F12", label: "Configuration", href: "/organization-settings" },
-  { shortcut: "F1", label: "Help", href: "/docs" },
+  { key: "E", label: "Employees", href: "/tally/employees" },
+  { key: "A", label: "Attendance", href: "/tally/attendance" },
+  { key: "R", label: "Payroll", href: "/tally/payroll" },
+  { key: "I", label: "Inventory", href: "/tally/inventory" },
+  { key: "P", label: "Product", href: "/tally/product" },
+  { key: "B", label: "Billing", href: "/tally/billing" },
+  { key: "C", label: "Accounting", href: "/tally/accounting" },
+  { key: "S", label: "Suppliers", href: "/tally/suppliers" },
+  { key: "U", label: "Customers", href: "/tally/customers" },
+  { key: "X", label: "Import / Export", href: "/import-export" },
+  { key: "F", label: "AI Assistant", href: "/ai" },
+  { key: "O", label: "Organization Settings", href: "/organization-settings" },
+];
+
+const inventoryMenuItems: GatewayItem[] = [
+  { key: "I", label: "Inventory List", href: "/tally/inventory", group: "Inventory" },
+  { key: "N", label: "Add a New Item", href: "/tally/inventory/create", group: "Inventory" },
+  { key: "X", label: "Import / Export Inventory", href: "/tally/inventory/import-export", group: "Inventory" },
+];
+
+const productMenuItems: GatewayItem[] = [
+  { key: "P", label: "Product List", href: "/tally/product", group: "Product" },
+  { key: "N", label: "Add a New Product", href: "/tally/product/create", group: "Product" },
+  { key: "R", label: "Record a New Production", href: "/tally/product/production", group: "Product" },
+  { key: "E", label: "Export Product", href: "/tally/product/export", group: "Product" },
+];
+
+const suppliersMenuItems: GatewayItem[] = [
+  { key: "S", label: "Supplier List", href: "/tally/suppliers", group: "Suppliers" },
+  { key: "N", label: "Add a New Supplier", href: "/tally/suppliers/create", group: "Suppliers" },
+];
+
+const customersMenuItems: GatewayItem[] = [
+  { key: "C", label: "Customer List", href: "/tally/customers", group: "Customers" },
+  { key: "N", label: "Add a New Customer", href: "/tally/customers/create", group: "Customers" },
+];
+
+const employeesMenuItems: GatewayItem[] = [
+  { key: "E", label: "Employee List", href: "/tally/employees", group: "Employees" },
+  { key: "N", label: "Add a New Employee", href: "/tally/employees/create", group: "Employees" },
+];
+
+const attendanceMenuItems: GatewayItem[] = [
+  { key: "M", label: "Mark Attendance", href: "/tally/attendance", group: "Attendance" },
+  { key: "D", label: "Daily Register", href: "/tally/attendance?view=register", group: "Attendance" },
+  { key: "R", label: "Monthly Report", href: "/tally/attendance?view=report", group: "Attendance" },
+];
+
+const accountingMenuItems: GatewayItem[] = [
+  { key: "A", label: "Account Masters", href: "/tally/accounting?screen=masters", group: "Accounting" },
+  { key: "F", label: "F4: Contra", href: "/tally/accounting?voucher=CONTRA", group: "Vouchers" },
+  { key: "P", label: "F5: Payment", href: "/tally/accounting?voucher=PAYMENT", group: "Vouchers" },
+  { key: "R", label: "F6: Receipt", href: "/tally/accounting?voucher=RECEIPT", group: "Vouchers" },
+  { key: "J", label: "F7: Journal", href: "/tally/accounting?voucher=JOURNAL", group: "Vouchers" },
+  { key: "S", label: "F8: Sales", href: "/tally/accounting?voucher=SALES", group: "Vouchers" },
+  { key: "U", label: "F9: Purchase", href: "/tally/accounting?voucher=PURCHASE", group: "Vouchers" },
+];
+
+const billingMenuItems: GatewayItem[] = [
+  { key: "S", label: "Sales Invoices", href: "/tally/billing?type=SALES", group: "Billing" },
+  { key: "P", label: "Purchase Invoices", href: "/tally/billing?type=PURCHASE", group: "Billing" },
+  { key: "N", label: "New Invoice", href: "/tally/billing/create", group: "Billing" },
+];
+
+const payrollMenuItems: GatewayItem[] = [
+  { key: "L", label: "Payroll Runs", href: "/tally/payroll", group: "Payroll" },
+  { key: "G", label: "Generate Payroll", href: "/tally/payroll/generate", group: "Payroll" },
 ];
 
 const companyMenuItems: GatewayItem[] = [
@@ -130,7 +224,69 @@ const dashboardMenuItems: Array<GatewayItem & { reportKey?: DashboardReportKey }
   { key: "E", label: "Exception Alerts", href: "/dashboard", developed: false },
 ];
 
-export function TallyGatewayHome({ user, onNavigate }: TallyGatewayHomeProps) {
+const mastersMenuItems: Array<GatewayItem & { sectionKey?: MasterSectionKey }> = [
+  { key: "A", label: "Accounting Masters", href: "/accounting?workspace=MASTERS", sectionKey: "ACCOUNTING" },
+  { key: "I", label: "Inventory Masters", href: "/inventory", sectionKey: "INVENTORY" },
+  { key: "P", label: "Payroll Masters", href: "/payroll", sectionKey: "PAYROLL" },
+  { key: "G", label: "GST Masters", href: "/accounting?workspace=TAXES", sectionKey: "GST" },
+  { key: "B", label: "Banking Masters", href: "/accounting?workspace=CASH_BANK", sectionKey: "BANKING" },
+];
+
+const mastersBySection: Record<MasterSectionKey, GatewayItem[]> = {
+  ACCOUNTING: [
+    { key: "G", label: "Groups", href: "/accounting?workspace=MASTERS" },
+    { key: "L", label: "Ledgers", href: "/accounting?workspace=MASTERS" },
+    { key: "C", label: "Cost Categories", href: "/accounting?workspace=MASTERS", developed: false },
+    { key: "O", label: "Cost Centres", href: "/accounting?workspace=MASTERS", developed: false },
+    { key: "B", label: "Budgets", href: "/accounting?workspace=REPORTS", developed: false },
+    { key: "S", label: "Scenarios", href: "/accounting?workspace=REPORTS", developed: false },
+    { key: "V", label: "Voucher Types", href: "/accounting?workspace=SETTINGS" },
+    { key: "U", label: "Currencies", href: "/organization-settings" },
+    { key: "I", label: "Interest Parameters", href: "/accounting?workspace=SETTINGS", developed: false },
+    { key: "R", label: "Credit Limits", href: "/customers", developed: false },
+  ],
+  INVENTORY: [
+    { key: "U", label: "Units", href: "/inventory", developed: false },
+    { key: "G", label: "Stock Groups", href: "/inventory", developed: false },
+    { key: "C", label: "Stock Categories", href: "/inventory", developed: false },
+    { key: "I", label: "Stock Items", href: "/inventory" },
+    { key: "O", label: "Godowns", href: "/inventory", developed: false },
+    { key: "B", label: "Batches", href: "/inventory", developed: false },
+    { key: "P", label: "Price Levels", href: "/products", developed: false },
+    { key: "L", label: "Price Lists", href: "/products" },
+    { key: "M", label: "BOM (Bill of Material)", href: "/products" },
+    { key: "R", label: "Reorder Levels", href: "/inventory" },
+  ],
+  PAYROLL: [
+    { key: "E", label: "Employees", href: "/employees" },
+    { key: "G", label: "Employee Groups", href: "/employees", developed: false },
+    { key: "A", label: "Attendance Types", href: "/attendance", developed: false },
+    { key: "U", label: "Attendance Units", href: "/attendance", developed: false },
+    { key: "P", label: "Pay Heads", href: "/payroll", developed: false },
+    { key: "S", label: "Salary Details", href: "/payroll" },
+    { key: "C", label: "Employee Categories", href: "/employees", developed: false },
+    { key: "R", label: "Employee Grades", href: "/employees", developed: false },
+    { key: "L", label: "Payroll Units", href: "/payroll", developed: false },
+  ],
+  GST: [
+    { key: "R", label: "GST Registration", href: "/settings/gst-integration" },
+    { key: "C", label: "GST Classifications", href: "/accounting?workspace=TAXES", developed: false },
+    { key: "H", label: "HSN/SAC", href: "/inventory" },
+    { key: "N", label: "Nature of Transactions", href: "/accounting?workspace=TAXES", developed: false },
+    { key: "T", label: "Tax Ledgers", href: "/accounting?workspace=MASTERS" },
+  ],
+  BANKING: [
+    { key: "B", label: "Bank Accounts", href: "/accounting?workspace=MASTERS" },
+    { key: "C", label: "Cheque Books", href: "/accounting?workspace=CASH_BANK", developed: false },
+    { key: "P", label: "Payment Instruments", href: "/accounting?workspace=CASH_BANK", developed: false },
+  ],
+};
+
+export function TallyGatewayHome({
+  user,
+  onNavigate,
+  onLogout,
+}: TallyGatewayHomeProps) {
   const shortcuts = visibleShortcuts(user).filter((shortcut) => shortcut.exactTally);
   const { data: settingsResponse } = useGetOrganizationSettingsQuery();
   const [updateSettings, updateSettingsState] = useUpdateOrganizationSettingsMutation();
@@ -151,15 +307,43 @@ export function TallyGatewayHome({ user, onNavigate }: TallyGatewayHomeProps) {
   });
   const { data: gstSummary } = useGetAccountingGstSummaryQuery(range);
   const { data: inventoryDashboard } = useGetInventoryDashboardQuery();
-  const [activeMenu, setActiveMenu] = useState<CompanyScreen>("gateway");
+  const searchParams = useSearchParams();
+  const menuParam = searchParams.get("menu") as CompanyScreen | null;
+  const [activeMenu, setActiveMenu] = useState<CompanyScreen>(
+    menuParam && GATEWAY_MENU_PARAMS.includes(menuParam) ? menuParam : "gateway"
+  );
   const [activeDashboardReport, setActiveDashboardReport] =
     useState<DashboardReportKey>("BUSINESS_OVERVIEW");
+  const [activeMasterSection, setActiveMasterSection] =
+    useState<MasterSectionKey>("ACCOUNTING");
   const currentMenuItems =
     activeMenu === "company"
       ? companyMenuItems
       : activeMenu === "dashboard"
         ? dashboardMenuItems
-        : gatewayMenuItems;
+        : activeMenu === "masters"
+          ? mastersMenuItems
+          : activeMenu === "mastersSection"
+            ? mastersBySection[activeMasterSection]
+            : activeMenu === "inventory"
+              ? inventoryMenuItems
+              : activeMenu === "product"
+                ? productMenuItems
+                : activeMenu === "suppliers"
+                  ? suppliersMenuItems
+                  : activeMenu === "customers"
+                    ? customersMenuItems
+                    : activeMenu === "employees"
+                      ? employeesMenuItems
+                      : activeMenu === "attendance"
+                        ? attendanceMenuItems
+                        : activeMenu === "accounting"
+                          ? accountingMenuItems
+                          : activeMenu === "billing"
+                            ? billingMenuItems
+                            : activeMenu === "payroll"
+                              ? payrollMenuItems
+                              : gatewayMenuItems;
   const gatewayItems = useMemo(
     () =>
       currentMenuItems.map((item, index) => ({
@@ -175,6 +359,8 @@ export function TallyGatewayHome({ user, onNavigate }: TallyGatewayHomeProps) {
       ? "/organization-settings?section=company"
       : activeMenu === "dashboardReport"
         ? dashboardReportHref(activeDashboardReport)
+        : activeMenu === "mastersSection"
+          ? masterSectionHref(activeMasterSection)
       : gatewayItems[selectedIndex]?.item.href ?? "/dashboard";
   const [alterDraft, setAlterDraft] = useState<AlterCompanyDraft>(
     emptyAlterCompanyDraft()
@@ -252,6 +438,12 @@ export function TallyGatewayHome({ user, onNavigate }: TallyGatewayHomeProps) {
         return;
       }
 
+      if (activeMenu === "mastersSection" && event.key === "Escape") {
+        event.preventDefault();
+        setActiveMenu("masters");
+        return;
+      }
+
       if (event.key === "ArrowDown") {
         event.preventDefault();
         setSelectedIndex((current) =>
@@ -294,23 +486,10 @@ export function TallyGatewayHome({ user, onNavigate }: TallyGatewayHomeProps) {
         if (!selected) {
           return;
         }
-        if (activeMenu === "gateway" && selected.label === "Company") {
-          setActiveMenu("company");
-          return;
-        }
-        if (activeMenu === "gateway" && selected.label === "Dashboard") {
-          setActiveMenu("dashboard");
-          return;
-        }
-        if (activeMenu === "company" && selected.label === "Alter Company") {
-          setActiveMenu("alterCompany");
-          return;
-        }
-        if (activeMenu === "dashboard") {
-          const reportKey = dashboardReportKeyFor(selected);
-          if (reportKey) {
-            setActiveDashboardReport(reportKey);
-            setActiveMenu("dashboardReport");
+        if (activeMenu === "gateway") {
+          const sub = gatewaySubMenuFor(selected.href);
+          if (sub) {
+            setActiveMenu(sub);
             return;
           }
         }
@@ -332,7 +511,7 @@ export function TallyGatewayHome({ user, onNavigate }: TallyGatewayHomeProps) {
           setSelectedIndex(0);
           return;
         }
-        onNavigate("/login");
+        toast.info("Use Company > Shut Company to log out.");
         return;
       }
 
@@ -352,26 +531,10 @@ export function TallyGatewayHome({ user, onNavigate }: TallyGatewayHomeProps) {
       event.preventDefault();
       setSelectedIndex(itemIndex);
 
-      if (activeMenu === "gateway" && selected.label === "Company") {
-        setActiveMenu("company");
-        return;
-      }
-
-      if (activeMenu === "gateway" && selected.label === "Dashboard") {
-        setActiveMenu("dashboard");
-        return;
-      }
-
-      if (activeMenu === "company" && selected.label === "Alter Company") {
-        setActiveMenu("alterCompany");
-        return;
-      }
-
-      if (activeMenu === "dashboard") {
-        const reportKey = dashboardReportKeyFor(selected);
-        if (reportKey) {
-          setActiveDashboardReport(reportKey);
-          setActiveMenu("dashboardReport");
+      if (activeMenu === "gateway") {
+        const sub = gatewaySubMenuFor(selected.href);
+        if (sub) {
+          setActiveMenu(sub);
           return;
         }
       }
@@ -386,7 +549,7 @@ export function TallyGatewayHome({ user, onNavigate }: TallyGatewayHomeProps) {
 
     window.addEventListener("keydown", handleGatewayKey);
     return () => window.removeEventListener("keydown", handleGatewayKey);
-  }, [activeMenu, gatewayItems, onNavigate, selectedIndex]);
+  }, [activeMenu, gatewayItems, onLogout, onNavigate, selectedIndex]);
 
   async function saveAlterCompany() {
     if (!alterDraft.organizationName.trim()) {
@@ -548,76 +711,75 @@ export function TallyGatewayHome({ user, onNavigate }: TallyGatewayHomeProps) {
               {gatewayItems.map(({ item, index }) => {
                 const disabled = item.developed === false;
                 const selected = index === selectedIndex;
+                const prevGroup = gatewayItems[index - 1]?.item.group;
+                const showHeader = Boolean(item.group) && item.group !== prevGroup;
 
                 return (
-                  <button
-                    key={`${item.label}-${item.shortcut ?? item.key ?? ""}`}
-                    type="button"
-                    data-gateway-index={index}
-                    aria-current={selected ? "true" : undefined}
-                    onClick={() => {
-                      setSelectedIndex(index);
-                      if (activeMenu === "gateway" && item.label === "Company") {
-                        setActiveMenu("company");
-                        return;
-                      }
-                      if (activeMenu === "gateway" && item.label === "Dashboard") {
-                        setActiveMenu("dashboard");
-                        return;
-                      }
-                      if (activeMenu === "dashboard") {
-                        const reportKey = dashboardReportKeyFor(item);
-                        if (reportKey) {
-                          setActiveDashboardReport(reportKey);
-                          setActiveMenu("dashboardReport");
-                          return;
+                  <Fragment key={`${item.label}-${item.shortcut ?? item.key ?? ""}`}>
+                    {showHeader ? (
+                      <div className="mt-3 border-b border-[#0F766E] bg-[#C8E6C9] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#0F172A]">
+                        {item.group}
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      data-gateway-index={index}
+                      aria-current={selected ? "true" : undefined}
+                      onClick={() => {
+                        setSelectedIndex(index);
+                        if (activeMenu === "gateway") {
+                          const sub = gatewaySubMenuFor(item.href);
+                          if (sub) {
+                            setActiveMenu(sub);
+                            return;
+                          }
                         }
+                        if (!disabled) {
+                          onNavigate(item.href);
+                        } else {
+                          toast.info(`${item.label} is not developed yet`);
+                        }
+                      }}
+                      title={
+                        disabled
+                          ? "Not developed yet"
+                          : item.key
+                            ? `Press ${item.key}`
+                            : item.shortcut
+                              ? `Press ${item.shortcut}`
+                              : item.label
                       }
-                      if (!disabled) {
-                        onNavigate(item.href);
-                      } else {
-                        toast.info(`${item.label} is not developed yet`);
-                      }
-                    }}
-                    title={
-                      disabled
-                        ? "Not developed yet"
-                        : item.key
-                          ? `Press ${item.key}`
-                          : item.shortcut
-                            ? `Press ${item.shortcut}`
-                            : item.label
-                    }
-                    className={[
-                      "grid w-full grid-cols-[62px_1fr_auto] gap-2 px-3 py-0.5 text-left outline-none",
-                      selected ? "bg-[#0F172A] text-white" : "",
-                      disabled
-                        ? selected
-                          ? "cursor-not-allowed opacity-80"
-                          : "cursor-not-allowed text-slate-500 opacity-70"
-                        : "hover:bg-[#6366F1] hover:text-white",
-                    ].join(" ")}
-                  >
-                    <span
                       className={[
-                        "font-bold",
-                        selected ? "text-[#FCA5A5]" : "text-[#EF4444]",
+                        "grid w-full grid-cols-[62px_1fr_auto] gap-2 px-3 py-0.5 text-left outline-none",
+                        selected ? "bg-[#0F172A] text-white" : "",
+                        disabled
+                          ? selected
+                            ? "cursor-not-allowed opacity-80"
+                            : "cursor-not-allowed text-slate-500 opacity-70"
+                          : "hover:bg-[#6366F1] hover:text-white",
                       ].join(" ")}
                     >
-                      {item.key ?? item.shortcut ?? ""}
-                    </span>
-                    <span>{item.label}</span>
-                    {disabled ? (
                       <span
                         className={[
-                          "text-[10px] italic",
-                          selected ? "text-slate-200" : "text-slate-500",
+                          "font-bold",
+                          selected ? "text-[#FCA5A5]" : "text-[#EF4444]",
                         ].join(" ")}
                       >
-                        Not developed yet
+                        {item.key ?? item.shortcut ?? ""}
                       </span>
-                    ) : null}
-                  </button>
+                      <span>{item.label}</span>
+                      {disabled ? (
+                        <span
+                          className={[
+                            "text-[10px] italic",
+                            selected ? "text-slate-200" : "text-slate-500",
+                          ].join(" ")}
+                        >
+                          Not developed yet
+                        </span>
+                      ) : null}
+                    </button>
+                  </Fragment>
                 );
               })}
               <button
@@ -1180,6 +1342,7 @@ function TallyCompanyField({
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onFocus={(event) => event.currentTarget.select()}
         className="h-6 border-0 border-b border-[#0F766E] bg-transparent px-1 outline-none focus:bg-[#FFF7C2]"
       />
     </label>
@@ -1227,6 +1390,40 @@ function dashboardReportKeyFor(item: GatewayItem): DashboardReportKey | null {
 
   const reportKey = item.reportKey;
   return typeof reportKey === "string" ? (reportKey as DashboardReportKey) : null;
+}
+
+function masterSectionKeyFor(item: GatewayItem): MasterSectionKey | null {
+  if (!("sectionKey" in item)) {
+    return null;
+  }
+
+  const sectionKey = item.sectionKey;
+  return typeof sectionKey === "string" ? (sectionKey as MasterSectionKey) : null;
+}
+
+function gatewaySubMenuFor(href: string): CompanyScreen | null {
+  if (href.startsWith("/tally/suppliers")) return "suppliers";
+  if (href.startsWith("/tally/customers")) return "customers";
+  if (href.startsWith("/tally/employees")) return "employees";
+  if (href.startsWith("/tally/attendance")) return "attendance";
+  if (href.startsWith("/tally/accounting")) return "accounting";
+  if (href.startsWith("/tally/billing")) return "billing";
+  if (href.startsWith("/tally/payroll")) return "payroll";
+  if (href.startsWith("/tally/inventory")) return "inventory";
+  if (href.startsWith("/tally/product")) return "product";
+  return null;
+}
+
+function masterSectionHref(sectionKey: MasterSectionKey) {
+  const hrefs: Record<MasterSectionKey, string> = {
+    ACCOUNTING: "/accounting?workspace=MASTERS",
+    INVENTORY: "/inventory",
+    PAYROLL: "/payroll",
+    GST: "/accounting?workspace=TAXES",
+    BANKING: "/accounting?workspace=CASH_BANK",
+  };
+
+  return hrefs[sectionKey];
 }
 
 function dashboardReportHref(reportKey: DashboardReportKey) {

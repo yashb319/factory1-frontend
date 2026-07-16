@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Download, MoreHorizontal, PackageCheck, Plus } from "lucide-react";
 import {
@@ -93,6 +93,27 @@ export function ProductsPage() {
 
     toast.success("Products CSV exported successfully");
   };
+
+  const handledMode = useRef<Record<string, boolean>>({});
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mode = new URLSearchParams(window.location.search).get("mode");
+    if (!mode || handledMode.current[mode]) return;
+
+    if (mode === "create") {
+      handledMode.current[mode] = true;
+      setSelectedProduct(null);
+      setFormOpen(true);
+    } else if (mode === "production") {
+      handledMode.current[mode] = true;
+      setSelectedProduct(null);
+      setProductionOpen(true);
+    } else if (mode === "export") {
+      if (isLoading || !products.length) return;
+      handledMode.current[mode] = true;
+      handleExport();
+    }
+  }, [isLoading, products.length, handleExport]);
 
   return (
     <div className="space-y-2 text-[12px]">

@@ -33,7 +33,7 @@ export async function printInvoice(
   return printHtml(invoiceHtml(bill, organization));
 }
 
-function invoiceHtml(bill: Bill, organization?: PrintOrganization | null) {
+export function invoiceHtml(bill: Bill, organization?: PrintOrganization | null) {
   if (bill.type !== "SALES") {
     return voucherHtml(bill);
   }

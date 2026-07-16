@@ -67,6 +67,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
+import { TallyAccountMasters } from "@/components/layout/TallyAccountMasters";
+import { TallyVoucherList } from "@/components/layout/TallyVoucherList";
 import { toCsv } from "@/features/import-export/utils/csv";
 import {
   downloadCsv,
@@ -193,6 +195,8 @@ const voucherHelp: Record<VoucherType, string> = {
   JOURNAL: "Manual adjustment entry for provisions, corrections and transfers.",
   DEBIT_NOTE: "Increase receivable or reduce supplier payable for returns, shortages or rate differences.",
   CREDIT_NOTE: "Reduce customer receivable or increase payable for sales returns, discounts or corrections.",
+  SALES: "Goods or services sold on credit or cash; books revenue and the corresponding ledger.",
+  PURCHASE: "Goods or services bought on credit or cash; books expense and the corresponding ledger.",
 };
 
 type VoucherLineDraft = {
@@ -271,6 +275,7 @@ export function AccountingPage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [tallyMode, setTallyMode] = useState(false);
   const [voucherType, setVoucherType] = useState<VoucherType>("JOURNAL");
+  const [voucherView, setVoucherView] = useState<"list" | "create" | "alter">("list");
   const [voucherDate, setVoucherDate] = useState(() => todayDate());
   const [voucherNarration, setVoucherNarration] = useState("");
   const [voucherNumber, setVoucherNumber] = useState("");
@@ -521,6 +526,7 @@ export function AccountingPage() {
 
       setWorkspace("VOUCHERS");
       setVoucherType(nextType);
+      setVoucherView("list");
       toast.info(`${labelCase(nextType)} voucher selected`);
     };
 
@@ -570,6 +576,35 @@ export function AccountingPage() {
         handleAccountingShortcut
       );
   });
+
+  useEffect(() => {
+    if (!tallyMode || workspace !== "VOUCHERS" || voucherView === "list") {
+      return;
+    }
+
+    function handleVoucherEsc(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.tagName === "TEXTAREA" ||
+        target?.getAttribute("role") === "combobox"
+      ) {
+        return;
+      }
+
+      if (target?.tagName === "INPUT") {
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setVoucherView("list");
+      }
+    }
+
+    window.addEventListener("keydown", handleVoucherEsc, true);
+    return () => window.removeEventListener("keydown", handleVoucherEsc, true);
+  }, [tallyMode, workspace, voucherView]);
 
   useEffect(() => {
     if (!organizationSettings) {
@@ -629,6 +664,7 @@ export function AccountingPage() {
 
     setWorkspace("VOUCHERS");
     setVoucherType(nextType);
+    setVoucherView("list");
     toast.info(`${labelCase(nextType)} voucher selected`);
   }
 
@@ -679,7 +715,7 @@ export function AccountingPage() {
     }
 
     if (key === "F11") {
-      toast.info("Features are managed from Accounting Settings and Organization Settings.");
+      selectVoucherType("CREDIT_NOTE");
       return;
     }
 
@@ -1022,6 +1058,7 @@ export function AccountingPage() {
     setVoucherDate(todayDate());
     setVoucherNarration("");
     setVoucherLines([newVoucherLine("DR"), newVoucherLine("CR")]);
+    setVoucherView("list");
   };
 
   const updateVoucherLine = (
@@ -1597,6 +1634,48 @@ export function AccountingPage() {
   const voucherSurface = voucherSurfaceFor(voucherType);
 
   if (tallyMode && workspace === "VOUCHERS") {
+    if (voucherView === "list") {
+      const vouchersOfType = (vouchers ?? []).filter(
+        (v) => v.voucherType === voucherType
+      );
+      return (
+        <TallyVoucherList
+          voucherType={voucherType}
+          vouchers={vouchersOfType}
+          isFetching={vouchersFetching}
+          onSelectVoucher={(v) => {
+            setEditingVoucher(v);
+            setVoucherType(v.voucherType);
+            setVoucherDate(v.voucherDate);
+            setVoucherNumber(v.voucherNumber || "");
+            setVoucherNarration(v.narration ?? "");
+            setVoucherLines(
+              v.lines.map((line) => ({
+                id: line.id,
+                ledgerId: line.ledgerId,
+                entryType: line.entryType,
+                amount: String(line.amount),
+                description: line.description ?? "",
+              }))
+            );
+            setVoucherView("alter");
+          }}
+          onCreateNew={() => {
+            setEditingVoucher(null);
+            setVoucherLines([newVoucherLine("DR"), newVoucherLine("CR")]);
+            setVoucherDate(todayDate());
+            setVoucherNarration("");
+            suggestVoucherNumber(voucherType)
+              .unwrap()
+              .then((number) => setVoucherNumber(number ? String(number) : ""))
+              .catch(() => setVoucherNumber(""));
+            setVoucherView("create");
+          }}
+          onBack={() => handleWorkspaceChange("OVERVIEW")}
+        />
+      );
+    }
+
     const balanced = Math.abs(voucherTotals.debit - voucherTotals.credit) <= 0.009;
 
     return (
@@ -1822,7 +1901,7 @@ export function AccountingPage() {
         </div>
 
         <div className="tally-command-strip">
-          <button type="button" onClick={resetVoucherForm}>
+          <button type="button" onClick={() => setVoucherView("list")}>
             Q: Quit
           </button>
           <button
@@ -1851,6 +1930,20 @@ export function AccountingPage() {
           </button>
         </div>
       </div>
+    );
+  }
+
+  if (tallyMode && workspace === "MASTERS") {
+    return (
+      <TallyAccountMasters
+        masters={masters}
+        onBack={() => handleWorkspaceChange("OVERVIEW")}
+        onCreateGroup={createGroup}
+        onUpdateGroup={updateGroup}
+        onDeleteGroup={deleteGroup}
+        isCreating={createGroupState.isLoading}
+        isUpdating={updateGroupState.isLoading}
+      />
     );
   }
 

@@ -10,7 +10,8 @@ import {
   openShortcutsMenuEvent,
   visibleShortcuts,
 } from "@/config/shortcuts";
-import { useAppSelector } from "@/lib/hook";
+import { useAppDispatch, useAppSelector } from "@/lib/hook";
+import { logout } from "@/features/auth/authSlice";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { gatewayMenuItems, TallyGatewayHome } from "./TallyGatewayHome";
@@ -35,6 +36,7 @@ export function AppShell({ children }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const user = useAppSelector((state) => state.auth.user);
+  const dispatch = useAppDispatch();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [uiMode, setUiMode] = useState<FactoryUiMode>("modern");
@@ -62,10 +64,50 @@ export function AppShell({ children }: Props) {
         playUiSound(event.key === "Enter" ? "enter" : "escape");
       }
 
-      if (tallyMode && event.key === "Escape" && pathname !== "/dashboard") {
+      if (tallyMode && event.key === "Escape" && pathname !== "/gateway") {
         event.preventDefault();
         event.stopPropagation();
-        router.push("/dashboard");
+        if (pathname.startsWith("/tally/inventory")) {
+          router.push("/gateway?menu=inventory");
+          return;
+        }
+        if (pathname.startsWith("/tally/product")) {
+          router.push("/gateway?menu=product");
+          return;
+        }
+        if (pathname.startsWith("/tally/suppliers")) {
+          router.push("/gateway?menu=suppliers");
+          return;
+        }
+        if (pathname.startsWith("/tally/customers")) {
+          router.push("/gateway?menu=customers");
+          return;
+        }
+        if (pathname.startsWith("/tally/employees")) {
+          router.push("/gateway?menu=employees");
+          return;
+        }
+        if (pathname.startsWith("/tally/attendance")) {
+          router.push("/gateway?menu=attendance");
+          return;
+        }
+        if (pathname.startsWith("/tally/accounting")) {
+          router.push("/gateway?menu=accounting");
+          return;
+        }
+        if (pathname.startsWith("/tally/billing")) {
+          router.push("/gateway?menu=billing");
+          return;
+        }
+        if (pathname.startsWith("/tally/payroll")) {
+          router.push("/gateway?menu=payroll");
+          return;
+        }
+        if (window.history.length > 1) {
+          router.back();
+        } else {
+          router.push("/gateway");
+        }
         return;
       }
 
@@ -79,8 +121,8 @@ export function AppShell({ children }: Props) {
         if (!editing) {
           event.preventDefault();
           event.stopPropagation();
-          if (pathname !== "/dashboard") {
-            router.push("/dashboard");
+          if (pathname !== "/gateway") {
+            router.push("/gateway");
           }
           return;
         }
@@ -92,7 +134,7 @@ export function AppShell({ children }: Props) {
 
       if (
         tallyMode &&
-        pathname === "/dashboard" &&
+        pathname === "/gateway" &&
         (event.ctrlKey || event.metaKey) &&
         event.key.toLowerCase() === "a"
       ) {
@@ -217,8 +259,15 @@ export function AppShell({ children }: Props) {
               : "p-4 pb-24 sm:p-5 sm:pb-24"
           )}
         >
-          {tallyMode && pathname === "/dashboard" ? (
-            <TallyGatewayHome user={user} onNavigate={router.push} />
+          {tallyMode && pathname === "/gateway" ? (
+            <TallyGatewayHome
+              user={user}
+              onNavigate={router.push}
+              onLogout={() => {
+                dispatch(logout());
+                router.push("/login");
+              }}
+            />
           ) : (
             children
           )}
@@ -263,7 +312,7 @@ function TallyShortcutRail({
   onNavigate: (href: string) => void;
 }) {
   const shortcuts = visibleShortcuts(user);
-  const onGateway = currentHref.startsWith("/dashboard");
+  const onGateway = currentHref.startsWith("/gateway");
   const voucherShortcuts = shortcuts.filter((shortcut) =>
     [
       "Contra Voucher",
@@ -433,7 +482,7 @@ function TallyCommandBar() {
         <Command label="Esc: Previous Field" />
       </div>
       <div className="flex w-48 items-center justify-end px-2 text-[var(--factory1-text-secondary)]">
-        Gateway: F1
+        Ctrl+M: Gateway
       </div>
     </footer>
   );
