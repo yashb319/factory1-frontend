@@ -83,12 +83,28 @@ export function AuthGuard({ children }: AuthGuardProps) {
     }
 
     if (
+      user?.organizationStatus === "PENDING_APPROVAL" &&
+      !user.platformAdmin &&
+      !pathname.startsWith("/registration-pending")
+    ) {
+      router.replace("/registration-pending");
+      return;
+    }
+
+    if (
       user?.platformAdmin &&
       !pathname.startsWith("/saas-admin")
     ) {
       router.replace("/saas-admin");
     }
-  }, [mounted, pathname, token, user?.platformAdmin, router]);
+  }, [
+    mounted,
+    pathname,
+    token,
+    user?.organizationStatus,
+    user?.platformAdmin,
+    router,
+  ]);
 
   useEffect(() => {
     if (!mounted || !token) {

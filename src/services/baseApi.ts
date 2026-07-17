@@ -18,7 +18,8 @@ const rawBaseQuery = fetchBaseQuery({
       endpoint === "sendSignupOtp" ||
       endpoint === "sendLoginOtp" ||
       endpoint === "sendForgotPasswordOtp" ||
-      endpoint === "resetPassword"
+      endpoint === "resetPassword" ||
+      endpoint === "submitEarlyRegistrationQuestionnaire"
     ) {
       headers.delete("Authorization");
       return headers;
@@ -49,8 +50,24 @@ const baseQueryWithAuthRedirect: BaseQueryFn<
     }
   }
 
+  if (result.error?.status === 403 && isPendingApprovalError(result.error)) {
+    if (typeof window !== "undefined") {
+      window.location.assign("/registration-pending");
+    }
+  }
+
   return result;
 };
+
+function isPendingApprovalError(error: FetchBaseQueryError) {
+  const data = error.data;
+
+  if (!data || typeof data !== "object") {
+    return false;
+  }
+
+  return "message" in data && data.message === "ORGANIZATION_PENDING_APPROVAL";
+}
 
 export const baseApi = createApi({
   reducerPath: "baseApi",

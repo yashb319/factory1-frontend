@@ -17,11 +17,7 @@ import { SupplierDashboardCards } from "./SupplierDashboardCards";
 import { SupplierFilters } from "./SupplierFilters";
 import { SupplierFormDialog } from "./SupplierFormDialog";
 import { SupplierTable } from "./SupplierTable";
-import { SupplierTallyView } from "./SupplierTallyView";
-import { useTallyMode } from "@/hooks/useTallyMode";
-
 export function SupplierPage() {
-  const tallyMode = useTallyMode();
   const [filters, setFilters] = useState<SupplierSearchParams>({
     page: 0,
     size: 10,
@@ -89,10 +85,6 @@ export function SupplierPage() {
       toast.error("Failed to export suppliers");
     }
   };
-
-  if (tallyMode) {
-    return <SupplierTallyView />;
-  }
 
   return (
     <div className="space-y-2 text-[12px]">

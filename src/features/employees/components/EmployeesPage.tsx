@@ -15,11 +15,7 @@ import { EmployeeImportDialog } from "./EmployeeImportDialog";
 import { EmployeeDetailsDrawer } from "./EmployeeDetailsDrawer";
 import { EditEmployeeDrawer } from "./EditEmployeeDrawer";
 import { DeleteEmployeeDialog } from "./DeleteEmployeeDialog";
-import { EmployeesTallyView } from "./EmployeesTallyView";
-import { useTallyMode } from "@/hooks/useTallyMode";
-
 export function EmployeesPage() {
-  const tallyMode = useTallyMode();
   const { filters, updateFilters } = useEmployeeFilters();
 
   const { data, isLoading, isFetching } = useGetEmployeesQuery(filters);
@@ -30,10 +26,6 @@ export function EmployeesPage() {
   const [detailsEmployee, setDetailsEmployee] = useState<Employee | null>(null);
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
-
-  if (tallyMode) {
-    return <EmployeesTallyView />;
-  }
 
   return (
     <div className="space-y-6">

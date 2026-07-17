@@ -60,11 +60,6 @@ import { inferIntraState, stateNameFromGstNumber } from "@/lib/gstState";
 import { handleTallyFieldNavigation } from "@/lib/tallyKeyboard";
 import { playUiSound } from "@/lib/uiSounds";
 import { GstIntegrationPanel } from "@/features/gst-integration/components/GstIntegrationPanel";
-import {
-  getFactoryUiMode,
-  UI_MODE_CHANGED_EVENT,
-} from "@/lib/uiModePreference";
-import { useAppSelector } from "@/lib/hook";
 import { AutoPurchaseBillImportDialog } from "./AutoPurchaseBillImportDialog";
 
 type DraftItem = {
@@ -132,7 +127,6 @@ const newItem = (): DraftItem => ({
 export function BillingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const user = useAppSelector((state) => state.auth.user);
   const [type, setType] = useState<BillType>(() =>
     initialBillType(searchParams.get("type"))
   );
@@ -157,7 +151,6 @@ export function BillingPage() {
   const [items, setItems] = useState<DraftItem[]>([newItem()]);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [postConfirmOpen, setPostConfirmOpen] = useState(false);
-  const [tallyMode, setTallyMode] = useState(false);
 
   const { data: customers = [] } = useGetActiveCustomersQuery();
   const { data: suppliers = [] } = useGetActiveSuppliersQuery();
@@ -234,14 +227,6 @@ export function BillingPage() {
   const voucherSubtleSurface = "var(--factory1-background)";
   const billNumberUnavailable =
     Boolean(billNumberForCheck) && billNumberAvailability?.available === false;
-
-  useEffect(() => {
-    const syncMode = () => setTallyMode(getFactoryUiMode(user) === "tally");
-    syncMode();
-
-    window.addEventListener(UI_MODE_CHANGED_EVENT, syncMode);
-    return () => window.removeEventListener(UI_MODE_CHANGED_EVENT, syncMode);
-  }, [user]);
 
   useEffect(() => {
     const factoryDispatch =
@@ -667,297 +652,9 @@ export function BillingPage() {
       );
   });
 
-  if (tallyMode) {
-    return (
-      <div
-        className="tally-entry-screen"
-        data-tally-nav-scope
-        onKeyDown={handleTallyFieldNavigation}
-      >
-        <div className="tally-entry-title">
-          <span>Accounting Voucher Creation</span>
-          <span>Factory1</span>
-          <span>Ctrl + M</span>
-        </div>
-
-        <div className="tally-entry-meta">
-          <div>
-            <div>
-              <span className="tally-hotkey">{mode.title.split(" ")[0]}</span>
-              <span className="ml-2">No.</span>
-              <Input
-                value={billNumber}
-                onChange={(event) => {
-                  setBillNumber(event.target.value);
-                  setBillNumberTouched(true);
-                }}
-                placeholder="Auto"
-                className="tally-inline-input ml-1 w-28"
-              />
-            </div>
-            <div>
-              Reference no. :
-              <Input
-                value={billNumber}
-                onChange={(event) => {
-                  setBillNumber(event.target.value);
-                  setBillNumberTouched(true);
-                }}
-                placeholder="0"
-                className="tally-inline-input ml-1 w-28"
-              />
-            </div>
-          </div>
-          <div className="text-right">
-            <div>{billDate ? formatDisplayDate(billDate) : ""}</div>
-            <Input
-              type="date"
-              value={billDate}
-              onChange={(event) => setBillDate(event.target.value)}
-              className="tally-inline-input w-36 text-right"
-            />
-          </div>
-        </div>
-
-        <div className="tally-party-lines">
-          <div>
-            Party A/c name :
-            <select
-              value={partyId}
-              onChange={(event) => setPartyId(event.target.value)}
-              className="tally-select ml-2 min-w-72"
-            >
-              <option value="">Select {type === "SALES" ? "Customer" : "Supplier"}</option>
-              {parties.map((party) => (
-                <option key={party.id} value={party.id}>
-                  {party.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            Current balance :
-            <span className="ml-2 font-bold">
-              {selectedParty ? "As per ledger" : "0.00 Dr"}
-            </span>
-          </div>
-          <div>
-            {type === "SALES" ? "Sales ledger" : "Purchase ledger"} :
-            <span className="ml-2 font-bold">
-              {type === "SALES" ? "Sales A/c" : "Purchase A/c"}
-            </span>
-          </div>
-        </div>
-
-        <div className="tally-table-wrap">
-          <table className="tally-entry-table">
-            <thead>
-              <tr>
-                <th className="text-left">Name of Item</th>
-                <th className="w-28 text-right">Quantity</th>
-                <th className="w-28 text-right">Rate</th>
-                <th className="w-20 text-left">per</th>
-                <th className="w-36 text-right">Amount</th>
-                <th className="w-12" />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => {
-                const line = calculateLine(item, intraState);
-
-                return (
-                  <tr key={item.rowId}>
-                    <td>
-                      {type === "SALES" ? (
-                        <select
-                          value={item.productId}
-                          onChange={(event) =>
-                            selectProduct(item.rowId, event.target.value)
-                          }
-                          className="tally-select w-full"
-                        >
-                          <option value="">Select product</option>
-                          {products.map((product: Product) => (
-                            <option key={product.id} value={product.id}>
-                              {product.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <select
-                          value={item.inventoryItemId}
-                          onChange={(event) =>
-                            selectInventoryItem(item.rowId, event.target.value)
-                          }
-                          className="tally-select w-full"
-                        >
-                          <option value="">Select inventory item</option>
-                          {inventoryItems.map((inventoryItem: InventoryItem) => (
-                            <option key={inventoryItem.id} value={inventoryItem.id}>
-                              {inventoryItem.name}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      <Input
-                        value={item.itemName}
-                        onChange={(event) =>
-                          updateItem(item.rowId, { itemName: event.target.value })
-                        }
-                        placeholder="Printed item name"
-                        className="tally-line-input mt-1"
-                      />
-                    </td>
-                    <td>
-                      <NumberInput
-                        value={item.quantity}
-                        onChange={(value) =>
-                          updateItem(item.rowId, { quantity: value })
-                        }
-                      />
-                    </td>
-                    <td>
-                      <NumberInput
-                        value={item.rate}
-                        onChange={(value) => updateItem(item.rowId, { rate: value })}
-                      />
-                    </td>
-                    <td>
-                      <Input
-                        value={item.unit}
-                        onChange={(event) =>
-                          updateItem(item.rowId, { unit: event.target.value })
-                        }
-                        className="tally-line-input"
-                      />
-                    </td>
-                    <td className="text-right font-bold">
-                      {formatPlainCurrency(line.taxable)}
-                    </td>
-                    <td data-ignore-tally-nav="true">
-                      <button
-                        type="button"
-                        className="tally-small-action"
-                        onClick={() =>
-                          setItems((prev) =>
-                            prev.length === 1
-                              ? [newItem()]
-                              : prev.filter((entry) => entry.rowId !== item.rowId)
-                          )
-                        }
-                      >
-                        Del
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-              <tr>
-                <td className="font-bold">GST</td>
-                <td />
-                <td />
-                <td />
-                <td className="text-right font-bold">
-                  {formatPlainCurrency(intraState ? totals.cgst + totals.sgst : totals.igst)}
-                </td>
-                <td />
-              </tr>
-              <tr>
-                <td className="font-bold">Round Off</td>
-                <td />
-                <td />
-                <td />
-                <td className="text-right font-bold">
-                  {formatPlainCurrency(totals.roundOff)}
-                </td>
-                <td />
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="tally-total-strip">
-          <button type="button" onClick={addItem}>
-            A: Add Line
-          </button>
-          <span>{items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)} Nos</span>
-          <strong>{formatPlainCurrency(totals.grandTotal)}</strong>
-        </div>
-
-        <div className="tally-narration">
-          <label>Narration:</label>
-          <Textarea
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                event.stopPropagation();
-                playUiSound("enter");
-                setPostConfirmOpen(true);
-              }
-            }}
-            placeholder="Total goods to be delivered at buyer's address..."
-          />
-        </div>
-
-        <div className="tally-command-strip">
-          <button type="button" onClick={() => handleCreate("DRAFT")}>
-            Q: Quit
-          </button>
-          <button
-            type="button"
-            onClick={() => handleCreate("POSTED")}
-            disabled={createState.isLoading || billNumberUnavailable}
-          >
-            A: Accept
-          </button>
-          <button type="button" disabled>
-            D: Delete
-          </button>
-          <button type="button" onClick={() => setPostConfirmOpen(false)}>
-            X: Cancel
-          </button>
-        </div>
-
-        <Dialog open={postConfirmOpen} onOpenChange={setPostConfirmOpen}>
-          <DialogContent className="w-full max-w-[calc(100%-2rem)] rounded-none border-[#0f766e] sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Accept Voucher?</DialogTitle>
-              <DialogDescription>
-                This will post the {type === "SALES" ? "sales" : "purchase"} voucher
-                and update stock and accounting entries.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-none"
-                onClick={() => setPostConfirmOpen(false)}
-              >
-                Esc: Cancel
-              </Button>
-              <Button
-                type="button"
-                className="rounded-none"
-                onClick={() => {
-                  setPostConfirmOpen(false);
-                  void handleCreate("POSTED");
-                }}
-              >
-                A: Accept
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-    );
-  }
-
   return (
     <div
-      className={`space-y-2 text-[12px] ${tallyMode ? "tally-voucher-screen" : ""}`}
+      className="space-y-2 text-[12px]"
       data-tally-nav-scope
       onKeyDown={handleTallyFieldNavigation}
     >
@@ -970,7 +667,7 @@ export function BillingPage() {
             Accounting Voucher Entry
           </p>
           <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-[var(--factory1-text-primary)]">
-            {tallyMode ? mode.title : "Billing"}
+            Billing
           </h1>
           <p className="mt-0.5 text-[11px] text-[var(--factory1-text-muted)]">
             Post sales and purchase vouchers with stock movement, GST, ledger impact and exports.
@@ -981,47 +678,45 @@ export function BillingPage() {
           {type === "PURCHASE" ? (
             <AutoPurchaseBillImportDialog className="h-8 w-full rounded-md text-xs" />
           ) : null}
-          {!tallyMode ? (
-            <div className="grid gap-1 rounded-md border border-[var(--factory1-border)] bg-white p-1 sm:grid-cols-2">
-              {voucherModes.map((entry) => {
-                const Icon = entry.icon;
-                const active = type === entry.type;
+          <div className="grid gap-1 rounded-md border border-[var(--factory1-border)] bg-white p-1 sm:grid-cols-2">
+            {voucherModes.map((entry) => {
+              const Icon = entry.icon;
+              const active = type === entry.type;
 
-                return (
-                  <button
-                    key={entry.type}
-                    type="button"
-                    onClick={() => switchVoucher(entry.type)}
-                    className={`flex items-start gap-2 border p-2 text-left transition ${
-                      active
-                        ? "border-[var(--factory1-primary)] bg-[var(--factory1-primary)] text-white"
-                        : "border-[var(--factory1-border)] bg-[var(--factory1-background)] text-[var(--factory1-text-primary)] hover:border-[var(--factory1-primary)]"
+              return (
+                <button
+                  key={entry.type}
+                  type="button"
+                  onClick={() => switchVoucher(entry.type)}
+                  className={`flex items-start gap-2 border p-2 text-left transition ${
+                    active
+                      ? "border-[var(--factory1-primary)] bg-[var(--factory1-primary)] text-white"
+                      : "border-[var(--factory1-border)] bg-[var(--factory1-background)] text-[var(--factory1-text-primary)] hover:border-[var(--factory1-primary)]"
+                  }`}
+                >
+                  <span
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
+                      active ? "bg-white/15" : "bg-white"
                     }`}
                   >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2 text-sm font-semibold">
+                      {entry.title}
+                    </span>
                     <span
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
-                        active ? "bg-white/15" : "bg-white"
+                      className={`mt-1 block text-xs leading-5 ${
+                        active ? "text-slate-200" : "text-muted-foreground"
                       }`}
                     >
-                      <Icon className="h-4 w-4" />
+                      {entry.subtitle}
                     </span>
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-2 text-sm font-semibold">
-                        {entry.title}
-                      </span>
-                      <span
-                        className={`mt-1 block text-xs leading-5 ${
-                          active ? "text-slate-200" : "text-muted-foreground"
-                        }`}
-                      >
-                        {entry.subtitle}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
           <Button
             type="button"
             variant={detailsOpen ? "default" : "outline"}

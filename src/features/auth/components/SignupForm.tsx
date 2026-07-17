@@ -160,7 +160,11 @@ export function SignupForm() {
       })
     );
 
-    router.push("/dashboard");
+    router.push(
+      response.user?.organizationStatus === "PENDING_APPROVAL"
+        ? "/registration-pending"
+        : "/dashboard"
+    );
   }
 
   return (

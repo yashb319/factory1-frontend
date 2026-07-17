@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { TallyOrgSettingsView } from "@/features/organization-settings/components/TallyOrgSettingsView";
+import { TallyOrgSettingsView } from "@/features/organization-settings/tally/TallyOrgSettingsView";
 
 export default function Page() {
   return (

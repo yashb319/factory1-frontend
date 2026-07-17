@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { BillingTallyView } from "@/features/billing/components/BillingTallyView";
+import { BillingTallyView } from "@/features/billing/tally/BillingTallyView";
 
 export default function Page() {
   return (

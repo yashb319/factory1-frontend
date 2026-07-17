@@ -1,7 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
   Ban,
   Building2,
@@ -28,7 +27,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -71,7 +69,7 @@ import type {
 
 type FactoryAction = {
   factory: SaasFactory;
-  kind: "suspend" | "activate" | "terminate";
+  kind: "approve" | "suspend" | "activate" | "terminate";
 };
 
 type Draft = {
@@ -104,12 +102,23 @@ export function SaasFactoriesPage() {
   );
   const [selected, setSelected] = useState<SaasFactory | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  const draftsRef = useRef(drafts);
-  draftsRef.current = drafts;
 
   const dashboard = data?.data;
 
   const onSelectFactory = setSelected;
+  const updateDraft = useCallback(
+    (organizationId: string, patch: Partial<Draft>) => {
+      setDrafts((current) => ({
+        ...current,
+        [organizationId]: {
+          plan: current[organizationId]?.plan ?? "FREE",
+          planMonthlyPrice: current[organizationId]?.planMonthlyPrice ?? "0",
+          ...patch,
+        },
+      }));
+    },
+    []
+  );
   const onActionFactory = useCallback(
     (factory: SaasFactory, kind: FactoryAction["kind"]) =>
       setFactoryAction({ factory, kind }),
@@ -121,9 +130,10 @@ export function SaasFactoriesPage() {
     setMarkPaidTarget(factory);
   }, []);
   const onSaveFactory = useCallback((factory: SaasFactory) => {
-    const draft = draftsRef.current[factory.organizationId];
-
-    if (!draft) return;
+    const draft = drafts[factory.organizationId] ?? {
+      plan: factory.plan,
+      planMonthlyPrice: String(Number(factory.planMonthlyPrice ?? 0)),
+    };
 
     updateFactory({
       organizationId: factory.organizationId,
@@ -135,26 +145,7 @@ export function SaasFactoriesPage() {
       .unwrap()
       .then(() => toast.success("Factory plan updated"))
       .catch(() => toast.error("Could not update factory plan"));
-  }, [updateFactory]);
-
-  useEffect(() => {
-    if (!dashboard?.factories) return;
-
-    setDrafts((current) => {
-      const next = { ...current };
-
-      for (const factory of dashboard.factories) {
-        if (!next[factory.organizationId]) {
-          next[factory.organizationId] = {
-            plan: factory.plan,
-            planMonthlyPrice: String(Number(factory.planMonthlyPrice ?? 0)),
-          };
-        }
-      }
-
-      return next;
-    });
-  }, [dashboard?.factories]);
+  }, [drafts, updateFactory]);
 
   const filteredFactories = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -190,20 +181,6 @@ export function SaasFactoriesPage() {
     );
   }
 
-  const updateDraft = useCallback(
-    (organizationId: string, patch: Partial<Draft>) => {
-      setDrafts((current) => ({
-        ...current,
-        [organizationId]: {
-          plan: current[organizationId]?.plan ?? "FREE",
-          planMonthlyPrice: current[organizationId]?.planMonthlyPrice ?? "0",
-          ...patch,
-        },
-      }));
-    },
-    []
-  );
-
   const updatingAction =
     updateStatusState.isLoading || terminateState.isLoading;
 
@@ -224,7 +201,9 @@ export function SaasFactoriesPage() {
           body: { status },
         }).unwrap();
         toast.success(
-          kind === "suspend"
+          kind === "approve"
+            ? `${factory.name} approved`
+            : kind === "suspend"
             ? `${factory.name} suspended`
             : `${factory.name} activated`
         );
@@ -406,6 +385,8 @@ export function SaasFactoriesPage() {
             <AlertDialogTitle>
               {factoryAction?.kind === "terminate"
                 ? "Terminate factory?"
+                : factoryAction?.kind === "approve"
+                  ? "Approve factory?"
                 : factoryAction?.kind === "suspend"
                   ? "Suspend factory?"
                   : "Activate factory?"}
@@ -413,6 +394,8 @@ export function SaasFactoriesPage() {
             <AlertDialogDescription>
               {factoryAction?.kind === "terminate"
                 ? `This permanently terminates ${factoryAction.factory.name}. The organization is marked TERMINATED and cannot log in. This cannot be undone.`
+                : factoryAction?.kind === "approve"
+                  ? `${factoryAction?.factory.name ?? ""} will get dashboard access and the owner will receive the approval email.`
                 : factoryAction?.kind === "suspend"
                   ? `${factoryAction?.factory.name ?? ""} will be suspended and unable to log in until reactivated.`
                   : `${factoryAction?.factory.name ?? ""} will be reactivated and able to log in again.`}
@@ -435,6 +418,8 @@ export function SaasFactoriesPage() {
                 ? "Please wait..."
                 : factoryAction?.kind === "terminate"
                   ? "Terminate"
+                  : factoryAction?.kind === "approve"
+                    ? "Approve"
                   : factoryAction?.kind === "suspend"
                     ? "Suspend"
                     : "Activate"}
@@ -619,6 +604,7 @@ const FactoryRow = memo(function FactoryRow({
           onValueChange={(value) =>
             onDraftChange(factory.organizationId, {
               plan: value as OrganizationPlan,
+              planMonthlyPrice: draftPrice,
             })
           }
         >
@@ -646,6 +632,7 @@ const FactoryRow = memo(function FactoryRow({
           value={draftPrice}
           onChange={(event) =>
             onDraftChange(factory.organizationId, {
+              plan: draftPlan,
               planMonthlyPrice: event.target.value,
             })
           }
@@ -663,7 +650,18 @@ const FactoryRow = memo(function FactoryRow({
             <Eye size={14} />
             View
           </Button>
-          {status === "ACTIVE" ? (
+          {status === "PENDING_APPROVAL" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isStatusLoading}
+              onClick={() => onAction(factory, "approve")}
+            >
+              <CircleCheck size={14} />
+              Approve
+            </Button>
+          ) : status === "ACTIVE" ? (
             <Button
               type="button"
               size="sm"

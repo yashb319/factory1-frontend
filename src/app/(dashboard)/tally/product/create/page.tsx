@@ -1,4 +1,4 @@
-import { ProductTallyCreateView } from "@/features/products/components/ProductTallyCreateView";
+import { ProductTallyCreateView } from "@/features/products/tally/ProductTallyCreateView";
 
 export default function Page() {
   return <ProductTallyCreateView />;

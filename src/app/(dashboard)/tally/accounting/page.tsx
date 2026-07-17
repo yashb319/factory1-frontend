@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { TallyAccountingView } from "@/features/accounting/components/TallyAccountingView";
+import { TallyAccountingView } from "@/features/accounting/tally/TallyAccountingView";
 
 export default function Page() {
   return (

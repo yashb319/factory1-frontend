@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TallyAccountMasters } from "@/components/layout/TallyAccountMasters";
 import { TallyVoucherList } from "@/components/layout/TallyVoucherList";
-import { AccountingVoucherEntryView } from "./AccountingVoucherEntryView";
+import { AccountingVoucherEntryView } from "../components/AccountingVoucherEntryView";
 import {
   useGetAccountMastersQuery,
   useCreateAccountGroupMutation,

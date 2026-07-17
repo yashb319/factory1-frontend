@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useGetInventoryItemsQuery } from "../api/inventoryApi";
 import { exportInventoryCsv } from "../utils/inventoryExport";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
-import { InventoryBulkImportDialog } from "./InventoryBulkImportDialog";
+import { InventoryBulkImportDialog } from "../components/InventoryBulkImportDialog";
 
 export function InventoryTallyImportExportView() {
   const router = useRouter();
