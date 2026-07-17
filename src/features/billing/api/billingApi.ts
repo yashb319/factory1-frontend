@@ -11,6 +11,9 @@ import type {
   GstReport,
   GstRateSuggestion,
   PageResponse,
+  PurchaseBillOcrExtractResponse,
+  PurchaseBillOcrTemplate,
+  PurchaseBillOcrTemplateRequest,
 } from "../types/billing.types";
 
 export const billingApi = baseApi.injectEndpoints({
@@ -149,6 +152,38 @@ export const billingApi = baseApi.injectEndpoints({
         params: { fromDate, toDate },
       }),
     }),
+
+    getPurchaseBillOcrTemplates: builder.query<PurchaseBillOcrTemplate[], void>({
+      query: () => "/api/billing/ocr-templates",
+      providesTags: ["Billing"],
+    }),
+
+    rememberPurchaseBillOcrTemplate: builder.mutation<
+      PurchaseBillOcrTemplate,
+      PurchaseBillOcrTemplateRequest
+    >({
+      query: (body) => ({
+        url: "/api/billing/ocr-templates",
+        method: "POST",
+        body,
+      }),
+      transformResponse: (response: ApiResponse<PurchaseBillOcrTemplate>) => response.data,
+      invalidatesTags: ["Billing"],
+    }),
+
+    extractPurchaseBillOcr: builder.mutation<PurchaseBillOcrExtractResponse, File>({
+      query: (file) => {
+        const body = new FormData();
+        body.append("file", file);
+
+        return {
+          url: "/api/billing/ocr/extract",
+          method: "POST",
+          body,
+        };
+      },
+      transformResponse: (response: ApiResponse<PurchaseBillOcrExtractResponse>) => response.data,
+    }),
   }),
 });
 
@@ -166,4 +201,7 @@ export const {
   useUpdateEwayPartBMutation,
   useLazyGetGstSuggestionsQuery,
   useLazyGetGstReportQuery,
+  useGetPurchaseBillOcrTemplatesQuery,
+  useRememberPurchaseBillOcrTemplateMutation,
+  useExtractPurchaseBillOcrMutation,
 } = billingApi;

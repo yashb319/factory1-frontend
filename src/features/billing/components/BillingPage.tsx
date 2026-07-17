@@ -65,6 +65,7 @@ import {
   UI_MODE_CHANGED_EVENT,
 } from "@/lib/uiModePreference";
 import { useAppSelector } from "@/lib/hook";
+import { AutoPurchaseBillImportDialog } from "./AutoPurchaseBillImportDialog";
 
 type DraftItem = {
   rowId: string;
@@ -977,6 +978,9 @@ export function BillingPage() {
         </div>
 
         <div className="space-y-2">
+          {type === "PURCHASE" ? (
+            <AutoPurchaseBillImportDialog className="h-8 w-full rounded-md text-xs" />
+          ) : null}
           {!tallyMode ? (
             <div className="grid gap-1 rounded-md border border-[var(--factory1-border)] bg-white p-1 sm:grid-cols-2">
               {voucherModes.map((entry) => {
