@@ -15,6 +15,7 @@ import { useGetOrganizationSettingsQuery } from "@/features/organization-setting
 import { invoiceHtml, printInvoice } from "@/features/billing/utils/invoicePrint";
 import { downloadDocument, shareDocument } from "@/lib/tallyDocuments";
 import type { Bill, BillType } from "../types/billing.types";
+import { AutoPurchaseBillImportDialog } from "./AutoPurchaseBillImportDialog";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -349,6 +350,11 @@ export function BillingTallyView({
             X: Cancel
           </button>
         </div>
+        {typeParam === "PURCHASE" ? (
+          <div className="border-t border-[#0F766E] bg-[#FEFCE8] p-2">
+            <AutoPurchaseBillImportDialog compact className="rounded-none font-mono" />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -429,7 +435,7 @@ export function BillingTallyView({
         </table>
       </div>
 
-      <div className="grid grid-cols-4 border-t border-[#0F766E] bg-[#BBF7D0] text-xs">
+      <div className="grid grid-cols-5 border-t border-[#0F766E] bg-[#BBF7D0] text-xs">
         <button
           type="button"
           className="border-r border-[#0F766E] px-2 py-1 text-left hover:bg-[#6366F1] hover:text-white"
@@ -437,13 +443,19 @@ export function BillingTallyView({
         >
           N: Create
         </button>
-        <button
-          type="button"
-          className="border-r border-[#0F766E] px-2 py-1 text-left hover:bg-[#6366F1] hover:text-white"
-          onClick={() => router.push("/tally/billing?type=PURCHASE")}
-        >
-          P: Purchase
-        </button>
+        {typeParam === "PURCHASE" ? (
+          <div className="border-r border-[#0F766E] p-0.5">
+            <AutoPurchaseBillImportDialog compact className="h-7 w-full rounded-none border-[#0F766E] bg-[#FEFCE8] px-2 font-mono text-xs text-[#0F172A]" />
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="border-r border-[#0F766E] px-2 py-1 text-left hover:bg-[#6366F1] hover:text-white"
+            onClick={() => router.push("/tally/billing?type=PURCHASE")}
+          >
+            P: Purchase
+          </button>
+        )}
         <button
           type="button"
           className="border-r border-[#0F766E] px-2 py-1 text-left hover:bg-[#6366F1] hover:text-white"

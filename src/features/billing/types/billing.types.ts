@@ -186,3 +186,55 @@ export type GstReport = {
   netGstPayable: number;
   rows: GstReportRow[];
 };
+
+export type PurchaseBillOcrItemAlias = {
+  sourceName: string;
+  itemName: string;
+  hsnCode: string;
+  unit: string;
+  gstRate: number;
+};
+
+export type PurchaseBillOcrTemplate = {
+  id?: string;
+  supplierKey: string;
+  supplierName: string;
+  gstNumber: string;
+  formatSignature: string;
+  globalShared: boolean;
+  useCount: number;
+  reviewedCount: number;
+  lastReviewedAt?: string;
+  itemAliases: PurchaseBillOcrItemAlias[];
+};
+
+export type PurchaseBillOcrTemplateRequest = {
+  supplierKey: string;
+  supplierName: string;
+  gstNumber: string;
+  formatSignature: string;
+  globalShared?: boolean;
+  itemAliases: PurchaseBillOcrItemAlias[];
+};
+
+export type PurchaseBillOcrExtractLine = {
+  itemName: string;
+  hsnCode: string;
+  unit: string;
+  quantity: number;
+  rate: number;
+  gstRate: number;
+};
+
+export type PurchaseBillOcrExtractResponse = {
+  provider: string;
+  rawText: string;
+  confidence: number;
+  supplierName: string;
+  gstNumber: string;
+  billNumber: string;
+  billDate: string;
+  placeOfSupply: string;
+  intraState: boolean;
+  lines: PurchaseBillOcrExtractLine[];
+};
