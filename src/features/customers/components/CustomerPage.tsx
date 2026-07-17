@@ -20,11 +20,7 @@ import { CustomerDashboardCards } from "./CustomerDashboardCards";
 import { CustomerFilters } from "./CustomerFilters";
 import { CustomerFormDialog } from "./CustomerFormDialog";
 import { CustomerTable } from "./CustomerTable";
-import { CustomerTallyView } from "./CustomerTallyView";
-import { useTallyMode } from "@/hooks/useTallyMode";
-
 export function CustomerPage() {
-  const tallyMode = useTallyMode();
   const [filters, setFilters] = useState<CustomerSearchParams>({
     page: 0,
     size: 10,
@@ -97,10 +93,6 @@ export function CustomerPage() {
       toast.error("Failed to export customers");
     }
   };
-
-  if (tallyMode) {
-    return <CustomerTallyView />;
-  }
 
   return (
     <div className="space-y-2 text-[12px]">

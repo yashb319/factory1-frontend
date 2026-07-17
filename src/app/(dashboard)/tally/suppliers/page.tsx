@@ -1,4 +1,4 @@
-import { SupplierTallyView } from "@/features/suppliers/components/SupplierTallyView";
+import { SupplierTallyView } from "@/features/suppliers/tally/SupplierTallyView";
 
 export default function Page() {
   return <SupplierTallyView />;

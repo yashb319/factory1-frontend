@@ -15,7 +15,7 @@ import { useGetOrganizationSettingsQuery } from "@/features/organization-setting
 import { invoiceHtml, printInvoice } from "@/features/billing/utils/invoicePrint";
 import { downloadDocument, shareDocument } from "@/lib/tallyDocuments";
 import type { Bill, BillType } from "../types/billing.types";
-import { AutoPurchaseBillImportDialog } from "./AutoPurchaseBillImportDialog";
+import { AutoPurchaseBillImportDialog } from "../components/AutoPurchaseBillImportDialog";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", {

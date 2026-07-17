@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { TallyDashboardView } from "@/features/dashboard/components/TallyDashboardView";
+import { TallyDashboardView } from "@/features/dashboard/tally/TallyDashboardView";
 
 export default function Page() {
   return (

@@ -75,13 +75,17 @@ export interface SaasFactory {
   employeeCount: number;
   aiUsage: SaasAiUsage;
   dbUsage: SaasDbUsage;
-  status?: "ACTIVE" | "SUSPENDED" | "TERMINATED";
+  status?: OrganizationStatus;
   subscriptionEndDate?: string | null;
   serviceTimeMs?: number | null;
   dataVolumeBytes?: number | null;
 }
 
-export type OrganizationStatus = "ACTIVE" | "SUSPENDED" | "TERMINATED";
+export type OrganizationStatus =
+  | "PENDING_APPROVAL"
+  | "ACTIVE"
+  | "SUSPENDED"
+  | "TERMINATED";
 
 export interface SaasRevenueByPlan {
   plan: OrganizationPlan;

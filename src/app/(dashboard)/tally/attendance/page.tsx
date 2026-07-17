@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { AttendanceTallyView } from "@/features/attendance/components/AttendanceTallyView";
+import { AttendanceTallyView } from "@/features/attendance/tally/AttendanceTallyView";
 
 export default function Page() {
   return (

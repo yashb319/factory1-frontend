@@ -1,4 +1,4 @@
-import { InventoryTallyCreateView } from "@/features/inventory/components/InventoryTallyCreateView";
+import { InventoryTallyCreateView } from "@/features/inventory/tally/InventoryTallyCreateView";
 
 export default function Page() {
   return <InventoryTallyCreateView />;

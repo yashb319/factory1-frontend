@@ -5,6 +5,11 @@ export type UserRole =
   | "MANAGEMENT"
   | "SAAS_OWNER";
 export type UserStatus = "ACTIVE" | "INACTIVE";
+export type OrganizationStatus =
+  | "PENDING_APPROVAL"
+  | "ACTIVE"
+  | "SUSPENDED"
+  | "TERMINATED";
 
 export type AuthUser = {
   id: string;
@@ -13,6 +18,7 @@ export type AuthUser = {
   role: UserRole;
   status: UserStatus;
   organizationId: string;
+  organizationStatus: OrganizationStatus;
   platformAdmin?: boolean;
 };
 
@@ -65,4 +71,19 @@ export type ResetPasswordRequest = {
   email: string;
   otp: string;
   password: string;
+};
+
+export type EarlyRegistrationQuestionnaireRequest = {
+  organizationId?: string;
+  organizationName?: string;
+  ownerName?: string;
+  email?: string;
+  industryType?: string;
+  employeeCountEstimate?: number;
+  biggestProblem: string;
+  currentProcess?: string;
+  modulesNeeded?: string[];
+  urgency?: string;
+  phone?: string;
+  notes?: string;
 };

@@ -1,6 +1,7 @@
 import { baseApi } from "@/services/baseApi";
 import type {
   AuthResponse,
+  EarlyRegistrationQuestionnaireRequest,
   ForgotPasswordOtpRequest,
   LoginOtpRequest,
   LoginRequest,
@@ -65,6 +66,17 @@ export const authApi = baseApi.injectEndpoints({
         body,
       }),
     }),
+
+    submitEarlyRegistrationQuestionnaire: builder.mutation<
+      MessageResponse,
+      EarlyRegistrationQuestionnaireRequest
+    >({
+      query: (body) => ({
+        url: "/api/public/early-registration/questionnaire",
+        method: "POST",
+        body,
+      }),
+    }),
   }),
 });
 
@@ -75,4 +87,5 @@ export const {
   useSendLoginOtpMutation,
   useSendForgotPasswordOtpMutation,
   useResetPasswordMutation,
+  useSubmitEarlyRegistrationQuestionnaireMutation,
 } = authApi;

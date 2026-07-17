@@ -67,8 +67,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
-import { TallyAccountMasters } from "@/components/layout/TallyAccountMasters";
-import { TallyVoucherList } from "@/components/layout/TallyVoucherList";
 import { toCsv } from "@/features/import-export/utils/csv";
 import {
   downloadCsv,
@@ -126,11 +124,7 @@ import { exportProfitLossCsv } from "../utils/profitLossExport";
 import { formatCurrency, labelCase } from "../utils/accountingFormat";
 import { handleTallyFieldNavigation } from "@/lib/tallyKeyboard";
 import { playUiSound } from "@/lib/uiSounds";
-import { useAppSelector } from "@/lib/hook";
-import {
-  getFactoryUiMode,
-  UI_MODE_CHANGED_EVENT,
-} from "@/lib/uiModePreference";
+
 import {
   AccountingWorkspaceNav,
   type AccountingWorkspace,
@@ -237,7 +231,6 @@ type TaxSectionDraft = {
 export function AccountingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const user = useAppSelector((state) => state.auth.user);
   const [fromDate, setFromDate] = useState(
     () => currentQuarterRange().fromDate
   );
@@ -273,7 +266,6 @@ export function AccountingPage() {
   const [workspace, setWorkspace] =
     useState<AccountingWorkspace>("OVERVIEW");
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [tallyMode, setTallyMode] = useState(false);
   const [voucherType, setVoucherType] = useState<VoucherType>("JOURNAL");
   const [voucherView, setVoucherView] = useState<"list" | "create" | "alter">("list");
   const [voucherDate, setVoucherDate] = useState(() => todayDate());
@@ -477,14 +469,6 @@ export function AccountingPage() {
   };
   const vouchersDisabledReason = disabledWorkspaceReasons.VOUCHERS;
 
-  useEffect(() => {
-    const syncMode = () => setTallyMode(getFactoryUiMode(user) === "tally");
-    syncMode();
-
-    window.addEventListener(UI_MODE_CHANGED_EVENT, syncMode);
-    return () => window.removeEventListener(UI_MODE_CHANGED_EVENT, syncMode);
-  }, [user]);
-
   function handleWorkspaceChange(nextWorkspace: AccountingWorkspace) {
     const disabledReason = disabledWorkspaceReasons[nextWorkspace];
     if (disabledReason) {
@@ -578,7 +562,7 @@ export function AccountingPage() {
   });
 
   useEffect(() => {
-    if (!tallyMode || workspace !== "VOUCHERS" || voucherView === "list") {
+    if (workspace !== "VOUCHERS" || voucherView === "list") {
       return;
     }
 
@@ -604,7 +588,7 @@ export function AccountingPage() {
 
     window.addEventListener("keydown", handleVoucherEsc, true);
     return () => window.removeEventListener("keydown", handleVoucherEsc, true);
-  }, [tallyMode, workspace, voucherView]);
+  }, [workspace, voucherView]);
 
   useEffect(() => {
     if (!organizationSettings) {
@@ -1633,325 +1617,10 @@ export function AccountingPage() {
     workspace === "VOUCHERS";
   const voucherSurface = voucherSurfaceFor(voucherType);
 
-  if (tallyMode && workspace === "VOUCHERS") {
-    if (voucherView === "list") {
-      const vouchersOfType = (vouchers ?? []).filter(
-        (v) => v.voucherType === voucherType
-      );
-      return (
-        <TallyVoucherList
-          voucherType={voucherType}
-          vouchers={vouchersOfType}
-          isFetching={vouchersFetching}
-          onSelectVoucher={(v) => {
-            setEditingVoucher(v);
-            setVoucherType(v.voucherType);
-            setVoucherDate(v.voucherDate);
-            setVoucherNumber(v.voucherNumber || "");
-            setVoucherNarration(v.narration ?? "");
-            setVoucherLines(
-              v.lines.map((line) => ({
-                id: line.id,
-                ledgerId: line.ledgerId,
-                entryType: line.entryType,
-                amount: String(line.amount),
-                description: line.description ?? "",
-              }))
-            );
-            setVoucherView("alter");
-          }}
-          onCreateNew={() => {
-            setEditingVoucher(null);
-            setVoucherLines([newVoucherLine("DR"), newVoucherLine("CR")]);
-            setVoucherDate(todayDate());
-            setVoucherNarration("");
-            suggestVoucherNumber(voucherType)
-              .unwrap()
-              .then((number) => setVoucherNumber(number ? String(number) : ""))
-              .catch(() => setVoucherNumber(""));
-            setVoucherView("create");
-          }}
-          onBack={() => handleWorkspaceChange("OVERVIEW")}
-        />
-      );
-    }
-
-    const balanced = Math.abs(voucherTotals.debit - voucherTotals.credit) <= 0.009;
-
-    return (
-      <div
-        className="tally-entry-screen"
-        data-tally-nav-scope
-        onKeyDown={handleTallyFieldNavigation}
-      >
-        <div className="tally-entry-title">
-          <span>Accounting Voucher Creation</span>
-          <span>Factory1</span>
-          <span>Ctrl + M</span>
-        </div>
-
-        <div className="tally-entry-meta">
-          <div>
-            <div>
-              <span className="tally-hotkey">{labelCase(voucherType)}</span>
-              <span className="ml-2">No.</span>
-              <Input
-                value={voucherNumber}
-                disabled={Boolean(vouchersDisabledReason)}
-                onChange={(event) => setVoucherNumber(event.target.value)}
-                placeholder={suggestingNumber ? "Auto" : "Auto"}
-                className="tally-inline-input ml-1 w-32"
-              />
-            </div>
-            <div>
-              Voucher type :
-              <select
-                value={voucherType}
-                disabled={Boolean(vouchersDisabledReason)}
-                onChange={(event) => setVoucherType(event.target.value as VoucherType)}
-                className="tally-select ml-2 min-w-48"
-              >
-                {voucherTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {labelCase(type)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="text-right">
-            <div>{voucherDate ? formatDisplayDate(voucherDate) : ""}</div>
-            <Input
-              type="date"
-              value={voucherDate}
-              disabled={Boolean(vouchersDisabledReason)}
-              onChange={(event) => setVoucherDate(event.target.value)}
-              className="tally-inline-input w-36 text-right"
-            />
-          </div>
-        </div>
-
-        <div className="tally-party-lines">
-          <div>
-            Current voucher :
-            <span className="ml-2 font-bold">{voucherHelp[voucherType]}</span>
-          </div>
-          <div>
-            Status :
-            <span className="ml-2 font-bold">
-              {vouchersDisabledReason
-                ? "Disabled from Accounting Settings"
-                : balanced
-                  ? "Balanced"
-                  : `Difference ${formatCurrency(Math.abs(voucherTotals.debit - voucherTotals.credit))}`}
-            </span>
-          </div>
-        </div>
-
-        <div className="tally-table-wrap">
-          <table className="tally-entry-table">
-            <thead>
-              <tr>
-                <th className="text-left">Particulars</th>
-                <th className="w-24 text-left">Dr/Cr</th>
-                <th className="w-36 text-right">Debit</th>
-                <th className="w-36 text-right">Credit</th>
-                <th className="w-64 text-left">Description</th>
-                <th className="w-12" />
-              </tr>
-            </thead>
-            <tbody>
-              {voucherLines.map((line) => (
-                <tr key={line.id}>
-                  <td>
-                    <select
-                      value={line.ledgerId}
-                      disabled={Boolean(vouchersDisabledReason)}
-                      onChange={(event) =>
-                        updateVoucherLine(line.id, { ledgerId: event.target.value })
-                      }
-                      className="tally-select w-full"
-                    >
-                      <option value="">Select ledger</option>
-                      {(masters?.ledgers ?? []).map((ledger) => (
-                        <option key={ledger.id} value={ledger.id}>
-                          {ledger.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <select
-                      value={line.entryType}
-                      disabled={Boolean(vouchersDisabledReason)}
-                      onChange={(event) =>
-                        updateVoucherLine(line.id, {
-                          entryType: event.target.value as BalanceType,
-                        })
-                      }
-                      className="tally-select w-full"
-                    >
-                      {balanceTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={line.entryType === "DR" ? line.amount : ""}
-                      disabled={Boolean(vouchersDisabledReason)}
-                      onChange={(event) =>
-                        updateVoucherLine(line.id, {
-                          entryType: "DR",
-                          amount: event.target.value,
-                        })
-                      }
-                      className="tally-line-input text-right"
-                    />
-                  </td>
-                  <td>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={line.entryType === "CR" ? line.amount : ""}
-                      disabled={Boolean(vouchersDisabledReason)}
-                      onChange={(event) =>
-                        updateVoucherLine(line.id, {
-                          entryType: "CR",
-                          amount: event.target.value,
-                        })
-                      }
-                      className="tally-line-input text-right"
-                    />
-                  </td>
-                  <td>
-                    <Input
-                      value={line.description}
-                      disabled={Boolean(vouchersDisabledReason)}
-                      onChange={(event) =>
-                        updateVoucherLine(line.id, {
-                          description: event.target.value,
-                        })
-                      }
-                      className="tally-line-input"
-                    />
-                  </td>
-                  <td data-ignore-tally-nav="true">
-                    <button
-                      type="button"
-                      className="tally-small-action"
-                      disabled={
-                        Boolean(vouchersDisabledReason) || voucherLines.length <= 2
-                      }
-                      onClick={() =>
-                        setVoucherLines((current) =>
-                          current.filter((item) => item.id !== line.id)
-                        )
-                      }
-                    >
-                      Del
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="tally-total-strip">
-          <button
-            type="button"
-            disabled={Boolean(vouchersDisabledReason)}
-            onClick={() =>
-              setVoucherLines((current) => [...current, newVoucherLine("DR")])
-            }
-          >
-            A: Add Line
-          </button>
-          <span>Dr {formatCurrency(voucherTotals.debit)}</span>
-          <strong>Cr {formatCurrency(voucherTotals.credit)}</strong>
-        </div>
-
-        <div className="tally-narration">
-          <label>Narration:</label>
-          <Textarea
-            value={voucherNarration}
-            disabled={Boolean(vouchersDisabledReason)}
-            onChange={(event) => setVoucherNarration(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                event.stopPropagation();
-                playUiSound("enter");
-                if (balanced) {
-                  void submitVoucher();
-                } else {
-                  toast.error("Debit and credit totals must match");
-                }
-              }
-            }}
-            placeholder={voucherHelp[voucherType]}
-          />
-        </div>
-
-        <div className="tally-command-strip">
-          <button type="button" onClick={() => setVoucherView("list")}>
-            Q: Quit
-          </button>
-          <button
-            type="button"
-            disabled={
-              Boolean(vouchersDisabledReason) ||
-              createVoucherState.isLoading ||
-              updateVoucherState.isLoading ||
-              voucherNumberTaken ||
-              checkingVoucherNumber ||
-              !balanced
-            }
-            onClick={submitVoucher}
-          >
-            A: Accept
-          </button>
-          <button
-            type="button"
-            disabled={Boolean(vouchersDisabledReason)}
-            onClick={autoBalanceVoucher}
-          >
-            B: Balance
-          </button>
-          <button type="button" onClick={() => handleWorkspaceChange("MASTERS")}>
-            L: Ledger
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (tallyMode && workspace === "MASTERS") {
-    return (
-      <TallyAccountMasters
-        masters={masters}
-        onBack={() => handleWorkspaceChange("OVERVIEW")}
-        onCreateGroup={createGroup}
-        onUpdateGroup={updateGroup}
-        onDeleteGroup={deleteGroup}
-        isCreating={createGroupState.isLoading}
-        isUpdating={updateGroupState.isLoading}
-      />
-    );
-  }
 
   return (
     <div
-      className={`space-y-2 text-[12px] ${
-        tallyMode && workspace === "VOUCHERS" ? "tally-voucher-screen" : ""
-      }`}
+      className="space-y-2 text-[12px]"
       data-tally-nav-scope
       onKeyDown={handleTallyFieldNavigation}
     >
@@ -2035,13 +1704,11 @@ export function AccountingPage() {
         </div>
       </div>
 
-      {!tallyMode ? (
-        <AccountingWorkspaceNav
-          value={workspace}
-          onChange={handleWorkspaceChange}
-          disabledReasons={disabledWorkspaceReasons}
-        />
-      ) : null}
+      <AccountingWorkspaceNav
+        value={workspace}
+        onChange={handleWorkspaceChange}
+        disabledReasons={disabledWorkspaceReasons}
+      />
 
       <div
         id="accounting-overview"
@@ -2570,28 +2237,26 @@ export function AccountingPage() {
               </div>
             ) : null}
 
-            {!tallyMode ? (
-              <div className="flex flex-wrap gap-2">
-                {voucherTypes.map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      disabled={Boolean(vouchersDisabledReason)}
-                      onClick={() => setVoucherType(type)}
-                      className={[
-                        "rounded-full border px-3 py-2 text-sm font-medium transition",
-                        vouchersDisabledReason
-                          ? "cursor-not-allowed bg-slate-100 text-slate-400 opacity-60"
-                          : voucherType === type
-                          ? "border-slate-900 bg-slate-950 text-white"
-                          : "bg-white hover:border-slate-300 hover:bg-slate-50",
-                      ].join(" ")}
-                    >
-                      {labelCase(type)}
-                    </button>
-                ))}
-              </div>
-            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {voucherTypes.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    disabled={Boolean(vouchersDisabledReason)}
+                    onClick={() => setVoucherType(type)}
+                    className={[
+                      "rounded-full border px-3 py-2 text-sm font-medium transition",
+                      vouchersDisabledReason
+                        ? "cursor-not-allowed bg-slate-100 text-slate-400 opacity-60"
+                        : voucherType === type
+                          ? "border-[var(--factory1-primary)] bg-[var(--factory1-primary)] text-white"
+                          : "border-[var(--factory1-border)] bg-white text-[var(--factory1-text-primary)] hover:border-[var(--factory1-primary)]",
+                    ].join(" ")}
+                  >
+                    {labelCase(type)}
+                  </button>
+              ))}
+            </div>
 
             <div className="grid gap-3 rounded-lg border bg-slate-50/70 p-3 md:grid-cols-[180px_minmax(0,1fr)]">
               <div className="space-y-2">

@@ -58,7 +58,10 @@ export function LoginForm() {
         })
       );
 
-      const landingRoute = response.user?.platformAdmin
+      const landingRoute =
+        response.user?.organizationStatus === "PENDING_APPROVAL"
+          ? "/registration-pending"
+          : response.user?.platformAdmin
         ? "/saas-admin"
         : getFactoryUiMode(response.user ?? null) === "tally"
           ? "/gateway"

@@ -689,6 +689,7 @@ export function StatusBadge({ status }: { status: OrganizationStatus }) {
     OrganizationStatus,
     { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
   > = {
+    PENDING_APPROVAL: { label: "Pending approval", variant: "outline" },
     ACTIVE: { label: "Active", variant: "default" },
     SUSPENDED: { label: "Suspended", variant: "secondary" },
     TERMINATED: { label: "Terminated", variant: "destructive" },
