@@ -536,31 +536,50 @@ function BillTallyDetail({
       </div>
 
       <div className="h-[calc(100%-7rem)] overflow-auto p-4">
-        <div className="mx-auto max-w-lg space-y-1 text-[13px]">
+        <div className="mx-auto max-w-2xl space-y-1 text-[13px]">
           <DetailRow label="Bill Number" value={bill.billNumber} />
           <DetailRow label="Date" value={bill.billDate} />
           <DetailRow label="Party" value={bill.partyName} />
           <DetailRow label="GST" value={bill.partyGstNumber || "—"} />
           <DetailRow label="Status" value={`${bill.status} / ${bill.paymentStatus}`} />
-          <DetailRow label="Items" value={String(bill.items?.length ?? 0)} />
-          <DetailRow label="Taxable" value={formatCurrency(bill.taxableAmount)} />
-          <DetailRow
-            label="CGST"
-            value={formatCurrency(bill.cgstAmount)}
-          />
-          <DetailRow
-            label="SGST"
-            value={formatCurrency(bill.sgstAmount)}
-          />
-          <DetailRow
-            label="IGST"
-            value={formatCurrency(bill.igstAmount)}
-          />
-          <DetailRow
-            label="Grand Total"
-            value={formatCurrency(bill.grandTotal)}
-            bold
-          />
+
+          {bill.items?.length ? (
+            <div className="mt-2 border border-[#0F766E]">
+              <div className="grid grid-cols-[1fr_60px_70px_90px] gap-1 border-b border-[#0F766E] bg-[#C8E6C9] px-2 py-1 text-[11px] uppercase">
+                <span>Particulars</span>
+                <span className="text-right">Qty</span>
+                <span className="text-right">Rate</span>
+                <span className="text-right">Amount</span>
+              </div>
+              {bill.items.map((item, index) => (
+                <div
+                  key={index}
+                  className="grid grid-cols-[1fr_60px_70px_90px] gap-1 border-b border-[#94A3B8]/40 px-2 py-0.5"
+                >
+                  <span>{item.itemName}</span>
+                  <span className="text-right">{item.quantity}</span>
+                  <span className="text-right">{formatCurrency(item.rate)}</span>
+                  <span className="text-right">
+                    {formatCurrency(
+                      (item.taxableAmount ?? item.quantity * item.rate) || 0,
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="mt-2">
+            <DetailRow label="Taxable" value={formatCurrency(bill.taxableAmount)} />
+            <DetailRow label="CGST" value={formatCurrency(bill.cgstAmount)} />
+            <DetailRow label="SGST" value={formatCurrency(bill.sgstAmount)} />
+            <DetailRow label="IGST" value={formatCurrency(bill.igstAmount)} />
+            <DetailRow
+              label="Grand Total"
+              value={formatCurrency(bill.grandTotal)}
+              bold
+            />
+          </div>
         </div>
       </div>
 
