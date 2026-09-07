@@ -18,6 +18,7 @@ import { useLoginMutation, useSendLoginOtpMutation } from "../authApi";
 import { loginSchema, type LoginFormValues } from "../schemas/login.schema";
 import { useAppDispatch } from "@/lib/hook";
 import { getFactoryUiMode } from "@/lib/uiModePreference";
+import { TALLY_UI_ENABLED } from "@/config/features";
 import { Button } from "@/components/ui/button";
 
 export function LoginForm() {
@@ -63,7 +64,7 @@ export function LoginForm() {
           ? "/registration-pending"
           : response.user?.platformAdmin
         ? "/saas-admin"
-        : getFactoryUiMode(response.user ?? null) === "tally"
+        : TALLY_UI_ENABLED && getFactoryUiMode(response.user ?? null) === "tally"
           ? "/gateway"
           : "/dashboard";
       router.push(landingRoute);

@@ -1,4 +1,5 @@
 import type { AuthUser } from "@/features/auth/types";
+import { TALLY_UI_ENABLED } from "@/config/features";
 
 export type FactoryUiMode = "modern" | "tally";
 
@@ -24,7 +25,7 @@ export function getFactoryUiMode(
   }
 
   const saved = window.localStorage.getItem(scopedKey(UI_MODE_KEY, user));
-  return saved === "tally" ? "tally" : "modern";
+  return saved === "tally" && TALLY_UI_ENABLED ? "tally" : "modern";
 }
 
 export function setFactoryUiMode(
@@ -35,11 +36,12 @@ export function setFactoryUiMode(
     return;
   }
 
-  window.localStorage.setItem(scopedKey(UI_MODE_KEY, user), mode);
+  const nextMode = mode === "tally" && !TALLY_UI_ENABLED ? "modern" : mode;
+  window.localStorage.setItem(scopedKey(UI_MODE_KEY, user), nextMode);
   markFactoryUiModePromptSeen(user);
   window.dispatchEvent(
     new CustomEvent(UI_MODE_CHANGED_EVENT, {
-      detail: { mode },
+      detail: { mode: nextMode },
     })
   );
 }
