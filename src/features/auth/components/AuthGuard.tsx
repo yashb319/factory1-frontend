@@ -8,6 +8,7 @@ import {
   AUTH_TOKEN_STORAGE_KEY,
   logout,
 } from "../authSlice";
+import { TALLY_UI_ENABLED } from "@/config/features";
 
 type AuthGuardProps = {
   children: React.ReactNode;
@@ -79,6 +80,14 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
     if (!token) {
       router.replace("/login");
+      return;
+    }
+
+    if (
+      !TALLY_UI_ENABLED &&
+      (pathname === "/gateway" || pathname.startsWith("/tally"))
+    ) {
+      router.replace("/dashboard");
       return;
     }
 

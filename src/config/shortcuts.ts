@@ -1,4 +1,5 @@
 import type { AuthUser, UserRole } from "@/features/auth/types";
+import { TALLY_UI_ENABLED } from "@/config/features";
 
 export type AppShortcut = {
   key: string;
@@ -685,6 +686,10 @@ export function canUseShortcut(
   shortcut: AppShortcut,
   user: AuthUser | null
 ) {
+  if (shortcut.exactTally && !TALLY_UI_ENABLED) {
+    return false;
+  }
+
   if (shortcut.opensMenu) {
     return true;
   }

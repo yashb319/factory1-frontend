@@ -16,6 +16,7 @@ import { UiModePrompt } from "./UiModePrompt";
 import { cn } from "@/lib/utils";
 import { playUiSound } from "@/lib/uiSounds";
 import { toast } from "sonner";
+import { TALLY_UI_ENABLED } from "@/config/features";
 import {
   type FactoryUiMode,
   getFactoryUiMode,
@@ -37,11 +38,13 @@ export function AppShell({ children }: Props) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [uiMode, setUiMode] = useState<FactoryUiMode>("modern");
   const [uiModePromptOpen, setUiModePromptOpen] = useState(false);
-  const tallyMode = uiMode === "tally";
+  const tallyMode = TALLY_UI_ENABLED && uiMode === "tally";
 
   useEffect(() => {
     setUiMode(getFactoryUiMode(user));
-    setUiModePromptOpen(Boolean(user) && shouldShowFactoryUiModePrompt(user));
+    setUiModePromptOpen(
+      TALLY_UI_ENABLED && Boolean(user) && shouldShowFactoryUiModePrompt(user)
+    );
 
     function handleModeChange(event: Event) {
       const detail = (event as CustomEvent<{ mode?: FactoryUiMode }>).detail;

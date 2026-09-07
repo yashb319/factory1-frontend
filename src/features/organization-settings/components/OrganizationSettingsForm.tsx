@@ -51,6 +51,7 @@ import {
   UI_MODE_CHANGED_EVENT,
 } from "@/lib/uiModePreference";
 import { useAppSelector } from "@/lib/hook";
+import { TALLY_UI_ENABLED } from "@/config/features";
 
 const schema = z.object({
   workingHoursPerDay: z.number().min(1, "Required"),
@@ -674,30 +675,32 @@ export function OrganizationSettingsForm() {
                 ) : null}
               </button>
 
-              <button
-                type="button"
-                onClick={() => updateUiMode("tally")}
-                className={`rounded-lg border p-4 text-left transition ${
-                  uiMode === "tally"
-                    ? "border-emerald-300 bg-emerald-50"
-                    : "bg-white hover:border-emerald-300 hover:bg-emerald-50/60"
-                }`}
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-100 text-emerald-700">
-                  <Keyboard className="h-5 w-5" />
-                </span>
-                <span className="mt-4 block text-base font-semibold text-slate-950">
-                  Tally-like UI
-                </span>
-                <span className="mt-2 block text-sm leading-6 text-slate-600">
-                  Gateway home screen, function-key shortcuts and keyboard-first voucher entry for Tally users.
-                </span>
-                {uiMode === "tally" ? (
-                  <span className="mt-4 inline-flex rounded-full bg-emerald-600 px-2 py-1 text-xs font-semibold text-white">
-                    Active
+              {TALLY_UI_ENABLED ? (
+                <button
+                  type="button"
+                  onClick={() => updateUiMode("tally")}
+                  className={`rounded-lg border p-4 text-left transition ${
+                    uiMode === "tally"
+                      ? "border-emerald-300 bg-emerald-50"
+                      : "bg-white hover:border-emerald-300 hover:bg-emerald-50/60"
+                  }`}
+                >
+                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-100 text-emerald-700">
+                    <Keyboard className="h-5 w-5" />
                   </span>
-                ) : null}
-              </button>
+                  <span className="mt-4 block text-base font-semibold text-slate-950">
+                    Tally-like UI
+                  </span>
+                  <span className="mt-2 block text-sm leading-6 text-slate-600">
+                    Gateway home screen, function-key shortcuts and keyboard-first voucher entry for Tally users.
+                  </span>
+                  {uiMode === "tally" ? (
+                    <span className="mt-4 inline-flex rounded-full bg-emerald-600 px-2 py-1 text-xs font-semibold text-white">
+                      Active
+                    </span>
+                  ) : null}
+                </button>
+              ) : null}
             </div>
 
             <div className="mt-4 rounded-lg border bg-slate-50 p-3 text-sm text-slate-600">
