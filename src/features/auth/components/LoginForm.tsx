@@ -19,11 +19,13 @@ import { loginSchema, type LoginFormValues } from "../schemas/login.schema";
 import { useAppDispatch } from "@/lib/hook";
 import { getFactoryUiMode } from "@/lib/uiModePreference";
 import { TALLY_UI_ENABLED } from "@/config/features";
+import { useActiveBranding } from "@/features/whitelabel/hooks/useActiveBranding";
 import { Button } from "@/components/ui/button";
 
 export function LoginForm() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { displayName, logoUrl } = useActiveBranding();
   const [login, { isLoading, error }] = useLoginMutation();
   const [sendLoginOtp, { isLoading: isSendingOtp }] = useSendLoginOtpMutation();
   const [otpRequired, setOtpRequired] = useState(false);
@@ -115,11 +117,16 @@ export function LoginForm() {
     <main className="flex min-h-screen bg-slate-50">
       <section className="hidden flex-1 bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
         <Link href="/" className="flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-white/70">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
-            <Factory size={22} />
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-blue-600">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt={displayName} className="h-full w-full object-contain" />
+            ) : (
+              <Factory size={22} />
+            )}
           </div>
           <div>
-            <h1 className="text-lg font-semibold">Factory1</h1>
+            <h1 className="text-lg font-semibold">{displayName}</h1>
             <p className="text-sm text-slate-400">Run your factory smarter.</p>
           </div>
         </Link>
@@ -142,7 +149,7 @@ export function LoginForm() {
             Welcome back
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Login to your Factory1 workspace.
+            Login to your {displayName} workspace.
           </p>
 
           {savedEmail && (
@@ -234,7 +241,7 @@ export function LoginForm() {
           </p>
 
           <p className="mt-3 text-center text-sm text-slate-500">
-            New to Factory1?{" "}
+            New to {displayName}?{" "}
             <Link href="/signup" className="font-medium text-blue-600">
               Create organization
             </Link>

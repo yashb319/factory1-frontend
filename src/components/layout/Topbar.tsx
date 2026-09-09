@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAppDispatch, useAppSelector } from "@/lib/hook";
 import { cn } from "@/lib/utils";
+import { useBranding } from "@/features/whitelabel/components/BrandingProvider";
 
 type TopbarProps = {
   onMenuClick: () => void;
@@ -47,6 +48,7 @@ export function Topbar({ onMenuClick, uiMode = "modern" }: TopbarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const dispatch = useAppDispatch();
+  const { displayName } = useBranding();
   const user = useAppSelector((state) => state.auth.user);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -147,11 +149,11 @@ export function Topbar({ onMenuClick, uiMode = "modern" }: TopbarProps) {
 
         <div className="hidden min-w-0 items-center gap-2 text-[11px] font-semibold lg:flex">
           <span className="rounded bg-[var(--factory1-primary)] px-2 py-0.5 text-white">
-            Factory1
+            {displayName}
           </span>
           <span className="truncate text-[var(--factory1-text-secondary)]">
             {navigationItems.find((item) => item.href === pathname)?.title ??
-              "Gateway of Factory1"}
+              `Gateway of ${displayName}`}
           </span>
         </div>
 

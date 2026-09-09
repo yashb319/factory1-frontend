@@ -21,6 +21,7 @@ import {
   Megaphone,
   LifeBuoy,
   SlidersHorizontal,
+  Paintbrush,
 } from "lucide-react";
 import type { ComponentType, CSSProperties } from "react";
 import type { AuthUser, UserRole } from "@/features/auth/types";
@@ -119,6 +120,21 @@ export const navigationItems: NavigationItem[] = [
     roles: ["SAAS_OWNER"],
     module: "settings",
     platformAdminOnly: true,
+  },
+  {
+    title: "White Label",
+    href: "/saas-admin/whitelabel",
+    icon: Paintbrush,
+    roles: ["SAAS_OWNER"],
+    module: "settings",
+    platformAdminOnly: true,
+  },
+  {
+    title: "White Label",
+    href: "/partner/whitelabel",
+    icon: Paintbrush,
+    roles: ["PARTNER_ADMIN"],
+    module: "settings",
   },
 
 ];

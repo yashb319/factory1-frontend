@@ -122,6 +122,8 @@ export const baseApi = createApi({
     "SaasAdmin",
     "Production",
     "FeatureGating",
+    "Whitelabel",
+    "WhitelabelPartner",
   ],
 
   endpoints: () => ({}),

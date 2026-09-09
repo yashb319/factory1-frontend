@@ -8,6 +8,7 @@ import { isFeatureEnabled } from "@/config/featureGating";
 import { moduleTheme } from "@/config/theme";
 import { useAppSelector } from "@/lib/hook";
 import { useGetOrganizationFeaturesQuery } from "@/features/organization-features/api/organizationFeaturesApi";
+import { useActiveBranding } from "@/features/whitelabel/hooks/useActiveBranding";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -37,6 +38,7 @@ export function Sidebar({
     skip: !user || Boolean(user.platformAdmin),
   });
   const enabledFeatures = featuresData?.data?.enabledFeatures;
+  const { displayName, logoUrl } = useActiveBranding();
 
   const items = navigationItems.filter(
     (item) =>
@@ -58,6 +60,8 @@ export function Sidebar({
           collapsed={collapsed}
           pathname={pathname}
           items={items}
+          displayName={displayName}
+          logoUrl={logoUrl}
           onToggleCollapsed={onToggleCollapsed}
         />
       </aside>
@@ -68,12 +72,14 @@ export function Sidebar({
           className="w-72 border-r border-[var(--factory1-border)] bg-white p-0 text-[var(--factory1-text-primary)]"
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Factory1 navigation</SheetTitle>
+            <SheetTitle>{displayName} navigation</SheetTitle>
           </SheetHeader>
           <SidebarContent
             collapsed={false}
             pathname={pathname}
             items={items}
+            displayName={displayName}
+            logoUrl={logoUrl}
             onNavigate={() => onMobileOpenChange(false)}
           />
         </SheetContent>
@@ -86,6 +92,8 @@ type SidebarContentProps = {
   collapsed: boolean;
   pathname: string;
   items: typeof navigationItems;
+  displayName: string;
+  logoUrl: string | null;
   onToggleCollapsed?: () => void;
   onNavigate?: () => void;
 };
@@ -94,6 +102,8 @@ function SidebarContent({
   collapsed,
   pathname,
   items,
+  displayName,
+  logoUrl,
   onToggleCollapsed,
   onNavigate,
 }: SidebarContentProps) {
@@ -105,13 +115,18 @@ function SidebarContent({
           collapsed && "justify-center px-3"
         )}
       >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--factory1-primary)] text-white">
-          <Factory size={20} />
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--factory1-primary)] text-white">
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt={displayName} className="h-full w-full object-contain" />
+          ) : (
+            <Factory size={20} />
+          )}
         </div>
 
         {!collapsed ? (
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold">Factory1</h1>
+            <h1 className="truncate text-sm font-semibold">{displayName}</h1>
             <p className="truncate text-xs text-[var(--factory1-text-muted)]">Operations OS</p>
           </div>
         ) : null}
