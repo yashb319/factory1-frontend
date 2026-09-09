@@ -4,8 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, Factory } from "lucide-react";
 import { canAccessNavigationItem, navigationItems } from "@/config/navigation";
+import { isFeatureEnabled } from "@/config/featureGating";
 import { moduleTheme } from "@/config/theme";
 import { useAppSelector } from "@/lib/hook";
+import { useGetOrganizationFeaturesQuery } from "@/features/organization-features/api/organizationFeaturesApi";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -31,9 +33,15 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const user = useAppSelector((state) => state.auth.user);
+  const { data: featuresData } = useGetOrganizationFeaturesQuery(undefined, {
+    skip: !user || Boolean(user.platformAdmin),
+  });
+  const enabledFeatures = featuresData?.data?.enabledFeatures;
 
-  const items = navigationItems.filter((item) =>
-    canAccessNavigationItem(item, user)
+  const items = navigationItems.filter(
+    (item) =>
+      canAccessNavigationItem(item, user) &&
+      isFeatureEnabled(enabledFeatures, item.featureKey)
   );
 
   return (

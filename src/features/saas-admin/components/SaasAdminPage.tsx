@@ -10,6 +10,7 @@ import {
   IndianRupee,
   RefreshCw,
   Save,
+  SlidersHorizontal,
   Sparkles,
   Tag,
   Users,
@@ -471,6 +472,25 @@ export function SaasAdminPage() {
           </p>
         </div>
         <Building2 size={28} className="text-blue-600" />
+      </Link>
+
+      <Link
+        href="/saas-admin/features"
+        className="flex items-center justify-between rounded-lg border border-violet-200 bg-violet-50 p-4 transition hover:bg-violet-100"
+      >
+        <div>
+          <p className="text-xs font-medium uppercase text-violet-600">
+            Feature Gating
+          </p>
+          <p className="mt-1 text-sm font-semibold text-violet-900">
+            Manage feature access per organization
+          </p>
+          <p className="text-xs text-violet-700">
+            Override plan defaults, review sources and restore plan defaults
+            for any feature.
+          </p>
+        </div>
+        <SlidersHorizontal size={28} className="text-violet-600" />
       </Link>
     </div>
   );
