@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FactoryWalkthrough } from "@/components/help/FactoryWalkthrough";
 import { FloatingAssistant } from "@/features/ai/components/FloatingAssistant";
+import { FeatureGate } from "@/features/organization-features/components/FeatureGate";
 import { type AppShortcut, visibleShortcuts } from "@/config/shortcuts";
 import { useAppDispatch, useAppSelector } from "@/lib/hook";
 import { logout } from "@/features/auth/authSlice";
@@ -276,7 +277,7 @@ export function AppShell({ children }: Props) {
               }}
             />
           ) : (
-            children
+            <FeatureGate>{children}</FeatureGate>
           )}
         </main>
       </div>

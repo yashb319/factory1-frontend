@@ -5,6 +5,7 @@ import {
   type FetchArgs,
   type FetchBaseQueryError,
 } from "@reduxjs/toolkit/query/react";
+import { toast } from "sonner";
 import { logout } from "@/features/auth/authSlice";
 import type { RootState } from "@/lib/store";
 
@@ -57,8 +58,33 @@ const baseQueryWithAuthRedirect: BaseQueryFn<
     }
   }
 
+  if (result.error?.status === 403 && isFeatureDisabledError(result.error)) {
+    toast.error("This feature is not enabled for your organization", {
+      description:
+        "Reach out to your organization owner or Factory1 support to enable it.",
+    });
+  }
+
   return result;
 };
+
+export function isFeatureDisabledError(error: FetchBaseQueryError) {
+  const data = error.data;
+
+  if (!data || typeof data !== "object") {
+    return false;
+  }
+
+  if ("code" in data && data.code === "FEATURE_DISABLED") {
+    return true;
+  }
+
+  return (
+    "message" in data &&
+    typeof data.message === "string" &&
+    data.message.includes("FEATURE_DISABLED")
+  );
+}
 
 function isPendingApprovalError(error: FetchBaseQueryError) {
   const data = error.data;
@@ -95,6 +121,7 @@ export const baseApi = createApi({
     "Dashboard",
     "SaasAdmin",
     "Production",
+    "FeatureGating",
   ],
 
   endpoints: () => ({}),
