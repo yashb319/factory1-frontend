@@ -71,7 +71,7 @@ import { useGetActiveCustomersQuery } from "@/features/customers/api/customerApi
 import { useGetInventoryItemsQuery } from "@/features/inventory/api/inventoryApi";
 import type { InventoryItem } from "@/features/inventory/types/inventory.types";
 import { useGetProductsQuery } from "@/features/products/api/productsApi";
-import { useGetEmployeesQuery } from "@/features/employees/api/employeeApi";
+import { useGetUserAccountsQuery } from "@/features/access/api/accessApi";
 import {
   useCancelOrderMutation,
   useCreateBomMutation,
@@ -1148,8 +1148,11 @@ function OrderDetail({
   const assignmentsQuery = useGetOrderAssignmentsQuery(orderId);
   const executionBatchesQuery = useGetExecutionBatchesQuery(orderId);
   const materialConsumptionsQuery = useGetMaterialConsumptionsQuery(orderId);
-  const { data: employeesPage } = useGetEmployeesQuery({ page: 0, size: 300, status: "ACTIVE" });
-  const employees = useMemo(() => employeesPage?.content ?? [], [employeesPage]);
+  const userAccountsQuery = useGetUserAccountsQuery();
+  const assignableUsers = useMemo(
+    () => (userAccountsQuery.data ?? []).filter((user) => user.status === "ACTIVE"),
+    [userAccountsQuery.data]
+  );
   const [cancelOrder, cancelState] = useCancelOrderMutation();
   const [createOrderAssignment, createOrderAssignmentState] = useCreateOrderAssignmentMutation();
   const [deleteAssignment, deleteAssignmentState] = useDeleteAssignmentMutation();
@@ -1173,8 +1176,8 @@ function OrderDetail({
         : [],
     [assignments, currentStep]
   );
-  const employeeName = (userId: string) =>
-    employees.find((employee) => employee.id === userId)?.name ?? userId;
+  const assigneeName = (userId: string) =>
+    assignableUsers.find((user) => user.id === userId)?.name ?? userId;
 
   const { data: inventoryPage } = useGetInventoryItemsQuery({ page: 0, size: 300 });
   const inventoryItems = useMemo(
@@ -1590,7 +1593,7 @@ function OrderDetail({
                       >
                         <span>
                           <StatusBadge tone="pending">{humanize(assignment.assignmentRole)}</StatusBadge>{" "}
-                          {employeeName(assignment.assigneeUserId)}
+                          {assigneeName(assignment.assigneeUserId)}
                         </span>
                         <Button
                           variant="ghost"
@@ -1609,6 +1612,16 @@ function OrderDetail({
                 )}
 
                 <form className="space-y-3" onSubmit={submitOrderAssignment}>
+                  {userAccountsQuery.isError ? (
+                    <InlineNotice tone="warning" title="Users unavailable">
+                      Organization users could not be loaded. You can still try again shortly.
+                    </InlineNotice>
+                  ) : !userAccountsQuery.isLoading && assignableUsers.length === 0 ? (
+                    <InlineNotice tone="warning" title="No eligible users">
+                      This organization has no active user accounts. Create or activate a user
+                      before assigning work.
+                    </InlineNotice>
+                  ) : null}
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Field label="Role">
                       <select
@@ -1632,6 +1645,7 @@ function OrderDetail({
                       <select
                         className={selectClassName}
                         value={orderAssignment.assigneeUserId}
+                        disabled={assignableUsers.length === 0}
                         onChange={(event) =>
                           setOrderAssignment((current) => ({
                             ...current,
@@ -1640,16 +1654,19 @@ function OrderDetail({
                         }
                       >
                         <option value="">Select assignee</option>
-                        {employees.map((employee) => (
-                          <option key={employee.id} value={employee.id}>
-                            {employee.name}
+                        {assignableUsers.map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.name} ({user.email})
                           </option>
                         ))}
                       </select>
                     </Field>
                   </div>
                   <div className="flex justify-end">
-                    <Button type="submit" disabled={createOrderAssignmentState.isLoading}>
+                    <Button
+                      type="submit"
+                      disabled={createOrderAssignmentState.isLoading || assignableUsers.length === 0}
+                    >
                       {createOrderAssignmentState.isLoading ? "Saving..." : "Assign order"}
                     </Button>
                   </div>
@@ -1684,7 +1701,7 @@ function OrderDetail({
                           >
                             <span>
                               <StatusBadge tone="pending">{humanize(assignment.assignmentRole)}</StatusBadge>{" "}
-                              {employeeName(assignment.assigneeUserId)}
+                              {assigneeName(assignment.assigneeUserId)}
                             </span>
                             <Button
                               variant="ghost"
@@ -1703,6 +1720,16 @@ function OrderDetail({
                     )}
 
                     <form className="space-y-3" onSubmit={submitStepAssignment}>
+                      {userAccountsQuery.isError ? (
+                        <InlineNotice tone="warning" title="Users unavailable">
+                          Organization users could not be loaded. You can still try again shortly.
+                        </InlineNotice>
+                      ) : !userAccountsQuery.isLoading && assignableUsers.length === 0 ? (
+                        <InlineNotice tone="warning" title="No eligible users">
+                          This organization has no active user accounts. Create or activate a user
+                          before assigning work.
+                        </InlineNotice>
+                      ) : null}
                       <div className="grid gap-3 sm:grid-cols-2">
                         <Field label="Role">
                           <select
@@ -1726,6 +1753,7 @@ function OrderDetail({
                           <select
                             className={selectClassName}
                             value={stepAssignment.assigneeUserId}
+                            disabled={assignableUsers.length === 0}
                             onChange={(event) =>
                               setStepAssignment((current) => ({
                                 ...current,
@@ -1734,9 +1762,9 @@ function OrderDetail({
                             }
                           >
                             <option value="">Select assignee</option>
-                            {employees.map((employee) => (
-                              <option key={employee.id} value={employee.id}>
-                                {employee.name}
+                            {assignableUsers.map((user) => (
+                              <option key={user.id} value={user.id}>
+                                {user.name} ({user.email})
                               </option>
                             ))}
                           </select>
@@ -1744,7 +1772,12 @@ function OrderDetail({
                       </div>
                       <IndicatorRow indicators={stepIndicators} className="mt-1" />
                       <div className="flex justify-end">
-                        <Button type="submit" disabled={createOrderAssignmentState.isLoading}>
+                        <Button
+                          type="submit"
+                          disabled={
+                            createOrderAssignmentState.isLoading || assignableUsers.length === 0
+                          }
+                        >
                           {createOrderAssignmentState.isLoading ? "Saving..." : "Assign current step"}
                         </Button>
                       </div>
