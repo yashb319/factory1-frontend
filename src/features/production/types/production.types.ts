@@ -204,28 +204,30 @@ export type TimelineEvent = {
   occurredAt: string;
 };
 
+// Mirrors com.factory1.production.dto.ProductionPhase2Dtos.WorkstationWorkload —
+// keyed by the workstation code string, not a station id/name pair.
 export type ProductionStationWorkload = {
-  stationId: string;
-  stationName: string;
-  queuedOrders: number;
+  workstation: string;
   activeOrders: number;
-  delayedOrders: number;
-  qualityHolds: number;
-  capacityUtilization?: number;
+  plannedQuantity: number;
+  completedQuantity: number;
 };
 
+// Mirrors com.factory1.production.dto.ProductionPhase2Dtos.DashboardResponse
+// returned by GET /api/production/dashboard.
 export type ProductionDashboard = {
-  activeOrders: number;
-  plannedOrders: number;
-  inProgressOrders: number;
-  onHoldOrders: number;
-  completedToday: number;
+  planned: number;
+  released: number;
+  inProgress: number;
+  onHold: number;
+  completed: number;
+  blocked: number;
+  plannedQuantity: number;
+  completedQuantity: number;
+  rejectedQuantity: number;
   delayedOrders: number;
-  qualityPassRate: number;
-  shortageAlerts: number;
-  averageCompletionPercent?: number;
-  stationUtilizationPercent?: number;
-  workloadByStation?: ProductionStationWorkload[];
+  qualityFailures: number;
+  materialShortages: number;
 };
 
 export type ProductionBoardItem = {
