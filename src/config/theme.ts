@@ -81,5 +81,6 @@ export function moduleForHref(href?: string | null): ModuleKey {
   if (href.startsWith("/organization-settings")) return "organization";
   if (href.startsWith("/help")) return "settings";
   if (href.startsWith("/saas-admin")) return "settings";
+  if (href.startsWith("/partner")) return "settings";
   return "dashboard";
 }

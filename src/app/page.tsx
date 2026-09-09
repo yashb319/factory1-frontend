@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   Apple,
@@ -20,6 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useBranding } from "@/features/whitelabel/components/BrandingProvider";
 import { PublicPricingCards } from "@/features/public-pricing/components/PublicPricingCards";
 
 const contactEmail = "official.factory.one@gmail.com";
@@ -78,16 +81,23 @@ const terms = [
 ];
 
 export default function LandingPage() {
+  const { displayName, logoUrl } = useBranding();
+
   return (
     <main className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-50 border-b bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white">
-              <Factory size={20} />
+            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-blue-600 text-white">
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt={displayName} className="h-full w-full object-contain" />
+              ) : (
+                <Factory size={20} />
+              )}
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-950">Factory1</p>
+              <p className="text-sm font-semibold text-slate-950">{displayName}</p>
               <p className="text-xs text-slate-500">Operations OS</p>
             </div>
           </Link>

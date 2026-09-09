@@ -5,7 +5,8 @@ export type UserRole =
   | "FINANCE"
   | "MANAGEMENT"
   | "EMPLOYEE"
-  | "SAAS_OWNER";
+  | "SAAS_OWNER"
+  | "PARTNER_ADMIN";
 export type UserStatus = "ACTIVE" | "INACTIVE";
 export type OrganizationStatus =
   | "PENDING_APPROVAL"

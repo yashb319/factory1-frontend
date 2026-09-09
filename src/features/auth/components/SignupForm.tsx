@@ -31,10 +31,12 @@ import {
   getLocationSuggestions,
   type LocationSuggestion,
 } from "@/lib/locationSuggestions";
+import { useBranding } from "@/features/whitelabel/components/BrandingProvider";
 
 export function SignupForm() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { displayName, logoUrl } = useBranding();
   const [otpSentTo, setOtpSentTo] = useState<string | null>(null);
   const [sendSignupOtp, { isLoading: isSendingOtp }] =
     useSendSignupOtpMutation();
@@ -171,12 +173,17 @@ export function SignupForm() {
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-2xl rounded-2xl border bg-white p-8 shadow-sm">
         <Link href="/" className="mb-8 flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-slate-950">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
-            <Factory size={22} />
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-blue-600 text-white">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt={displayName} className="h-full w-full object-contain" />
+            ) : (
+              <Factory size={22} />
+            )}
           </div>
 
           <div>
-            <h1 className="text-lg font-semibold">Factory1</h1>
+            <h1 className="text-lg font-semibold">{displayName}</h1>
             <p className="text-sm text-slate-500">Create your workspace</p>
           </div>
         </Link>

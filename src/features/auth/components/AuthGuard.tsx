@@ -115,6 +115,13 @@ export function AuthGuard({ children }: AuthGuardProps) {
     ) {
       router.replace("/leave");
     }
+
+    if (
+      user?.role === "PARTNER_ADMIN" &&
+      !pathname.startsWith("/partner")
+    ) {
+      router.replace("/partner/whitelabel");
+    }
   }, [
     mounted,
     pathname,
