@@ -79,6 +79,7 @@ export function moduleForHref(href?: string | null): ModuleKey {
   if (href.startsWith("/ai")) return "aiInsights";
   if (href.startsWith("/import-export")) return "documents";
   if (href.startsWith("/organization-settings")) return "organization";
+  if (href.startsWith("/help")) return "settings";
   if (href.startsWith("/saas-admin")) return "settings";
   return "dashboard";
 }

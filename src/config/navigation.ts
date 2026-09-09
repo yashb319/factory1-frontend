@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   BarChart3,
   Megaphone,
+  LifeBuoy,
 } from "lucide-react";
 import type { ComponentType, CSSProperties } from "react";
 import type { AuthUser, UserRole } from "@/features/auth/types";
@@ -67,6 +68,7 @@ export const navigationItems: NavigationItem[] = [
     module: "documents",
   },
   { title: "AI Assistant", href: "/ai", icon: Bot, roles: allRoles, module: "aiInsights" },
+  { title: "Help Center", href: "/help", icon: LifeBuoy, roles: allRoles, module: "settings" },
   // { title: "Docs", href: "/docs", icon: BookOpen, roles: allRoles },
   {
     title: "Organization Settings",
