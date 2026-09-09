@@ -11,6 +11,7 @@ import type {
     DeviceAttendanceEventRequest,
     MarkAttendanceRequest,
     MonthlyAttendanceReport,
+    AttendanceLeaveStatus,
     PageResponse,
 } from "../types/attendance.types";
 
@@ -36,6 +37,17 @@ export const attendanceApi = baseApi.injectEndpoints({
                     sortBy: params?.sortBy ?? "attendanceDate",
                     sortDirection: (params?.sortDirection ?? "desc").toUpperCase(),
                 },
+            }),
+            providesTags: ["Attendance"],
+        }),
+        getAttendanceLeaveStatus: builder.query<
+            AttendanceLeaveStatus,
+            { employeeId: string; date: string }
+        >({
+            query: ({ employeeId, date }) => ({
+              url: "/api/attendance/leave-status",
+              method: "GET",
+              params: { employeeId, date },
             }),
             providesTags: ["Attendance"],
         }),
@@ -117,4 +129,5 @@ export const {
     useBulkAttendanceMutation,
     useGetMonthlyAttendanceReportQuery,
     useGetAttendanceDashboardQuery,
+    useGetAttendanceLeaveStatusQuery,
 } = attendanceApi;

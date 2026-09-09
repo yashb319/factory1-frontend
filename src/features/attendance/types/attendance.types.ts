@@ -87,7 +87,19 @@ export interface MonthlyAttendanceReport {
   lateDays: number;
   paidLeaves: number;
   unpaidLeaves: number;
-  payableDays: number;
+  holidays: number;
+  totalHours: number;
+  overtimeHours: number;
+  /** Legacy field retained for the Tally attendance view. */
+  payableDays?: number;
+}
+
+export interface AttendanceLeaveStatus {
+  employeeId: string;
+  date: string;
+  status: AttendanceStatus;
+  paid: boolean;
+  reason: string;
 }
 
 export interface PageResponse<T> {

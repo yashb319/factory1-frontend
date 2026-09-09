@@ -8,6 +8,9 @@ import type {
   LeaveTypeRequest,
   LeaveTypeResponse,
   PageResponse,
+  HolidayRequest,
+  HolidayResponse,
+  LeaveCalendarEntry,
 } from "../types/leave.types";
 
 export const leaveApi = baseApi.injectEndpoints({
@@ -73,6 +76,31 @@ export const leaveApi = baseApi.injectEndpoints({
       transformResponse: (response: ApiResponse<LeaveRequestResponse>) => response.data,
       invalidatesTags: ["Leave"],
     }),
+    getLeaveCalendar: builder.query<LeaveCalendarEntry[], { from?: string; to?: string } | void>({
+      query: (params) => ({
+        url: "/api/leave/calendar",
+        method: "GET",
+        params: { from: params?.from, to: params?.to },
+      }),
+      providesTags: ["Leave"],
+    }),
+    getHolidays: builder.query<HolidayResponse[], { from?: string; to?: string } | void>({
+      query: (params) => ({
+        url: "/api/leave/holidays",
+        method: "GET",
+        params: { from: params?.from, to: params?.to },
+      }),
+      providesTags: ["Leave"],
+    }),
+    createHoliday: builder.mutation<HolidayResponse, HolidayRequest>({
+      query: (body) => ({ url: "/api/leave/holidays", method: "POST", body }),
+      transformResponse: (response: ApiResponse<HolidayResponse>) => response.data,
+      invalidatesTags: ["Leave", "Attendance"],
+    }),
+    deleteHoliday: builder.mutation<void, string>({
+      query: (id) => ({ url: `/api/leave/holidays/${id}`, method: "DELETE" }),
+      invalidatesTags: ["Leave", "Attendance"],
+    }),
   }),
 });
 
@@ -88,4 +116,8 @@ export const {
   useApproveLeaveRequestMutation,
   useRejectLeaveRequestMutation,
   useCancelLeaveRequestMutation,
+  useGetLeaveCalendarQuery,
+  useGetHolidaysQuery,
+  useCreateHolidayMutation,
+  useDeleteHolidayMutation,
 } = leaveApi;
