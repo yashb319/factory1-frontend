@@ -16,6 +16,7 @@ export interface Employee {
   salaryType: SalaryType;
   joiningDate?: string;
   status: EmployeeStatus;
+  accountActivated?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -61,4 +62,37 @@ export interface ApiResponse<T> {
   success: boolean;
   message: string;
   data: T;
+}
+
+export interface EmployeeImportPreviewRow {
+  rowNumber: number;
+  data?: Record<string, unknown>;
+  valid?: boolean;
+  errors?: string[];
+  warnings?: string[];
+  [key: string]: unknown;
+}
+
+export interface EmployeeImportPreviewResponse {
+  rows: EmployeeImportPreviewRow[];
+  totalRows?: number;
+  validRows?: number;
+  invalidRows?: number;
+  [key: string]: unknown;
+}
+
+export interface EmployeeImportResult {
+  imported?: number;
+  created?: number;
+  updated?: number;
+  skipped?: number;
+  errors?: number;
+  [key: string]: unknown;
+}
+
+export interface EmployeeInvitationResult {
+  invited?: number;
+  skipped?: number;
+  errors?: number;
+  [key: string]: unknown;
 }

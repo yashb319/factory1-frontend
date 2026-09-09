@@ -19,6 +19,7 @@ const rawBaseQuery = fetchBaseQuery({
       endpoint === "sendLoginOtp" ||
       endpoint === "sendForgotPasswordOtp" ||
       endpoint === "resetPassword" ||
+      endpoint === "activateEmployee" ||
       endpoint === "submitEarlyRegistrationQuestionnaire"
     ) {
       headers.delete("Authorization");

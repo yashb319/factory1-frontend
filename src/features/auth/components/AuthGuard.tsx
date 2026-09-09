@@ -105,6 +105,15 @@ export function AuthGuard({ children }: AuthGuardProps) {
       !pathname.startsWith("/saas-admin")
     ) {
       router.replace("/saas-admin");
+      return;
+    }
+
+    if (
+      user?.role === "EMPLOYEE" &&
+      pathname !== "/leave" &&
+      pathname !== "/profile"
+    ) {
+      router.replace("/leave");
     }
   }, [
     mounted,
@@ -112,6 +121,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     token,
     user?.organizationStatus,
     user?.platformAdmin,
+    user?.role,
     router,
   ]);
 

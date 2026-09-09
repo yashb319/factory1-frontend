@@ -6,6 +6,9 @@ import {
   EmployeeListParams,
   PageResponse,
   UpdateEmployeeRequest,
+  EmployeeImportPreviewResponse,
+  EmployeeImportResult,
+  EmployeeInvitationResult,
 } from "../types/employee.types";
 
 export const employeeApi = baseApi.injectEndpoints({
@@ -80,6 +83,42 @@ export const employeeApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Employee"],
     }),
+
+    previewEmployeeImport: builder.mutation<EmployeeImportPreviewResponse, File>({
+      query: (file) => {
+        const body = new FormData();
+        body.append("file", file);
+        return { url: "/api/employees/import/preview", method: "POST", body };
+      },
+    }),
+
+    importEmployees: builder.mutation<EmployeeImportResult, File>({
+      query: (file) => {
+        const body = new FormData();
+        body.append("file", file);
+        return { url: "/api/employees/import", method: "POST", body };
+      },
+      invalidatesTags: ["Employee"],
+    }),
+
+    inviteEmployees: builder.mutation<
+      EmployeeInvitationResult,
+      { employeeIds: string[] }
+    >({
+      query: (body) => ({
+        url: "/api/employees/invitations",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Employee"],
+    }),
+
+    getMyEmployee: builder.query<Employee, void>({
+      query: () => ({ url: "/api/employees/me", method: "GET" }),
+      transformResponse: (response: ApiResponse<Employee> | Employee) =>
+        "data" in response ? response.data : response,
+      providesTags: ["Employee"],
+    }),
   }),
 });
 
@@ -89,4 +128,8 @@ export const {
   useCreateEmployeeMutation,
   useUpdateEmployeeMutation,
   useDeleteEmployeeMutation,
+  usePreviewEmployeeImportMutation,
+  useImportEmployeesMutation,
+  useInviteEmployeesMutation,
+  useGetMyEmployeeQuery,
 } = employeeApi;

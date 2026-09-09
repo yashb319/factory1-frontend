@@ -9,6 +9,7 @@ import type {
   ResetPasswordRequest,
   SignupOrganizationRequest,
   SignupOtpRequest,
+  ActivateEmployeeRequest,
 } from "./types";
 
 export const authApi = baseApi.injectEndpoints({
@@ -67,6 +68,14 @@ export const authApi = baseApi.injectEndpoints({
       }),
     }),
 
+    activateEmployee: builder.mutation<AuthResponse, ActivateEmployeeRequest>({
+      query: (body) => ({
+        url: "/api/auth/activate-employee",
+        method: "POST",
+        body,
+      }),
+    }),
+
     submitEarlyRegistrationQuestionnaire: builder.mutation<
       MessageResponse,
       EarlyRegistrationQuestionnaireRequest
@@ -87,5 +96,6 @@ export const {
   useSendLoginOtpMutation,
   useSendForgotPasswordOtpMutation,
   useResetPasswordMutation,
+  useActivateEmployeeMutation,
   useSubmitEarlyRegistrationQuestionnaireMutation,
 } = authApi;
