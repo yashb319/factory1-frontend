@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { useGetPublicWhitelabelBrandingQuery } from "../api/whitelabelApi";
+import { WHITELABEL_DEFAULT_BRANDING } from "../config/whitelabelUiConfig";
 import type { PublicWhitelabelBranding } from "../types/whitelabel.types";
 
-export const DEFAULT_APP_NAME = "Factory1";
-export const DEFAULT_APP_TITLE = "Factory1 - AI first ERP";
-export const DEFAULT_FAVICON_URL = "/icon.svg";
-export const DEFAULT_PRIMARY_COLOR_HEX = "#2563eb";
-export const DEFAULT_ACCENT_COLOR_HEX = "#0ea5e9";
+export const DEFAULT_APP_NAME = WHITELABEL_DEFAULT_BRANDING.appName;
+export const DEFAULT_APP_TITLE = WHITELABEL_DEFAULT_BRANDING.appTitle;
+export const DEFAULT_FAVICON_URL = WHITELABEL_DEFAULT_BRANDING.faviconUrl;
+export const DEFAULT_PRIMARY_COLOR_HEX =
+  WHITELABEL_DEFAULT_BRANDING.primaryColorHex;
+export const DEFAULT_ACCENT_COLOR_HEX =
+  WHITELABEL_DEFAULT_BRANDING.accentColorHex;
 
 /**
  * Resolves the hostname the app is currently served from. Returns null
