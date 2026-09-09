@@ -39,7 +39,6 @@ export type ProductionIndicatorType =
   | "CONFLICT"
   | "INFO";
 export type ProductionIndicatorSeverity = "info" | "warning" | "critical";
-export type StationStatus = "ACTIVE" | "INACTIVE" | "MAINTENANCE";
 export type QualityResultStatus = "PASS" | "FAIL" | "HOLD";
 export type QualityChecklistItemDisposition =
   | "PASS"
@@ -120,16 +119,13 @@ export type ProductionIndicator = {
   createdAt?: string;
 };
 
-export type ProductionAssignmentRequest = {
+export type ProductionAssignment = {
+  id?: string;
   stationId?: string;
   workstationId?: string;
   assigneeLabel?: string;
   notes?: string;
   batchSize?: number;
-};
-
-export type ProductionAssignment = ProductionAssignmentRequest & {
-  id?: string;
   stationName?: string;
   workstationName?: string;
   assignedAt?: string;
@@ -224,53 +220,6 @@ export type ProductionStationWorkload = {
   capacityUtilization?: number;
 };
 
-export type ProductionWorkstation = {
-  id: string;
-  stationId: string;
-  code: string;
-  name: string;
-  description?: string;
-  status?: StationStatus;
-  active: boolean;
-  capacityPerHour?: number;
-  queueLimit?: number;
-  currentOrderId?: string;
-  currentStepId?: string;
-  indicators?: ProductionIndicator[];
-};
-
-export type ProductionStation = {
-  id: string;
-  code: string;
-  name: string;
-  description?: string;
-  status?: StationStatus;
-  active: boolean;
-  capacityPerShift?: number;
-  workload?: ProductionStationWorkload;
-  indicators?: ProductionIndicator[];
-  workstations: ProductionWorkstation[];
-};
-
-export type ProductionStationRequest = {
-  code: string;
-  name: string;
-  description?: string;
-  active?: boolean;
-  status?: StationStatus;
-  capacityPerShift?: number;
-};
-
-export type ProductionWorkstationRequest = {
-  code: string;
-  name: string;
-  description?: string;
-  active?: boolean;
-  status?: StationStatus;
-  capacityPerHour?: number;
-  queueLimit?: number;
-};
-
 export type ProductionDashboard = {
   activeOrders: number;
   plannedOrders: number;
@@ -312,10 +261,7 @@ export type ProductionBoardColumn = {
 };
 
 export type ProductionBoardQuery = {
-  search?: string;
   status?: OrderStatus;
-  stationId?: string;
-  workstationId?: string;
   page?: number;
   size?: number;
 };
