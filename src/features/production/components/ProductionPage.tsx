@@ -139,6 +139,15 @@ import type {
 type Tab = "orders" | "workflows" | "boms" | "analytics";
 type OrdersViewMode = "board" | "list";
 type OrderStatusFilter = "ALL" | OrderStatus;
+type DetailTab = "execution" | "assignments" | "quality" | "materials" | "timeline";
+
+const detailTabLabel: Record<DetailTab, string> = {
+  execution: "Execution",
+  assignments: "Assignments",
+  quality: "Quality",
+  materials: "Materials",
+  timeline: "Timeline",
+};
 type AssignmentFormState = {
   assignmentRole: AssignmentRole;
   assigneeUserId: string;
@@ -195,14 +204,18 @@ const emptyAssignment = (): AssignmentFormState => ({
 });
 
 const emptyDashboard: ProductionDashboard = {
-  activeOrders: 0,
-  plannedOrders: 0,
-  inProgressOrders: 0,
-  onHoldOrders: 0,
-  completedToday: 0,
+  planned: 0,
+  released: 0,
+  inProgress: 0,
+  onHold: 0,
+  completed: 0,
+  blocked: 0,
+  plannedQuantity: 0,
+  completedQuantity: 0,
+  rejectedQuantity: 0,
   delayedOrders: 0,
-  qualityPassRate: 0,
-  shortageAlerts: 0,
+  qualityFailures: 0,
+  materialShortages: 0,
 };
 
 const emptyQualityTemplate = (): QualityTemplateRequest => ({
@@ -337,6 +350,15 @@ function Orders({
   );
 
   const dashboard = dashboardQuery.data ?? emptyDashboard;
+  // Orders that have moved past planning and are not yet finished.
+  const activeOrderCount =
+    dashboard.released + dashboard.inProgress + dashboard.onHold + dashboard.blocked;
+  const queuedOrderCount = dashboard.planned + dashboard.released;
+  // No pass-rate field exists on the backend; derive one from the accepted
+  // vs. rejected output quantities it does report.
+  const qualityOutcomeTotal = dashboard.completedQuantity + dashboard.rejectedQuantity;
+  const qualityPassRate =
+    qualityOutcomeTotal > 0 ? (dashboard.completedQuantity / qualityOutcomeTotal) * 100 : 100;
 
   const refreshAll = () => {
     void ordersQuery.refetch();
@@ -367,11 +389,11 @@ function Orders({
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatCard
           title="Active orders"
-          value={String(dashboard.activeOrders)}
-          description={`${dashboard.inProgressOrders} in progress · ${dashboard.plannedOrders} queued`}
+          value={String(activeOrderCount)}
+          description={`${dashboard.inProgress} in progress · ${queuedOrderCount} queued`}
           icon={PackageCheck}
           module="production"
         />
@@ -384,15 +406,15 @@ function Orders({
         />
         <StatCard
           title="Quality pass rate"
-          value={`${formatPercent(dashboard.qualityPassRate)}`}
-          description={`${dashboard.onHoldOrders} orders on hold`}
+          value={`${formatPercent(qualityPassRate)}`}
+          description={`${dashboard.onHold} orders on hold`}
           icon={BadgeCheck}
           module="production"
         />
         <StatCard
           title="Shortage alerts"
-          value={String(dashboard.shortageAlerts)}
-          description={`${formatPercent(dashboard.stationUtilizationPercent ?? 0)} station utilization`}
+          value={String(dashboard.materialShortages)}
+          description={dashboard.materialShortages ? "Items below reorder threshold" : "No shortages detected"}
           icon={Boxes}
           module="production"
         />
@@ -980,8 +1002,8 @@ function WorkstationManager({
   const [updateWorkstation, updateWorkstationState] = useUpdateWorkstationRecordMutation();
   const [deactivateWorkstation, deactivateWorkstationState] = useDeactivateWorkstationMutation();
 
-  const workloadByWorkstationId = useMemo(
-    () => new Map(workloads.map((workload) => [workload.stationId, workload])),
+  const workloadByWorkstationCode = useMemo(
+    () => new Map(workloads.map((workload) => [workload.workstation, workload])),
     [workloads]
   );
 
@@ -1054,7 +1076,7 @@ function WorkstationManager({
             />
           ) : (
             stations.map((workstation) => {
-              const workload = workloadByWorkstationId.get(workstation.id);
+              const workload = workloadByWorkstationCode.get(workstation.code);
               return (
                 <div key={workstation.id} className="rounded-lg border p-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1073,8 +1095,8 @@ function WorkstationManager({
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
                         <span>Active orders: {workload?.activeOrders ?? 0}</span>
-                        <span>Delayed: {workload?.delayedOrders ?? 0}</span>
-                        <span>Utilization: {formatPercent(workload?.capacityUtilization ?? 0)}</span>
+                        <span>Planned: {formatNumber(workload?.plannedQuantity ?? 0)}</span>
+                        <span>Completed: {formatNumber(workload?.completedQuantity ?? 0)}</span>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -1221,6 +1243,8 @@ function OrderDetail({
     [qualityResultsQuery.data]
   );
 
+  // "Execution" is the most action-relevant section, so it's the default tab.
+  const [detailTab, setDetailTab] = useState<DetailTab>("execution");
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [orderAssignment, setOrderAssignment] = useState<AssignmentFormState>(emptyAssignment());
   const [stepAssignment, setStepAssignment] = useState<AssignmentFormState>(emptyAssignment());
@@ -1569,10 +1593,28 @@ function OrderDetail({
             </div>
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="flex flex-wrap gap-1.5 border-b pb-2" aria-label="Order detail sections">
+            {(["execution", "assignments", "quality", "materials", "timeline"] as DetailTab[]).map(
+              (item) => (
+                <Button
+                  key={item}
+                  type="button"
+                  size="sm"
+                  variant={detailTab === item ? "default" : "ghost"}
+                  onClick={() => setDetailTab(item)}
+                  aria-pressed={detailTab === item}
+                >
+                  {detailTabLabel[item]}
+                </Button>
+              )
+            )}
+          </div>
+
+          {detailTab === "assignments" ? (
+          <div className="grid gap-4 xl:grid-cols-2">
             <Card className="border-dashed">
-              <CardHeader>
-                <CardTitle>Order assignment</CardTitle>
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm">Order assignment</CardTitle>
                 <CardDescription>
                   Assign a user with a role to own this production order.
                 </CardDescription>
@@ -1675,8 +1717,8 @@ function OrderDetail({
             </Card>
 
             <Card className="border-dashed">
-              <CardHeader>
-                <CardTitle>Current step assignment</CardTitle>
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm">Current step assignment</CardTitle>
                 <CardDescription>
                   Assign a user with a role to the active workflow step.
                 </CardDescription>
@@ -1787,7 +1829,9 @@ function OrderDetail({
               </CardContent>
             </Card>
           </div>
+          ) : null}
 
+          {detailTab === "quality" ? (
           <Card className="border-dashed">
             <CardHeader>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1942,7 +1986,9 @@ function OrderDetail({
               </div>
             </CardContent>
           </Card>
+          ) : null}
 
+          {detailTab === "materials" ? (
           <Card className="border-dashed">
             <CardHeader>
               <CardTitle>Material lots & shortages</CardTitle>
@@ -2011,7 +2057,10 @@ function OrderDetail({
               )}
             </CardContent>
           </Card>
+          ) : null}
 
+          {detailTab === "execution" ? (
+          <>
           <Card className="border-dashed">
             <CardHeader>
               <CardTitle>Step execution</CardTitle>
@@ -2137,7 +2186,10 @@ function OrderDetail({
               )}
             </CardContent>
           </Card>
+          </>
+          ) : null}
 
+          {detailTab === "timeline" ? (
           <Card className="border-dashed">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -2168,6 +2220,7 @@ function OrderDetail({
               )}
             </CardContent>
           </Card>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -3544,25 +3597,18 @@ function deriveStationIndicators(
   if (!workload) return [];
 
   const indicators: ProductionIndicator[] = [];
-  if ((workload.capacityUtilization ?? 0) >= 85) {
+  if (workload.activeOrders >= 5) {
     indicators.push({
       type: "WORKLOAD",
       severity: "warning",
       label: "High workload",
     });
   }
-  if (workload.delayedOrders > 0) {
+  if (workload.plannedQuantity > 0 && workload.completedQuantity <= 0) {
     indicators.push({
-      type: "DELAYED",
-      severity: "warning",
-      label: `${workload.delayedOrders} delayed`,
-    });
-  }
-  if (workload.qualityHolds > 0) {
-    indicators.push({
-      type: "QUALITY_FAILURE",
-      severity: "critical",
-      label: `${workload.qualityHolds} QC holds`,
+      type: "INFO",
+      severity: "info",
+      label: "No output recorded yet",
     });
   }
   return indicators;
