@@ -17,6 +17,7 @@ import { DailyAttendanceRegister } from "./DailyAttendanceRegister";
 import { exportAttendanceCsv } from "../utils/attendanceExport";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 import { openExternalUrl } from "@/features/import-export/utils/localExportFiles";
+import { MonthlyReportPanel } from "./MonthlyReportPanel";
 
 export function AttendancePage() {
   const [markOpen, setMarkOpen] = useState(false);
@@ -125,6 +126,8 @@ export function AttendancePage() {
       <AttendanceStatsCards />
 
       <DailyAttendanceRegister />
+
+      <MonthlyReportPanel />
 
       <AttendanceFilters filters={filters} onChange={updateFilters} />
 

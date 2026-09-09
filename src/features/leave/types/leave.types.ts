@@ -78,3 +78,25 @@ export interface LeaveListParams {
   page?: number;
   size?: number;
 }
+
+export interface LeaveCalendarEntry {
+  date: string;
+  kind: string;
+  label: string;
+  paid: boolean;
+  employeeId?: string | null;
+  status?: LeaveRequestStatus | null;
+}
+
+export interface HolidayResponse {
+  id: string;
+  holidayDate: string;
+  name: string;
+  paid: boolean;
+}
+
+export interface HolidayRequest {
+  holidayDate: string;
+  name: string;
+  paid: boolean;
+}

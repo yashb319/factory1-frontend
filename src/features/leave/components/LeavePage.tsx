@@ -10,6 +10,7 @@ import {
   FileText,
   Plus,
   Settings2,
+  Trash2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,10 +30,14 @@ import {
   useCancelLeaveRequestMutation,
   useCreateLeaveRequestMutation,
   useCreateLeaveTypeMutation,
+  useCreateHolidayMutation,
+  useDeleteHolidayMutation,
   useGetLeaveBalancesQuery,
   useGetLeaveRequestQuery,
   useGetLeaveRequestsQuery,
   useGetLeaveTypesQuery,
+  useGetLeaveCalendarQuery,
+  useGetHolidaysQuery,
   useGetPendingLeaveRequestsQuery,
   useRejectLeaveRequestMutation,
   useUpdateLeaveTypeMutation,
@@ -64,6 +69,7 @@ export function LeavePage() {
   const [editingType, setEditingType] = useState<LeaveTypeResponse | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [decision, setDecision] = useState<{ request: LeaveRequestResponse; action: "approve" | "reject" } | null>(null);
+  const [holidayForm, setHolidayForm] = useState({ holidayDate: "", name: "", paid: true });
 
   const { data: balances = [], isLoading: balancesLoading } = useGetLeaveBalancesQuery(year);
   const { data: activeTypes = [], isLoading: typesLoading } = useGetLeaveTypesQuery({ activeOnly: true });
@@ -75,6 +81,10 @@ export function LeavePage() {
     { page: pendingPage, size: 10 },
     { skip: !isApprover },
   );
+  const yearFrom = `${year}-01-01`;
+  const yearTo = `${year}-12-31`;
+  const { data: calendar = [], isLoading: calendarLoading, isError: calendarError } = useGetLeaveCalendarQuery({ from: yearFrom, to: yearTo });
+  const { data: holidays = [], isLoading: holidaysLoading, isError: holidaysError } = useGetHolidaysQuery({ from: yearFrom, to: yearTo });
   const { data: selectedRequest, isFetching: requestLoading } = useGetLeaveRequestQuery(
     selectedRequestId ?? "",
     { skip: !selectedRequestId },
@@ -83,6 +93,17 @@ export function LeavePage() {
   const [cancelRequest] = useCancelLeaveRequestMutation();
   const [approveRequest, { isLoading: approving }] = useApproveLeaveRequestMutation();
   const [rejectRequest, { isLoading: rejecting }] = useRejectLeaveRequestMutation();
+  const [createHoliday, { isLoading: creatingHoliday }] = useCreateHolidayMutation();
+  const [deleteHoliday] = useDeleteHolidayMutation();
+
+  async function handleDeleteHoliday(id: string) {
+    try {
+      await deleteHoliday(id).unwrap();
+      toast.success("Holiday deleted");
+    } catch {
+      toast.error("Unable to delete holiday");
+    }
+  }
 
   async function handleCancel(request: LeaveRequestResponse) {
     if (!window.confirm("Cancel this leave request?")) return;
@@ -154,6 +175,32 @@ export function LeavePage() {
           </div>
         ) : <EmptyState icon={CalendarDays} title="No leave balances yet" description="Your organization has not assigned any active leave balances for this year." />}
       </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Leave calendar</CardTitle>
+            <CardDescription>Approved leave and organization holidays for {year}.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {calendarError ? <ErrorBlock message="Unable to load the leave calendar." /> : calendarLoading ? <LoadingBlock /> : calendar.length ? (
+              <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Event</TableHead><TableHead>Type</TableHead><TableHead>Paid</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{calendar.map((entry, index) => <TableRow key={`${entry.date}-${entry.employeeId ?? "org"}-${index}`}><TableCell>{formatDate(entry.date)}</TableCell><TableCell className="font-medium">{entry.label}</TableCell><TableCell>{entry.kind}</TableCell><TableCell>{entry.paid ? "Yes" : "No"}</TableCell><TableCell>{entry.status ?? "Published"}</TableCell></TableRow>)}</TableBody></Table></div>
+            ) : <EmptyState icon={CalendarDays} title="No calendar events" description="Approved leave and holidays will appear here." />}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>Organization holidays</CardTitle><CardDescription>Configure paid and unpaid holidays used by attendance.</CardDescription></CardHeader>
+          <CardContent className="space-y-3">
+            {holidaysError ? <ErrorBlock message="Unable to load organization holidays." /> : holidaysLoading ? <LoadingBlock /> : holidays.length ? <div className="space-y-2">{holidays.map((holiday) => <div key={holiday.id} className="flex items-center justify-between gap-2 rounded-md border p-2"><div><p className="font-medium">{holiday.name}</p><p className="text-xs text-slate-500">{formatDate(holiday.holidayDate)} · {holiday.paid ? "Paid" : "Unpaid"}</p></div><Button size="icon-sm" variant="ghost" aria-label={`Delete ${holiday.name}`} onClick={() => void handleDeleteHoliday(holiday.id)}><Trash2 className="h-4 w-4 text-red-600" /></Button></div>)}</div> : <EmptyState icon={CalendarDays} title="No holidays configured" description="Add your organization's holidays below." />}
+            {isApprover ? <form className="grid gap-2 border-t pt-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end" onSubmit={async (event) => { event.preventDefault(); if (!holidayForm.holidayDate || !holidayForm.name.trim()) return; try { await createHoliday({ ...holidayForm, name: holidayForm.name.trim() }).unwrap(); toast.success("Holiday added"); setHolidayForm({ holidayDate: "", name: "", paid: true }); } catch { toast.error("Unable to add holiday"); } }}><FieldLabel label="Date"><Input type="date" value={holidayForm.holidayDate} onChange={(event) => setHolidayForm({ ...holidayForm, holidayDate: event.target.value })} /></FieldLabel><FieldLabel label="Holiday name"><Input value={holidayForm.name} onChange={(event) => setHolidayForm({ ...holidayForm, name: event.target.value })} placeholder="Factory foundation day" /></FieldLabel><div className="flex items-center gap-2"><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={holidayForm.paid} onChange={(event) => setHolidayForm({ ...holidayForm, paid: event.target.checked })} />Paid</label><Button type="submit" disabled={creatingHoliday}>Add</Button></div></form> : null}
+          </CardContent>
+        </Card>
+      </section>
+
+      <Card>
+        <CardHeader><CardTitle>Weekend rules</CardTitle><CardDescription>Weekend configuration is not exposed by the current backend contract.</CardDescription></CardHeader>
+        <CardContent><p className="text-sm text-slate-600">Attendance and payroll currently receive organization holidays and leave status from the backend. Add weekend policy endpoints before exposing editable weekend rules here.</p></CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -247,7 +294,7 @@ function RequestTable({ requests, loading, canDecide, onView, onCancel, onDecide
 function TypeTable({ types, loading, onEdit }: { types: LeaveTypeResponse[]; loading: boolean; onEdit: (type: LeaveTypeResponse) => void }) {
   if (loading) return <LoadingBlock />;
   if (!types.length) return <EmptyState icon={Settings2} title="No leave types configured" description="Create the first leave type for your organization." />;
-  return <Table><TableHeader><TableRow><TableHead>Type</TableHead><TableHead>Allocation</TableHead><TableHead>Paid</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>{types.map((type) => <TableRow key={type.id}><TableCell><span className="font-medium">{type.name}</span><span className="block text-xs text-slate-500">{type.code}</span></TableCell><TableCell>{formatDays(type.allocationDays)} / {type.allocationPeriod.toLowerCase()} {type.carryForward ? `· carry forward up to ${formatDays(type.maxCarryForwardDays)}` : ""}</TableCell><TableCell>{type.paid ? "Yes" : "No"}</TableCell><TableCell><Badge variant={type.active ? "default" : "outline"}>{type.active ? "Active" : "Inactive"}</Badge></TableCell><TableCell className="text-right"><Button size="sm" variant="outline" onClick={() => onEdit(type)}>Edit</Button></TableCell></TableRow>)}</TableBody></Table>;
+  return <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Type</TableHead><TableHead>Allocation</TableHead><TableHead>Carry forward</TableHead><TableHead>Expiry</TableHead><TableHead>Paid</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>{types.map((type) => <TableRow key={type.id}><TableCell><span className="font-medium">{type.name}</span><span className="block text-xs text-slate-500">{type.code}</span></TableCell><TableCell>{formatDays(type.allocationDays)} / {type.allocationPeriod.toLowerCase()}</TableCell><TableCell>{type.carryForward ? `Up to ${formatDays(type.maxCarryForwardDays)}` : "No"}</TableCell><TableCell>{type.expiryMonths ? `${type.expiryMonths} months` : "No expiry"}</TableCell><TableCell>{type.paid ? "Yes" : "No"}</TableCell><TableCell><Badge variant={type.active ? "default" : "outline"}>{type.active ? "Active" : "Inactive"}</Badge></TableCell><TableCell className="text-right"><Button size="sm" variant="outline" onClick={() => onEdit(type)}>Edit</Button></TableCell></TableRow>)}</TableBody></Table></div>;
 }
 
 function ApplyLeaveDialog({ open, onOpenChange, types, loading, onSubmit }: { open: boolean; onOpenChange: (open: boolean) => void; types: LeaveTypeResponse[]; loading: boolean; onSubmit: (body: { leaveTypeId: string; startDate: string; endDate: string; reason: string }) => Promise<void> }) {
@@ -302,6 +349,7 @@ function FieldLabel({ label, children }: { label: string; children: React.ReactN
 function Detail({ label, value }: { label: string; value: string }) { return <div><p className="text-xs text-slate-500">{label}</p><p className="mt-1 font-medium text-slate-900">{value}</p></div>; }
 function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) { if (totalPages <= 1) return null; return <div className="flex items-center justify-end gap-2 border-t px-3 py-2"><span className="text-xs text-slate-500">Page {page + 1} of {totalPages}</span><Button size="icon-sm" variant="outline" disabled={page === 0} onClick={() => onChange(page - 1)}><ChevronLeft /></Button><Button size="icon-sm" variant="outline" disabled={page + 1 >= totalPages} onClick={() => onChange(page + 1)}><ChevronRight /></Button></div>; }
 function LoadingBlock() { return <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-slate-500"><Clock3 className="h-4 w-4 animate-pulse" />Loading...</div>; }
+function ErrorBlock({ message }: { message: string }) { return <p className="p-4 text-sm text-red-700">{message}</p>; }
 function formatDays(value: number) { return Number.isInteger(value) ? String(value) : value.toFixed(1); }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }); }
 const emptyType: LeaveTypeRequest = { code: "", name: "", allocationPeriod: "YEARLY", allocationDays: 1, paid: true, active: true, carryForward: false, maxCarryForwardDays: 0, expiryMonths: 0 };
