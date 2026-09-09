@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CalendarDays,
   Check,
@@ -26,6 +26,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAppSelector } from "@/lib/hook";
 import { cn } from "@/lib/utils";
+import {
+  useGetOrganizationSettingsQuery,
+  useUpdateOrganizationSettingsMutation,
+} from "@/features/organization-settings/api/organizationSettingsApi";
 import {
   useApproveLeaveRequestMutation,
   useCancelLeaveRequestMutation,
@@ -53,6 +57,7 @@ import type {
 } from "../types/leave.types";
 
 const approverRoles = new Set(["OWNER", "ADMIN", "MANAGEMENT"]);
+const weekDays = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 const statusVariant: Record<LeaveRequestStatus, "default" | "secondary" | "destructive" | "outline"> = {
   PENDING: "secondary",
   APPROVED: "default",
@@ -104,6 +109,42 @@ export function LeavePage() {
   const [rejectRequest, { isLoading: rejecting }] = useRejectLeaveRequestMutation();
   const [createHoliday, { isLoading: creatingHoliday }] = useCreateHolidayMutation();
   const [deleteHoliday] = useDeleteHolidayMutation();
+
+  const orgSettingsQuery = useGetOrganizationSettingsQuery(undefined, { skip: !isApprover });
+  const orgSettings = orgSettingsQuery.data?.data;
+  const [updateOrgSettings, { isLoading: savingWeekendRules }] = useUpdateOrganizationSettingsMutation();
+  const [weekendDaysDraft, setWeekendDaysDraft] = useState<string[]>([]);
+  const [weekendPaidDraft, setWeekendPaidDraft] = useState(false);
+
+  useEffect(() => {
+    if (!orgSettings) return;
+    setWeekendDaysDraft(
+      orgSettings.weekendDays
+        ? orgSettings.weekendDays.split(",").map((day) => day.trim().toUpperCase()).filter(Boolean)
+        : []
+    );
+    setWeekendPaidDraft(Boolean(orgSettings.weekendPaid));
+  }, [orgSettings]);
+
+  function toggleWeekendDay(day: string) {
+    setWeekendDaysDraft((current) =>
+      current.includes(day) ? current.filter((value) => value !== day) : [...current, day]
+    );
+  }
+
+  async function handleSaveWeekendRules() {
+    if (!orgSettings) return;
+    try {
+      await updateOrgSettings({
+        ...orgSettings,
+        weekendDays: weekendDaysDraft.join(","),
+        weekendPaid: weekendPaidDraft,
+      }).unwrap();
+      toast.success("Weekend rules updated");
+    } catch {
+      toast.error("Unable to update weekend rules");
+    }
+  }
 
   async function handleDeleteHoliday(id: string) {
     try {
@@ -224,8 +265,42 @@ export function LeavePage() {
       </section>
 
       <Card>
-        <CardHeader><CardTitle>Weekend rules</CardTitle><CardDescription>Weekend configuration is not exposed by the current backend contract.</CardDescription></CardHeader>
-        <CardContent><p className="text-sm text-slate-600">Attendance and payroll currently receive organization holidays and leave status from the backend. Add weekend policy endpoints before exposing editable weekend rules here.</p></CardContent>
+        <CardHeader><CardTitle>Weekend rules</CardTitle><CardDescription>Choose which days count as weekends and whether the owner wants them treated as paid time off.</CardDescription></CardHeader>
+        <CardContent className="space-y-3">
+          {orgSettingsQuery.isError ? <ErrorBlock message="Unable to load weekend settings." /> : orgSettingsQuery.isLoading ? <LoadingBlock /> : !isApprover ? (
+            <p className="text-sm text-slate-600">
+              Weekends are currently {weekendPaidDraft ? "treated as paid" : "unpaid"} for {weekendDaysDraft.length ? weekendDaysDraft.map((day) => day.charAt(0) + day.slice(1).toLowerCase()).join(", ") : "no configured days"}. Only owners, admins, and management can change this.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {weekDays.map((day) => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleWeekendDay(day)}
+                    className={cn(
+                      "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                      weekendDaysDraft.includes(day)
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    {day.charAt(0) + day.slice(1, 3).toLowerCase()}
+                  </button>
+                ))}
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={weekendPaidDraft} onChange={(event) => setWeekendPaidDraft(event.target.checked)} />
+                Treat weekends as paid leave
+              </label>
+              <p className="text-xs text-slate-500">
+                By default weekends are unpaid; enable this only if your organization wants weekend days automatically counted as paid days off in the leave calendar.
+              </p>
+              <Button size="sm" disabled={savingWeekendRules} onClick={() => void handleSaveWeekendRules()}>{savingWeekendRules ? "Saving..." : "Save weekend rules"}</Button>
+            </>
+          )}
+        </CardContent>
       </Card>
 
       <Card>
@@ -391,7 +466,7 @@ function LeaveTypeDialog({ open, onOpenChange, type }: { open: boolean; onOpenCh
       toast.error("Unable to save leave type");
     }
   }
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>{type ? "Edit leave type" : "New leave type"}</DialogTitle><DialogDescription>Define how this leave is allocated and carried forward.</DialogDescription></DialogHeader><form className="space-y-3" onSubmit={submit}><div className="grid gap-3 sm:grid-cols-2"><FieldLabel label="Code"><Input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value.toUpperCase() })} /></FieldLabel><FieldLabel label="Name"><Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></FieldLabel></div><div className="grid gap-3 sm:grid-cols-2"><FieldLabel label="Allocation period"><Select value={form.allocationPeriod} onValueChange={(value: "MONTHLY" | "YEARLY") => setForm({ ...form, allocationPeriod: value })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="MONTHLY">Monthly</SelectItem><SelectItem value="YEARLY">Yearly</SelectItem></SelectContent></Select></FieldLabel><FieldLabel label="Allocation days"><Input type="number" min="0.5" step="0.5" value={form.allocationDays} onChange={(event) => setForm({ ...form, allocationDays: Number(event.target.value) })} /></FieldLabel></div><div className="grid gap-3 sm:grid-cols-2"><FieldLabel label="Max carry-forward days"><Input type="number" min="0" step="0.5" value={form.maxCarryForwardDays} onChange={(event) => setForm({ ...form, maxCarryForwardDays: Number(event.target.value) })} /></FieldLabel><FieldLabel label="Expiry months"><Input type="number" min="0" value={form.expiryMonths} onChange={(event) => setForm({ ...form, expiryMonths: Number(event.target.value) })} /></FieldLabel></div><div className="grid gap-2 sm:grid-cols-3">{[["paid", "Paid"], ["active", "Active"], ["carryForward", "Carry forward"]].map(([key, label]) => <label key={key} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form[key as "paid" | "active" | "carryForward"]} onChange={(event) => setForm({ ...form, [key]: event.target.checked })} />{label}</label>)}</div><DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Close</Button><Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save leave type"}</Button></DialogFooter></form></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>{type ? "Edit leave type" : "New leave type"}</DialogTitle><DialogDescription>Define how this leave is allocated and carried forward.</DialogDescription></DialogHeader><form className="space-y-3" onSubmit={submit}><div className="grid gap-3 sm:grid-cols-2"><FieldLabel label="Code"><Input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value.toUpperCase() })} /></FieldLabel><FieldLabel label="Name"><Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></FieldLabel></div><div className="grid gap-3 sm:grid-cols-2"><FieldLabel label="Allocation period"><Select value={form.allocationPeriod} onValueChange={(value: "MONTHLY" | "FORTNIGHT" | "YEARLY") => setForm({ ...form, allocationPeriod: value })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="MONTHLY">Monthly</SelectItem><SelectItem value="FORTNIGHT">Fortnight (15 days)</SelectItem><SelectItem value="YEARLY">Yearly</SelectItem></SelectContent></Select></FieldLabel><FieldLabel label="Allocation days"><Input type="number" min="0.5" step="0.5" value={form.allocationDays} onChange={(event) => setForm({ ...form, allocationDays: Number(event.target.value) })} /></FieldLabel></div><div className="grid gap-3 sm:grid-cols-2"><FieldLabel label="Max carry-forward days"><Input type="number" min="0" step="0.5" value={form.maxCarryForwardDays} onChange={(event) => setForm({ ...form, maxCarryForwardDays: Number(event.target.value) })} /></FieldLabel><FieldLabel label="Expiry months"><Input type="number" min="0" value={form.expiryMonths} onChange={(event) => setForm({ ...form, expiryMonths: Number(event.target.value) })} /></FieldLabel></div><div className="grid gap-2 sm:grid-cols-3">{[["paid", "Paid"], ["active", "Active"], ["carryForward", "Carry forward"]].map(([key, label]) => <label key={key} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form[key as "paid" | "active" | "carryForward"]} onChange={(event) => setForm({ ...form, [key]: event.target.checked })} />{label}</label>)}</div><DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Close</Button><Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save leave type"}</Button></DialogFooter></form></DialogContent></Dialog>;
 }
 
 function RequestDetailDialog({ request, loading, open, onOpenChange, onCancel }: { request?: LeaveRequestResponse; loading: boolean; open: boolean; onOpenChange: (open: boolean) => void; onCancel: (request: LeaveRequestResponse) => void }) {

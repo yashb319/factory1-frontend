@@ -35,6 +35,8 @@ export interface OrganizationSettingsRequest {
   currency: string;
   timezone: string;
   weekStartDay: string;
+  weekendDays: string;
+  weekendPaid: boolean;
   financialYearStartMonth: number;
   organizationName: string;
   location?: string;

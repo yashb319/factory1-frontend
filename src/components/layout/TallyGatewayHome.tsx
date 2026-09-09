@@ -564,6 +564,8 @@ export function TallyGatewayHome({
       currency: alterDraft.currency || orgSettings?.currency || "INR",
       timezone: alterDraft.timezone || orgSettings?.timezone || "Asia/Kolkata",
       weekStartDay: orgSettings?.weekStartDay ?? "MONDAY",
+      weekendDays: orgSettings?.weekendDays ?? "SATURDAY,SUNDAY",
+      weekendPaid: orgSettings?.weekendPaid ?? false,
       financialYearStartMonth: Number(alterDraft.financialYearStartMonth || 4),
       organizationName: alterDraft.organizationName.trim(),
       location: alterDraft.location,
