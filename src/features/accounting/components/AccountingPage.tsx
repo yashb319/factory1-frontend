@@ -740,6 +740,8 @@ export function AccountingPage() {
       currency: accountingSettingsDraft.currency.trim() || "INR",
       timezone: accountingSettingsDraft.timezone.trim() || "Asia/Kolkata",
       weekStartDay: accountingSettingsDraft.weekStartDay,
+      weekendDays: organizationSettings.weekendDays || "SATURDAY,SUNDAY",
+      weekendPaid: Boolean(organizationSettings.weekendPaid),
       financialYearStartMonth,
       organizationName: organizationSettings.organizationName || "",
       location: organizationSettings.location || "",

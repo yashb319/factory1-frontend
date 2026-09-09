@@ -277,6 +277,8 @@ export function OrganizationSettingsForm() {
         gstNumber: values.gstNumber?.trim().toUpperCase(),
         businessType: values.businessType,
         state: values.state || stateNameFromGstNumber(values.gstNumber),
+        weekendDays: data?.data.weekendDays ?? "SATURDAY,SUNDAY",
+        weekendPaid: Boolean(data?.data.weekendPaid),
       }).unwrap();
       toast.success("Organization settings updated successfully");
     } catch {

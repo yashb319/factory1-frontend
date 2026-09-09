@@ -1,4 +1,4 @@
-export type AllocationPeriod = "MONTHLY" | "YEARLY";
+export type AllocationPeriod = "MONTHLY" | "FORTNIGHT" | "YEARLY";
 export type LeaveRequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 
 export interface ApiResponse<T> {
