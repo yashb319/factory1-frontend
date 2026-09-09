@@ -71,51 +71,52 @@ import { useGetActiveCustomersQuery } from "@/features/customers/api/customerApi
 import { useGetInventoryItemsQuery } from "@/features/inventory/api/inventoryApi";
 import type { InventoryItem } from "@/features/inventory/types/inventory.types";
 import { useGetProductsQuery } from "@/features/products/api/productsApi";
+import { useGetEmployeesQuery } from "@/features/employees/api/employeeApi";
 import {
-  useAssignOrderMutation,
-  useAssignStepMutation,
   useCancelOrderMutation,
   useCreateBomMutation,
+  useCreateOrderAssignmentMutation,
   useCreateOrderMutation,
-  useCreateProductionStationMutation,
   useCreateQualityTemplateMutation,
   useCreateWorkflowDraftMutation,
   useCreateWorkflowMutation,
-  useCreateWorkstationMutation,
+  useCreateWorkstationRecordMutation,
+  useDeactivateWorkstationMutation,
+  useDeleteAssignmentMutation,
   useExecuteStepMutation,
   useGetBomsQuery,
-  useGetExecutionBoardQuery,
+  useGetDashboardStationsQuery,
   useGetMaterialLotsQuery,
+  useGetOrderAssignmentsQuery,
   useGetOrderExecutionQuery,
   useGetOrderQuery,
   useGetOrdersQuery,
   useGetProductionDashboardQuery,
+  useGetProductionKanbanQuery,
   useGetQualityResultsQuery,
   useGetQualityTemplatesQuery,
-  useGetStationsQuery,
-  useGetStationWorkloadsQuery,
   useGetTimelineQuery,
   useGetWorkflowVersionsQuery,
   useGetWorkflowsQuery,
+  useGetWorkstationsQuery,
   usePublishBomMutation,
   usePublishWorkflowMutation,
   useRecordQualityResultMutation,
   useStepActionMutation,
-  useUpdateProductionStationMutation,
   useUpdateQualityTemplateMutation,
-  useUpdateWorkstationMutation,
+  useUpdateWorkstationRecordMutation,
 } from "../api/productionApi";
 import type {
+  AssignmentRole,
   Bom,
   BomItemRequest,
   MaterialLotConsumptionRequest,
   MaterialRequirement,
+  OrderAssignmentRequest,
   OrderExecutionDetails,
   OrderStatus,
   OrderStep,
   OrderPriority,
-  ProductionAssignment,
-  ProductionAssignmentRequest,
   ProductionBoardColumn,
   ProductionBoardItem,
   ProductionDashboard,
@@ -124,11 +125,7 @@ import type {
   ProductionIndicatorSeverity,
   ProductionOrder,
   ProductionOrderRequest,
-  ProductionStation,
-  ProductionStationRequest,
   ProductionStationWorkload,
-  ProductionWorkstation,
-  ProductionWorkstationRequest,
   QualityChecklistItemDisposition,
   QualityChecklistItemRequest,
   QualityChecklistResult,
@@ -140,6 +137,8 @@ import type {
   StepExecutionAction,
   StepExecutionRequest,
   TimelineEvent,
+  Workstation,
+  WorkstationRequest,
   WorkflowRequest,
   WorkflowStepRequest,
 } from "../types/production.types";
@@ -148,11 +147,8 @@ type Tab = "orders" | "workflows" | "boms" | "analytics";
 type OrdersViewMode = "board" | "list";
 type OrderStatusFilter = "ALL" | OrderStatus;
 type AssignmentFormState = {
-  stationId: string;
-  workstationId: string;
-  assigneeLabel: string;
-  notes: string;
-  batchSize: string;
+  assignmentRole: AssignmentRole;
+  assigneeUserId: string;
 };
 type MaterialSelectionValue = {
   lotId: string;
@@ -163,15 +159,6 @@ type MaterialSelectionValue = {
 
 const opsRoles = ["OWNER", "ADMIN", "MANAGEMENT"];
 const orderStatuses: OrderStatus[] = [
-  "PLANNED",
-  "RELEASED",
-  "IN_PROGRESS",
-  "ON_HOLD",
-  "PARTIALLY_COMPLETED",
-  "COMPLETED",
-  "CANCELLED",
-];
-const boardStatuses: OrderStatus[] = [
   "PLANNED",
   "RELEASED",
   "IN_PROGRESS",
@@ -198,40 +185,29 @@ const emptyOrder = (): ProductionOrderRequest => ({
   workflowVersionId: "",
 });
 
-const emptyStation = (): ProductionStationRequest => ({
+const emptyWorkstationRecord = (): WorkstationRequest => ({
   code: "",
   name: "",
   description: "",
+  location: "",
   active: true,
-  status: "ACTIVE",
-  capacityPerShift: 0,
 });
 
-const emptyWorkstation = (): ProductionWorkstationRequest => ({
-  code: "",
-  name: "",
-  description: "",
-  active: true,
-  status: "ACTIVE",
-  capacityPerHour: 0,
-  queueLimit: 0,
+const emptyAssignment = (): AssignmentFormState => ({
+  assignmentRole: "OPERATOR",
+  assigneeUserId: "",
 });
 
-const emptyAssignment = (
-  assignment?: ProductionAssignment | null,
-  fallbackStationId?: string | null,
-  fallbackWorkstationId?: string | null,
-  fallbackAssignee?: string | null
-): AssignmentFormState => ({
-  stationId: assignment?.stationId ?? fallbackStationId ?? "",
-  workstationId: assignment?.workstationId ?? fallbackWorkstationId ?? "",
-  assigneeLabel: assignment?.assigneeLabel ?? fallbackAssignee ?? "",
-  notes: assignment?.notes ?? "",
-  batchSize:
-    assignment?.batchSize !== undefined && assignment?.batchSize !== null
-      ? String(assignment.batchSize)
-      : "",
-});
+const emptyDashboard: ProductionDashboard = {
+  activeOrders: 0,
+  plannedOrders: 0,
+  inProgressOrders: 0,
+  onHoldOrders: 0,
+  completedToday: 0,
+  delayedOrders: 0,
+  qualityPassRate: 0,
+  shortageAlerts: 0,
+};
 
 const emptyQualityTemplate = (): QualityChecklistTemplateRequest => ({
   name: "",
@@ -324,29 +300,22 @@ function Orders({
 
   const ordersQuery = useGetOrdersQuery({ page: 0, size: 100 });
   const dashboardQuery = useGetProductionDashboardQuery();
-  const stationsQuery = useGetStationsQuery();
-  const stationWorkloadsQuery = useGetStationWorkloadsQuery();
-  const boardQuery = useGetExecutionBoardQuery({
+  const workstationsQuery = useGetWorkstationsQuery({ page: 0, size: 200 });
+  const workstationWorkloadsQuery = useGetDashboardStationsQuery();
+  const boardQuery = useGetProductionKanbanQuery({
     page: 0,
     size: 100,
-    search: search.trim() || undefined,
     status: statusFilter === "ALL" ? undefined : statusFilter,
-    stationId: stationFilter === "ALL" ? undefined : stationFilter,
   });
 
   const orders = useMemo(
     () => ordersQuery.data?.content ?? [],
     [ordersQuery.data]
   );
-  const managedStations = useMemo(
-    () => stationsQuery.data ?? [],
-    [stationsQuery.data]
+  const stations = useMemo(
+    () => workstationsQuery.data?.content ?? [],
+    [workstationsQuery.data]
   );
-  const fallbackStations = useMemo(
-    () => deriveStationsFromOrders(orders),
-    [orders]
-  );
-  const stations = managedStations.length ? managedStations : fallbackStations;
 
   const filteredOrders = useMemo(
     () =>
@@ -359,35 +328,21 @@ function Orders({
     [orders, search, statusFilter, stationFilter]
   );
 
-  const board = useMemo(() => {
-    if (boardQuery.data?.columns?.length) {
-      return boardQuery.data;
-    }
-
-    return {
-      columns: buildFallbackBoardColumns(filteredOrders, statusFilter),
-      generatedAt: undefined,
-    };
-  }, [boardQuery.data, filteredOrders, statusFilter]);
-
-  const dashboard = useMemo<ProductionDashboard>(
-    () =>
-      dashboardQuery.data ??
-      buildFallbackDashboard(
-        orders,
-        stationWorkloadsQuery.data ?? [],
-        stations
-      ),
-    [dashboardQuery.data, orders, stationWorkloadsQuery.data, stations]
+  const board = useMemo(
+    () => filterBoardColumns(boardQuery.data?.columns ?? [], search, stationFilter),
+    [boardQuery.data, search, stationFilter]
   );
+
+  const dashboard = dashboardQuery.data ?? emptyDashboard;
 
   const refreshAll = () => {
     void ordersQuery.refetch();
     void dashboardQuery.refetch();
-    void stationsQuery.refetch();
-    void stationWorkloadsQuery.refetch();
+    void workstationsQuery.refetch();
+    void workstationWorkloadsQuery.refetch();
     void boardQuery.refetch();
   };
+
 
   const statusCounts = useMemo(() => {
     return orders.reduce<Record<OrderStatus, number>>(
@@ -540,8 +495,8 @@ function Orders({
               </div>
 
               {boardQuery.isError ? (
-                <InlineNotice tone="warning" title="Board endpoint unavailable">
-                  Showing a locally derived board from order data. Station assignment, workload, and shortage indicators may be partial until <code>/api/production/orders/board</code> is implemented.
+                <InlineNotice tone="warning" title="Kanban board unavailable">
+                  The production board could not be loaded right now. Try refreshing, or switch to the list view.
                 </InlineNotice>
               ) : null}
             </CardContent>
@@ -581,7 +536,7 @@ function Orders({
                 />
               ) : viewMode === "board" ? (
                 <BoardView
-                  board={board.columns}
+                  board={board}
                   selectedOrderId={selectedOrderId}
                   onSelect={onSelect}
                 />
@@ -597,14 +552,14 @@ function Orders({
         </div>
 
         <div className="space-y-5">
-          <StationManager
+          <WorkstationManager
             stations={stations}
-            workloads={stationWorkloadsQuery.data ?? []}
-            managementAvailable={!stationsQuery.isError}
-            loading={stationsQuery.isLoading && !stations.length}
+            workloads={workstationWorkloadsQuery.data ?? []}
+            loading={workstationsQuery.isLoading && !stations.length}
+            error={workstationsQuery.isError && !stations.length}
             onRefresh={() => {
-              void stationsQuery.refetch();
-              void stationWorkloadsQuery.refetch();
+              void workstationsQuery.refetch();
+              void workstationWorkloadsQuery.refetch();
             }}
           />
 
@@ -613,7 +568,6 @@ function Orders({
               key={selectedOrderId}
               orderId={selectedOrderId}
               stations={stations}
-              stationsAvailable={!stationsQuery.isError}
               onClose={() => onSelect(undefined)}
             />
           ) : (
@@ -1003,70 +957,58 @@ function CreateOrderDialog({
   );
 }
 
-function StationManager({
+function WorkstationManager({
   stations,
   workloads,
-  managementAvailable,
   loading,
+  error,
   onRefresh,
 }: {
-  stations: ProductionStation[];
+  stations: Workstation[];
   workloads: ProductionStationWorkload[];
-  managementAvailable: boolean;
   loading: boolean;
+  error: boolean;
   onRefresh: () => void;
 }) {
-  const [stationDialog, setStationDialog] = useState<ProductionStation | null>(null);
-  const [stationCreateOpen, setStationCreateOpen] = useState(false);
-  const [workstationDialog, setWorkstationDialog] = useState<{
-    station: ProductionStation;
-    workstation?: ProductionWorkstation;
-  } | null>(null);
+  const [workstationDialog, setWorkstationDialog] = useState<Workstation | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [deactivateTarget, setDeactivateTarget] = useState<Workstation | null>(null);
 
-  const [createStation, createStationState] = useCreateProductionStationMutation();
-  const [updateStation, updateStationState] = useUpdateProductionStationMutation();
-  const [createWorkstation, createWorkstationState] = useCreateWorkstationMutation();
-  const [updateWorkstation, updateWorkstationState] = useUpdateWorkstationMutation();
+  const [createWorkstation, createWorkstationState] = useCreateWorkstationRecordMutation();
+  const [updateWorkstation, updateWorkstationState] = useUpdateWorkstationRecordMutation();
+  const [deactivateWorkstation, deactivateWorkstationState] = useDeactivateWorkstationMutation();
 
-  const workloadByStationId = useMemo(
+  const workloadByWorkstationId = useMemo(
     () => new Map(workloads.map((workload) => [workload.stationId, workload])),
     [workloads]
   );
 
-  const saveStation = async (body: ProductionStationRequest) => {
+  const saveWorkstation = async (body: WorkstationRequest) => {
     try {
-      if (stationDialog) {
-        await updateStation({ id: stationDialog.id, body }).unwrap();
-        toast.success("Station updated");
-      } else {
-        await createStation(body).unwrap();
-        toast.success("Station created");
-      }
-      setStationCreateOpen(false);
-      setStationDialog(null);
-      onRefresh();
-    } catch (error) {
-      toast.error(apiErrorMessage(error) ?? "Could not save station");
-    }
-  };
-
-  const saveWorkstation = async (
-    stationId: string,
-    body: ProductionWorkstationRequest,
-    workstationId?: string
-  ) => {
-    try {
-      if (workstationId) {
-        await updateWorkstation({ id: workstationId, body }).unwrap();
+      if (workstationDialog) {
+        await updateWorkstation({ id: workstationDialog.id, body }).unwrap();
         toast.success("Workstation updated");
       } else {
-        await createWorkstation({ stationId, body }).unwrap();
+        await createWorkstation(body).unwrap();
         toast.success("Workstation created");
       }
+      setCreateOpen(false);
       setWorkstationDialog(null);
       onRefresh();
     } catch (error) {
       toast.error(apiErrorMessage(error) ?? "Could not save workstation");
+    }
+  };
+
+  const confirmDeactivate = async () => {
+    if (!deactivateTarget) return;
+    try {
+      await deactivateWorkstation(deactivateTarget.id).unwrap();
+      toast.success("Workstation deactivated");
+      setDeactivateTarget(null);
+      onRefresh();
+    } catch (error) {
+      toast.error(apiErrorMessage(error) ?? "Could not deactivate workstation");
     }
   };
 
@@ -1076,9 +1018,9 @@ function StationManager({
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle>Stations & workstations</CardTitle>
+              <CardTitle>Workstations</CardTitle>
               <CardDescription>
-                Manage production cells, view workload pressure, and keep assignment targets ready for execution.
+                Manage workstations, view workload pressure, and keep assignment targets ready for execution.
               </CardDescription>
             </div>
             <div className="flex gap-2">
@@ -1086,119 +1028,76 @@ function StationManager({
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
               </Button>
-              {managementAvailable ? (
-                <Button onClick={() => setStationCreateOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add station
-                </Button>
-              ) : null}
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add workstation
+              </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {!managementAvailable ? (
-            <InlineNotice tone="warning" title="Station management unavailable">
-              The UI is showing derived station labels from workflow steps because <code>/api/production/stations</code> is unavailable. CRUD actions are disabled until that endpoint exists.
-            </InlineNotice>
-          ) : null}
-
-          {loading ? (
-            <Loading text="Loading station configuration..." />
+          {error ? (
+            <ErrorState
+              title="Workstations could not be loaded"
+              message="The workstation directory is unavailable right now."
+              onRetry={onRefresh}
+            />
+          ) : loading ? (
+            <Loading text="Loading workstation configuration..." />
           ) : !stations.length ? (
             <EmptyState
               icon={Boxes}
-              title="No stations configured"
-              description="Add a station to organize assignments and workstation capacity."
+              title="No workstations configured"
+              description="Add a workstation to organize assignments and workload."
             />
           ) : (
-            stations.map((station) => {
-              const workload = workloadByStationId.get(station.id) ?? station.workload;
+            stations.map((workstation) => {
+              const workload = workloadByWorkstationId.get(workstation.id);
               return (
-                <div key={station.id} className="rounded-lg border p-3">
+                <div key={workstation.id} className="rounded-lg border p-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-medium">
-                          {station.code} · {station.name}
+                          {workstation.code} · {workstation.name}
                         </p>
-                        <StatusBadge tone={statusTone(station.status || (station.active ? "ACTIVE" : "INACTIVE"))}>
-                          {humanize(station.status || (station.active ? "ACTIVE" : "INACTIVE"))}
+                        <StatusBadge tone={statusTone(workstation.active ? "ACTIVE" : "INACTIVE")}>
+                          {humanize(workstation.active ? "ACTIVE" : "INACTIVE")}
                         </StatusBadge>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {station.description || "No station description"}
+                        {workstation.description || "No workstation description"}
+                        {workstation.location ? ` · ${workstation.location}` : ""}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                        <span>Shift capacity: {formatNumber(station.capacityPerShift ?? 0)}</span>
                         <span>Active orders: {workload?.activeOrders ?? 0}</span>
                         <span>Delayed: {workload?.delayedOrders ?? 0}</span>
                         <span>Utilization: {formatPercent(workload?.capacityUtilization ?? 0)}</span>
                       </div>
                     </div>
-                    {managementAvailable ? (
-                      <div className="flex gap-2">
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWorkstationDialog(workstation)}
+                      >
+                        <Pencil className="mr-2 h-3.5 w-3.5" />
+                        Edit
+                      </Button>
+                      {workstation.active ? (
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          onClick={() => setStationDialog(station)}
+                          onClick={() => setDeactivateTarget(workstation)}
                         >
-                          <Pencil className="mr-2 h-3.5 w-3.5" />
-                          Edit
+                          <Ban className="mr-2 h-3.5 w-3.5" />
+                          Deactivate
                         </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => setWorkstationDialog({ station })}
-                        >
-                          <Plus className="mr-2 h-3.5 w-3.5" />
-                          Workstation
-                        </Button>
-                      </div>
-                    ) : null}
+                      ) : null}
+                    </div>
                   </div>
 
-                  <IndicatorRow indicators={station.indicators ?? deriveStationIndicators(workload)} className="mt-3" />
-
-                  <div className="mt-3 space-y-2">
-                    {station.workstations.length ? (
-                      station.workstations.map((workstation) => (
-                        <div
-                          key={workstation.id}
-                          className="rounded-md border bg-muted/20 p-2"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div>
-                              <div className="font-medium">
-                                {workstation.code} · {workstation.name}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {workstation.description || "No workstation description"}
-                              </div>
-                            </div>
-                            {managementAvailable ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  setWorkstationDialog({ station, workstation })
-                                }
-                              >
-                                <Pencil className="mr-2 h-3.5 w-3.5" />
-                                Edit
-                              </Button>
-                            ) : null}
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                            <span>Capacity/hr: {formatNumber(workstation.capacityPerHour ?? 0)}</span>
-                            <span>Queue limit: {formatNumber(workstation.queueLimit ?? 0)}</span>
-                            <span>{workstation.active ? "Active" : "Inactive"}</span>
-                          </div>
-                          <IndicatorRow indicators={workstation.indicators ?? []} className="mt-2" />
-                        </div>
-                      ))
-                    ) : (
-                      <Empty text="No workstations configured for this station." />
-                    )}
-                  </div>
+                  <IndicatorRow indicators={deriveStationIndicators(workload)} className="mt-3" />
                 </div>
               );
             })
@@ -1206,28 +1105,30 @@ function StationManager({
         </CardContent>
       </Card>
 
-      <StationDialog
-        open={stationCreateOpen || Boolean(stationDialog)}
-        station={stationDialog}
-        loading={createStationState.isLoading || updateStationState.isLoading}
-        onOpenChange={(open) => {
-          if (!open) {
-            setStationCreateOpen(false);
-            setStationDialog(null);
-          }
-        }}
-        onSubmit={saveStation}
-      />
-
-      <WorkstationDialog
-        open={Boolean(workstationDialog)}
-        station={workstationDialog?.station ?? null}
-        workstation={workstationDialog?.workstation}
+      <WorkstationRecordDialog
+        open={createOpen || Boolean(workstationDialog)}
+        workstation={workstationDialog}
         loading={createWorkstationState.isLoading || updateWorkstationState.isLoading}
         onOpenChange={(open) => {
-          if (!open) setWorkstationDialog(null);
+          if (!open) {
+            setCreateOpen(false);
+            setWorkstationDialog(null);
+          }
         }}
         onSubmit={saveWorkstation}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deactivateTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeactivateTarget(null);
+        }}
+        title="Deactivate this workstation?"
+        description="Deactivated workstations are hidden from new assignments but existing history is preserved."
+        confirmLabel={deactivateWorkstationState.isLoading ? "Deactivating..." : "Deactivate"}
+        destructive
+        loading={deactivateWorkstationState.isLoading}
+        onConfirm={() => void confirmDeactivate()}
       />
     </>
   );
@@ -1236,20 +1137,21 @@ function StationManager({
 function OrderDetail({
   orderId,
   stations,
-  stationsAvailable,
   onClose,
 }: {
   orderId: string;
-  stations: ProductionStation[];
-  stationsAvailable: boolean;
+  stations: Workstation[];
   onClose: () => void;
 }) {
   const orderQuery = useGetOrderQuery(orderId);
   const timelineQuery = useGetTimelineQuery(orderId);
   const executionQuery = useGetOrderExecutionQuery(orderId);
+  const assignmentsQuery = useGetOrderAssignmentsQuery(orderId);
+  const { data: employeesPage } = useGetEmployeesQuery({ page: 0, size: 300, status: "ACTIVE" });
+  const employees = useMemo(() => employeesPage?.content ?? [], [employeesPage]);
   const [cancelOrder, cancelState] = useCancelOrderMutation();
-  const [assignOrder, assignOrderState] = useAssignOrderMutation();
-  const [assignStep, assignStepState] = useAssignStepMutation();
+  const [createOrderAssignment, createOrderAssignmentState] = useCreateOrderAssignmentMutation();
+  const [deleteAssignment, deleteAssignmentState] = useDeleteAssignmentMutation();
   const [executeStep, executeStepState] = useExecuteStepMutation();
   const [stepAction, stepActionState] = useStepActionMutation();
   const [recordQualityResult, recordQualityState] = useRecordQualityResultMutation();
@@ -1264,6 +1166,21 @@ function OrderDetail({
     if (!execution || !currentStep) return undefined;
     return execution.steps.find((step) => step.stepId === currentStep.id);
   }, [execution, currentStep]);
+
+  const assignments = useMemo(() => assignmentsQuery.data ?? [], [assignmentsQuery.data]);
+  const orderAssignments = useMemo(
+    () => assignments.filter((assignment) => !assignment.orderStepSnapshotId),
+    [assignments]
+  );
+  const stepAssignments = useMemo(
+    () =>
+      currentStep
+        ? assignments.filter((assignment) => assignment.orderStepSnapshotId === currentStep.id)
+        : [],
+    [assignments, currentStep]
+  );
+  const employeeName = (userId: string) =>
+    employees.find((employee) => employee.id === userId)?.name ?? userId;
 
   const { data: inventoryPage } = useGetInventoryItemsQuery({ page: 0, size: 300 });
   const inventoryItems = useMemo(
@@ -1324,32 +1241,18 @@ function OrderDetail({
   const [executionConflict, setExecutionConflict] = useState<ProductionExecutionConflict | null>(null);
 
   useEffect(() => {
-    if (!order) return;
+    if (!order?.id) return;
     queueMicrotask(() => {
-      setOrderAssignment(
-        emptyAssignment(
-          undefined,
-          order.assignedStationId,
-          order.assignedWorkstationId,
-          undefined
-        )
-      );
+      setOrderAssignment(emptyAssignment());
     });
-  }, [order]);
+  }, [order?.id]);
 
   useEffect(() => {
-    if (!currentStep) return;
+    if (!currentStep?.id) return;
     queueMicrotask(() => {
-      setStepAssignment(
-        emptyAssignment(
-          activeExecutionStep?.assignment,
-          currentStep.stationId,
-          currentStep.workstationId,
-          currentStep.assigneeLabel
-        )
-      );
+      setStepAssignment(emptyAssignment());
     });
-  }, [activeExecutionStep?.assignment, currentStep]);
+  }, [currentStep?.id]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -1415,14 +1318,6 @@ function OrderDetail({
   }
 
   const stationOptions = stations;
-  const orderAssignmentWorkstations = getWorkstationsForStation(
-    stationOptions,
-    orderAssignment.stationId
-  );
-  const stepAssignmentWorkstations = getWorkstationsForStation(
-    stationOptions,
-    stepAssignment.stationId
-  );
   const stepIndicators =
     activeExecutionStep?.indicators ?? currentStep?.indicators ?? [];
   const orderIndicators = execution?.orderIndicators ?? order.indicators ?? [];
@@ -1435,26 +1330,26 @@ function OrderDetail({
     void executionQuery.refetch();
     void qualityResultsQuery.refetch();
     void qualityTemplatesQuery.refetch();
+    void assignmentsQuery.refetch();
   };
 
   const submitOrderAssignment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!orderAssignment.stationId) {
-      toast.error("Select a station before assigning the order.");
+    if (!orderAssignment.assigneeUserId) {
+      toast.error("Select an assignee before assigning the order.");
       return;
     }
 
-    const body: ProductionAssignmentRequest = {
-      stationId: orderAssignment.stationId,
-      workstationId: orderAssignment.workstationId || undefined,
-      assigneeLabel: orderAssignment.assigneeLabel.trim() || undefined,
-      notes: orderAssignment.notes.trim() || undefined,
-      batchSize: parseNullableNumber(orderAssignment.batchSize),
+    const body: OrderAssignmentRequest = {
+      productionOrderId: orderId,
+      assignmentRole: orderAssignment.assignmentRole,
+      assigneeUserId: orderAssignment.assigneeUserId,
     };
 
     try {
-      await assignOrder({ orderId, body }).unwrap();
+      await createOrderAssignment({ orderId, body }).unwrap();
       toast.success("Order assigned");
+      setOrderAssignment(emptyAssignment());
       refreshDetail();
     } catch (error) {
       toast.error(apiErrorMessage(error) ?? "Could not assign production order");
@@ -1464,25 +1359,35 @@ function OrderDetail({
   const submitStepAssignment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!currentStep) return;
-    if (!stepAssignment.stationId) {
-      toast.error("Select a station before assigning the step.");
+    if (!stepAssignment.assigneeUserId) {
+      toast.error("Select an assignee before assigning the step.");
       return;
     }
 
-    const body: ProductionAssignmentRequest = {
-      stationId: stepAssignment.stationId,
-      workstationId: stepAssignment.workstationId || undefined,
-      assigneeLabel: stepAssignment.assigneeLabel.trim() || undefined,
-      notes: stepAssignment.notes.trim() || undefined,
-      batchSize: parseNullableNumber(stepAssignment.batchSize),
+    const body: OrderAssignmentRequest = {
+      productionOrderId: orderId,
+      orderStepSnapshotId: currentStep.id,
+      assignmentRole: stepAssignment.assignmentRole,
+      assigneeUserId: stepAssignment.assigneeUserId,
     };
 
     try {
-      await assignStep({ orderId, stepId: currentStep.id, body }).unwrap();
+      await createOrderAssignment({ orderId, body }).unwrap();
       toast.success("Current step assigned");
+      setStepAssignment(emptyAssignment());
       refreshDetail();
     } catch (error) {
       toast.error(apiErrorMessage(error) ?? "Could not assign current step");
+    }
+  };
+
+  const removeAssignment = async (id: string) => {
+    try {
+      await deleteAssignment(id).unwrap();
+      toast.success("Assignment removed");
+      refreshDetail();
+    } catch (error) {
+      toast.error(apiErrorMessage(error) ?? "Could not remove assignment");
     }
   };
 
@@ -1536,7 +1441,6 @@ function OrderDetail({
       order,
       currentStep,
       activeExecution: execution,
-      assignment: stepAssignment,
       qualityDraft: selectedTemplate ? normalizeQualityDraft(qualityDraft) : undefined,
       materialSelections,
     });
@@ -1742,103 +1646,89 @@ function OrderDetail({
               <CardHeader>
                 <CardTitle>Order assignment</CardTitle>
                 <CardDescription>
-                  Reserve the order for a station and optional workstation.
+                  Assign a user with a role to own this production order.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                {!stationsAvailable ? (
-                  <InlineNotice tone="warning" title="Assignment endpoint unavailable">
-                    Station configuration could not be loaded, so assignment changes are disabled.
+              <CardContent className="space-y-3">
+                {assignmentsQuery.isError ? (
+                  <InlineNotice tone="warning" title="Assignments unavailable">
+                    Current assignments could not be loaded. You can still try assigning below.
                   </InlineNotice>
+                ) : null}
+
+                {orderAssignments.length ? (
+                  <div className="space-y-2">
+                    {orderAssignments.map((assignment) => (
+                      <div
+                        key={assignment.id}
+                        className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 p-2 text-sm"
+                      >
+                        <span>
+                          <StatusBadge tone="pending">{humanize(assignment.assignmentRole)}</StatusBadge>{" "}
+                          {employeeName(assignment.assigneeUserId)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={deleteAssignmentState.isLoading}
+                          onClick={() => void removeAssignment(assignment.id)}
+                        >
+                          <Ban className="mr-2 h-3.5 w-3.5" />
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  <form className="space-y-3" onSubmit={submitOrderAssignment}>
-                    <Field label="Station">
-                      <select
-                        className={selectClassName}
-                        value={orderAssignment.stationId}
-                        onChange={(event) => {
-                          const nextStationId = event.target.value;
-                          setOrderAssignment((current) => ({
-                            ...current,
-                            stationId: nextStationId,
-                            workstationId: "",
-                          }));
-                        }}
-                      >
-                        <option value="">Select station</option>
-                        {stationOptions.map((station) => (
-                          <option key={station.id} value={station.id}>
-                            {station.code} · {station.name}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Workstation (optional)">
-                      <select
-                        className={selectClassName}
-                        value={orderAssignment.workstationId}
-                        onChange={(event) =>
-                          setOrderAssignment((current) => ({
-                            ...current,
-                            workstationId: event.target.value,
-                          }))
-                        }
-                      >
-                        <option value="">Unassigned workstation</option>
-                        {orderAssignmentWorkstations.map((workstation) => (
-                          <option key={workstation.id} value={workstation.id}>
-                            {workstation.code} · {workstation.name}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Field label="Assignee label (optional)">
-                        <Input
-                          value={orderAssignment.assigneeLabel}
-                          onChange={(event) =>
-                            setOrderAssignment((current) => ({
-                              ...current,
-                              assigneeLabel: event.target.value,
-                            }))
-                          }
-                          placeholder="Supervisor or operator"
-                        />
-                      </Field>
-                      <Field label="Batch size (optional)">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.001"
-                          value={orderAssignment.batchSize}
-                          onChange={(event) =>
-                            setOrderAssignment((current) => ({
-                              ...current,
-                              batchSize: event.target.value,
-                            }))
-                          }
-                        />
-                      </Field>
-                    </div>
-                    <Field label="Notes (optional)">
-                      <Textarea
-                        value={orderAssignment.notes}
-                        onChange={(event) =>
-                          setOrderAssignment((current) => ({
-                            ...current,
-                            notes: event.target.value,
-                          }))
-                        }
-                        placeholder="Capacity note, shift note, customer priority"
-                      />
-                    </Field>
-                    <div className="flex justify-end">
-                      <Button type="submit" disabled={assignOrderState.isLoading}>
-                        {assignOrderState.isLoading ? "Saving..." : "Assign order"}
-                      </Button>
-                    </div>
-                  </form>
+                  <Empty text="No one is assigned to this order yet." />
                 )}
+
+                <form className="space-y-3" onSubmit={submitOrderAssignment}>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Role">
+                      <select
+                        className={selectClassName}
+                        value={orderAssignment.assignmentRole}
+                        onChange={(event) =>
+                          setOrderAssignment((current) => ({
+                            ...current,
+                            assignmentRole: event.target.value as AssignmentRole,
+                          }))
+                        }
+                      >
+                        {(["OPERATOR", "SUPERVISOR", "USER"] as AssignmentRole[]).map((role) => (
+                          <option key={role} value={role}>
+                            {humanize(role)}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Assignee">
+                      <select
+                        className={selectClassName}
+                        value={orderAssignment.assigneeUserId}
+                        onChange={(event) =>
+                          setOrderAssignment((current) => ({
+                            ...current,
+                            assigneeUserId: event.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">Select assignee</option>
+                        {employees.map((employee) => (
+                          <option key={employee.id} value={employee.id}>
+                            {employee.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={createOrderAssignmentState.isLoading}>
+                      {createOrderAssignmentState.isLoading ? "Saving..." : "Assign order"}
+                    </Button>
+                  </div>
+                </form>
               </CardContent>
             </Card>
 
@@ -1846,105 +1736,95 @@ function OrderDetail({
               <CardHeader>
                 <CardTitle>Current step assignment</CardTitle>
                 <CardDescription>
-                  Route the active step to a station, workstation, or named operator.
+                  Assign a user with a role to the active workflow step.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {!currentStep ? (
                   <Empty text="This order has no active step yet." />
-                ) : !stationsAvailable ? (
-                  <InlineNotice tone="warning" title="Step assignment unavailable">
-                    Station endpoints are unavailable, so the workflow's built-in workstation labels remain read-only.
-                  </InlineNotice>
                 ) : (
-                  <form className="space-y-3" onSubmit={submitStepAssignment}>
-                    <Field label="Station">
-                      <select
-                        className={selectClassName}
-                        value={stepAssignment.stationId}
-                        onChange={(event) => {
-                          const nextStationId = event.target.value;
-                          setStepAssignment((current) => ({
-                            ...current,
-                            stationId: nextStationId,
-                            workstationId: "",
-                          }));
-                        }}
-                      >
-                        <option value="">Select station</option>
-                        {stationOptions.map((station) => (
-                          <option key={station.id} value={station.id}>
-                            {station.code} · {station.name}
-                          </option>
+                  <div className="space-y-3">
+                    {assignmentsQuery.isError ? (
+                      <InlineNotice tone="warning" title="Assignments unavailable">
+                        Current assignments could not be loaded. You can still try assigning below.
+                      </InlineNotice>
+                    ) : null}
+
+                    {stepAssignments.length ? (
+                      <div className="space-y-2">
+                        {stepAssignments.map((assignment) => (
+                          <div
+                            key={assignment.id}
+                            className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 p-2 text-sm"
+                          >
+                            <span>
+                              <StatusBadge tone="pending">{humanize(assignment.assignmentRole)}</StatusBadge>{" "}
+                              {employeeName(assignment.assigneeUserId)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={deleteAssignmentState.isLoading}
+                              onClick={() => void removeAssignment(assignment.id)}
+                            >
+                              <Ban className="mr-2 h-3.5 w-3.5" />
+                              Remove
+                            </Button>
+                          </div>
                         ))}
-                      </select>
-                    </Field>
-                    <Field label="Workstation (optional)">
-                      <select
-                        className={selectClassName}
-                        value={stepAssignment.workstationId}
-                        onChange={(event) =>
-                          setStepAssignment((current) => ({
-                            ...current,
-                            workstationId: event.target.value,
-                          }))
-                        }
-                      >
-                        <option value="">Unassigned workstation</option>
-                        {stepAssignmentWorkstations.map((workstation) => (
-                          <option key={workstation.id} value={workstation.id}>
-                            {workstation.code} · {workstation.name}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Field label="Assignee label (optional)">
-                        <Input
-                          value={stepAssignment.assigneeLabel}
-                          onChange={(event) =>
-                            setStepAssignment((current) => ({
-                              ...current,
-                              assigneeLabel: event.target.value,
-                            }))
-                          }
-                          placeholder="Operator or shift lead"
-                        />
-                      </Field>
-                      <Field label="Batch size (optional)">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.001"
-                          value={stepAssignment.batchSize}
-                          onChange={(event) =>
-                            setStepAssignment((current) => ({
-                              ...current,
-                              batchSize: event.target.value,
-                            }))
-                          }
-                        />
-                      </Field>
-                    </div>
-                    <Field label="Notes (optional)">
-                      <Textarea
-                        value={stepAssignment.notes}
-                        onChange={(event) =>
-                          setStepAssignment((current) => ({
-                            ...current,
-                            notes: event.target.value,
-                          }))
-                        }
-                        placeholder="Machine, jig, or staffing note"
-                      />
-                    </Field>
-                    <IndicatorRow indicators={stepIndicators} className="mt-1" />
-                    <div className="flex justify-end">
-                      <Button type="submit" disabled={assignStepState.isLoading}>
-                        {assignStepState.isLoading ? "Saving..." : "Assign current step"}
-                      </Button>
-                    </div>
-                  </form>
+                      </div>
+                    ) : (
+                      <Empty text="No one is assigned to this step yet." />
+                    )}
+
+                    <form className="space-y-3" onSubmit={submitStepAssignment}>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Role">
+                          <select
+                            className={selectClassName}
+                            value={stepAssignment.assignmentRole}
+                            onChange={(event) =>
+                              setStepAssignment((current) => ({
+                                ...current,
+                                assignmentRole: event.target.value as AssignmentRole,
+                              }))
+                            }
+                          >
+                            {(["OPERATOR", "SUPERVISOR", "USER"] as AssignmentRole[]).map((role) => (
+                              <option key={role} value={role}>
+                                {humanize(role)}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Assignee">
+                          <select
+                            className={selectClassName}
+                            value={stepAssignment.assigneeUserId}
+                            onChange={(event) =>
+                              setStepAssignment((current) => ({
+                                ...current,
+                                assigneeUserId: event.target.value,
+                              }))
+                            }
+                          >
+                            <option value="">Select assignee</option>
+                            {employees.map((employee) => (
+                              <option key={employee.id} value={employee.id}>
+                                {employee.name}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                      </div>
+                      <IndicatorRow indicators={stepIndicators} className="mt-1" />
+                      <div className="flex justify-end">
+                        <Button type="submit" disabled={createOrderAssignmentState.isLoading}>
+                          {createOrderAssignmentState.isLoading ? "Saving..." : "Assign current step"}
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -2192,7 +2072,7 @@ function OrderDetail({
                     </div>
                     <MaterialLotSelector
                       requirement={requirement}
-                      stationId={stepAssignment.stationId || stepStationId || undefined}
+                      stationId={stepStationId || undefined}
                       value={materialSelections[requirement.inventoryItemId]}
                       onChange={(value) =>
                         setMaterialSelections((current) => ({
@@ -2369,7 +2249,7 @@ function OrderDetail({
         open={templateCreateOpen || Boolean(templateDialog)}
         template={templateDialog}
         defaultWorkflowStepCode={currentStep?.code}
-        defaultStationId={stepAssignment.stationId || stepStationId || ""}
+        defaultStationId={stepStationId || ""}
         stations={stationOptions}
         loading={createQualityTemplateState.isLoading || updateQualityTemplateState.isLoading}
         onOpenChange={(open) => {
@@ -3075,161 +2955,20 @@ function Boms() {
   );
 }
 
-function StationDialog({
+function WorkstationRecordDialog({
   open,
-  station,
-  loading,
-  onOpenChange,
-  onSubmit,
-}: {
-  open: boolean;
-  station: ProductionStation | null;
-  loading: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (body: ProductionStationRequest) => Promise<void>;
-}) {
-  const [form, setForm] = useState<ProductionStationRequest>(emptyStation());
-
-  useEffect(() => {
-    if (!open) return;
-    setForm(
-      station
-        ? {
-            code: station.code,
-            name: station.name,
-            description: station.description || "",
-            active: station.active,
-            status: station.status || "ACTIVE",
-            capacityPerShift: station.capacityPerShift ?? 0,
-          }
-        : emptyStation()
-    );
-  }, [open, station]);
-
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!form.code.trim() || !form.name.trim()) {
-      toast.error("Station code and name are required.");
-      return;
-    }
-
-    await onSubmit({
-      ...form,
-      code: form.code.trim(),
-      name: form.name.trim(),
-      description: form.description?.trim() || undefined,
-      capacityPerShift: Number(form.capacityPerShift) || 0,
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{station ? "Edit station" : "Create station"}</DialogTitle>
-          <DialogDescription>
-            Configure a production station and its overall shift capacity.
-          </DialogDescription>
-        </DialogHeader>
-        <form className="space-y-3" onSubmit={submit}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Code">
-              <Input
-                value={form.code}
-                onChange={(event) => setForm({ ...form, code: event.target.value })}
-              />
-            </Field>
-            <Field label="Name">
-              <Input
-                value={form.name}
-                onChange={(event) => setForm({ ...form, name: event.target.value })}
-              />
-            </Field>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Status">
-              <select
-                className={selectClassName}
-                value={form.status || "ACTIVE"}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    status: event.target.value as ProductionStationRequest["status"],
-                  })
-                }
-              >
-                {(["ACTIVE", "INACTIVE", "MAINTENANCE"] as const).map((status) => (
-                  <option key={status} value={status}>
-                    {humanize(status)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Capacity / shift">
-              <Input
-                type="number"
-                min="0"
-                step="0.001"
-                value={form.capacityPerShift ?? 0}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    capacityPerShift: Number(event.target.value) || 0,
-                  })
-                }
-              />
-            </Field>
-          </div>
-          <Field label="Description">
-            <Textarea
-              value={form.description || ""}
-              onChange={(event) =>
-                setForm({ ...form, description: event.target.value || undefined })
-              }
-            />
-          </Field>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={Boolean(form.active)}
-              onChange={(event) => setForm({ ...form, active: event.target.checked })}
-            />
-            Active station
-          </label>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Saving..." : station ? "Save station" : "Create station"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function WorkstationDialog({
-  open,
-  station,
   workstation,
   loading,
   onOpenChange,
   onSubmit,
 }: {
   open: boolean;
-  station: ProductionStation | null;
-  workstation?: ProductionWorkstation;
+  workstation: Workstation | null;
   loading: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (
-    stationId: string,
-    body: ProductionWorkstationRequest,
-    workstationId?: string
-  ) => Promise<void>;
+  onSubmit: (body: WorkstationRequest) => Promise<void>;
 }) {
-  const [form, setForm] = useState<ProductionWorkstationRequest>(emptyWorkstation());
+  const [form, setForm] = useState<WorkstationRequest>(emptyWorkstationRecord());
 
   useEffect(() => {
     if (!open) return;
@@ -3239,35 +2978,28 @@ function WorkstationDialog({
             code: workstation.code,
             name: workstation.name,
             description: workstation.description || "",
+            location: workstation.location || "",
+            metadata: workstation.metadata,
             active: workstation.active,
-            status: workstation.status || "ACTIVE",
-            capacityPerHour: workstation.capacityPerHour ?? 0,
-            queueLimit: workstation.queueLimit ?? 0,
           }
-        : emptyWorkstation()
+        : emptyWorkstationRecord()
     );
   }, [open, workstation]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!station) return;
     if (!form.code.trim() || !form.name.trim()) {
       toast.error("Workstation code and name are required.");
       return;
     }
 
-    await onSubmit(
-      station.id,
-      {
-        ...form,
-        code: form.code.trim(),
-        name: form.name.trim(),
-        description: form.description?.trim() || undefined,
-        capacityPerHour: Number(form.capacityPerHour) || 0,
-        queueLimit: Number(form.queueLimit) || 0,
-      },
-      workstation?.id
-    );
+    await onSubmit({
+      ...form,
+      code: form.code.trim(),
+      name: form.name.trim(),
+      description: form.description?.trim() || undefined,
+      location: form.location?.trim() || undefined,
+    });
   };
 
   return (
@@ -3276,7 +3008,7 @@ function WorkstationDialog({
         <DialogHeader>
           <DialogTitle>{workstation ? "Edit workstation" : "Create workstation"}</DialogTitle>
           <DialogDescription>
-            {station ? `${station.code} · ${station.name}` : "Select station"}
+            Configure a workstation used for assignments and workload tracking.
           </DialogDescription>
         </DialogHeader>
         <form className="space-y-3" onSubmit={submit}>
@@ -3294,47 +3026,11 @@ function WorkstationDialog({
               />
             </Field>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Status">
-              <select
-                className={selectClassName}
-                value={form.status || "ACTIVE"}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    status: event.target.value as ProductionWorkstationRequest["status"],
-                  })
-                }
-              >
-                {(["ACTIVE", "INACTIVE", "MAINTENANCE"] as const).map((status) => (
-                  <option key={status} value={status}>
-                    {humanize(status)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Queue limit">
-              <Input
-                type="number"
-                min="0"
-                value={form.queueLimit ?? 0}
-                onChange={(event) =>
-                  setForm({ ...form, queueLimit: Number(event.target.value) || 0 })
-                }
-              />
-            </Field>
-          </div>
-          <Field label="Capacity / hour">
+          <Field label="Location (optional)">
             <Input
-              type="number"
-              min="0"
-              step="0.001"
-              value={form.capacityPerHour ?? 0}
+              value={form.location || ""}
               onChange={(event) =>
-                setForm({
-                  ...form,
-                  capacityPerHour: Number(event.target.value) || 0,
-                })
+                setForm({ ...form, location: event.target.value || undefined })
               }
             />
           </Field>
@@ -3358,7 +3054,7 @@ function WorkstationDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading || !station}>
+            <Button type="submit" disabled={loading}>
               {loading ? "Saving..." : workstation ? "Save workstation" : "Create workstation"}
             </Button>
           </DialogFooter>
@@ -3382,7 +3078,7 @@ function QualityTemplateDialog({
   template: QualityChecklistTemplate | null;
   defaultWorkflowStepCode?: string;
   defaultStationId?: string;
-  stations: ProductionStation[];
+  stations: Workstation[];
   loading: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (body: QualityChecklistTemplateRequest, id?: string) => Promise<void>;
@@ -3965,146 +3661,30 @@ function filterOrders({
   });
 }
 
-function deriveStationsFromOrders(orders: ProductionOrder[]): ProductionStation[] {
-  const stations = new Map<string, ProductionStation>();
-
-  orders.forEach((order) => {
-    order.steps.forEach((step) => {
-      if (!step.workstation) return;
-
-      const stationId = `derived-${step.workstation.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-      const existing = stations.get(stationId);
-      if (!existing) {
-        stations.set(stationId, {
-          id: stationId,
-          code: "WF",
-          name: step.workstation,
-          description: "Derived from workflow step labels",
-          status: "ACTIVE",
-          active: true,
-          capacityPerShift: 0,
-          workstations: [],
-        });
-      }
-    });
-  });
-
-  return Array.from(stations.values());
-}
-
-function buildFallbackBoardColumns(
-  orders: ProductionOrder[],
-  statusFilter: OrderStatusFilter
+function filterBoardColumns(
+  columns: ProductionBoardColumn[],
+  search: string,
+  stationFilter: string
 ): ProductionBoardColumn[] {
-  const columns = (statusFilter === "ALL" ? boardStatuses : [statusFilter]).map(
-    (status) => ({
-      key: status,
-      label: humanize(status),
-      items: [] as ProductionBoardItem[],
-    })
-  );
+  const needle = search.trim().toLowerCase();
 
-  const columnsByKey = new Map(columns.map((column) => [column.key, column]));
+  return columns.map((column) => ({
+    ...column,
+    items: column.items.filter((item) => {
+      const matchesSearch =
+        !needle ||
+        [item.orderNumber, item.productId, item.currentStepName]
+          .filter(Boolean)
+          .some((value) => value?.toLowerCase().includes(needle));
 
-  orders.forEach((order) => {
-    const currentStep = getCurrentOrderStep(order);
-    const column = columnsByKey.get(order.status);
-    if (!column) return;
-    column.items.push({
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      productId: order.productId,
-      priority: order.priority,
-      status: order.status,
-      dueDate: order.dueDate,
-      plannedQuantity: order.plannedQuantity,
-      completedQuantity: order.completedQuantity,
-      rejectedQuantity: order.rejectedQuantity,
-      remainingQuantity: order.remainingQuantity,
-      currentStepId: order.currentStepId,
-      currentStepName: currentStep?.name,
-      stationId: order.assignedStationId ?? currentStep?.stationId ?? null,
-      stationName:
-        order.assignedStationName ??
-        currentStep?.stationName ??
-        currentStep?.workstation ??
-        null,
-      workstationId:
-        order.assignedWorkstationId ?? currentStep?.workstationId ?? null,
-      workstationName:
-        order.assignedWorkstationName ?? currentStep?.workstationName ?? null,
-      indicators: buildDerivedOrderIndicators({
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        productId: order.productId,
-        priority: order.priority,
-        status: order.status,
-        dueDate: order.dueDate,
-        plannedQuantity: order.plannedQuantity,
-        completedQuantity: order.completedQuantity,
-        rejectedQuantity: order.rejectedQuantity,
-        remainingQuantity: order.remainingQuantity,
-        currentStepId: order.currentStepId,
-        currentStepName: currentStep?.name,
-        stationName:
-          order.assignedStationName ??
-          currentStep?.stationName ??
-          currentStep?.workstation ??
-          null,
-        workstationName:
-          order.assignedWorkstationName ?? currentStep?.workstationName ?? null,
-      }),
-    });
-  });
+      const matchesStation =
+        stationFilter === "ALL" ||
+        item.stationId === stationFilter ||
+        item.workstationId === stationFilter;
 
-  return columns;
-}
-
-function buildFallbackDashboard(
-  orders: ProductionOrder[],
-  workloads: ProductionStationWorkload[],
-  stations: ProductionStation[]
-): ProductionDashboard {
-  const delayedOrders = orders.filter(isOrderDelayed).length;
-  const activeOrders = orders.filter((order) =>
-    ["PLANNED", "RELEASED", "IN_PROGRESS", "ON_HOLD", "PARTIALLY_COMPLETED"].includes(order.status)
-  ).length;
-  const completedToday = orders.filter((order) => {
-    const due = safeDate(order.dueDate);
-    if (!due) return false;
-    const now = new Date();
-    return due.toDateString() === now.toDateString() && order.status === "COMPLETED";
-  }).length;
-  const averageCompletionPercent =
-    orders.length === 0
-      ? 0
-      : orders.reduce((sum, order) => sum + orderCompletionPercent(order), 0) /
-        orders.length;
-
-  return {
-    activeOrders,
-    plannedOrders: orders.filter((order) => order.status === "PLANNED").length,
-    inProgressOrders: orders.filter((order) => order.status === "IN_PROGRESS").length,
-    onHoldOrders: orders.filter((order) => order.status === "ON_HOLD").length,
-    completedToday,
-    delayedOrders,
-    qualityPassRate:
-      orders.length === 0
-        ? 0
-        : (orders.filter((order) => order.rejectedQuantity === 0).length / orders.length) * 100,
-    shortageAlerts: orders.filter((order) => order.status === "ON_HOLD").length,
-    averageCompletionPercent,
-    stationUtilizationPercent:
-      workloads.length > 0
-        ? workloads.reduce(
-            (sum, workload) => sum + Number(workload.capacityUtilization || 0),
-            0
-          ) / workloads.length
-        : stations.length
-          ? Math.min(100, (activeOrders / Math.max(stations.length, 1)) * 100)
-          : 0,
-    workloadByStation: workloads,
-  };
+      return matchesSearch && matchesStation;
+    }),
+  }));
 }
 
 function deriveStationIndicators(
@@ -4220,7 +3800,6 @@ function buildExecutionRequest({
   order,
   currentStep,
   activeExecution,
-  assignment,
   qualityDraft,
   materialSelections,
 }: {
@@ -4232,7 +3811,6 @@ function buildExecutionRequest({
   order: ProductionOrder;
   currentStep: OrderStep;
   activeExecution?: OrderExecutionDetails;
-  assignment: AssignmentFormState;
   qualityDraft?: QualityChecklistResultRequest;
   materialSelections: Record<string, MaterialSelectionValue>;
 }): StepExecutionRequest {
@@ -4258,9 +3836,9 @@ function buildExecutionRequest({
       activeExecution?.steps.find((step) => step.stepId === currentStep.id)?.expectedVersion ??
       currentStep.expectedVersion ??
       undefined,
-    stationId: assignment.stationId || undefined,
-    workstationId: assignment.workstationId || undefined,
-    assigneeLabel: assignment.assigneeLabel.trim() || undefined,
+    stationId: currentStep.stationId || order.assignedStationId || undefined,
+    workstationId: currentStep.workstationId || order.assignedWorkstationId || undefined,
+    assigneeLabel: currentStep.assigneeLabel || undefined,
     materialLots: materialLots.length ? materialLots : undefined,
     qualityResult:
       qualityDraft && (qualityDraft.items.length || qualityDraft.notes?.trim())
@@ -4296,10 +3874,6 @@ function pickBestBom(boms: Bom[]) {
 
 function getCurrentOrderStep(order: ProductionOrder) {
   return order.steps.find((step) => step.id === order.currentStepId) ?? order.steps[0];
-}
-
-function getWorkstationsForStation(stations: ProductionStation[], stationId: string) {
-  return stations.find((station) => station.id === stationId)?.workstations ?? [];
 }
 
 function updateQualityDraftItem(
@@ -4467,11 +4041,6 @@ function formatNumber(value: number) {
 
 function formatPercent(value: number) {
   return `${Number(value || 0).toFixed(0)}%`;
-}
-
-function orderCompletionPercent(order: ProductionOrder) {
-  if (!order.plannedQuantity) return 0;
-  return (Number(order.completedQuantity || 0) / Number(order.plannedQuantity || 0)) * 100;
 }
 
 function isDueSoon(value?: string | null) {

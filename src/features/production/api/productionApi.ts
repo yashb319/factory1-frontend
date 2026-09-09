@@ -17,11 +17,7 @@ import type {
   ProductionOrderProgress,
   ProductionOrderProgressFilters,
   ProductionOrderRequest,
-  ProductionStation,
-  ProductionStationRequest,
   ProductionStationWorkload,
-  ProductionWorkstation,
-  ProductionWorkstationRequest,
   Workstation,
   WorkstationRequest,
   OrderAssignment,
@@ -45,7 +41,6 @@ import type {
   WorkflowRequest,
   WorkflowTemplate,
   WorkflowVersion,
-  ProductionAssignmentRequest,
 } from "../types/production.types";
 
 const cleanParams = <T extends Record<string, unknown>>(params: T) => {
@@ -225,100 +220,10 @@ export const productionApi = baseApi.injectEndpoints({
       providesTags: ["Production"],
     }),
 
-    getExecutionBoard: builder.query<ProductionExecutionBoard, ProductionBoardQuery>({
-      query: (params) => ({
-        url: "/api/production/orders/board",
-        params: cleanParams(params),
-      }),
-      transformResponse: (response: ApiResponse<ProductionExecutionBoard> | ProductionExecutionBoard) => unwrapData(response),
-      providesTags: ["Production"],
-    }),
-
-    getStations: builder.query<ProductionStation[], void>({
-      query: () => "/api/production/stations",
-      transformResponse: (response: ApiResponse<ProductionStation[]> | ProductionStation[]) => unwrapData(response),
-      providesTags: ["Production"],
-    }),
-
-    getStationWorkloads: builder.query<ProductionStationWorkload[], void>({
-      query: () => "/api/production/stations/workload",
+    getDashboardStations: builder.query<ProductionStationWorkload[], void>({
+      query: () => "/api/production/dashboard/stations",
       transformResponse: (response: ApiResponse<ProductionStationWorkload[]> | ProductionStationWorkload[]) => unwrapData(response),
       providesTags: ["Production"],
-    }),
-
-    createProductionStation: builder.mutation<ProductionStation, ProductionStationRequest>({
-      query: (body) => ({
-        url: "/api/production/stations",
-        method: "POST",
-        body,
-      }),
-      transformResponse: (response: ApiResponse<ProductionStation> | ProductionStation) => unwrapData(response),
-      invalidatesTags: ["Production"],
-    }),
-
-    updateProductionStation: builder.mutation<
-      ProductionStation,
-      { id: string; body: ProductionStationRequest }
-    >({
-      query: ({ id, body }) => ({
-        url: `/api/production/stations/${id}`,
-        method: "PUT",
-        body,
-      }),
-      transformResponse: (response: ApiResponse<ProductionStation> | ProductionStation) => unwrapData(response),
-      invalidatesTags: ["Production"],
-    }),
-
-    createWorkstation: builder.mutation<
-      ProductionWorkstation,
-      { stationId: string; body: ProductionWorkstationRequest }
-    >({
-      query: ({ stationId, body }) => ({
-        url: `/api/production/stations/${stationId}/workstations`,
-        method: "POST",
-        body,
-      }),
-      transformResponse: (response: ApiResponse<ProductionWorkstation> | ProductionWorkstation) => unwrapData(response),
-      invalidatesTags: ["Production"],
-    }),
-
-    updateWorkstation: builder.mutation<
-      ProductionWorkstation,
-      { id: string; body: ProductionWorkstationRequest }
-    >({
-      query: ({ id, body }) => ({
-        url: `/api/production/workstations/${id}`,
-        method: "PUT",
-        body,
-      }),
-      transformResponse: (response: ApiResponse<ProductionWorkstation> | ProductionWorkstation) => unwrapData(response),
-      invalidatesTags: ["Production"],
-    }),
-
-    assignOrder: builder.mutation<
-      ProductionOrder,
-      { orderId: string; body: ProductionAssignmentRequest }
-    >({
-      query: ({ orderId, body }) => ({
-        url: `/api/production/orders/${orderId}/assignment`,
-        method: "PUT",
-        body,
-      }),
-      transformResponse: (response: ApiResponse<ProductionOrder> | ProductionOrder) => unwrapData(response),
-      invalidatesTags: ["Production"],
-    }),
-
-    assignStep: builder.mutation<
-      OrderExecutionDetails,
-      { orderId: string; stepId: string; body: ProductionAssignmentRequest }
-    >({
-      query: ({ orderId, stepId, body }) => ({
-        url: `/api/production/orders/${orderId}/steps/${stepId}/assignment`,
-        method: "PUT",
-        body,
-      }),
-      transformResponse: (response: ApiResponse<OrderExecutionDetails> | OrderExecutionDetails) => unwrapData(response),
-      invalidatesTags: ["Production"],
     }),
 
     getOrderExecution: builder.query<OrderExecutionDetails, string>({
@@ -554,15 +459,7 @@ export const {
   useStepActionMutation,
   useGetTimelineQuery,
   useGetProductionDashboardQuery,
-  useGetExecutionBoardQuery,
-  useGetStationsQuery,
-  useGetStationWorkloadsQuery,
-  useCreateProductionStationMutation,
-  useUpdateProductionStationMutation,
-  useCreateWorkstationMutation,
-  useUpdateWorkstationMutation,
-  useAssignOrderMutation,
-  useAssignStepMutation,
+  useGetDashboardStationsQuery,
   useGetOrderExecutionQuery,
   useExecuteStepMutation,
   useGetQualityTemplatesQuery,
