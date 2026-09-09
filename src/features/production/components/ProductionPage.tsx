@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Factory, Plus, RefreshCw, Play, Pause, Check, Ban, History } from "lucide-react";
 import { useAppSelector } from "@/lib/hook";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { ProductionAnalytics } from "./ProductionAnalytics";
 import {
   useCancelOrderMutation, useCreateBomMutation, useCreateOrderMutation,
   useCreateWorkflowDraftMutation, useCreateWorkflowMutation, useGetBomsQuery,
@@ -21,11 +22,10 @@ import {
   useStepActionMutation,
 } from "../api/productionApi";
 import type {
-  BomItemRequest, OrderPriority, ProductionOrder, ProductionOrderRequest,
-  StepActionRequest, WorkflowRequest, WorkflowStepRequest,
+  BomItemRequest, OrderPriority, ProductionOrderRequest, WorkflowRequest, WorkflowStepRequest,
 } from "../types/production.types";
 
-type Tab = "orders" | "workflows" | "boms";
+type Tab = "orders" | "workflows" | "boms" | "analytics";
 const opsRoles = ["OWNER", "ADMIN", "MANAGEMENT"];
 const statusTone = (status: string) => {
   if (["COMPLETED", "PUBLISHED"].includes(status)) return "success" as const;
@@ -50,15 +50,16 @@ export function ProductionPage() {
     <div className="space-y-5">
       <PageHeader title="Production tracking" description="Configure versioned workflows and BOMs, then execute production orders without hardcoded garment steps." icon={Factory} module="production" />
       <div className="flex flex-wrap gap-2 border-b pb-2">
-        {(["orders", "workflows", "boms"] as Tab[]).map((item) => (
+        {(["orders", "workflows", "boms", "analytics"] as Tab[]).map((item) => (
           <Button key={item} variant={tab === item ? "default" : "ghost"} onClick={() => setTab(item)}>
-            {item === "orders" ? "Production orders" : item === "workflows" ? "Workflow templates" : "BOM definitions"}
+            {item === "orders" ? "Production orders" : item === "workflows" ? "Workflow templates" : item === "boms" ? "BOM definitions" : "Analytics"}
           </Button>
         ))}
       </div>
       {tab === "orders" ? <Orders selectedOrderId={selectedOrderId} onSelect={setSelectedOrderId} /> : null}
       {tab === "workflows" ? <Workflows /> : null}
       {tab === "boms" ? <Boms /> : null}
+      {tab === "analytics" ? <ProductionAnalytics /> : null}
     </div>
   );
 }
@@ -150,7 +151,7 @@ function WorkflowVersions({ template }: { template: { id: string; code: string; 
   const [draft] = useCreateWorkflowDraftMutation();
   const latest = versions[versions.length - 1];
   const publishVersion = async (id: string) => { if (!window.confirm("Publish this version? Published workflow steps cannot be edited.")) return; try { await publish(id).unwrap(); toast.success("Workflow version published"); void refetch(); } catch { toast.error("Could not publish workflow"); } };
-  const createDraft = async () => { if (!latest) return; try { await draft({ templateId: template.id, body: { code: template.code, name: template.name, description: template.description, steps: latest.steps.map(({ id: _id, ...step }) => step) } }).unwrap(); toast.success("Draft version created"); void refetch(); } catch { toast.error("Could not create draft version"); } };
+  const createDraft = async () => { if (!latest) return; try { await draft({ templateId: template.id, body: { code: template.code, name: template.name, description: template.description, steps: latest.steps.map(({ id: _id, ...step }) => { void _id; return step; }) } }).unwrap(); toast.success("Draft version created"); void refetch(); } catch { toast.error("Could not create draft version"); } };
   return <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle>Versions</CardTitle><Button variant="outline" onClick={() => void createDraft()} disabled={!latest}>New draft</Button></CardHeader><CardContent className="space-y-3">{!versions.length ? <Empty text="No versions yet." /> : versions.map((v) => <div key={v.id} className="rounded border p-3"><div className="flex items-center justify-between"><span className="font-medium">Version {v.versionNumber}</span><div className="flex items-center gap-2"><StatusBadge tone={statusTone(v.status)}>{v.status}</StatusBadge>{v.status === "DRAFT" ? <Button size="sm" onClick={() => void publishVersion(v.id)}>Publish</Button> : null}</div></div><div className="mt-2 flex flex-wrap gap-1">{v.steps.map((step) => <span key={step.id} className="rounded bg-muted px-2 py-1 text-xs">{step.sequenceNumber}. {step.name}</span>)}</div></div>)}</CardContent></Card>;
 }
 
