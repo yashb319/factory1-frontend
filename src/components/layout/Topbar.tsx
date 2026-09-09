@@ -347,6 +347,11 @@ export function Topbar({ onMenuClick, uiMode = "modern" }: TopbarProps) {
                   Product Walkthrough
                 </DropdownMenuItem>
 
+                <DropdownMenuItem onClick={() => router.push("/help")}>
+                  <HelpCircle className="mr-2 h-4 w-4" />
+                  Help Center
+                </DropdownMenuItem>
+
                 <DropdownMenuItem
                   onClick={() => router.push("/organization-settings")}
                 >
@@ -572,6 +577,7 @@ const keywordsByHref: Record<string, string[]> = {
   "/import-export": ["import", "export", "csv", "history", "download"],
   "/ai": ["ai", "chat", "assistant", "question"],
   "/docs": ["docs", "documentation", "help", "guide", "manual", "testing"],
+  "/help": ["help", "guide", "support", "how to", "tutorial", "faq", "troubleshooting"],
   "/organization-settings": ["settings", "organization", "org", "access", "role", "user"],
   "/saas-admin": ["saas", "admin", "factory", "plan", "pricing", "usage"],
 };
@@ -590,6 +596,7 @@ const descriptionByHref: Record<string, string> = {
   "/import-export": "View import and export history",
   "/ai": "Open full AI assistant chat",
   "/docs": "Read module guides and testing notes",
+  "/help": "Search module guides and troubleshooting",
   "/organization-settings": "Manage org settings and access",
   "/saas-admin": "Manage factories, plans, pricing and usage",
 };

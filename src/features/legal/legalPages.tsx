@@ -463,6 +463,7 @@ export const resourcePages = {
         title: "Getting Started",
         body: [
           "Create your organization, complete factory profile details, add departments, add employees, configure attendance, add inventory items and then start billing or payroll.",
+          "Signed-in users get the full Help Center inside the app at the /help route: searchable module guides with step-by-step usage, key fields, statuses, troubleshooting and related routes for every module.",
           "Use the in-app Documentation page after login for module-by-module testing guidance.",
         ],
       },
