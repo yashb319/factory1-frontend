@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Info, Palette, RefreshCw, Save } from "lucide-react";
+import { Info, Palette, RefreshCw, Save, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +38,14 @@ import {
   isValidHexColor,
   isValidUrl,
 } from "../utils/validation";
+import {
+  WHITELABEL_ACCESS,
+  WHITELABEL_DOMAIN_OPTIONS,
+  WHITELABEL_FORM_COPY,
+  WHITELABEL_PAGE_COPY,
+  getWhitelabelDomainOption,
+} from "../config/whitelabelUiConfig";
+import { WhitelabelBrandPreview } from "./WhitelabelBrandPreview";
 
 type OrgDraft = {
   displayName: string;
@@ -63,7 +71,7 @@ function draftFromOrganization(org: WhitelabelOrganization): OrgDraft {
 
 export function PartnerWhitelabelPage() {
   const user = useAppSelector((state) => state.auth.user);
-  const isPartnerAdmin = user?.role === "PARTNER_ADMIN";
+  const isPartnerAdmin = user?.role === WHITELABEL_ACCESS.partnerAdminRole;
 
   const {
     data,
@@ -76,6 +84,27 @@ export function PartnerWhitelabelPage() {
 
   const organizations = useMemo(() => data?.data ?? [], [data]);
   const [selectedOrgId, setSelectedOrgId] = useState("");
+  const [organizationSearch, setOrganizationSearch] = useState("");
+  const filteredOrganizations = useMemo(() => {
+    const term = organizationSearch.trim().toLowerCase();
+    if (!term) return organizations;
+
+    return organizations.filter((org) =>
+      [
+        org.organizationName,
+        org.displayName,
+        org.organizationId,
+        org.domainType,
+        org.domainValue,
+        org.partnerName,
+        org.partnerCode,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(term)
+    );
+  }, [organizations, organizationSearch]);
 
   // Default to the first linked organization until the user picks another one.
   const activeOrgId = selectedOrgId || organizations[0]?.organizationId || "";
@@ -99,11 +128,10 @@ export function PartnerWhitelabelPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Partner White Label
+            {WHITELABEL_PAGE_COPY.partnerTitle}
           </h1>
           <p className="text-sm text-slate-500">
-            Update the visible brand for the organizations linked to your
-            partner account.
+            {WHITELABEL_PAGE_COPY.partnerDescription}
           </p>
         </div>
 
@@ -120,16 +148,24 @@ export function PartnerWhitelabelPage() {
 
       <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
         <Info size={14} className="mt-0.5 shrink-0" />
-        <p>
-          Domain verification and enabling/disabling an organization&apos;s
-          branding are SaaS-owner-only controls. Those toggles aren&apos;t
-          shown here, and the server rejects them even if sent.
-        </p>
+        <p>{WHITELABEL_PAGE_COPY.partnerRestriction}</p>
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Linked organizations</CardTitle>
+          <div className="relative w-full sm:w-72">
+            <Search
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <Input
+              className="pl-8"
+              value={organizationSearch}
+              onChange={(event) => setOrganizationSearch(event.target.value)}
+              placeholder="Search organizations"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <Table className="responsive-table">
@@ -143,7 +179,7 @@ export function PartnerWhitelabelPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {organizations.map((org) => (
+              {filteredOrganizations.map((org) => (
                 <TableRow key={org.organizationId}>
                   <TableCell data-label="Organization">
                     <p className="font-medium">
@@ -154,7 +190,7 @@ export function PartnerWhitelabelPage() {
                     </p>
                   </TableCell>
                   <TableCell data-label="Domain">
-                    <p className="text-sm">{org.domainType}</p>
+                    <p className="text-sm">{getDomainTypeLabel(org.domainType)}</p>
                     <p className="text-xs text-muted-foreground">
                       {org.domainValue || "—"}
                     </p>
@@ -182,13 +218,15 @@ export function PartnerWhitelabelPage() {
                 </TableRow>
               ))}
 
-              {!organizations.length && (
+              {!filteredOrganizations.length && (
                 <TableRow>
                   <TableCell colSpan={5} className="h-20 text-center text-slate-500">
                     {isFetching
                       ? "Loading organizations..."
                       : isError
                       ? "Could not load organizations. Try refreshing."
+                      : organizationSearch
+                      ? "No organizations match your search."
                       : "No organizations are linked to your partner account."}
                   </TableCell>
                 </TableRow>
@@ -214,17 +252,22 @@ function OrganizationBrandingForm({ org }: { org: WhitelabelOrganization }) {
 
   async function saveBranding() {
     if (!isValidHexColor(draft.primaryColorHex) || !isValidHexColor(draft.accentColorHex)) {
-      toast.error("Colors must be a valid hex value like #2563EB");
+      toast.error(WHITELABEL_FORM_COPY.validation.colors);
       return;
     }
 
     if (!isValidUrl(draft.logoUrl) || !isValidUrl(draft.faviconUrl)) {
-      toast.error("Logo and favicon must be valid http(s) URLs");
+      toast.error(WHITELABEL_FORM_COPY.validation.urls);
       return;
     }
 
-    if (!isValidDomainValue(draft.domainValue)) {
-      toast.error("Enter a valid domain, e.g. acme.factory1.app");
+    if (draft.domainType !== "SHARED" && !draft.domainValue.trim()) {
+      toast.error(WHITELABEL_FORM_COPY.validation.missingDomain);
+      return;
+    }
+
+    if (draft.domainType !== "SHARED" && !isValidDomainValue(draft.domainValue)) {
+      toast.error(WHITELABEL_FORM_COPY.validation.invalidDomain);
       return;
     }
 
@@ -235,7 +278,8 @@ function OrganizationBrandingForm({ org }: { org: WhitelabelOrganization }) {
       primaryColorHex: draft.primaryColorHex.trim() || null,
       accentColorHex: draft.accentColorHex.trim() || null,
       domainType: draft.domainType,
-      domainValue: draft.domainValue.trim() || null,
+      domainValue:
+        draft.domainType === "SHARED" ? null : draft.domainValue.trim() || null,
     };
 
     try {
@@ -260,7 +304,7 @@ function OrganizationBrandingForm({ org }: { org: WhitelabelOrganization }) {
       <CardContent className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
-            <Label>Display name</Label>
+            <Label>{WHITELABEL_FORM_COPY.fields.displayName.label}</Label>
             <Input
               value={draft.displayName}
               onChange={(event) =>
@@ -271,80 +315,98 @@ function OrganizationBrandingForm({ org }: { org: WhitelabelOrganization }) {
           </div>
 
           <div className="space-y-2">
-            <Label>Logo URL</Label>
+            <Label>{WHITELABEL_FORM_COPY.fields.logoUrl.label}</Label>
             <Input
               value={draft.logoUrl}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, logoUrl: event.target.value }))
               }
-              placeholder="https://cdn.example.com/logo.png"
+              placeholder={WHITELABEL_FORM_COPY.fields.logoUrl.placeholder}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Favicon URL</Label>
+            <Label>{WHITELABEL_FORM_COPY.fields.faviconUrl.label}</Label>
             <Input
               value={draft.faviconUrl}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, faviconUrl: event.target.value }))
               }
-              placeholder="https://cdn.example.com/favicon.ico"
+              placeholder={WHITELABEL_FORM_COPY.fields.faviconUrl.placeholder}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Primary color</Label>
+            <Label>{WHITELABEL_FORM_COPY.fields.primaryColorHex.label}</Label>
             <Input
               value={draft.primaryColorHex}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, primaryColorHex: event.target.value }))
               }
-              placeholder="#2563EB"
+              placeholder={WHITELABEL_FORM_COPY.fields.primaryColorHex.placeholder}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Accent color</Label>
+            <Label>{WHITELABEL_FORM_COPY.fields.accentColorHex.label}</Label>
             <Input
               value={draft.accentColorHex}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, accentColorHex: event.target.value }))
               }
-              placeholder="#0EA5E9"
+              placeholder={WHITELABEL_FORM_COPY.fields.accentColorHex.placeholder}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Domain type</Label>
+            <Label>{WHITELABEL_FORM_COPY.fields.domainType.label}</Label>
             <Select
               value={draft.domainType}
               onValueChange={(value) =>
-                setDraft((current) => ({ ...current, domainType: value as WhitelabelDomainType }))
+                setDraft((current) => ({
+                  ...current,
+                  domainType: value as WhitelabelDomainType,
+                  domainValue: value === "SHARED" ? "" : current.domainValue,
+                }))
               }
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="SHARED">Shared</SelectItem>
-                <SelectItem value="SUBDOMAIN">Subdomain</SelectItem>
-                <SelectItem value="CUSTOM_DOMAIN">Custom domain</SelectItem>
+                {WHITELABEL_DOMAIN_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              {getDomainTypeDescription(draft.domainType)}
+            </p>
           </div>
 
           <div className="space-y-2">
-            <Label>Domain value</Label>
+            <Label>{WHITELABEL_FORM_COPY.fields.domainValue.label}</Label>
             <Input
               value={draft.domainValue}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, domainValue: event.target.value }))
               }
-              placeholder="acme.factory1.app"
+              placeholder={WHITELABEL_FORM_COPY.fields.domainValue.placeholder}
               disabled={draft.domainType === "SHARED"}
             />
           </div>
         </div>
+
+        <WhitelabelBrandPreview
+          displayName={draft.displayName || org.organizationName}
+          logoUrl={draft.logoUrl}
+          primaryColorHex={draft.primaryColorHex}
+          accentColorHex={draft.accentColorHex}
+          domainType={draft.domainType}
+          domainValue={draft.domainValue}
+        />
 
         <Button type="button" onClick={saveBranding} disabled={updateState.isLoading}>
           <Save size={16} />
@@ -353,6 +415,14 @@ function OrganizationBrandingForm({ org }: { org: WhitelabelOrganization }) {
       </CardContent>
     </Card>
   );
+}
+
+function getDomainTypeLabel(value: WhitelabelDomainType) {
+  return getWhitelabelDomainOption(value).label;
+}
+
+function getDomainTypeDescription(value: WhitelabelDomainType) {
+  return getWhitelabelDomainOption(value).description;
 }
 
 function getErrorMessage(error: unknown, fallback: string) {

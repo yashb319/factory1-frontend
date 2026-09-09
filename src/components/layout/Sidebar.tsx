@@ -9,6 +9,7 @@ import { moduleTheme } from "@/config/theme";
 import { useAppSelector } from "@/lib/hook";
 import { useGetOrganizationFeaturesQuery } from "@/features/organization-features/api/organizationFeaturesApi";
 import { useActiveBranding } from "@/features/whitelabel/hooks/useActiveBranding";
+import { WHITELABEL_DEFAULT_BRANDING } from "@/features/whitelabel/config/whitelabelUiConfig";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -127,7 +128,9 @@ function SidebarContent({
         {!collapsed ? (
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold">{displayName}</h1>
-            <p className="truncate text-xs text-[var(--factory1-text-muted)]">Operations OS</p>
+            <p className="truncate text-xs text-[var(--factory1-text-muted)]">
+              {WHITELABEL_DEFAULT_BRANDING.shellTagline}
+            </p>
           </div>
         ) : null}
       </div>
