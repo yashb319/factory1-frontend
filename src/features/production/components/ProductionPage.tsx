@@ -75,47 +75,45 @@ import { useGetEmployeesQuery } from "@/features/employees/api/employeeApi";
 import {
   useCancelOrderMutation,
   useCreateBomMutation,
+  useCreateMaterialConsumptionMutation,
   useCreateOrderAssignmentMutation,
   useCreateOrderMutation,
-  useCreateQualityTemplateMutation,
+  useCreateQualityCheckTemplateMutation,
+  useCreateQualityResultMutation,
   useCreateWorkflowDraftMutation,
   useCreateWorkflowMutation,
   useCreateWorkstationRecordMutation,
   useDeactivateWorkstationMutation,
   useDeleteAssignmentMutation,
-  useExecuteStepMutation,
   useGetBomsQuery,
   useGetDashboardStationsQuery,
-  useGetMaterialLotsQuery,
+  useGetExecutionBatchesQuery,
+  useGetMaterialConsumptionsQuery,
   useGetOrderAssignmentsQuery,
-  useGetOrderExecutionQuery,
   useGetOrderQuery,
   useGetOrdersQuery,
   useGetProductionDashboardQuery,
   useGetProductionKanbanQuery,
+  useGetQualityCheckTemplatesQuery,
   useGetQualityResultsQuery,
-  useGetQualityTemplatesQuery,
   useGetTimelineQuery,
   useGetWorkflowVersionsQuery,
   useGetWorkflowsQuery,
   useGetWorkstationsQuery,
   usePublishBomMutation,
   usePublishWorkflowMutation,
-  useRecordQualityResultMutation,
   useStepActionMutation,
-  useUpdateQualityTemplateMutation,
   useUpdateWorkstationRecordMutation,
 } from "../api/productionApi";
 import type {
   AssignmentRole,
   Bom,
   BomItemRequest,
-  MaterialLotConsumptionRequest,
+  KanbanCard,
+  MaterialConsumptionRequest,
   MaterialRequirement,
   OrderAssignmentRequest,
-  OrderExecutionDetails,
   OrderStatus,
-  OrderStep,
   OrderPriority,
   ProductionBoardColumn,
   ProductionBoardItem,
@@ -126,16 +124,11 @@ import type {
   ProductionOrder,
   ProductionOrderRequest,
   ProductionStationWorkload,
-  QualityChecklistItemDisposition,
-  QualityChecklistItemRequest,
-  QualityChecklistResult,
-  QualityChecklistResultItemRequest,
-  QualityChecklistResultRequest,
-  QualityChecklistTemplate,
-  QualityChecklistTemplateRequest,
-  QualityResultStatus,
-  StepExecutionAction,
-  StepExecutionRequest,
+  QualityResult,
+  QualityResultRequest,
+  QualityTemplateRequest,
+  StepAction,
+  StepActionRequest,
   TimelineEvent,
   Workstation,
   WorkstationRequest,
@@ -150,10 +143,13 @@ type AssignmentFormState = {
   assignmentRole: AssignmentRole;
   assigneeUserId: string;
 };
-type MaterialSelectionValue = {
-  lotId: string;
+type MaterialConsumptionDraft = {
+  lotNumber: string;
   quantity: string;
-  unit: string;
+};
+type QualityCheckDraft = {
+  passed: boolean;
+  value: string;
   notes: string;
 };
 
@@ -209,13 +205,14 @@ const emptyDashboard: ProductionDashboard = {
   shortageAlerts: 0,
 };
 
-const emptyQualityTemplate = (): QualityChecklistTemplateRequest => ({
+const emptyQualityTemplate = (): QualityTemplateRequest => ({
+  code: "",
   name: "",
   description: "",
-  active: true,
-  items: [
-    { label: "Visual inspection", description: "", sequenceNumber: 1, required: true, inputType: "BOOLEAN" },
-  ],
+  workflowVersionId: undefined,
+  productId: undefined,
+  stepCode: undefined,
+  checks: [{ code: "VISUAL", name: "Visual inspection", sequenceNumber: 1, required: true }],
 });
 
 const statusTone = (status: string) => {
@@ -329,8 +326,14 @@ function Orders({
   );
 
   const board = useMemo(
-    () => filterBoardColumns(boardQuery.data?.columns ?? [], search, stationFilter),
-    [boardQuery.data, search, stationFilter]
+    () =>
+      buildBoardColumns(
+        boardQuery.data?.content ?? [],
+        orders,
+        search,
+        stationFilter
+      ),
+    [boardQuery.data, orders, search, stationFilter]
   );
 
   const dashboard = dashboardQuery.data ?? emptyDashboard;
@@ -567,7 +570,6 @@ function Orders({
             <OrderDetail
               key={selectedOrderId}
               orderId={selectedOrderId}
-              stations={stations}
               onClose={() => onSelect(undefined)}
             />
           ) : (
@@ -1136,36 +1138,28 @@ function WorkstationManager({
 
 function OrderDetail({
   orderId,
-  stations,
   onClose,
 }: {
   orderId: string;
-  stations: Workstation[];
   onClose: () => void;
 }) {
   const orderQuery = useGetOrderQuery(orderId);
   const timelineQuery = useGetTimelineQuery(orderId);
-  const executionQuery = useGetOrderExecutionQuery(orderId);
   const assignmentsQuery = useGetOrderAssignmentsQuery(orderId);
+  const executionBatchesQuery = useGetExecutionBatchesQuery(orderId);
+  const materialConsumptionsQuery = useGetMaterialConsumptionsQuery(orderId);
   const { data: employeesPage } = useGetEmployeesQuery({ page: 0, size: 300, status: "ACTIVE" });
   const employees = useMemo(() => employeesPage?.content ?? [], [employeesPage]);
   const [cancelOrder, cancelState] = useCancelOrderMutation();
   const [createOrderAssignment, createOrderAssignmentState] = useCreateOrderAssignmentMutation();
   const [deleteAssignment, deleteAssignmentState] = useDeleteAssignmentMutation();
-  const [executeStep, executeStepState] = useExecuteStepMutation();
   const [stepAction, stepActionState] = useStepActionMutation();
-  const [recordQualityResult, recordQualityState] = useRecordQualityResultMutation();
-  const [createQualityTemplate, createQualityTemplateState] = useCreateQualityTemplateMutation();
-  const [updateQualityTemplate, updateQualityTemplateState] = useUpdateQualityTemplateMutation();
+  const [createQualityResult, createQualityResultState] = useCreateQualityResultMutation();
+  const [createQualityTemplate, createQualityTemplateState] = useCreateQualityCheckTemplateMutation();
 
   const order = orderQuery.data;
-  const execution = executionQuery.data;
   const orderSteps = order?.steps ?? [];
   const currentStep = order ? getCurrentOrderStep(order) : undefined;
-  const activeExecutionStep = useMemo(() => {
-    if (!execution || !currentStep) return undefined;
-    return execution.steps.find((step) => step.stepId === currentStep.id);
-  }, [execution, currentStep]);
 
   const assignments = useMemo(() => assignmentsQuery.data ?? [], [assignmentsQuery.data]);
   const orderAssignments = useMemo(
@@ -1196,25 +1190,29 @@ function OrderDetail({
     () => buildMaterialRequirements(activeBom, inventoryItems, order),
     [activeBom, inventoryItems, order]
   );
-
-  const stepStationId =
-    activeExecutionStep?.assignment?.stationId ?? currentStep?.stationId ?? order?.assignedStationId ?? undefined;
-
-  const qualityTemplatesQuery = useGetQualityTemplatesQuery(
-    {
-      workflowStepCode: currentStep?.code,
-      stationId: stepStationId || undefined,
-    },
-    { skip: !currentStep }
+  const materialConsumptions = useMemo(
+    () => materialConsumptionsQuery.data ?? [],
+    [materialConsumptionsQuery.data]
   );
+  const executionBatches = useMemo(
+    () => executionBatchesQuery.data ?? [],
+    [executionBatchesQuery.data]
+  );
+
+  // Backend only exposes a paged list of quality-check templates (no
+  // per-step/station filter query params), so filter client-side against the
+  // active step's code when a match exists, falling back to the full list.
+  const qualityTemplatesQuery = useGetQualityCheckTemplatesQuery({ page: 0, size: 100 });
   const qualityResultsQuery = useGetQualityResultsQuery(
-    { orderId, stepId: currentStep?.id || "" },
+    { orderId, stepId: currentStep?.id },
     { skip: !currentStep }
   );
-  const qualityTemplates = useMemo(
-    () => qualityTemplatesQuery.data ?? [],
-    [qualityTemplatesQuery.data]
-  );
+  const qualityTemplates = useMemo(() => {
+    const all = qualityTemplatesQuery.data?.content ?? [];
+    if (!currentStep?.code) return all;
+    const matching = all.filter((template) => template.stepCode === currentStep.code);
+    return matching.length ? matching : all;
+  }, [qualityTemplatesQuery.data, currentStep]);
   const qualityResults = useMemo(
     () => qualityResultsQuery.data ?? [],
     [qualityResultsQuery.data]
@@ -1225,18 +1223,10 @@ function OrderDetail({
   const [stepAssignment, setStepAssignment] = useState<AssignmentFormState>(emptyAssignment());
   const [completedQuantity, setCompletedQuantity] = useState("");
   const [rejectedQuantity, setRejectedQuantity] = useState("");
-  const [holdQuantity, setHoldQuantity] = useState("");
   const [executionNotes, setExecutionNotes] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [qualityDraft, setQualityDraft] = useState<QualityChecklistResultRequest>({
-    overallStatus: "PASS",
-    notes: "",
-    items: [],
-  });
-  const [materialSelections, setMaterialSelections] = useState<
-    Record<string, MaterialSelectionValue>
-  >({});
-  const [templateDialog, setTemplateDialog] = useState<QualityChecklistTemplate | null>(null);
+  const [qualityChecks, setQualityChecks] = useState<Record<string, QualityCheckDraft>>({});
+  const [materialDrafts, setMaterialDrafts] = useState<Record<string, MaterialConsumptionDraft>>({});
   const [templateCreateOpen, setTemplateCreateOpen] = useState(false);
   const [executionConflict, setExecutionConflict] = useState<ProductionExecutionConflict | null>(null);
 
@@ -1280,22 +1270,18 @@ function OrderDetail({
   useEffect(() => {
     queueMicrotask(() => {
       if (!selectedTemplate) {
-        setQualityDraft({ overallStatus: "PASS", notes: "", items: [] });
+        setQualityChecks({});
         return;
       }
 
-      setQualityDraft({
-        overallStatus: "PASS",
-        notes: "",
-        templateId: selectedTemplate.id,
-        items: selectedTemplate.items.map((item) => ({
-          checklistItemId: item.id,
-          label: item.label,
-          disposition: item.required ? "PASS" : "NOT_APPLICABLE",
-          measuredValue: "",
-          notes: "",
-        })),
-      });
+      setQualityChecks(
+        Object.fromEntries(
+          selectedTemplate.checks.map((check) => [
+            check.id,
+            { passed: true, value: "", notes: "" },
+          ])
+        )
+      );
     });
   }, [selectedTemplate]);
 
@@ -1317,20 +1303,19 @@ function OrderDetail({
     );
   }
 
-  const stationOptions = stations;
-  const stepIndicators =
-    activeExecutionStep?.indicators ?? currentStep?.indicators ?? [];
-  const orderIndicators = execution?.orderIndicators ?? order.indicators ?? [];
+  const stepIndicators = currentStep?.indicators ?? [];
+  const orderIndicators = order.indicators ?? [];
   const shortageCount = materialRequirements.filter((item) => item.shortage).length;
-  const latestQualityResult = qualityResults[0] ?? activeExecutionStep?.latestQualityResult;
+  const latestQualityResult = qualityResults[0];
 
   const refreshDetail = () => {
     void orderQuery.refetch();
     void timelineQuery.refetch();
-    void executionQuery.refetch();
     void qualityResultsQuery.refetch();
     void qualityTemplatesQuery.refetch();
     void assignmentsQuery.refetch();
+    void executionBatchesQuery.refetch();
+    void materialConsumptionsQuery.refetch();
   };
 
   const submitOrderAssignment = async (event: FormEvent<HTMLFormElement>) => {
@@ -1391,141 +1376,88 @@ function OrderDetail({
     }
   };
 
-  const submitQualityResult = async () => {
-    if (!currentStep) return;
-    if (!qualityDraft.items.length && !qualityDraft.notes?.trim()) {
-      toast.error("Select or create a quality checklist first.");
+  const submitQualityResults = async () => {
+    if (!currentStep || !selectedTemplate) return;
+    const checks = selectedTemplate.checks;
+    if (!checks.length) {
+      toast.error("The selected template has no checks to record.");
       return;
     }
 
     try {
-      await recordQualityResult({
-        orderId,
-        stepId: currentStep.id,
-        body: normalizeQualityDraft(qualityDraft),
-      }).unwrap();
-      toast.success("Quality result recorded");
+      await Promise.all(
+        checks.map((check) => {
+          const draft = qualityChecks[check.id] ?? { passed: true, value: "", notes: "" };
+          const body: QualityResultRequest = {
+            orderStepSnapshotId: currentStep.id,
+            templateId: selectedTemplate.id,
+            definitionId: check.id,
+            passed: draft.passed,
+            value: draft.value.trim() || undefined,
+            notes: draft.notes.trim() || undefined,
+          };
+          return createQualityResult({ orderId, body }).unwrap();
+        })
+      );
+      toast.success("Quality results recorded");
       void qualityResultsQuery.refetch();
-      void executionQuery.refetch();
     } catch (error) {
-      toast.error(apiErrorMessage(error) ?? "Could not record quality result");
+      toast.error(apiErrorMessage(error) ?? "Could not record quality results");
     }
   };
 
-  const saveQualityTemplate = async (body: QualityChecklistTemplateRequest, id?: string) => {
+  const saveQualityTemplate = async (body: QualityTemplateRequest) => {
     try {
-      if (id) {
-        await updateQualityTemplate({ id, body }).unwrap();
-        toast.success("Quality template updated");
-      } else {
-        await createQualityTemplate(body).unwrap();
-        toast.success("Quality template created");
-      }
+      await createQualityTemplate(body).unwrap();
+      toast.success("Quality template created");
       setTemplateCreateOpen(false);
-      setTemplateDialog(null);
       void qualityTemplatesQuery.refetch();
     } catch (error) {
       toast.error(apiErrorMessage(error) ?? "Could not save quality template");
     }
   };
 
-  const runExecutionAction = async (action: StepExecutionAction) => {
+  const runStepAction = async (action: StepAction) => {
     if (!currentStep) return;
 
-    const body = buildExecutionRequest({
-      action,
-      completedQuantity,
-      rejectedQuantity,
-      holdQuantity,
-      executionNotes,
-      order,
-      currentStep,
-      activeExecution: execution,
-      qualityDraft: selectedTemplate ? normalizeQualityDraft(qualityDraft) : undefined,
-      materialSelections,
-    });
+    const body: StepActionRequest = {
+      completedQuantity: parseNullableNumber(completedQuantity),
+      rejectedQuantity: parseNullableNumber(rejectedQuantity),
+      notes: executionNotes.trim() || undefined,
+      expectedOrderVersion: order.version ?? undefined,
+      expectedStepVersion: currentStep.expectedVersion ?? undefined,
+    };
 
     if (
-      action === "COMPLETE" &&
+      action === "complete" &&
       !body.completedQuantity &&
-      !body.rejectedQuantity &&
-      !body.holdQuantity
+      !body.rejectedQuantity
     ) {
-      toast.error("Enter completed, rejected, or hold quantity before recording output.");
-      return;
-    }
-
-    if (action === "HOLD" && !body.holdQuantity && !body.notes) {
-      toast.error("Provide hold quantity or a note when putting a step on hold.");
+      toast.error("Enter a completed or rejected quantity before recording output.");
       return;
     }
 
     try {
       setExecutionConflict(null);
-      await executeStep({ orderId, stepId: currentStep.id, body }).unwrap();
-      toast.success(getExecutionSuccessMessage(action));
-      resetExecutionForm({
-        setCompletedQuantity,
-        setRejectedQuantity,
-        setHoldQuantity,
-        setExecutionNotes,
-        setMaterialSelections,
-      });
+      await stepAction({ orderId, stepId: currentStep.id, action, body }).unwrap();
+      toast.success(getStepActionSuccessMessage(action));
+      setCompletedQuantity("");
+      setRejectedQuantity("");
+      setExecutionNotes("");
       refreshDetail();
-      return;
     } catch (error) {
-      const conflict = extractConflict(error);
-      if (conflict || getErrorStatus(error) === 409) {
-        setExecutionConflict(
-          conflict ?? {
-            message:
-              apiErrorMessage(error) ??
-              "Another operator updated this order. Refresh and review the latest execution state.",
-          }
-        );
+      if (getErrorStatus(error) === 409) {
+        setExecutionConflict({
+          message:
+            apiErrorMessage(error) ??
+            "Another operator updated this order. Refresh and review the latest state.",
+        });
         toast.warning("Execution conflict detected. Latest order state has been reloaded.");
         refreshDetail();
         return;
       }
 
-      if (
-        isEndpointUnavailable(error) &&
-        canFallbackToPhase1StepAction(order, body)
-      ) {
-        try {
-          await stepAction({
-            orderId,
-            stepId: currentStep.id,
-            action: action === "START" ? "start" : action === "PAUSE" ? "pause" : "complete",
-            body: {
-              completedQuantity: body.completedQuantity,
-              rejectedQuantity: body.rejectedQuantity,
-              notes: body.notes,
-              expectedOrderVersion: body.expectedOrderVersion,
-              expectedStepVersion: body.expectedStepVersion,
-            },
-          }).unwrap();
-          toast.warning(
-            action === "COMPLETE"
-              ? "Advanced execution endpoint unavailable. Recorded with the Phase 1 completion API; quality, hold, and lot details were not persisted."
-              : "Advanced execution endpoint unavailable. The step was processed with the Phase 1 API."
-          );
-          resetExecutionForm({
-            setCompletedQuantity,
-            setRejectedQuantity,
-            setHoldQuantity,
-            setExecutionNotes,
-            setMaterialSelections,
-          });
-          refreshDetail();
-          return;
-        } catch (fallbackError) {
-          toast.error(apiErrorMessage(fallbackError) ?? "Could not process step action");
-          return;
-        }
-      }
-
-      toast.error(apiErrorMessage(error) ?? "Could not execute production step");
+      toast.error(apiErrorMessage(error) ?? "Could not process step action");
     }
   };
 
@@ -1592,9 +1524,6 @@ function OrderDetail({
             <h3 className="mb-2 text-sm font-semibold">Workflow steps</h3>
             <div className="space-y-2">
               {orderSteps.map((step) => {
-                const executionStep = execution?.steps.find(
-                  (candidate) => candidate.stepId === step.id
-                );
                 const isActive = currentStep?.id === step.id;
                 return (
                   <div
@@ -1612,27 +1541,23 @@ function OrderDetail({
                         <div className="text-xs text-muted-foreground">
                           {step.code}
                           {step.workstation ? ` · ${step.workstation}` : ""}
-                          {executionStep?.assignment?.stationName
-                            ? ` · ${executionStep.assignment.stationName}`
-                            : ""}
-                          {executionStep?.assignment?.workstationName
-                            ? ` / ${executionStep.assignment.workstationName}`
-                            : ""}
+                          {step.stationName ? ` · ${step.stationName}` : ""}
+                          {step.workstationName ? ` / ${step.workstationName}` : ""}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <StatusBadge tone={statusTone(executionStep?.status || step.status || (isActive ? order.status : "PLANNED"))}>
-                          {humanize(executionStep?.status || step.status || (isActive ? order.status : "PENDING"))}
+                        <StatusBadge tone={statusTone(step.status || (isActive ? order.status : "PLANNED"))}>
+                          {humanize(step.status || (isActive ? order.status : "PENDING"))}
                         </StatusBadge>
-                        {executionStep?.expectedVersion !== undefined ? (
+                        {step.expectedVersion !== undefined ? (
                           <span className="text-[11px] text-muted-foreground">
-                            v{executionStep.expectedVersion}
+                            v{step.expectedVersion}
                           </span>
                         ) : null}
                       </div>
                     </div>
                     <IndicatorRow
-                      indicators={executionStep?.indicators ?? step.indicators ?? []}
+                      indicators={step.indicators ?? []}
                       className="mt-2"
                     />
                   </div>
@@ -1836,7 +1761,7 @@ function OrderDetail({
                 <div>
                   <CardTitle>Quality checklist</CardTitle>
                   <CardDescription>
-                    Use checklist templates to record PASS, FAIL, or HOLD outcomes with notes.
+                    Use quality-check templates to record PASS/FAIL outcomes per check, with an optional value and notes.
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -1848,19 +1773,13 @@ function OrderDetail({
                     <Plus className="mr-2 h-4 w-4" />
                     Template
                   </Button>
-                  {selectedTemplate ? (
-                    <Button variant="outline" onClick={() => setTemplateDialog(selectedTemplate)}>
-                      <Pencil className="mr-2 h-4 w-4" />
-                      Edit
-                    </Button>
-                  ) : null}
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {qualityTemplatesQuery.isError ? (
                 <InlineNotice tone="warning" title="Quality templates unavailable">
-                  The UI is ready for <code>/api/production/quality/templates</code>, but that endpoint is not responding yet.
+                  Quality-check templates could not be loaded from <code>/api/production/quality-check-templates</code>.
                 </InlineNotice>
               ) : null}
 
@@ -1875,8 +1794,7 @@ function OrderDetail({
                       <option value="">No template selected</option>
                       {qualityTemplates.map((template) => (
                         <option key={template.id} value={template.id}>
-                          {template.name}
-                          {template.versionNumber ? ` · v${template.versionNumber}` : ""}
+                          {template.code} · {template.name}
                         </option>
                       ))}
                     </select>
@@ -1884,67 +1802,53 @@ function OrderDetail({
 
                   {selectedTemplate ? (
                     <div className="space-y-3 rounded-lg border p-3">
-                      {selectedTemplate.items.map((item, index) => {
-                        const draftItem = qualityDraft.items[index];
+                      {selectedTemplate.checks.map((check) => {
+                        const draft = qualityChecks[check.id] ?? { passed: true, value: "", notes: "" };
                         return (
-                          <div key={item.id} className="rounded-md border bg-muted/15 p-3">
+                          <div key={check.id} className="rounded-md border bg-muted/15 p-3">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-medium">{item.label}</p>
-                              <StatusBadge tone={item.required ? "warning" : "info"}>
-                                {item.required ? "Required" : "Optional"}
+                              <p className="font-medium">{check.name}</p>
+                              <StatusBadge tone={check.required ? "warning" : "info"}>
+                                {check.required ? "Required" : "Optional"}
                               </StatusBadge>
                             </div>
-                            {item.description ? (
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {item.description}
-                              </p>
-                            ) : null}
                             <div className="mt-3 grid gap-3 sm:grid-cols-[160px_minmax(0,1fr)]">
-                              <Field label="Disposition">
+                              <Field label="Result">
                                 <select
                                   className={selectClassName}
-                                  value={draftItem?.disposition || "PASS"}
+                                  value={draft.passed ? "PASS" : "FAIL"}
                                   onChange={(event) =>
-                                    updateQualityDraftItem(
-                                      setQualityDraft,
-                                      index,
-                                      "disposition",
-                                      event.target.value as QualityChecklistItemDisposition
-                                    )
+                                    setQualityChecks((current) => ({
+                                      ...current,
+                                      [check.id]: { ...draft, passed: event.target.value === "PASS" },
+                                    }))
                                   }
                                 >
-                                  {(["PASS", "FAIL", "HOLD", "NOT_APPLICABLE"] as QualityChecklistItemDisposition[]).map((disposition) => (
-                                    <option key={disposition} value={disposition}>
-                                      {humanize(disposition)}
-                                    </option>
-                                  ))}
+                                  <option value="PASS">Pass</option>
+                                  <option value="FAIL">Fail</option>
                                 </select>
                               </Field>
                               <div className="grid gap-3 sm:grid-cols-2">
-                                <Field label={item.inputType === "NUMBER" ? "Measured value" : "Value (optional)"}>
+                                <Field label="Value (optional)">
                                   <Input
-                                    value={draftItem?.measuredValue || ""}
+                                    value={draft.value}
                                     onChange={(event) =>
-                                      updateQualityDraftItem(
-                                        setQualityDraft,
-                                        index,
-                                        "measuredValue",
-                                        event.target.value
-                                      )
+                                      setQualityChecks((current) => ({
+                                        ...current,
+                                        [check.id]: { ...draft, value: event.target.value },
+                                      }))
                                     }
-                                    placeholder={item.targetValue ? `Target: ${item.targetValue}` : "Record value"}
+                                    placeholder="Record value"
                                   />
                                 </Field>
                                 <Field label="Notes (optional)">
                                   <Input
-                                    value={draftItem?.notes || ""}
+                                    value={draft.notes}
                                     onChange={(event) =>
-                                      updateQualityDraftItem(
-                                        setQualityDraft,
-                                        index,
-                                        "notes",
-                                        event.target.value
-                                      )
+                                      setQualityChecks((current) => ({
+                                        ...current,
+                                        [check.id]: { ...draft, notes: event.target.value },
+                                      }))
                                     }
                                     placeholder="Observation"
                                   />
@@ -1959,45 +1863,12 @@ function OrderDetail({
                     <Empty text="Select or create a quality template for this step." />
                   )}
 
-                  <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
-                    <Field label="Overall result">
-                      <select
-                        className={selectClassName}
-                        value={qualityDraft.overallStatus}
-                        onChange={(event) =>
-                          setQualityDraft((current) => ({
-                            ...current,
-                            overallStatus: event.target.value as QualityResultStatus,
-                          }))
-                        }
-                      >
-                        {(["PASS", "FAIL", "HOLD"] as QualityResultStatus[]).map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Quality notes">
-                      <Textarea
-                        value={qualityDraft.notes || ""}
-                        onChange={(event) =>
-                          setQualityDraft((current) => ({
-                            ...current,
-                            notes: event.target.value,
-                          }))
-                        }
-                        placeholder="Inspection summary or disposition note"
-                      />
-                    </Field>
-                  </div>
-
                   <div className="flex justify-end">
                     <Button
-                      onClick={() => void submitQualityResult()}
-                      disabled={recordQualityState.isLoading || !selectedTemplate}
+                      onClick={() => void submitQualityResults()}
+                      disabled={createQualityResultState.isLoading || !selectedTemplate}
                     >
-                      {recordQualityState.isLoading ? "Saving..." : "Record quality result"}
+                      {createQualityResultState.isLoading ? "Saving..." : "Record quality results"}
                     </Button>
                   </div>
                 </>
@@ -2011,17 +1882,19 @@ function OrderDetail({
                   Recent quality results
                 </div>
                 {qualityResultsQuery.isError ? (
-                  <InlineNotice tone="warning" title="Quality result history unavailable">
-                    Result history will appear here after <code>/api/production/orders/:orderId/steps/:stepId/quality-results</code> is available.
-                  </InlineNotice>
+                  <ErrorState
+                    title="Quality result history unavailable"
+                    message="Could not load quality results for this order."
+                    onRetry={() => void qualityResultsQuery.refetch()}
+                  />
                 ) : !qualityResults.length ? (
                   <Empty text="No quality results recorded for this step yet." />
                 ) : (
                   qualityResults.map((result) => (
                     <div key={result.id} className="rounded-md border p-3 text-sm">
                       <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge tone={statusTone(result.overallStatus)}>
-                          {result.overallStatus}
+                        <StatusBadge tone={result.passed ? "success" : "error"}>
+                          {result.passed ? "PASS" : "FAIL"}
                         </StatusBadge>
                         <span className="text-xs text-muted-foreground">
                           {formatDateTime(result.createdAt)}
@@ -2041,7 +1914,7 @@ function OrderDetail({
             <CardHeader>
               <CardTitle>Material lots & shortages</CardTitle>
               <CardDescription>
-                Select inventory lots for consumption and track shortage risk against the order's BOM.
+                Record inventory lot consumption against the order's BOM and track shortage risk.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -2070,17 +1943,36 @@ function OrderDetail({
                         <StatusBadge tone="success">Stock available</StatusBadge>
                       )}
                     </div>
-                    <MaterialLotSelector
+                    <MaterialConsumptionForm
+                      orderId={orderId}
+                      stepId={currentStep?.id}
                       requirement={requirement}
-                      stationId={stepStationId || undefined}
-                      value={materialSelections[requirement.inventoryItemId]}
-                      onChange={(value) =>
-                        setMaterialSelections((current) => ({
+                      draft={materialDrafts[requirement.inventoryItemId]}
+                      onDraftChange={(value) =>
+                        setMaterialDrafts((current) => ({
                           ...current,
                           [requirement.inventoryItemId]: value,
                         }))
                       }
+                      onRecorded={() => {
+                        setMaterialDrafts((current) => ({
+                          ...current,
+                          [requirement.inventoryItemId]: { lotNumber: "", quantity: "" },
+                        }));
+                        void materialConsumptionsQuery.refetch();
+                      }}
                     />
+                    {materialConsumptions.filter((item) => item.inventoryItemId === requirement.inventoryItemId).length ? (
+                      <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                        {materialConsumptions
+                          .filter((item) => item.inventoryItemId === requirement.inventoryItemId)
+                          .map((item) => (
+                            <div key={item.id}>
+                              Lot {item.lotNumber} · {formatNumber(item.quantity)} {item.unit}
+                            </div>
+                          ))}
+                      </div>
+                    ) : null}
                   </div>
                 ))
               )}
@@ -2091,7 +1983,7 @@ function OrderDetail({
             <CardHeader>
               <CardTitle>Step execution</CardTitle>
               <CardDescription>
-                Record partial completion, rejections, holds, and operator notes with concurrency-safe version checks.
+                Start, pause, or record completed and rejected quantities with concurrency-safe version checks.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -2103,21 +1995,18 @@ function OrderDetail({
                     <div className="font-medium">Execute: {currentStep.name}</div>
                     <div className="mt-1 text-xs text-muted-foreground">
                       {currentStep.code}
-                      {activeExecutionStep?.status
-                        ? ` · ${humanize(activeExecutionStep.status)}`
-                        : ""}
-                      {activeExecutionStep?.expectedVersion !== undefined
-                        ? ` · step version ${activeExecutionStep.expectedVersion}`
+                      {currentStep.status ? ` · ${humanize(currentStep.status)}` : ""}
+                      {currentStep.expectedVersion !== undefined
+                        ? ` · step version ${currentStep.expectedVersion}`
                         : ""}
                     </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3 text-xs text-muted-foreground">
-                      <span>Completed: {formatNumber(activeExecutionStep?.completedQuantity ?? order.completedQuantity)}</span>
-                      <span>Rejected: {formatNumber(activeExecutionStep?.rejectedQuantity ?? order.rejectedQuantity)}</span>
-                      <span>Held: {formatNumber(activeExecutionStep?.holdQuantity ?? 0)}</span>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 text-xs text-muted-foreground">
+                      <span>Completed: {formatNumber(currentStep.completedQuantity ?? order.completedQuantity)}</span>
+                      <span>Rejected: {formatNumber(currentStep.rejectedQuantity ?? order.rejectedQuantity)}</span>
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <Field label="Completed quantity">
                       <Input
                         type="number"
@@ -2136,15 +2025,6 @@ function OrderDetail({
                         onChange={(event) => setRejectedQuantity(event.target.value)}
                       />
                     </Field>
-                    <Field label="Hold quantity">
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.001"
-                        value={holdQuantity}
-                        onChange={(event) => setHoldQuantity(event.target.value)}
-                      />
-                    </Field>
                   </div>
 
                   <Field label="Execution notes">
@@ -2155,18 +2035,12 @@ function OrderDetail({
                     />
                   </Field>
 
-                  <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                    <p>
-                      If the Phase 2 execution endpoint is unavailable, START and PAUSE automatically fall back to the Phase 1 step actions. COMPLETE only falls back when the request is equivalent to a final Phase 1 completion.
-                    </p>
-                  </div>
-
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={executeStepState.isLoading || stepActionState.isLoading}
-                      onClick={() => void runExecutionAction("START")}
+                      disabled={stepActionState.isLoading}
+                      onClick={() => void runStepAction("start")}
                     >
                       <Play className="mr-2 h-4 w-4" />
                       Start
@@ -2174,25 +2048,16 @@ function OrderDetail({
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={executeStepState.isLoading || stepActionState.isLoading}
-                      onClick={() => void runExecutionAction("PAUSE")}
+                      disabled={stepActionState.isLoading}
+                      onClick={() => void runStepAction("pause")}
                     >
                       <Pause className="mr-2 h-4 w-4" />
                       Pause
                     </Button>
                     <Button
                       type="button"
-                      variant="outline"
-                      disabled={executeStepState.isLoading || stepActionState.isLoading}
-                      onClick={() => void runExecutionAction("HOLD")}
-                    >
-                      <AlertTriangle className="mr-2 h-4 w-4" />
-                      Hold
-                    </Button>
-                    <Button
-                      type="button"
-                      disabled={executeStepState.isLoading || stepActionState.isLoading}
-                      onClick={() => void runExecutionAction("COMPLETE")}
+                      disabled={stepActionState.isLoading}
+                      onClick={() => void runStepAction("complete")}
                     >
                       <Check className="mr-2 h-4 w-4" />
                       Record output
@@ -2205,21 +2070,60 @@ function OrderDetail({
 
           <Card className="border-dashed">
             <CardHeader>
+              <CardTitle>Execution batches</CardTitle>
+              <CardDescription>
+                History of recorded output batches for this order.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {executionBatchesQuery.isLoading ? (
+                <Loading text="Loading execution batches..." />
+              ) : executionBatchesQuery.isError ? (
+                <ErrorState
+                  title="Execution batches unavailable"
+                  message="Could not load recorded execution batches for this order."
+                  onRetry={() => void executionBatchesQuery.refetch()}
+                />
+              ) : !executionBatches.length ? (
+                <Empty text="No execution batches recorded yet." />
+              ) : (
+                <div className="space-y-2">
+                  {executionBatches.map((batch) => (
+                    <div key={batch.id} className="rounded-md border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">Batch {batch.batchNumber}</span>
+                        <span className="text-xs text-muted-foreground">{formatDateTime(batch.createdAt)}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Completed {formatNumber(batch.completedQuantity)} · Rejected {formatNumber(batch.rejectedQuantity)}
+                      </div>
+                      {batch.notes ? <p className="mt-1 text-xs text-muted-foreground">{batch.notes}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-dashed">
+            <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <History className="h-4 w-4" />
                 Immutable timeline
               </CardTitle>
               <CardDescription>
-                Preserves the Phase 1 event timeline while Phase 2 execution APIs roll out.
+                Preserves the immutable event timeline for this order.
               </CardDescription>
             </CardHeader>
             <CardContent>
               {timelineQuery.isLoading ? (
                 <Loading text="Loading order timeline..." />
               ) : timelineQuery.isError ? (
-                <InlineNotice tone="warning" title="Timeline unavailable">
-                  The current backend did not return timeline events for this order.
-                </InlineNotice>
+                <ErrorState
+                  title="Timeline unavailable"
+                  message="The current backend did not return timeline events for this order."
+                  onRetry={() => void timelineQuery.refetch()}
+                />
               ) : !timelineQuery.data?.length ? (
                 <Empty text="No step activity recorded yet." />
               ) : (
@@ -2246,18 +2150,12 @@ function OrderDetail({
       />
 
       <QualityTemplateDialog
-        open={templateCreateOpen || Boolean(templateDialog)}
-        template={templateDialog}
-        defaultWorkflowStepCode={currentStep?.code}
-        defaultStationId={stepStationId || ""}
-        stations={stationOptions}
-        loading={createQualityTemplateState.isLoading || updateQualityTemplateState.isLoading}
-        onOpenChange={(open) => {
-          if (!open) {
-            setTemplateCreateOpen(false);
-            setTemplateDialog(null);
-          }
-        }}
+        open={templateCreateOpen}
+        defaultStepCode={currentStep?.code}
+        defaultProductId={order.productId}
+        defaultWorkflowVersionId={order.workflowVersionId}
+        loading={createQualityTemplateState.isLoading}
+        onOpenChange={(open) => setTemplateCreateOpen(open)}
         onSubmit={saveQualityTemplate}
       />
     </>
@@ -3066,123 +2964,89 @@ function WorkstationRecordDialog({
 
 function QualityTemplateDialog({
   open,
-  template,
-  defaultWorkflowStepCode,
-  defaultStationId,
-  stations,
+  defaultStepCode,
+  defaultProductId,
+  defaultWorkflowVersionId,
   loading,
   onOpenChange,
   onSubmit,
 }: {
   open: boolean;
-  template: QualityChecklistTemplate | null;
-  defaultWorkflowStepCode?: string;
-  defaultStationId?: string;
-  stations: Workstation[];
+  defaultStepCode?: string;
+  defaultProductId?: string;
+  defaultWorkflowVersionId?: string;
   loading: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (body: QualityChecklistTemplateRequest, id?: string) => Promise<void>;
+  onSubmit: (body: QualityTemplateRequest) => Promise<void>;
 }) {
-  const [form, setForm] = useState<QualityChecklistTemplateRequest>(emptyQualityTemplate());
+  const [form, setForm] = useState<QualityTemplateRequest>(emptyQualityTemplate());
 
   useEffect(() => {
     if (!open) return;
-    setForm(
-      template
-        ? {
-            name: template.name,
-            description: template.description || "",
-            workflowStepCode: template.workflowStepCode,
-            stationId: template.stationId,
-            active: template.active,
-            items: template.items.map((item) => ({
-              label: item.label,
-              description: item.description,
-              sequenceNumber: item.sequenceNumber,
-              required: item.required,
-              inputType: item.inputType,
-              targetValue: item.targetValue,
-            })),
-          }
-        : {
-            ...emptyQualityTemplate(),
-            workflowStepCode: defaultWorkflowStepCode,
-            stationId: defaultStationId || undefined,
-          }
-    );
-  }, [open, template, defaultWorkflowStepCode, defaultStationId]);
+    setForm({
+      ...emptyQualityTemplate(),
+      stepCode: defaultStepCode,
+      productId: defaultProductId,
+      workflowVersionId: defaultWorkflowVersionId,
+    });
+  }, [open, defaultStepCode, defaultProductId, defaultWorkflowVersionId]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!form.name.trim() || form.items.some((item) => !item.label.trim())) {
-      toast.error("Template name and checklist item labels are required.");
+    if (!form.code.trim() || !form.name.trim() || form.checks.some((check) => !check.name.trim() || !check.code.trim())) {
+      toast.error("Template code, name, and check code/name are required.");
       return;
     }
 
-    await onSubmit(
-      {
-        ...form,
-        name: form.name.trim(),
-        description: form.description?.trim() || undefined,
-        workflowStepCode: form.workflowStepCode?.trim() || undefined,
-        stationId: form.stationId || undefined,
-        items: form.items.map((item, index) => ({
-          ...item,
-          label: item.label.trim(),
-          description: item.description?.trim() || undefined,
-          targetValue: item.targetValue?.trim() || undefined,
-          sequenceNumber: index + 1,
-        })),
-      },
-      template?.id
-    );
+    await onSubmit({
+      ...form,
+      code: form.code.trim(),
+      name: form.name.trim(),
+      description: form.description?.trim() || undefined,
+      stepCode: form.stepCode?.trim() || undefined,
+      productId: form.productId || undefined,
+      workflowVersionId: form.workflowVersionId || undefined,
+      checks: form.checks.map((check, index) => ({
+        ...check,
+        code: check.code.trim(),
+        name: check.name.trim(),
+        sequenceNumber: index + 1,
+      })),
+    });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-full max-w-[calc(100%-2rem)] sm:max-w-3xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{template ? "Edit quality template" : "Create quality template"}</DialogTitle>
+          <DialogTitle>Create quality template</DialogTitle>
           <DialogDescription>
-            Templates can be scoped to a workflow step code and optional station.
+            Templates can be scoped to a workflow step code, product, and workflow version.
           </DialogDescription>
         </DialogHeader>
         <form className="space-y-3" onSubmit={submit}>
           <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Template code">
+              <Input
+                value={form.code}
+                onChange={(event) => setForm({ ...form, code: event.target.value })}
+              />
+            </Field>
             <Field label="Template name">
               <Input
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
               />
             </Field>
-            <Field label="Workflow step code (optional)">
-              <Input
-                value={form.workflowStepCode || ""}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    workflowStepCode: event.target.value || undefined,
-                  })
-                }
-                placeholder="STITCH-01"
-              />
-            </Field>
           </div>
-          <Field label="Station (optional)">
-            <select
-              className={selectClassName}
-              value={form.stationId || ""}
+          <Field label="Step code (optional)">
+            <Input
+              value={form.stepCode || ""}
               onChange={(event) =>
-                setForm({ ...form, stationId: event.target.value || undefined })
+                setForm({ ...form, stepCode: event.target.value || undefined })
               }
-            >
-              <option value="">All stations</option>
-              {stations.map((station) => (
-                <option key={station.id} value={station.id}>
-                  {station.code} · {station.name}
-                </option>
-              ))}
-            </select>
+              placeholder="STITCH-01"
+            />
           </Field>
           <Field label="Description">
             <Textarea
@@ -3195,7 +3059,7 @@ function QualityTemplateDialog({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Checklist items</span>
+              <span className="text-sm font-medium">Checks</span>
               <Button
                 type="button"
                 size="sm"
@@ -3203,99 +3067,49 @@ function QualityTemplateDialog({
                 onClick={() =>
                   setForm((current) => ({
                     ...current,
-                    items: [
-                      ...current.items,
+                    checks: [
+                      ...current.checks,
                       {
-                        label: "",
-                        description: "",
-                        sequenceNumber: current.items.length + 1,
+                        code: "",
+                        name: "",
+                        sequenceNumber: current.checks.length + 1,
                         required: true,
-                        inputType: "BOOLEAN",
-                        targetValue: "",
                       },
                     ],
                   }))
                 }
               >
-                Add item
+                Add check
               </Button>
             </div>
-            {form.items.map((item, index) => (
+            {form.checks.map((check, index) => (
               <div key={index} className="rounded-lg border p-3">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Label">
+                  <Field label="Check code">
                     <Input
-                      value={item.label}
+                      value={check.code}
                       onChange={(event) =>
                         setForm((current) => ({
                           ...current,
-                          items: current.items.map((currentItem, currentIndex) =>
+                          checks: current.checks.map((currentCheck, currentIndex) =>
                             currentIndex === index
-                              ? { ...currentItem, label: event.target.value }
-                              : currentItem
+                              ? { ...currentCheck, code: event.target.value }
+                              : currentCheck
                           ),
                         }))
                       }
                     />
                   </Field>
-                  <Field label="Input type">
-                    <select
-                      className={selectClassName}
-                      value={item.inputType || "BOOLEAN"}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          items: current.items.map((currentItem, currentIndex) =>
-                            currentIndex === index
-                              ? {
-                                  ...currentItem,
-                                  inputType: event.target.value as QualityChecklistItemRequest["inputType"],
-                                }
-                              : currentItem
-                          ),
-                        }))
-                      }
-                    >
-                      {(["BOOLEAN", "TEXT", "NUMBER"] as const).map((inputType) => (
-                        <option key={inputType} value={inputType}>
-                          {humanize(inputType)}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <Field label="Target value (optional)">
+                  <Field label="Check name">
                     <Input
-                      value={item.targetValue || ""}
+                      value={check.name}
                       onChange={(event) =>
                         setForm((current) => ({
                           ...current,
-                          items: current.items.map((currentItem, currentIndex) =>
+                          checks: current.checks.map((currentCheck, currentIndex) =>
                             currentIndex === index
-                              ? {
-                                  ...currentItem,
-                                  targetValue: event.target.value || undefined,
-                                }
-                              : currentItem
-                          ),
-                        }))
-                      }
-                    />
-                  </Field>
-                  <Field label="Description (optional)">
-                    <Input
-                      value={item.description || ""}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          items: current.items.map((currentItem, currentIndex) =>
-                            currentIndex === index
-                              ? {
-                                  ...currentItem,
-                                  description: event.target.value || undefined,
-                                }
-                              : currentItem
+                              ? { ...currentCheck, name: event.target.value }
+                              : currentCheck
                           ),
                         }))
                       }
@@ -3306,31 +3120,31 @@ function QualityTemplateDialog({
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={Boolean(item.required)}
+                      checked={Boolean(check.required)}
                       onChange={(event) =>
                         setForm((current) => ({
                           ...current,
-                          items: current.items.map((currentItem, currentIndex) =>
+                          checks: current.checks.map((currentCheck, currentIndex) =>
                             currentIndex === index
-                              ? { ...currentItem, required: event.target.checked }
-                              : currentItem
+                              ? { ...currentCheck, required: event.target.checked }
+                              : currentCheck
                           ),
                         }))
                       }
                     />
-                    Required item
+                    Required check
                   </label>
                   <Button
                     type="button"
                     variant="ghost"
-                    disabled={form.items.length === 1}
+                    disabled={form.checks.length === 1}
                     onClick={() =>
                       setForm((current) => ({
                         ...current,
-                        items: current.items
+                        checks: current.checks
                           .filter((_, currentIndex) => currentIndex !== index)
-                          .map((currentItem, currentIndex) => ({
-                            ...currentItem,
+                          .map((currentCheck, currentIndex) => ({
+                            ...currentCheck,
                             sequenceNumber: currentIndex + 1,
                           })),
                       }))
@@ -3343,21 +3157,12 @@ function QualityTemplateDialog({
             ))}
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={Boolean(form.active)}
-              onChange={(event) => setForm({ ...form, active: event.target.checked })}
-            />
-            Active template
-          </label>
-
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Saving..." : template ? "Save template" : "Create template"}
+              {loading ? "Saving..." : "Create template"}
             </Button>
           </DialogFooter>
         </form>
@@ -3366,100 +3171,75 @@ function QualityTemplateDialog({
   );
 }
 
-function MaterialLotSelector({
+function MaterialConsumptionForm({
+  orderId,
+  stepId,
   requirement,
-  stationId,
-  value,
-  onChange,
+  draft,
+  onDraftChange,
+  onRecorded,
 }: {
+  orderId: string;
+  stepId?: string;
   requirement: MaterialRequirement;
-  stationId?: string;
-  value?: MaterialSelectionValue;
-  onChange: (value: MaterialSelectionValue) => void;
+  draft?: MaterialConsumptionDraft;
+  onDraftChange: (value: MaterialConsumptionDraft) => void;
+  onRecorded: () => void;
 }) {
-  const lotsQuery = useGetMaterialLotsQuery(
-    {
-      inventoryItemId: requirement.inventoryItemId,
-      stationId,
-    },
-    { skip: !requirement.inventoryItemId }
-  );
+  const [createMaterialConsumption, createMaterialConsumptionState] = useCreateMaterialConsumptionMutation();
+  const lotNumber = draft?.lotNumber || "";
+  const quantity = draft?.quantity || "";
 
-  const lots = lotsQuery.data ?? [];
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const parsedQuantity = parseNullableNumber(quantity);
+    if (!lotNumber.trim() || !parsedQuantity) {
+      toast.error("Enter a lot number and quantity before recording consumption.");
+      return;
+    }
+
+    const body: MaterialConsumptionRequest = {
+      productionOrderId: orderId,
+      orderStepSnapshotId: stepId,
+      inventoryItemId: requirement.inventoryItemId,
+      lotNumber: lotNumber.trim(),
+      quantity: parsedQuantity,
+      unit: requirement.unit,
+    };
+
+    try {
+      await createMaterialConsumption(body).unwrap();
+      toast.success("Material consumption recorded");
+      onRecorded();
+    } catch (error) {
+      toast.error(apiErrorMessage(error) ?? "Could not record material consumption");
+    }
+  };
 
   return (
-    <div className="mt-3 space-y-2">
-      {lotsQuery.isError ? (
-        <InlineNotice tone="warning" title="Lot endpoint unavailable">
-          Material-lot selection will work once <code>/api/production/material-lots</code> is available. The shortage estimate above still uses inventory balances.
-        </InlineNotice>
-      ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
-            <Field label="Inventory lot">
-              <select
-                className={selectClassName}
-                value={value?.lotId || ""}
-                onChange={(event) =>
-                  onChange({
-                    lotId: event.target.value,
-                    quantity: value?.quantity || "",
-                    unit:
-                      lots.find((lot) => lot.id === event.target.value)?.unit ||
-                      requirement.unit,
-                    notes: value?.notes || "",
-                  })
-                }
-                disabled={lotsQuery.isLoading}
-              >
-                <option value="">Select lot</option>
-                {lots.map((lot) => (
-                  <option key={lot.id} value={lot.id}>
-                    {lot.lotCode} · {formatNumber(lot.availableQuantity)} {lot.unit}
-                    {lot.expiryDate ? ` · exp ${formatDate(lot.expiryDate)}` : ""}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Consume qty">
-              <Input
-                type="number"
-                min="0"
-                step="0.001"
-                value={value?.quantity || ""}
-                onChange={(event) =>
-                  onChange({
-                    lotId: value?.lotId || "",
-                    quantity: event.target.value,
-                    unit: value?.unit || requirement.unit,
-                    notes: value?.notes || "",
-                  })
-                }
-              />
-            </Field>
-          </div>
-          <Field label="Consumption note (optional)">
-            <Input
-              value={value?.notes || ""}
-              onChange={(event) =>
-                onChange({
-                  lotId: value?.lotId || "",
-                  quantity: value?.quantity || "",
-                  unit: value?.unit || requirement.unit,
-                  notes: event.target.value,
-                })
-              }
-              placeholder="Issue bin, rack, or operator note"
-            />
-          </Field>
-          {value?.lotId ? (
-            <p className="text-xs text-muted-foreground">
-              Selected unit: {value.unit || requirement.unit}
-            </p>
-          ) : null}
-        </>
-      )}
-    </div>
+    <form className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px_auto]" onSubmit={submit}>
+      <Field label="Lot number">
+        <Input
+          value={lotNumber}
+          onChange={(event) => onDraftChange({ lotNumber: event.target.value, quantity })}
+          placeholder="Enter lot number"
+        />
+      </Field>
+      <Field label="Consume qty">
+        <Input
+          type="number"
+          min="0"
+          step="0.001"
+          value={quantity}
+          onChange={(event) => onDraftChange({ lotNumber, quantity: event.target.value })}
+        />
+      </Field>
+      <div className="flex items-end">
+        <Button type="submit" disabled={createMaterialConsumptionState.isLoading}>
+          {createMaterialConsumptionState.isLoading ? "Recording..." : "Record"}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -3661,29 +3441,67 @@ function filterOrders({
   });
 }
 
-function filterBoardColumns(
-  columns: ProductionBoardColumn[],
+// Backend GET /api/production/kanban returns a flat PageResponse<KanbanCard>
+// rather than pre-grouped columns. Group cards into the standard status lanes
+// and enrich each card with fields (productId, priority, dueDate, current step,
+// station) sourced from the already-loaded orders list.
+function buildBoardColumns(
+  cards: KanbanCard[],
+  orders: ProductionOrder[],
   search: string,
   stationFilter: string
 ): ProductionBoardColumn[] {
   const needle = search.trim().toLowerCase();
+  const ordersById = new Map(orders.map((order) => [order.id, order]));
 
-  return columns.map((column) => ({
-    ...column,
-    items: column.items.filter((item) => {
-      const matchesSearch =
-        !needle ||
-        [item.orderNumber, item.productId, item.currentStepName]
-          .filter(Boolean)
-          .some((value) => value?.toLowerCase().includes(needle));
+  const items: ProductionBoardItem[] = cards.map((card) => {
+    const order = ordersById.get(card.orderId);
+    const currentStepId = card.currentStepId ?? order?.currentStepId;
+    const step = order?.steps.find((candidate) => candidate.id === currentStepId);
+    const remainingQuantity =
+      order?.remainingQuantity ??
+      Math.max(card.plannedQuantity - card.completedQuantity - card.rejectedQuantity, 0);
 
-      const matchesStation =
-        stationFilter === "ALL" ||
-        item.stationId === stationFilter ||
-        item.workstationId === stationFilter;
+    return {
+      orderId: card.orderId,
+      orderNumber: card.orderNumber,
+      productId: order?.productId ?? "",
+      priority: order?.priority ?? "NORMAL",
+      status: card.status,
+      dueDate: order?.dueDate,
+      plannedQuantity: card.plannedQuantity,
+      completedQuantity: card.completedQuantity,
+      rejectedQuantity: card.rejectedQuantity,
+      remainingQuantity,
+      currentStepId,
+      currentStepName: step?.name,
+      stationId: order?.assignedStationId ?? step?.stationId ?? null,
+      stationName: order?.assignedStationName ?? step?.stationName ?? null,
+      workstationId: order?.assignedWorkstationId ?? step?.workstationId ?? null,
+      workstationName: order?.assignedWorkstationName ?? step?.workstationName ?? null,
+      indicators: order?.indicators,
+    };
+  });
 
-      return matchesSearch && matchesStation;
-    }),
+  const filtered = items.filter((item) => {
+    const matchesSearch =
+      !needle ||
+      [item.orderNumber, item.productId, item.currentStepName]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(needle));
+
+    const matchesStation =
+      stationFilter === "ALL" ||
+      item.stationId === stationFilter ||
+      item.workstationId === stationFilter;
+
+    return matchesSearch && matchesStation;
+  });
+
+  return orderStatuses.map((status) => ({
+    key: status,
+    label: humanize(status),
+    items: filtered.filter((item) => item.status === status),
   }));
 }
 
@@ -3737,7 +3555,7 @@ function buildDerivedOrderIndicators(order: ProductionBoardItem): ProductionIndi
 
 function deriveOrderRiskIndicators(
   order: ProductionOrder,
-  latestQualityResult: QualityChecklistResult | undefined,
+  latestQualityResult: QualityResult | undefined,
   shortageCount: number
 ): ProductionIndicator[] {
   const indicators: ProductionIndicator[] = [];
@@ -3748,10 +3566,8 @@ function deriveOrderRiskIndicators(
     indicators.push({ type: "DELAYED", severity: "warning", label: "Due soon" });
   }
 
-  if (latestQualityResult?.overallStatus === "FAIL") {
+  if (latestQualityResult && !latestQualityResult.passed) {
     indicators.push({ type: "QUALITY_FAILURE", severity: "critical", label: "Quality failure" });
-  } else if (latestQualityResult?.overallStatus === "HOLD") {
-    indicators.push({ type: "QUALITY_FAILURE", severity: "warning", label: "Quality hold" });
   }
 
   if (shortageCount > 0) {
@@ -3791,83 +3607,6 @@ function buildMaterialRequirements(
   });
 }
 
-function buildExecutionRequest({
-  action,
-  completedQuantity,
-  rejectedQuantity,
-  holdQuantity,
-  executionNotes,
-  order,
-  currentStep,
-  activeExecution,
-  qualityDraft,
-  materialSelections,
-}: {
-  action: StepExecutionAction;
-  completedQuantity: string;
-  rejectedQuantity: string;
-  holdQuantity: string;
-  executionNotes: string;
-  order: ProductionOrder;
-  currentStep: OrderStep;
-  activeExecution?: OrderExecutionDetails;
-  qualityDraft?: QualityChecklistResultRequest;
-  materialSelections: Record<string, MaterialSelectionValue>;
-}): StepExecutionRequest {
-  const materialLots: MaterialLotConsumptionRequest[] = Object.entries(materialSelections)
-    .map(([inventoryItemId, selection]) => ({
-      inventoryItemId,
-      lotId: selection.lotId,
-      quantity: Number(selection.quantity),
-      unit: selection.unit || undefined,
-      notes: selection.notes.trim() || undefined,
-    }))
-    .filter((selection) => selection.lotId && selection.quantity > 0);
-
-  return {
-    action,
-    completedQuantity: parseNullableNumber(completedQuantity),
-    rejectedQuantity: parseNullableNumber(rejectedQuantity),
-    holdQuantity: parseNullableNumber(holdQuantity),
-    notes: executionNotes.trim() || undefined,
-    expectedOrderVersion:
-      activeExecution?.orderVersion ?? order.version ?? undefined,
-    expectedStepVersion:
-      activeExecution?.steps.find((step) => step.stepId === currentStep.id)?.expectedVersion ??
-      currentStep.expectedVersion ??
-      undefined,
-    stationId: currentStep.stationId || order.assignedStationId || undefined,
-    workstationId: currentStep.workstationId || order.assignedWorkstationId || undefined,
-    assigneeLabel: currentStep.assigneeLabel || undefined,
-    materialLots: materialLots.length ? materialLots : undefined,
-    qualityResult:
-      qualityDraft && (qualityDraft.items.length || qualityDraft.notes?.trim())
-        ? qualityDraft
-        : undefined,
-  };
-}
-
-function canFallbackToPhase1StepAction(
-  order: ProductionOrder,
-  body: StepExecutionRequest
-) {
-  if (body.action === "START" || body.action === "PAUSE") {
-    return true;
-  }
-
-  if (body.action !== "COMPLETE") {
-    return false;
-  }
-
-  if (body.holdQuantity || body.materialLots?.length || body.qualityResult) {
-    return false;
-  }
-
-  const completed = Number(body.completedQuantity || 0);
-  const rejected = Number(body.rejectedQuantity || 0);
-  return completed + rejected >= Number(order.remainingQuantity || 0);
-}
-
 function pickBestBom(boms: Bom[]) {
   return boms.find((bom) => bom.status === "PUBLISHED") ?? boms.at(-1);
 }
@@ -3876,66 +3615,13 @@ function getCurrentOrderStep(order: ProductionOrder) {
   return order.steps.find((step) => step.id === order.currentStepId) ?? order.steps[0];
 }
 
-function updateQualityDraftItem(
-  setQualityDraft: React.Dispatch<React.SetStateAction<QualityChecklistResultRequest>>,
-  index: number,
-  field: keyof QualityChecklistResultItemRequest,
-  value: string
-) {
-  setQualityDraft((current) => ({
-    ...current,
-    items: current.items.map((item, itemIndex) =>
-      itemIndex === index ? { ...item, [field]: value } : item
-    ),
-  }));
-}
-
-function normalizeQualityDraft(
-  qualityDraft: QualityChecklistResultRequest
-): QualityChecklistResultRequest {
-  return {
-    templateId: qualityDraft.templateId,
-    overallStatus: qualityDraft.overallStatus,
-    notes: qualityDraft.notes?.trim() || undefined,
-    items: qualityDraft.items.map((item) => ({
-      checklistItemId: item.checklistItemId,
-      label: item.label,
-      disposition: item.disposition,
-      measuredValue: item.measuredValue?.trim() || undefined,
-      notes: item.notes?.trim() || undefined,
-    })),
-  };
-}
-
-function resetExecutionForm({
-  setCompletedQuantity,
-  setRejectedQuantity,
-  setHoldQuantity,
-  setExecutionNotes,
-  setMaterialSelections,
-}: {
-  setCompletedQuantity: (value: string) => void;
-  setRejectedQuantity: (value: string) => void;
-  setHoldQuantity: (value: string) => void;
-  setExecutionNotes: (value: string) => void;
-  setMaterialSelections: (value: Record<string, MaterialSelectionValue>) => void;
-}) {
-  setCompletedQuantity("");
-  setRejectedQuantity("");
-  setHoldQuantity("");
-  setExecutionNotes("");
-  setMaterialSelections({});
-}
-
-function getExecutionSuccessMessage(action: StepExecutionAction) {
+function getStepActionSuccessMessage(action: StepAction) {
   switch (action) {
-    case "START":
+    case "start":
       return "Step started";
-    case "PAUSE":
+    case "pause":
       return "Step paused";
-    case "HOLD":
-      return "Step placed on hold";
-    case "COMPLETE":
+    case "complete":
       return "Step execution recorded";
     default:
       return "Execution updated";
@@ -3979,25 +3665,6 @@ function getErrorStatus(error: unknown) {
   if (!error || typeof error !== "object") return null;
   const maybeError = error as { status?: unknown };
   return typeof maybeError.status === "number" ? maybeError.status : null;
-}
-
-function isEndpointUnavailable(error: unknown) {
-  const status = getErrorStatus(error);
-  return status === 404 || status === 405 || status === 501 || status === 503;
-}
-
-function extractConflict(error: unknown): ProductionExecutionConflict | null {
-  if (!error || typeof error !== "object") return null;
-  const maybeError = error as {
-    data?: {
-      conflict?: ProductionExecutionConflict;
-      data?: {
-        conflict?: ProductionExecutionConflict;
-      };
-    };
-  };
-
-  return maybeError.data?.conflict ?? maybeError.data?.data?.conflict ?? null;
 }
 
 function parseNullableNumber(value?: string) {

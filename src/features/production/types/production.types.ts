@@ -30,7 +30,7 @@ export type StepExecutionStatus =
   | "HOLD"
   | "COMPLETED"
   | "BLOCKED";
-export type StepExecutionAction = "START" | "PAUSE" | "COMPLETE" | "HOLD";
+export type StepAction = "start" | "pause" | "complete";
 export type ProductionIndicatorType =
   | "DELAYED"
   | "WORKLOAD"
@@ -40,12 +40,6 @@ export type ProductionIndicatorType =
   | "INFO";
 export type ProductionIndicatorSeverity = "info" | "warning" | "critical";
 export type QualityResultStatus = "PASS" | "FAIL" | "HOLD";
-export type QualityChecklistItemDisposition =
-  | "PASS"
-  | "FAIL"
-  | "HOLD"
-  | "NOT_APPLICABLE";
-export type QualityChecklistItemInputType = "BOOLEAN" | "TEXT" | "NUMBER";
 
 export type WorkflowStepRequest = {
   name: string;
@@ -266,9 +260,18 @@ export type ProductionBoardQuery = {
   size?: number;
 };
 
-export type ProductionExecutionBoard = {
-  columns: ProductionBoardColumn[];
-  generatedAt?: string;
+// Flat card shape returned by GET /api/production/kanban (PageResponse<KanbanCard>).
+// The backend does not group cards into columns, so the frontend groups them
+// client-side and enriches them with data already loaded from the orders API.
+export type KanbanCard = {
+  orderId: string;
+  orderNumber: string;
+  status: OrderStatus;
+  plannedQuantity: number;
+  completedQuantity: number;
+  rejectedQuantity: number;
+  currentStepId?: string;
+  updatedAt?: string;
 };
 
 export type MaterialRequirement = {
@@ -282,143 +285,12 @@ export type MaterialRequirement = {
   shortage?: boolean;
 };
 
-export type MaterialLot = {
-  id: string;
-  inventoryItemId: string;
-  lotCode: string;
-  itemCode?: string;
-  itemName?: string;
-  availableQuantity: number;
-  reservedQuantity?: number;
-  unit: string;
-  expiryDate?: string;
-  receivedAt?: string;
-  supplierName?: string;
-};
-
-export type MaterialLotQuery = {
-  inventoryItemId: string;
-  stationId?: string;
-  search?: string;
-};
-
-export type MaterialLotConsumptionRequest = {
-  inventoryItemId: string;
-  lotId: string;
-  quantity: number;
-  unit?: string;
-  notes?: string;
-};
-
-export type QualityChecklistItemRequest = {
-  label: string;
-  description?: string;
-  sequenceNumber: number;
-  required?: boolean;
-  inputType?: QualityChecklistItemInputType;
-  targetValue?: string;
-};
-
-export type QualityChecklistItem = QualityChecklistItemRequest & {
-  id: string;
-};
-
-export type QualityChecklistTemplateRequest = {
-  name: string;
-  description?: string;
-  workflowStepCode?: string;
-  stationId?: string;
-  active?: boolean;
-  items: QualityChecklistItemRequest[];
-};
-
-export type QualityChecklistTemplate = Omit<
-  QualityChecklistTemplateRequest,
-  "items"
-> & {
-  id: string;
-  versionNumber?: number;
-  items: QualityChecklistItem[];
-};
-
-export type QualityChecklistResultItemRequest = {
-  checklistItemId?: string;
-  label: string;
-  disposition: QualityChecklistItemDisposition;
-  measuredValue?: string;
-  notes?: string;
-};
-
-export type QualityChecklistResultItem = QualityChecklistResultItemRequest & {
-  id?: string;
-};
-
-export type QualityChecklistResultRequest = {
-  templateId?: string;
-  overallStatus: QualityResultStatus;
-  notes?: string;
-  items: QualityChecklistResultItemRequest[];
-};
-
-export type QualityChecklistResult = QualityChecklistResultRequest & {
-  id: string;
-  orderId: string;
-  stepId: string;
-  createdAt: string;
-  actorUserId: string;
-};
-
-export type OrderExecutionStep = {
-  stepId: string;
-  stepName: string;
-  stepCode: string;
-  sequenceNumber: number;
-  status: StepExecutionStatus;
-  expectedVersion?: number;
-  startedAt?: string;
-  updatedAt?: string;
-  completedQuantity: number;
-  rejectedQuantity: number;
-  holdQuantity: number;
-  availableQuantity?: number;
-  inProgressQuantity?: number;
-  assignment?: ProductionAssignment;
-  indicators?: ProductionIndicator[];
-  requiredMaterials?: MaterialRequirement[];
-  latestQualityResult?: QualityChecklistResult;
-};
-
-export type OrderExecutionDetails = {
-  orderId: string;
-  orderVersion?: number;
-  executionVersion?: number;
-  activeStepId?: string;
-  orderIndicators?: ProductionIndicator[];
-  steps: OrderExecutionStep[];
-};
-
-export type StepExecutionRequest = {
-  action: StepExecutionAction;
-  completedQuantity?: number;
-  rejectedQuantity?: number;
-  holdQuantity?: number;
-  notes?: string;
-  expectedOrderVersion?: number;
-  expectedStepVersion?: number;
-  stationId?: string;
-  workstationId?: string;
-  assigneeLabel?: string;
-  materialLots?: MaterialLotConsumptionRequest[];
-  qualityResult?: QualityChecklistResultRequest;
-};
-
 export type ProductionExecutionConflict = {
   code?: string;
   message: string;
   currentOrderVersion?: number;
   currentStepVersion?: number;
   latestOrder?: ProductionOrder;
-  latestExecution?: OrderExecutionDetails;
 };
 
 export type Workstation = {
@@ -469,6 +341,10 @@ export type QualityTemplateCheckRequest = {
   required?: boolean;
 };
 
+export type QualityTemplateCheck = QualityTemplateCheckRequest & {
+  id: string;
+};
+
 export type QualityTemplateRequest = {
   code: string;
   name: string;
@@ -479,8 +355,9 @@ export type QualityTemplateRequest = {
   checks: QualityTemplateCheckRequest[];
 };
 
-export type QualityTemplate = QualityTemplateRequest & {
+export type QualityTemplate = Omit<QualityTemplateRequest, "checks"> & {
   id: string;
+  checks: QualityTemplateCheck[];
 };
 
 export type QualityResultRequest = {
@@ -510,13 +387,6 @@ export type MaterialConsumptionRequest = {
 export type MaterialConsumption = MaterialConsumptionRequest & {
   id: string;
   createdAt?: string;
-};
-
-export type StepExecutionResponse = {
-  order?: ProductionOrder;
-  execution?: OrderExecutionDetails;
-  conflict?: ProductionExecutionConflict;
-  message?: string;
 };
 
 export type ProductionAnalyticsFilters = {
