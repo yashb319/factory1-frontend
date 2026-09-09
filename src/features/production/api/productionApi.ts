@@ -1,7 +1,9 @@
 import { baseApi } from "@/services/baseApi";
 import type {
   ApiResponse, Bom, BomRequest, PageResponse, ProductionOrder, ProductionOrderRequest,
-  StepActionRequest, TimelineEvent, WorkflowRequest, WorkflowTemplate, WorkflowVersion,
+  ProductionAnalytics, ProductionAnalyticsFilters, ProductionNotificationPreferences,
+  ProductionOrderProgress, ProductionOrderProgressFilters, StepActionRequest, TimelineEvent,
+  WorkflowRequest, WorkflowTemplate, WorkflowVersion,
 } from "../types/production.types";
 
 export const productionApi = baseApi.injectEndpoints({
@@ -59,6 +61,22 @@ export const productionApi = baseApi.injectEndpoints({
     getTimeline: builder.query<TimelineEvent[], string>({
       query: (id) => `/api/production/orders/${id}/timeline`, providesTags: ["Production"],
     }),
+    getAnalytics: builder.query<ProductionAnalytics, ProductionAnalyticsFilters>({
+      query: (params) => ({ url: "/api/production/analytics", params }),
+      providesTags: ["Production"],
+    }),
+    getOrderProgress: builder.query<ProductionOrderProgress[], ProductionOrderProgressFilters>({
+      query: (params) => ({ url: "/api/production/orders/progress", params }),
+      providesTags: ["Production"],
+    }),
+    getNotificationPreferences: builder.query<ProductionNotificationPreferences, void>({
+      query: () => "/api/production/notification-preferences",
+      providesTags: ["Production"],
+    }),
+    updateNotificationPreferences: builder.mutation<ProductionNotificationPreferences, ProductionNotificationPreferences>({
+      query: (body) => ({ url: "/api/production/notification-preferences", method: "PUT", body }),
+      invalidatesTags: ["Production"],
+    }),
   }),
 });
 
@@ -67,5 +85,6 @@ export const {
   useCreateWorkflowDraftMutation, usePublishWorkflowMutation, useGetBomsQuery,
   useCreateBomMutation, useUpdateBomMutation, usePublishBomMutation, useGetOrdersQuery,
   useGetOrderQuery, useCreateOrderMutation, useCancelOrderMutation, useStepActionMutation,
-  useGetTimelineQuery,
+  useGetTimelineQuery, useGetAnalyticsQuery, useGetOrderProgressQuery,
+  useGetNotificationPreferencesQuery, useUpdateNotificationPreferencesMutation,
 } = productionApi;
