@@ -1,6 +1,7 @@
 export type UserRole =
   | "OWNER"
   | "ADMIN"
+  | "EMPLOYEE"
   | "FINANCE"
   | "MANAGEMENT"
   | "SAAS_OWNER";

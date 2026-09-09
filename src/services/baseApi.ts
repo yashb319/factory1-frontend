@@ -81,6 +81,7 @@ export const baseApi = createApi({
     "OrganizationSettings",
     "Employee",
     "Attendance",
+    "Leave",
     "Payroll",
     "Inventory",
     "StockMovement",

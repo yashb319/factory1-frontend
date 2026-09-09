@@ -11,6 +11,7 @@ import {
   UserRound,
   Bot,
   Settings,
+  CalendarDays,
   FileSpreadsheet,
   PackageCheck,
   ShieldCheck,
@@ -30,7 +31,7 @@ type NavigationItem = {
   platformAdminOnly?: boolean;
 };
 
-const allRoles: UserRole[] = ["OWNER", "ADMIN", "FINANCE", "MANAGEMENT"];
+const allRoles: UserRole[] = ["OWNER", "ADMIN", "EMPLOYEE", "FINANCE", "MANAGEMENT"];
 const operationsRoles: UserRole[] = ["OWNER", "ADMIN", "MANAGEMENT"];
 const financeRoles: UserRole[] = ["OWNER", "ADMIN", "FINANCE"];
 
@@ -38,6 +39,7 @@ export const navigationItems: NavigationItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: allRoles, module: "dashboard" },
   { title: "Employees", href: "/employees", icon: Users, roles: operationsRoles, module: "employees" },
   { title: "Attendance", href: "/attendance", icon: CalendarCheck, roles: operationsRoles, module: "attendance" },
+  { title: "Leave", href: "/leave", icon: CalendarDays, roles: allRoles, module: "attendance" },
   { title: "Payroll", href: "/payroll", icon: Wallet, roles: financeRoles, module: "payroll" },
   { title: "Inventory", href: "/inventory", icon: Package, roles: operationsRoles, module: "inventory" },
   {
