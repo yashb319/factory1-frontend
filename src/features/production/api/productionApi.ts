@@ -3,15 +3,12 @@ import type {
   ApiResponse,
   Bom,
   BomRequest,
-  MaterialLot,
-  MaterialLotQuery,
-  OrderExecutionDetails,
+  KanbanCard,
   PageResponse,
   ProductionAnalytics,
   ProductionAnalyticsFilters,
   ProductionBoardQuery,
   ProductionDashboard,
-  ProductionExecutionBoard,
   ProductionNotificationPreferences,
   ProductionOrder,
   ProductionOrderProgress,
@@ -30,13 +27,7 @@ import type {
   QualityResultRequest,
   MaterialConsumption,
   MaterialConsumptionRequest,
-  QualityChecklistResult,
-  QualityChecklistResultRequest,
-  QualityChecklistTemplate,
-  QualityChecklistTemplateRequest,
   StepActionRequest,
-  StepExecutionRequest,
-  StepExecutionResponse,
   TimelineEvent,
   WorkflowRequest,
   WorkflowTemplate,
@@ -226,93 +217,32 @@ export const productionApi = baseApi.injectEndpoints({
       providesTags: ["Production"],
     }),
 
-    getOrderExecution: builder.query<OrderExecutionDetails, string>({
-      query: (orderId) => `/api/production/orders/${orderId}/execution`,
-      transformResponse: (response: ApiResponse<OrderExecutionDetails> | OrderExecutionDetails) => unwrapData(response),
+    getQualityCheckTemplates: builder.query<
+      PageResponse<QualityTemplate>,
+      { page?: number; size?: number }
+    >({
+      query: ({ page = 0, size = 100 } = {}) => ({
+        url: "/api/production/quality-check-templates",
+        params: { page, size },
+      }),
+      transformResponse: (response: ApiResponse<PageResponse<QualityTemplate>> | PageResponse<QualityTemplate>) => unwrapData(response),
       providesTags: ["Production"],
     }),
 
-    executeStep: builder.mutation<
-      StepExecutionResponse,
-      { orderId: string; stepId: string; body: StepExecutionRequest }
-    >({
-      query: ({ orderId, stepId, body }) => ({
-        url: `/api/production/orders/${orderId}/steps/${stepId}/execution`,
-        method: "POST",
-        body,
-      }),
-      transformResponse: (response: ApiResponse<StepExecutionResponse> | StepExecutionResponse) => unwrapData(response),
-      invalidatesTags: ["Production"],
-    }),
-
-    getQualityTemplates: builder.query<
-      QualityChecklistTemplate[],
-      { stationId?: string; workflowStepCode?: string }
-    >({
-      query: (params) => ({
-        url: "/api/production/quality/templates",
-        params: cleanParams(params),
-      }),
-      transformResponse: (response: ApiResponse<QualityChecklistTemplate[]> | QualityChecklistTemplate[]) => unwrapData(response),
+    getQualityCheckTemplate: builder.query<QualityTemplate, string>({
+      query: (id) => `/api/production/quality-check-templates/${id}`,
+      transformResponse: (response: ApiResponse<QualityTemplate> | QualityTemplate) => unwrapData(response),
       providesTags: ["Production"],
     }),
 
-    createQualityTemplate: builder.mutation<
-      QualityChecklistTemplate,
-      QualityChecklistTemplateRequest
-    >({
+    createQualityCheckTemplate: builder.mutation<QualityTemplate, QualityTemplateRequest>({
       query: (body) => ({
-        url: "/api/production/quality/templates",
+        url: "/api/production/quality-check-templates",
         method: "POST",
         body,
       }),
-      transformResponse: (response: ApiResponse<QualityChecklistTemplate> | QualityChecklistTemplate) => unwrapData(response),
+      transformResponse: (response: ApiResponse<QualityTemplate> | QualityTemplate) => unwrapData(response),
       invalidatesTags: ["Production"],
-    }),
-
-    updateQualityTemplate: builder.mutation<
-      QualityChecklistTemplate,
-      { id: string; body: QualityChecklistTemplateRequest }
-    >({
-      query: ({ id, body }) => ({
-        url: `/api/production/quality/templates/${id}`,
-        method: "PUT",
-        body,
-      }),
-      transformResponse: (response: ApiResponse<QualityChecklistTemplate> | QualityChecklistTemplate) => unwrapData(response),
-      invalidatesTags: ["Production"],
-    }),
-
-    getQualityResults: builder.query<
-      QualityChecklistResult[],
-      { orderId: string; stepId: string }
-    >({
-      query: ({ orderId, stepId }) =>
-        `/api/production/orders/${orderId}/steps/${stepId}/quality-results`,
-      transformResponse: (response: ApiResponse<QualityChecklistResult[]> | QualityChecklistResult[]) => unwrapData(response),
-      providesTags: ["Production"],
-    }),
-
-    recordQualityResult: builder.mutation<
-      QualityChecklistResult,
-      { orderId: string; stepId: string; body: QualityChecklistResultRequest }
-    >({
-      query: ({ orderId, stepId, body }) => ({
-        url: `/api/production/orders/${orderId}/steps/${stepId}/quality-results`,
-        method: "POST",
-        body,
-      }),
-      transformResponse: (response: ApiResponse<QualityChecklistResult> | QualityChecklistResult) => unwrapData(response),
-      invalidatesTags: ["Production"],
-    }),
-
-    getMaterialLots: builder.query<MaterialLot[], MaterialLotQuery>({
-      query: (params) => ({
-        url: "/api/production/material-lots",
-        params: cleanParams(params),
-      }),
-      transformResponse: (response: ApiResponse<MaterialLot[]> | MaterialLot[]) => unwrapData(response),
-      providesTags: ["Production"],
     }),
 
     getWorkstations: builder.query<PageResponse<Workstation>, { page?: number; size?: number }>({
@@ -376,31 +306,13 @@ export const productionApi = baseApi.injectEndpoints({
       providesTags: ["Production"],
     }),
 
-    getQualityTemplatePage: builder.query<PageResponse<QualityTemplate>, { page?: number; size?: number }>({
-      query: ({ page = 0, size = 50 }) => ({ url: "/api/production/quality-templates", params: { page, size } }),
-      transformResponse: (response: ApiResponse<PageResponse<QualityTemplate>> | PageResponse<QualityTemplate>) => unwrapData(response),
-      providesTags: ["Production"],
-    }),
-
-    getQualityTemplate: builder.query<QualityTemplate, string>({
-      query: (id) => `/api/production/quality-templates/${id}`,
-      transformResponse: (response: ApiResponse<QualityTemplate> | QualityTemplate) => unwrapData(response),
-      providesTags: ["Production"],
-    }),
-
-    createQualityTemplateRecord: builder.mutation<QualityTemplate, QualityTemplateRequest>({
-      query: (body) => ({ url: "/api/production/quality-templates", method: "POST", body }),
-      transformResponse: (response: ApiResponse<QualityTemplate> | QualityTemplate) => unwrapData(response),
-      invalidatesTags: ["Production"],
-    }),
-
     createQualityResult: builder.mutation<QualityResult, { orderId: string; body: QualityResultRequest }>({
       query: ({ orderId, body }) => ({ url: `/api/production/orders/${orderId}/quality-results`, method: "POST", body }),
       transformResponse: (response: ApiResponse<QualityResult> | QualityResult) => unwrapData(response),
       invalidatesTags: ["Production"],
     }),
 
-    getQualityResultPage: builder.query<QualityResult[], { orderId: string; stepId?: string }>({
+    getQualityResults: builder.query<QualityResult[], { orderId: string; stepId?: string }>({
       query: ({ orderId, stepId }) => ({ url: `/api/production/orders/${orderId}/quality-results`, params: cleanParams({ stepId }) }),
       transformResponse: (response: ApiResponse<QualityResult[]> | QualityResult[]) => unwrapData(response),
       providesTags: ["Production"],
@@ -418,9 +330,9 @@ export const productionApi = baseApi.injectEndpoints({
       providesTags: ["Production", "Inventory"],
     }),
 
-    getProductionKanban: builder.query<ProductionExecutionBoard, ProductionBoardQuery>({
+    getProductionKanban: builder.query<PageResponse<KanbanCard>, ProductionBoardQuery>({
       query: (params) => ({ url: "/api/production/kanban", params: cleanParams(params) }),
-      transformResponse: (response: ApiResponse<ProductionExecutionBoard> | ProductionExecutionBoard) => unwrapData(response),
+      transformResponse: (response: ApiResponse<PageResponse<KanbanCard>> | PageResponse<KanbanCard>) => unwrapData(response),
       providesTags: ["Production"],
     }),
     getAnalytics: builder.query<ProductionAnalytics, ProductionAnalyticsFilters>({
@@ -460,14 +372,9 @@ export const {
   useGetTimelineQuery,
   useGetProductionDashboardQuery,
   useGetDashboardStationsQuery,
-  useGetOrderExecutionQuery,
-  useExecuteStepMutation,
-  useGetQualityTemplatesQuery,
-  useCreateQualityTemplateMutation,
-  useUpdateQualityTemplateMutation,
-  useGetQualityResultsQuery,
-  useRecordQualityResultMutation,
-  useGetMaterialLotsQuery,
+  useGetQualityCheckTemplatesQuery,
+  useGetQualityCheckTemplateQuery,
+  useCreateQualityCheckTemplateMutation,
   useGetWorkstationsQuery,
   useCreateWorkstationRecordMutation,
   useUpdateWorkstationRecordMutation,
@@ -478,11 +385,8 @@ export const {
   useGetOrderAssignmentsQuery,
   useCreateExecutionBatchMutation,
   useGetExecutionBatchesQuery,
-  useGetQualityTemplatePageQuery,
-  useGetQualityTemplateQuery,
-  useCreateQualityTemplateRecordMutation,
   useCreateQualityResultMutation,
-  useGetQualityResultPageQuery,
+  useGetQualityResultsQuery,
   useCreateMaterialConsumptionMutation,
   useGetMaterialConsumptionsQuery,
   useGetProductionKanbanQuery,
