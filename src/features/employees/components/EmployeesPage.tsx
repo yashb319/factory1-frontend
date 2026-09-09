@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Upload } from "lucide-react";
+import { toast } from "sonner";
+import { Mail, Plus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useGetEmployeesQuery, useDeleteEmployeeMutation } from "../api/employeeApi";
+import {
+  useGetEmployeesQuery,
+  useInviteEmployeesMutation,
+} from "../api/employeeApi";
 import { useEmployeeFilters } from "../hooks/useEmployeeFilters";
-import { Employee, EmployeeType, SalaryType, EmployeeStatus } from "../types/employee.types";
+import { Employee } from "../types/employee.types";
 import { EmployeeFilters } from "./EmployeeFilters";
 import { EmployeeExportMenu } from "./EmployeeExportMenu";
 import { EmployeeTable } from "./EmployeeTable";
@@ -19,13 +23,31 @@ export function EmployeesPage() {
   const { filters, updateFilters } = useEmployeeFilters();
 
   const { data, isLoading, isFetching } = useGetEmployeesQuery(filters);
-  const [deleteEmployee, deleteEmployeeState] = useDeleteEmployeeMutation();
+  const [inviteEmployees, inviteState] = useInviteEmployeesMutation();
 
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [detailsEmployee, setDetailsEmployee] = useState<Employee | null>(null);
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
+  const [selectedInvitationIds, setSelectedInvitationIds] = useState<string[]>([]);
+
+  function toggleInvitation(id: string) {
+    setSelectedInvitationIds((current) =>
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id]
+    );
+  }
+
+  async function sendInvitations() {
+    if (!selectedInvitationIds.length) return;
+    try {
+      const result = await inviteEmployees({ employeeIds: selectedInvitationIds }).unwrap();
+      toast.success(`Invitations sent${result.invited !== undefined ? `: ${result.invited}` : ""}.`);
+      setSelectedInvitationIds([]);
+    } catch {
+      toast.error("Could not send employee invitations.");
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -43,6 +65,15 @@ export function EmployeesPage() {
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="mr-2 h-4 w-4" />
             Import
+          </Button>
+
+          <Button
+            variant="outline"
+            disabled={!selectedInvitationIds.length || inviteState.isLoading}
+            onClick={sendInvitations}
+          >
+            <Mail className="mr-2 h-4 w-4" />
+            {inviteState.isLoading ? "Sending…" : `Invite selected${selectedInvitationIds.length ? ` (${selectedInvitationIds.length})` : ""}`}
           </Button>
 
           <Button onClick={() => setAddOpen(true)}>
@@ -69,6 +100,8 @@ export function EmployeesPage() {
                 : "asc",
           })
         }
+        selectedIds={selectedInvitationIds}
+        onToggleSelected={toggleInvitation}
       />
 
       {data && (

@@ -28,6 +28,10 @@ import {
 } from "@/components/file-upload/FileValidationTable";
 import { useRouter } from "next/navigation";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
+import {
+  useImportEmployeesMutation,
+  usePreviewEmployeeImportMutation,
+} from "../api/employeeApi";
 
 interface Props {
   open: boolean;
@@ -214,6 +218,13 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   const [fileName, setFileName] = useState("");
   const [rawRows, setRawRows] = useState<ImportRow[]>([]);
   const [mapping, setMapping] = useState<ColumnMappingValue>({});
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [backendPreview, setBackendPreview] = useState<{
+    validRows?: number;
+    invalidRows?: number;
+  } | null>(null);
+  const [previewEmployeeImport] = usePreviewEmployeeImportMutation();
+  const [importEmployees, importState] = useImportEmployeesMutation();
 
   const router = useRouter();
   const logDataJob = useLogDataJob();
@@ -248,7 +259,19 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     };
   }, [validationRows, mapping]);
 
-  function handleStartImport() {
+  async function handleStartImport() {
+    if (!selectedFile) return;
+
+    try {
+      const result = await importEmployees(selectedFile).unwrap();
+      toast.success(
+        `Import complete${result.created !== undefined ? `: ${result.created} created` : ""}${result.updated !== undefined ? `, ${result.updated} updated` : ""}.`
+      );
+    } catch {
+      toast.error("Employee import failed. Review the file and try again.");
+      return;
+    }
+
     const report = toEmployeeReportParams(validationRows);
 
     void logDataJob({
@@ -267,7 +290,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
         validRows: report.validRows,
         errorRows: report.errorRows,
       },
-      notes: "Client-side import validation completed. Backend bulk import integration pending.",
+      notes: "Employee import completed after client and server-side preview validation.",
     });
     toast.success("Import job started. Track progress in Import / Export History.");
 
@@ -279,6 +302,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   async function handleFileSelect(file: File) {
     try {
       setFileName(file.name);
+      setSelectedFile(file);
 
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
@@ -300,12 +324,20 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       setRawRows(parsedRows);
       setMapping(autoMapColumns(columns));
 
+      const preview = await previewEmployeeImport(file).unwrap();
+      setBackendPreview({
+        validRows: preview.validRows,
+        invalidRows: preview.invalidRows,
+      });
+
       toast.success("File parsed successfully");
     } catch {
       toast.error("Failed to parse file");
       setRawRows([]);
       setFileName("");
       setMapping({});
+      setSelectedFile(null);
+      setBackendPreview(null);
     }
   }
 
@@ -313,6 +345,8 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     setRawRows([]);
     setFileName("");
     setMapping({});
+    setSelectedFile(null);
+    setBackendPreview(null);
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -347,6 +381,9 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                       <p className="font-medium">{fileName}</p>
                       <p className="text-sm text-muted-foreground">
                         {rawRows.length} rows detected
+                        {backendPreview?.invalidRows !== undefined
+                          ? ` · ${backendPreview.invalidRows} server validation errors`
+                          : ""}
                       </p>
                     </div>
                   </div>
@@ -424,7 +461,8 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                     }
                     onClick={handleStartImport}
                   >
-                    Start Import {importableRows.length > 0 ? `(${importableRows.length})` : ""}
+                    {importState.isLoading ? "Importing…" : "Confirm Import"}{" "}
+                    {importableRows.length > 0 ? `(${importableRows.length})` : ""}
                   </Button>
                 </div>
               </>

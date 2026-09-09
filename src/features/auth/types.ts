@@ -3,6 +3,7 @@ export type UserRole =
   | "ADMIN"
   | "FINANCE"
   | "MANAGEMENT"
+  | "EMPLOYEE"
   | "SAAS_OWNER";
 export type UserStatus = "ACTIVE" | "INACTIVE";
 export type OrganizationStatus =
@@ -70,6 +71,11 @@ export type ForgotPasswordOtpRequest = {
 export type ResetPasswordRequest = {
   email: string;
   otp: string;
+  password: string;
+};
+
+export type ActivateEmployeeRequest = {
+  token: string;
   password: string;
 };
 

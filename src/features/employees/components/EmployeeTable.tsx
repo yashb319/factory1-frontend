@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Employee } from "../types/employee.types";
 
 interface Props {
@@ -41,6 +42,8 @@ interface Props {
   onEdit: (employee: Employee) => void;
   onDelete: (employee: Employee) => void;
   onSort: (field: string) => void;
+  selectedIds: string[];
+  onToggleSelected: (id: string) => void;
 }
 
 export function EmployeeTable({
@@ -50,6 +53,8 @@ export function EmployeeTable({
   onEdit,
   onDelete,
   onSort,
+  selectedIds,
+  onToggleSelected,
 }: Props) {
   const [qrEmployee, setQrEmployee] = useState<Employee | null>(null);
   const qrPayload = useMemo(() => {
@@ -70,6 +75,9 @@ export function EmployeeTable({
         <Table className="responsive-table">
           <TableHeader>
             <TableRow>
+              <TableHead>
+                <span className="sr-only">Select</span>
+              </TableHead>
               <TableHead>
                 <Button variant="ghost" size="sm" onClick={() => onSort("employeeCode")}>
                   Code <ArrowUpDown className="ml-2 h-3 w-3" />
@@ -95,7 +103,7 @@ export function EmployeeTable({
             {loading &&
               Array.from({ length: 5 }).map((_, index) => (
                 <TableRow key={index}>
-                  <TableCell colSpan={8}>
+                  <TableCell colSpan={9}>
                     <div className="h-8 animate-pulse rounded-md bg-muted" />
                   </TableCell>
                 </TableRow>
@@ -103,7 +111,7 @@ export function EmployeeTable({
 
             {!loading && employees.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
                   No employees found.
                 </TableCell>
               </TableRow>
@@ -112,6 +120,15 @@ export function EmployeeTable({
             {!loading &&
               employees.map((employee) => (
                 <TableRow key={employee.id}>
+                  <TableCell data-label="Select">
+                    {!employee.accountActivated && employee.email ? (
+                      <Checkbox
+                        checked={selectedIds.includes(employee.id)}
+                        onCheckedChange={() => onToggleSelected(employee.id)}
+                        aria-label={`Select ${employee.name} for invitation`}
+                      />
+                    ) : null}
+                  </TableCell>
                   <TableCell className="font-medium" data-label="Code">
                     {employee.employeeCode}
                   </TableCell>

@@ -9,6 +9,7 @@ import {
   Landmark,
   Truck,
   UserRound,
+  User,
   Bot,
   Settings,
   FileSpreadsheet,
@@ -33,6 +34,7 @@ type NavigationItem = {
 const allRoles: UserRole[] = ["OWNER", "ADMIN", "FINANCE", "MANAGEMENT"];
 const operationsRoles: UserRole[] = ["OWNER", "ADMIN", "MANAGEMENT"];
 const financeRoles: UserRole[] = ["OWNER", "ADMIN", "FINANCE"];
+const employeeRoles: UserRole[] = ["EMPLOYEE"];
 
 export const navigationItems: NavigationItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: allRoles, module: "dashboard" },
@@ -51,6 +53,8 @@ export const navigationItems: NavigationItem[] = [
   { title: "Accounting", href: "/accounting", icon: Landmark, roles: financeRoles, module: "finance" },
   { title: "Suppliers", href: "/suppliers", icon: Truck, roles: operationsRoles, module: "suppliers" },
   { title: "Customers", href: "/customers", icon: UserRound, roles: financeRoles, module: "customers" },
+  { title: "My Leave", href: "/leave", icon: CalendarCheck, roles: employeeRoles, module: "attendance" },
+  { title: "My Profile", href: "/profile", icon: User, roles: employeeRoles, module: "organization" },
   {
     title: "Import / Export",
     href: "/import-export",
