@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppSelector } from "@/lib/hook";
+import { cn } from "@/lib/utils";
 import {
   useApproveLeaveRequestMutation,
   useCancelLeaveRequestMutation,
@@ -43,6 +44,8 @@ import {
   useUpdateLeaveTypeMutation,
 } from "../api/leaveApi";
 import type {
+  HolidayResponse,
+  LeaveCalendarEntry,
   LeaveRequestResponse,
   LeaveRequestStatus,
   LeaveTypeRequest,
@@ -70,6 +73,10 @@ export function LeavePage() {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [decision, setDecision] = useState<{ request: LeaveRequestResponse; action: "approve" | "reject" } | null>(null);
   const [holidayForm, setHolidayForm] = useState({ holidayDate: "", name: "", paid: true });
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(currentYear, new Date().getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [rangeStart, setRangeStart] = useState<string | null>(null);
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null);
 
   const { data: balances = [], isLoading: balancesLoading } = useGetLeaveBalancesQuery(year);
   const { data: activeTypes = [], isLoading: typesLoading } = useGetLeaveTypesQuery({ activeOnly: true });
@@ -83,7 +90,9 @@ export function LeavePage() {
   );
   const yearFrom = `${year}-01-01`;
   const yearTo = `${year}-12-31`;
-  const { data: calendar = [], isLoading: calendarLoading, isError: calendarError } = useGetLeaveCalendarQuery({ from: yearFrom, to: yearTo });
+  const monthFrom = toIsoDate(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1));
+  const monthTo = toIsoDate(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0));
+  const { data: calendar = [], isLoading: calendarLoading, isError: calendarError } = useGetLeaveCalendarQuery({ from: monthFrom, to: monthTo });
   const { data: holidays = [], isLoading: holidaysLoading, isError: holidaysError } = useGetHolidaysQuery({ from: yearFrom, to: yearTo });
   const { data: selectedRequest, isFetching: requestLoading } = useGetLeaveRequestQuery(
     selectedRequestId ?? "",
@@ -178,17 +187,34 @@ export function LeavePage() {
 
       <section className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
         <Card>
-          <CardHeader>
-            <CardTitle>Leave calendar</CardTitle>
-            <CardDescription>Approved leave and organization holidays for {year}.</CardDescription>
+          <CardHeader className="gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div><CardTitle>Leave calendar</CardTitle><CardDescription>Select a day to inspect leave or start a date range.</CardDescription></div>
+              <div className="flex items-center gap-1">
+                <Button size="icon-sm" variant="outline" aria-label="Previous month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}><ChevronLeft /></Button>
+                <Button variant="outline" className="min-w-28" onClick={() => setCalendarMonth(new Date())}>{calendarMonth.toLocaleDateString(undefined, { month: "short", year: "numeric" })}</Button>
+                <Button size="icon-sm" variant="outline" aria-label="Next month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}><ChevronRight /></Button>
+                <Button size="sm" className="ml-1" onClick={() => setApplyOpen(true)}><Plus className="mr-1 h-3.5 w-3.5" />Apply</Button>
+              </div>
+            </div>
+            <CalendarLegend />
           </CardHeader>
           <CardContent className="p-0">
-            {calendarError ? <ErrorBlock message="Unable to load the leave calendar." /> : calendarLoading ? <LoadingBlock /> : calendar.length ? (
-              <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Event</TableHead><TableHead>Type</TableHead><TableHead>Paid</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{calendar.map((entry, index) => <TableRow key={`${entry.date}-${entry.employeeId ?? "org"}-${index}`}><TableCell>{formatDate(entry.date)}</TableCell><TableCell className="font-medium">{entry.label}</TableCell><TableCell>{entry.kind}</TableCell><TableCell>{entry.paid ? "Yes" : "No"}</TableCell><TableCell>{entry.status ?? "Published"}</TableCell></TableRow>)}</TableBody></Table></div>
-            ) : <EmptyState icon={CalendarDays} title="No calendar events" description="Approved leave and holidays will appear here." />}
+            {calendarError ? <ErrorBlock message="Unable to load the leave calendar." /> : calendarLoading ? <LoadingBlock /> : (
+              <MonthCalendar month={calendarMonth} entries={calendar} holidays={holidays} selectedDate={selectedDate} rangeStart={rangeStart} rangeEnd={rangeEnd} onSelect={(date) => {
+                setSelectedDate(date);
+                if (!rangeStart || rangeEnd) { setRangeStart(date); setRangeEnd(null); }
+                else if (date < rangeStart) { setRangeStart(date); setRangeEnd(rangeStart); }
+                else setRangeEnd(date);
+              }} />
+            )}
           </CardContent>
         </Card>
         <Card>
+          <CardHeader><CardTitle>{selectedDate ? formatDate(selectedDate) : "Select a day"}</CardTitle><CardDescription>{selectedDate ? "Leave and holiday details for this date." : "Choose a date on the calendar to see what is scheduled."}</CardDescription></CardHeader>
+          <CardContent><DayDetails date={selectedDate} entries={calendar} holidays={holidays} onApply={() => setApplyOpen(true)} /></CardContent>
+        </Card>
+        <Card className="xl:col-span-2">
           <CardHeader><CardTitle>Organization holidays</CardTitle><CardDescription>Configure paid and unpaid holidays used by attendance.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
             {holidaysError ? <ErrorBlock message="Unable to load organization holidays." /> : holidaysLoading ? <LoadingBlock /> : holidays.length ? <div className="space-y-2">{holidays.map((holiday) => <div key={holiday.id} className="flex items-center justify-between gap-2 rounded-md border p-2"><div><p className="font-medium">{holiday.name}</p><p className="text-xs text-slate-500">{formatDate(holiday.holidayDate)} · {holiday.paid ? "Paid" : "Unpaid"}</p></div><Button size="icon-sm" variant="ghost" aria-label={`Delete ${holiday.name}`} onClick={() => void handleDeleteHoliday(holiday.id)}><Trash2 className="h-4 w-4 text-red-600" /></Button></div>)}</div> : <EmptyState icon={CalendarDays} title="No holidays configured" description="Add your organization's holidays below." />}
@@ -240,7 +266,7 @@ export function LeavePage() {
         </>
       ) : null}
 
-      <ApplyLeaveDialog open={applyOpen} onOpenChange={setApplyOpen} types={activeTypes} loading={submittingRequest} onSubmit={async (body) => {
+      <ApplyLeaveDialog key={`${rangeStart ?? ""}-${rangeEnd ?? ""}-${applyOpen}`} open={applyOpen} onOpenChange={setApplyOpen} types={activeTypes} loading={submittingRequest} initialStartDate={rangeStart ?? selectedDate ?? ""} initialEndDate={rangeEnd ?? rangeStart ?? selectedDate ?? ""} onSubmit={async (body) => {
         try {
           await createRequest(body).unwrap();
           toast.success("Leave request submitted");
@@ -254,6 +280,38 @@ export function LeavePage() {
       <DecisionDialog key={decision ? `${decision.request.id}-${decision.action}` : "closed"} decision={decision} loading={approving || rejecting} onOpenChange={(open) => { if (!open) setDecision(null); }} onSubmit={handleDecision} />
     </div>
   );
+}
+
+function CalendarLegend() {
+  return <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500"><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500" />Approved paid</span><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-violet-500" />Approved unpaid</span><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-500" />Holiday</span><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-sky-500" />Pending</span></div>;
+}
+
+function MonthCalendar({ month, entries, holidays, selectedDate, rangeStart, rangeEnd, onSelect }: { month: Date; entries: LeaveCalendarEntry[]; holidays: HolidayResponse[]; selectedDate: string | null; rangeStart: string | null; rangeEnd: string | null; onSelect: (date: string) => void }) {
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const days = Array.from({ length: 42 }, (_, index) => new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay() + index));
+  const entryByDate = new Map<string, LeaveCalendarEntry[]>();
+  entries.forEach((entry) => entryByDate.set(normalizeDate(entry.date), [...(entryByDate.get(normalizeDate(entry.date)) ?? []), entry]));
+  const holidayByDate = new Map(holidays.map((holiday) => [normalizeDate(holiday.holidayDate), holiday]));
+  return <div className="overflow-x-auto"><div className="min-w-[620px]"><div className="grid grid-cols-7 border-b bg-slate-50">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <div key={day} className="px-2 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{day}</div>)}</div><div className="grid grid-cols-7">{days.map((day) => {
+    const date = toIsoDate(day);
+    const dayEntries = entryByDate.get(date) ?? [];
+    const holiday = holidayByDate.get(date);
+    const inMonth = day.getMonth() === month.getMonth();
+    const inRange = Boolean(rangeStart && date >= rangeStart && (!rangeEnd || date <= rangeEnd));
+    const hasPending = dayEntries.some((entry) => entry.status === "PENDING");
+    return <button type="button" key={date} aria-label={`${formatDate(date)}${holiday ? `, ${holiday.name}` : ""}`} aria-pressed={selectedDate === date} onClick={() => onSelect(date)} className={cn("relative min-h-24 border-b border-r p-2 text-left align-top transition-colors hover:bg-slate-50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--factory1-primary)]", !inMonth && "bg-slate-50/70 text-slate-400", inRange && "bg-blue-50", selectedDate === date && "ring-2 ring-inset ring-[var(--factory1-primary)]")}>
+      <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-full text-xs font-semibold", date === toIsoDate(new Date()) && "bg-slate-900 text-white")}>{day.getDate()}</span>
+      <div className="mt-1 space-y-1">{holiday ? <span className="block truncate rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">{holiday.name}</span> : null}{dayEntries.slice(0, 2).map((entry, index) => <span key={`${entry.kind}-${index}`} className={cn("block truncate rounded px-1.5 py-0.5 text-[10px] font-medium", entry.status === "PENDING" || hasPending ? "bg-sky-50 text-sky-700" : entry.paid ? "bg-emerald-50 text-emerald-700" : "bg-violet-50 text-violet-700")}>{entry.label}</span>)}{dayEntries.length > 2 ? <span className="block text-[10px] text-slate-500">+{dayEntries.length - 2} more</span> : null}</div>
+    </button>;
+  })}</div></div></div>;
+}
+
+function DayDetails({ date, entries, holidays, onApply }: { date: string | null; entries: LeaveCalendarEntry[]; holidays: HolidayResponse[]; onApply: () => void }) {
+  if (!date) return <p className="text-sm text-slate-500">Select a day to see leave status, holiday information, and request options.</p>;
+  const dayEntries = entries.filter((entry) => normalizeDate(entry.date) === date);
+  const holiday = holidays.find((item) => normalizeDate(item.holidayDate) === date);
+  if (!dayEntries.length && !holiday) return <div className="space-y-3"><p className="text-sm text-slate-500">This day is available for a leave request.</p><Button size="sm" onClick={onApply}><Plus className="mr-1 h-3.5 w-3.5" />Request this day</Button></div>;
+  return <div className="space-y-3">{holiday ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="font-medium text-amber-900">{holiday.name}</p><p className="mt-1 text-xs text-amber-800">{holiday.paid ? "Paid holiday" : "Unpaid holiday"}</p></div> : null}{dayEntries.map((entry, index) => <div key={`${entry.date}-${index}`} className="rounded-lg border p-3"><div className="flex items-center justify-between gap-2"><p className="font-medium text-slate-900">{entry.label}</p><Badge variant={entry.status === "PENDING" ? "secondary" : entry.status === "REJECTED" ? "destructive" : "default"}>{entry.status ?? "APPROVED"}</Badge></div><p className="mt-1 text-xs text-slate-500">{entry.paid ? "Paid leave" : "Unpaid leave"} · {entry.kind}</p></div>)}</div>;
 }
 
 function RequestTable({ requests, loading, canDecide, onView, onCancel, onDecide }: {
@@ -297,10 +355,10 @@ function TypeTable({ types, loading, onEdit }: { types: LeaveTypeResponse[]; loa
   return <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Type</TableHead><TableHead>Allocation</TableHead><TableHead>Carry forward</TableHead><TableHead>Expiry</TableHead><TableHead>Paid</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>{types.map((type) => <TableRow key={type.id}><TableCell><span className="font-medium">{type.name}</span><span className="block text-xs text-slate-500">{type.code}</span></TableCell><TableCell>{formatDays(type.allocationDays)} / {type.allocationPeriod.toLowerCase()}</TableCell><TableCell>{type.carryForward ? `Up to ${formatDays(type.maxCarryForwardDays)}` : "No"}</TableCell><TableCell>{type.expiryMonths ? `${type.expiryMonths} months` : "No expiry"}</TableCell><TableCell>{type.paid ? "Yes" : "No"}</TableCell><TableCell><Badge variant={type.active ? "default" : "outline"}>{type.active ? "Active" : "Inactive"}</Badge></TableCell><TableCell className="text-right"><Button size="sm" variant="outline" onClick={() => onEdit(type)}>Edit</Button></TableCell></TableRow>)}</TableBody></Table></div>;
 }
 
-function ApplyLeaveDialog({ open, onOpenChange, types, loading, onSubmit }: { open: boolean; onOpenChange: (open: boolean) => void; types: LeaveTypeResponse[]; loading: boolean; onSubmit: (body: { leaveTypeId: string; startDate: string; endDate: string; reason: string }) => Promise<void> }) {
+function ApplyLeaveDialog({ open, onOpenChange, types, loading, initialStartDate, initialEndDate, onSubmit }: { open: boolean; onOpenChange: (open: boolean) => void; types: LeaveTypeResponse[]; loading: boolean; initialStartDate: string; initialEndDate: string; onSubmit: (body: { leaveTypeId: string; startDate: string; endDate: string; reason: string }) => Promise<void> }) {
   const [leaveTypeId, setLeaveTypeId] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(initialStartDate);
+  const [endDate, setEndDate] = useState(initialEndDate);
   const [reason, setReason] = useState("");
   const valid = Boolean(leaveTypeId && startDate && endDate && startDate <= endDate && reason.trim());
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Apply for leave</DialogTitle><DialogDescription>Submit your request for manager approval.</DialogDescription></DialogHeader><form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (valid) void onSubmit({ leaveTypeId, startDate, endDate, reason: reason.trim() }); }}><FieldLabel label="Leave type"><Select value={leaveTypeId} onValueChange={setLeaveTypeId}><SelectTrigger className="w-full"><SelectValue placeholder="Select leave type" /></SelectTrigger><SelectContent>{types.map((type) => <SelectItem key={type.id} value={type.id}>{type.name} ({type.code})</SelectItem>)}</SelectContent></Select></FieldLabel><div className="grid gap-3 sm:grid-cols-2"><FieldLabel label="Start date"><Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></FieldLabel><FieldLabel label="End date"><Input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} /></FieldLabel></div><FieldLabel label="Reason"><Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Add context for the approver" /></FieldLabel><DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Close</Button><Button disabled={!valid || loading} type="submit">{loading ? "Submitting..." : "Submit request"}</Button></DialogFooter></form></DialogContent></Dialog>;
@@ -352,4 +410,6 @@ function LoadingBlock() { return <div className="flex items-center justify-cente
 function ErrorBlock({ message }: { message: string }) { return <p className="p-4 text-sm text-red-700">{message}</p>; }
 function formatDays(value: number) { return Number.isInteger(value) ? String(value) : value.toFixed(1); }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }); }
+function toIsoDate(date: Date) { const year = date.getFullYear(); const month = String(date.getMonth() + 1).padStart(2, "0"); const day = String(date.getDate()).padStart(2, "0"); return `${year}-${month}-${day}`; }
+function normalizeDate(value: string) { return value.slice(0, 10); }
 const emptyType: LeaveTypeRequest = { code: "", name: "", allocationPeriod: "YEARLY", allocationDays: 1, paid: true, active: true, carryForward: false, maxCarryForwardDays: 0, expiryMonths: 0 };
