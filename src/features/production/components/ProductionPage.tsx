@@ -29,6 +29,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { StatCard } from "@/components/cards/StatCard";
 import { Button } from "@/components/ui/button";
+import { ProductionAnalytics } from "./ProductionAnalytics";
 import {
   Card,
   CardContent,
@@ -143,7 +144,7 @@ import type {
   WorkflowStepRequest,
 } from "../types/production.types";
 
-type Tab = "orders" | "workflows" | "boms";
+type Tab = "orders" | "workflows" | "boms" | "analytics";
 type OrdersViewMode = "board" | "list";
 type OrderStatusFilter = "ALL" | OrderStatus;
 type AssignmentFormState = {
@@ -280,7 +281,7 @@ export function ProductionPage() {
       />
 
       <div className="flex flex-wrap gap-2 border-b pb-2">
-        {(["orders", "workflows", "boms"] as Tab[]).map((item) => (
+        {(["orders", "workflows", "boms", "analytics"] as Tab[]).map((item) => (
           <Button
             key={item}
             variant={tab === item ? "default" : "ghost"}
@@ -291,7 +292,9 @@ export function ProductionPage() {
               ? "Production orders"
               : item === "workflows"
                 ? "Workflow templates"
-                : "BOM definitions"}
+                : item === "boms"
+                  ? "BOM definitions"
+                  : "Analytics"}
           </Button>
         ))}
       </div>
@@ -301,6 +304,7 @@ export function ProductionPage() {
       ) : null}
       {tab === "workflows" ? <Workflows /> : null}
       {tab === "boms" ? <Boms /> : null}
+      {tab === "analytics" ? <ProductionAnalytics /> : null}
     </div>
   );
 }

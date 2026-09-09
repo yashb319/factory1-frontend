@@ -572,3 +572,60 @@ export type StepExecutionResponse = {
   conflict?: ProductionExecutionConflict;
   message?: string;
 };
+
+export type ProductionAnalyticsFilters = {
+  from?: string; to?: string; orderNumber?: string; productId?: string;
+};
+
+export type ProductionAnalytics = {
+  averageCycleHours?: number;
+  cycleHours?: number;
+  completedQuantity?: number;
+  rejectedQuantity?: number;
+  throughput?: number;
+  rejectionRate?: number;
+  wastageQuantity?: number;
+  wastageRate?: number;
+  delayedOrderCount?: number;
+  stepDurations?: ProductionStepDuration[];
+  bottlenecks?: ProductionBottleneck[];
+  materialConsumption?: ProductionMaterialConsumption[];
+};
+
+export type ProductionStepDuration = {
+  stepId?: string; stepName?: string; durationHours?: number; averageDurationHours?: number;
+};
+
+export type ProductionBottleneck = {
+  stepId?: string; stepName?: string; durationHours?: number; delayHours?: number;
+};
+
+export type ProductionMaterialConsumption = {
+  inventoryItemId?: string; itemName?: string; quantity?: number; unit?: string; estimatedQuantity?: number;
+};
+
+export type ProductionOrderProgressFilters = {
+  orderNumber?: string; customerId?: string; productId?: string;
+};
+
+export type ProductionOrderProgress = {
+  orderId: string; orderNumber: string; customerId?: string; customerName?: string; productId: string;
+  productName?: string; plannedQuantity: number; completedQuantity: number; rejectedQuantity: number;
+  remainingQuantity: number; status: OrderStatus; dueDate?: string; delayed?: boolean;
+};
+
+export type ProductionNotificationEvent =
+  | "ORDER_CREATED"
+  | "STEP_STARTED"
+  | "STEP_PAUSED"
+  | "STEP_COMPLETED"
+  | "QUALITY_FAILED"
+  | "MATERIAL_SHORTAGE"
+  | "MATERIAL_CONSUMPTION_FAILED"
+  | "ORDER_DELAYED"
+  | "ORDER_COMPLETED"
+  | "ASSIGNMENT_CHANGED";
+
+export type ProductionNotificationPreferences = {
+  enabledEventTypes: ProductionNotificationEvent[];
+};

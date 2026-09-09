@@ -7,10 +7,15 @@ import type {
   MaterialLotQuery,
   OrderExecutionDetails,
   PageResponse,
+  ProductionAnalytics,
+  ProductionAnalyticsFilters,
   ProductionBoardQuery,
   ProductionDashboard,
   ProductionExecutionBoard,
+  ProductionNotificationPreferences,
   ProductionOrder,
+  ProductionOrderProgress,
+  ProductionOrderProgressFilters,
   ProductionOrderRequest,
   ProductionStation,
   ProductionStationRequest,
@@ -513,6 +518,22 @@ export const productionApi = baseApi.injectEndpoints({
       transformResponse: (response: ApiResponse<ProductionExecutionBoard> | ProductionExecutionBoard) => unwrapData(response),
       providesTags: ["Production"],
     }),
+    getAnalytics: builder.query<ProductionAnalytics, ProductionAnalyticsFilters>({
+      query: (params) => ({ url: "/api/production/analytics", params }),
+      providesTags: ["Production"],
+    }),
+    getOrderProgress: builder.query<ProductionOrderProgress[], ProductionOrderProgressFilters>({
+      query: (params) => ({ url: "/api/production/orders/progress", params }),
+      providesTags: ["Production"],
+    }),
+    getNotificationPreferences: builder.query<ProductionNotificationPreferences, void>({
+      query: () => "/api/production/notification-preferences",
+      providesTags: ["Production"],
+    }),
+    updateNotificationPreferences: builder.mutation<ProductionNotificationPreferences, ProductionNotificationPreferences>({
+      query: (body) => ({ url: "/api/production/notification-preferences", method: "PUT", body }),
+      invalidatesTags: ["Production"],
+    }),
   }),
 });
 
@@ -568,4 +589,8 @@ export const {
   useCreateMaterialConsumptionMutation,
   useGetMaterialConsumptionsQuery,
   useGetProductionKanbanQuery,
+  useGetAnalyticsQuery,
+  useGetOrderProgressQuery,
+  useGetNotificationPreferencesQuery,
+  useUpdateNotificationPreferencesMutation,
 } = productionApi;
