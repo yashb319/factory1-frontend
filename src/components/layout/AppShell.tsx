@@ -14,6 +14,7 @@ import { TallyGatewayHome } from "./TallyGatewayHome";
 import { TallyShortcutRail } from "./TallyShortcutRail";
 import { TallyCommandBar } from "./TallyCommandBar";
 import { UiModePrompt } from "./UiModePrompt";
+import { SandboxBanner } from "@/features/organization/components/SandboxBanner";
 import { cn } from "@/lib/utils";
 import { playUiSound } from "@/lib/uiSounds";
 import { toast } from "sonner";
@@ -42,6 +43,9 @@ export function AppShell({ children }: Props) {
   const tallyMode = TALLY_UI_ENABLED && uiMode === "tally";
 
   useEffect(() => {
+    // The mode follows persisted user preferences and can change when the
+    // authenticated user changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUiMode(getFactoryUiMode(user));
     setUiModePromptOpen(
       TALLY_UI_ENABLED && Boolean(user) && shouldShowFactoryUiModePrompt(user)
@@ -257,6 +261,8 @@ export function AppShell({ children }: Props) {
             uiMode={uiMode}
           />
         ) : null}
+
+        {!tallyMode ? <SandboxBanner /> : null}
 
         <main
           data-tour="workspace"

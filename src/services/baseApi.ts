@@ -16,6 +16,7 @@ const rawBaseQuery = fetchBaseQuery({
     if (
       endpoint === "login" ||
       endpoint === "signupOrganization" ||
+      endpoint === "sandboxSignup" ||
       endpoint === "sendSignupOtp" ||
       endpoint === "sendLoginOtp" ||
       endpoint === "sendForgotPasswordOtp" ||
