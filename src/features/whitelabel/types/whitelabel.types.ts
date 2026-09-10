@@ -57,19 +57,28 @@ export type WhitelabelOrganizationPartnerUpdateRequest = {
 export type WhitelabelPartner = {
   id: string;
   name: string;
+  contactEmail?: string | null;
   code: string;
   userId: string;
   userName?: string | null;
   userEmail?: string | null;
   active: boolean;
   createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
-export type WhitelabelPartnerRequest = {
+export type WhitelabelPartnerCreateRequest = {
   name: string;
-  code: string;
-  userId: string;
+  contactEmail: string;
+  code?: string;
+  userId?: string;
+};
+
+export type WhitelabelPartnerUpdateRequest = {
+  name?: string;
+  contactEmail?: string | null;
   active?: boolean;
+  userId?: string;
 };
 
 /**
