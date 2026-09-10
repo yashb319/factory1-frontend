@@ -7,7 +7,8 @@ import type {
   WhitelabelOrganizationAdminUpdateRequest,
   WhitelabelOrganizationPartnerUpdateRequest,
   WhitelabelPartner,
-  WhitelabelPartnerRequest,
+  WhitelabelPartnerCreateRequest,
+  WhitelabelPartnerUpdateRequest,
 } from "../types/whitelabel.types";
 
 export const whitelabelApi = baseApi.injectEndpoints({
@@ -68,7 +69,7 @@ export const whitelabelApi = baseApi.injectEndpoints({
 
     createSaasWhitelabelPartner: builder.mutation<
       ApiResponse<WhitelabelPartner>,
-      WhitelabelPartnerRequest
+      WhitelabelPartnerCreateRequest
     >({
       query: (body) => ({
         url: "/api/saas-admin/whitelabel/partners",
@@ -80,7 +81,7 @@ export const whitelabelApi = baseApi.injectEndpoints({
 
     updateSaasWhitelabelPartner: builder.mutation<
       ApiResponse<WhitelabelPartner>,
-      { id: string; body: WhitelabelPartnerRequest }
+      { id: string; body: WhitelabelPartnerUpdateRequest }
     >({
       query: ({ id, body }) => ({
         url: `/api/saas-admin/whitelabel/partners/${id}`,

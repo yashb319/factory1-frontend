@@ -152,12 +152,18 @@ export const WHITELABEL_FORM_COPY = {
       label: "Partner name",
       placeholder: "Regional Partner",
     },
+    partnerContactEmail: {
+      label: "Contact email",
+      placeholder: "partner@example.com",
+    },
     partnerCode: {
       label: "Partner code",
       placeholder: "REGION-01",
+      generatedHelp:
+        "Factory1 generates a unique partner code automatically after creation.",
     },
     partnerUserId: {
-      label: `Linked user ID (${WHITELABEL_ACCESS.partnerAdminRole})`,
+      label: `Advanced linked user ID (${WHITELABEL_ACCESS.partnerAdminRole})`,
       placeholder: "UUID of the partner admin user",
     },
   },
@@ -166,7 +172,8 @@ export const WHITELABEL_FORM_COPY = {
     urls: "Logo and favicon must be valid http(s) URLs",
     missingDomain: "Enter a domain value for a subdomain or custom domain",
     invalidDomain: "Enter a valid domain",
-    partnerRequired: "Partner name, code and linked user ID are required",
+    partnerRequired: "Partner name and contact email are required",
+    partnerNameRequired: "Partner name is required",
   },
 } as const;
 
@@ -183,8 +190,7 @@ export const WHITELABEL_PAGE_COPY = {
 
 export const WHITELABEL_PARTNER_FORM_DEFAULTS = {
   name: "",
-  code: "",
-  userId: "",
+  contactEmail: "",
   active: true,
 } as const;
 

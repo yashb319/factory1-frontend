@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Building2, Palette, RefreshCw, Save, Search, Users } from "lucide-react";
+import { Building2, Copy, Palette, RefreshCw, Save, Search, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,7 +53,8 @@ import type {
   WhitelabelOrganization,
   WhitelabelOrganizationAdminUpdateRequest,
   WhitelabelPartner,
-  WhitelabelPartnerRequest,
+  WhitelabelPartnerCreateRequest,
+  WhitelabelPartnerUpdateRequest,
 } from "../types/whitelabel.types";
 import {
   isValidDomainValue,
@@ -84,6 +85,12 @@ type OrgDraft = {
   domainType: WhitelabelDomainType;
   domainValue: string;
   domainVerified: boolean;
+  active: boolean;
+};
+
+type PartnerForm = {
+  name: string;
+  contactEmail: string;
   active: boolean;
 };
 
@@ -135,8 +142,10 @@ export function SaasWhitelabelPage() {
     null
   );
   const [partnerDialogOpen, setPartnerDialogOpen] = useState(false);
-  const [partnerForm, setPartnerForm] =
-    useState<WhitelabelPartnerRequest>(emptyPartnerForm);
+  const [partnerForm, setPartnerForm] = useState<PartnerForm>(emptyPartnerForm);
+  const [createdPartner, setCreatedPartner] = useState<WhitelabelPartner | null>(
+    null
+  );
   const [organizationSearch, setOrganizationSearch] = useState("");
   const [partnerSearch, setPartnerSearch] = useState("");
 
@@ -170,6 +179,7 @@ export function SaasWhitelabelPage() {
       [
         partner.name,
         partner.code,
+        partner.contactEmail,
         partner.userId,
         partner.userName,
         partner.userEmail,
@@ -220,8 +230,7 @@ export function SaasWhitelabelPage() {
       partner
         ? {
             name: partner.name,
-            code: partner.code,
-            userId: partner.userId,
+            contactEmail: partner.contactEmail ?? partner.userEmail ?? "",
             active: partner.active,
           }
         : emptyPartnerForm
@@ -278,25 +287,34 @@ export function SaasWhitelabelPage() {
   }
 
   async function savePartner() {
-    if (!partnerForm.name.trim() || !partnerForm.code.trim() || !partnerForm.userId.trim()) {
+    if (!partnerForm.name.trim()) {
+      toast.error(WHITELABEL_FORM_COPY.validation.partnerNameRequired);
+      return;
+    }
+
+    if (!editingPartner && !partnerForm.contactEmail.trim()) {
       toast.error(WHITELABEL_FORM_COPY.validation.partnerRequired);
       return;
     }
 
-    const body: WhitelabelPartnerRequest = {
-      name: partnerForm.name.trim(),
-      code: partnerForm.code.trim(),
-      userId: partnerForm.userId.trim(),
-      active: partnerForm.active,
-    };
-
     try {
       if (editingPartner) {
+        const body: WhitelabelPartnerUpdateRequest = {
+          name: partnerForm.name.trim(),
+          contactEmail: partnerForm.contactEmail.trim() || null,
+          active: partnerForm.active,
+        };
+
         await updatePartner({ id: editingPartner.id, body }).unwrap();
         toast.success("Partner updated");
       } else {
-        await createPartner(body).unwrap();
-        toast.success("Partner created");
+        const body: WhitelabelPartnerCreateRequest = {
+          name: partnerForm.name.trim(),
+          contactEmail: partnerForm.contactEmail.trim(),
+        };
+        const response = await createPartner(body).unwrap();
+        setCreatedPartner(response.data);
+        toast.success(`Partner created. Code: ${response.data.code}`);
       }
 
       setPartnerDialogOpen(false);
@@ -305,6 +323,11 @@ export function SaasWhitelabelPage() {
     } catch (error) {
       toast.error(getErrorMessage(error, "Could not save partner"));
     }
+  }
+
+  async function copyPartnerCode(code: string) {
+    await navigator.clipboard.writeText(code);
+    toast.success("Partner code copied");
   }
 
   return (
@@ -466,7 +489,7 @@ export function SaasWhitelabelPage() {
               <TableRow>
                 <TableHead>Partner</TableHead>
                 <TableHead>Code</TableHead>
-                <TableHead>Linked user</TableHead>
+                <TableHead>Partner admin login</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
@@ -474,9 +497,16 @@ export function SaasWhitelabelPage() {
             <TableBody>
               {filteredPartners.map((partner) => (
                 <TableRow key={partner.id}>
-                  <TableCell data-label="Partner">{partner.name}</TableCell>
-                  <TableCell data-label="Code">{partner.code}</TableCell>
-                  <TableCell data-label="Linked user">
+                  <TableCell data-label="Partner">
+                    <p className="text-sm font-medium">{partner.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {partner.contactEmail ?? partner.userEmail ?? "No contact email"}
+                    </p>
+                  </TableCell>
+                  <TableCell data-label="Code">
+                    <span className="font-mono text-sm font-semibold">{partner.code}</span>
+                  </TableCell>
+                  <TableCell data-label="Partner admin login">
                     <p className="text-sm">{partner.userName || partner.userId}</p>
                     <p className="text-xs text-muted-foreground">
                       {partner.userEmail || partner.userId}
@@ -700,9 +730,9 @@ export function SaasWhitelabelPage() {
           <DialogHeader>
             <DialogTitle>{editingPartner ? "Edit partner" : "Add partner"}</DialogTitle>
             <DialogDescription>
-              The linked user must already have the{" "}
-              {WHITELABEL_ACCESS.partnerAdminRole} role. The backend validates
-              this and will reject the save otherwise.
+              {editingPartner
+                ? "Update supported partner details. Partner codes are generated by Factory1 and cannot be changed here."
+                : "Enter partner details. Factory1 generates a unique code, creates a PARTNER_ADMIN login, and emails an invite to the contact email."}
             </DialogDescription>
           </DialogHeader>
 
@@ -719,36 +749,46 @@ export function SaasWhitelabelPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>{WHITELABEL_FORM_COPY.fields.partnerCode.label}</Label>
+              <Label>{WHITELABEL_FORM_COPY.fields.partnerContactEmail.label}</Label>
               <Input
-                value={partnerForm.code}
+                type="email"
+                value={partnerForm.contactEmail}
                 onChange={(event) =>
-                  setPartnerForm((current) => ({ ...current, code: event.target.value }))
+                  setPartnerForm((current) => ({ ...current, contactEmail: event.target.value }))
                 }
-                placeholder={WHITELABEL_FORM_COPY.fields.partnerCode.placeholder}
+                placeholder={WHITELABEL_FORM_COPY.fields.partnerContactEmail.placeholder}
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>{WHITELABEL_FORM_COPY.fields.partnerUserId.label}</Label>
-              <Input
-                value={partnerForm.userId}
-                onChange={(event) =>
-                  setPartnerForm((current) => ({ ...current, userId: event.target.value }))
-                }
-                placeholder={WHITELABEL_FORM_COPY.fields.partnerUserId.placeholder}
-              />
-            </div>
+            {editingPartner ? (
+              <div className="rounded-md border bg-slate-50 p-3 text-sm">
+                <p className="font-medium">Partner code</p>
+                <p className="mt-1 font-mono text-base font-semibold">
+                  {editingPartner.code}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {WHITELABEL_FORM_COPY.fields.partnerCode.generatedHelp}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-md border bg-slate-50 p-3 text-sm text-muted-foreground">
+                {WHITELABEL_FORM_COPY.fields.partnerCode.generatedHelp} A{" "}
+                {WHITELABEL_ACCESS.partnerAdminRole} login is created and an
+                invite email is sent to the contact email.
+              </div>
+            )}
 
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={Boolean(partnerForm.active)}
-                onCheckedChange={(checked) =>
-                  setPartnerForm((current) => ({ ...current, active: checked === true }))
-                }
-              />
-              Active partner
-            </label>
+            {editingPartner ? (
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={Boolean(partnerForm.active)}
+                  onCheckedChange={(checked) =>
+                    setPartnerForm((current) => ({ ...current, active: checked === true }))
+                  }
+                />
+                Active partner
+              </label>
+            ) : null}
           </div>
 
           <DialogFooter>
@@ -761,6 +801,63 @@ export function SaasWhitelabelPage() {
               {createPartnerState.isLoading || updatePartnerState.isLoading
                 ? "Saving..."
                 : "Save partner"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(createdPartner)}
+        onOpenChange={(open) => {
+          if (!open) setCreatedPartner(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Partner created</DialogTitle>
+            <DialogDescription>
+              Share this generated partner code with the partner&apos;s customers.
+              The linked admin login invite was sent to the contact email.
+            </DialogDescription>
+          </DialogHeader>
+
+          {createdPartner ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">
+                  Generated partner code
+                </p>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <p className="break-all font-mono text-2xl font-semibold">
+                    {createdPartner.code}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyPartnerCode(createdPartner.code)}
+                  >
+                    <Copy size={16} />
+                    Copy
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4 text-sm">
+                <p className="font-medium">{createdPartner.name}</p>
+                <p className="mt-1 text-muted-foreground">
+                  Partner admin login:{" "}
+                  {createdPartner.userEmail ??
+                    createdPartner.contactEmail ??
+                    createdPartner.userId}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button type="button" onClick={() => setCreatedPartner(null)}>
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>
