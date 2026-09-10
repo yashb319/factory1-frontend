@@ -32,6 +32,10 @@ import {
   type LocationSuggestion,
 } from "@/lib/locationSuggestions";
 import { useBranding } from "@/features/whitelabel/components/BrandingProvider";
+import { useValidatePublicPartnerCodeQuery } from "@/features/whitelabel/api/whitelabelApi";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+
+const PARTNER_CODE_MIN_LOOKUP_LENGTH = 3;
 
 export function SignupForm() {
   const router = useRouter();
@@ -60,6 +64,7 @@ export function SignupForm() {
       gstNumber: "",
       businessType: "MANUFACTURING",
       state: "",
+      partnerCode: "",
     },
   });
 
@@ -81,6 +86,34 @@ export function SignupForm() {
   }) ?? "";
   const locationSuggestions = getLocationSuggestions(city || location);
   const otpRequested = otpSentTo === email.trim().toLowerCase();
+
+  const partnerCode = useWatch({
+    control: form.control,
+    name: "partnerCode",
+  }) ?? "";
+  const trimmedPartnerCode = partnerCode.trim();
+  const debouncedPartnerCode = useDebouncedValue(trimmedPartnerCode);
+  const skipPartnerLookup =
+    debouncedPartnerCode.length < PARTNER_CODE_MIN_LOOKUP_LENGTH;
+
+  const { data: partnerCodeResult, isFetching: isCheckingPartnerCode } =
+    useValidatePublicPartnerCodeQuery(debouncedPartnerCode, {
+      skip: skipPartnerLookup,
+    });
+
+  // Purely informational: a stale or failed lookup simply renders nothing, and
+  // an unrecognised code never blocks signup.
+  const partnerLookupSettled =
+    !skipPartnerLookup &&
+    !isCheckingPartnerCode &&
+    debouncedPartnerCode === trimmedPartnerCode;
+  const partnerMatch = partnerLookupSettled ? partnerCodeResult?.data : null;
+  const linkedPartnerName =
+    partnerMatch?.valid && partnerMatch.partnerName
+      ? partnerMatch.partnerName
+      : null;
+  const showPartnerCodeNotRecognized =
+    partnerLookupSettled && partnerMatch != null && !partnerMatch.valid;
 
   const applyLocationSuggestion = (suggestion: LocationSuggestion) => {
     form.setValue("city", suggestion.city, { shouldDirty: true });
@@ -150,6 +183,7 @@ export function SignupForm() {
     const response = await signupOrganization({
       ...values,
       gstNumber: values.gstNumber?.trim().toUpperCase(),
+      partnerCode: values.partnerCode?.trim().toUpperCase() || undefined,
       state: values.state || stateNameFromGstNumber(values.gstNumber),
       country: values.country || "India",
       otp: values.otp,
@@ -295,6 +329,25 @@ export function SignupForm() {
                   placeholder="India"
                 />
               </div>
+            </div>
+
+            <div>
+              <TextField<SignupFormValues>
+                name="partnerCode"
+                label="Partner code"
+                placeholder="Optional"
+                helperText="Have a partner code from your Factory1 partner? Enter it here."
+              />
+
+              {linkedPartnerName && (
+                <p className="mt-1 text-xs font-medium text-emerald-600">
+                  This factory will be linked to {linkedPartnerName}
+                </p>
+              )}
+
+              {showPartnerCodeNotRecognized && (
+                <p className="mt-1 text-xs text-slate-500">Code not recognized</p>
+              )}
             </div>
 
             <div className="flex items-end gap-3">

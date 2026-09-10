@@ -1,12 +1,14 @@
 import { baseApi } from "@/services/baseApi";
 import type {
   ApiResponse,
+  PartnerCodeValidation,
   PublicWhitelabelBranding,
   WhitelabelOrganization,
   WhitelabelOrganizationAdminUpdateRequest,
   WhitelabelOrganizationPartnerUpdateRequest,
   WhitelabelPartner,
-  WhitelabelPartnerRequest,
+  WhitelabelPartnerCreateRequest,
+  WhitelabelPartnerUpdateRequest,
 } from "../types/whitelabel.types";
 
 export const whitelabelApi = baseApi.injectEndpoints({
@@ -67,7 +69,7 @@ export const whitelabelApi = baseApi.injectEndpoints({
 
     createSaasWhitelabelPartner: builder.mutation<
       ApiResponse<WhitelabelPartner>,
-      WhitelabelPartnerRequest
+      WhitelabelPartnerCreateRequest
     >({
       query: (body) => ({
         url: "/api/saas-admin/whitelabel/partners",
@@ -79,7 +81,7 @@ export const whitelabelApi = baseApi.injectEndpoints({
 
     updateSaasWhitelabelPartner: builder.mutation<
       ApiResponse<WhitelabelPartner>,
-      { id: string; body: WhitelabelPartnerRequest }
+      { id: string; body: WhitelabelPartnerUpdateRequest }
     >({
       query: ({ id, body }) => ({
         url: `/api/saas-admin/whitelabel/partners/${id}`,
@@ -139,6 +141,23 @@ export const whitelabelApi = baseApi.injectEndpoints({
     }),
 
     /**
+     * Public, unauthenticated partner-code lookup used by the signup form to
+     * confirm which partner a code belongs to before submitting. Purely
+     * informational: unknown or inactive codes return a successful envelope
+     * carrying `valid: false`, so callers branch on `data.valid`. A transport
+     * failure means only "couldn't check right now" and must be swallowed.
+     */
+    validatePublicPartnerCode: builder.query<
+      ApiResponse<PartnerCodeValidation | null>,
+      string
+    >({
+      query: (code) => ({
+        url: "/api/public/whitelabel/partner-code",
+        params: { code },
+      }),
+    }),
+
+    /**
      * Authenticated branding for the caller's own organization. Needed on the
      * shared app domain, where the public by-domain lookup cannot identify an
      * organization from the hostname alone. The empty case (no active branding,
@@ -167,5 +186,6 @@ export const {
   useGetPartnerWhitelabelOrganizationQuery,
   useUpdatePartnerWhitelabelOrganizationMutation,
   useGetPublicWhitelabelBrandingQuery,
+  useValidatePublicPartnerCodeQuery,
   useGetCurrentWhitelabelBrandingQuery,
 } = whitelabelApi;

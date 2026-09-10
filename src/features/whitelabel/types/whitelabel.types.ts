@@ -57,19 +57,28 @@ export type WhitelabelOrganizationPartnerUpdateRequest = {
 export type WhitelabelPartner = {
   id: string;
   name: string;
+  contactEmail?: string | null;
   code: string;
   userId: string;
   userName?: string | null;
   userEmail?: string | null;
   active: boolean;
   createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
-export type WhitelabelPartnerRequest = {
+export type WhitelabelPartnerCreateRequest = {
   name: string;
-  code: string;
-  userId: string;
+  contactEmail: string;
+  code?: string;
+  userId?: string;
+};
+
+export type WhitelabelPartnerUpdateRequest = {
+  name?: string;
+  contactEmail?: string | null;
   active?: boolean;
+  userId?: string;
 };
 
 /**
@@ -88,4 +97,15 @@ export type PublicWhitelabelBranding = {
   accentColorHex?: string | null;
   domainType?: WhitelabelDomainType;
   domainValue?: string | null;
+};
+
+/**
+ * Result of the public partner-code lookup used by the signup form. A miss is a
+ * definite answer rather than absent config, so unknown or inactive codes come
+ * back as a successful response with `valid: false` - callers must branch on
+ * `valid`, never on the envelope's `success`.
+ */
+export type PartnerCodeValidation = {
+  valid: boolean;
+  partnerName: string | null;
 };

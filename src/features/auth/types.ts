@@ -51,6 +51,7 @@ export type SignupOrganizationRequest = {
   gstNumber?: string;
   businessType?: string;
   state?: string;
+  partnerCode?: string;
 };
 
 export type SignupOtpRequest = {

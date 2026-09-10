@@ -19,6 +19,7 @@ export const signupSchema = z.object({
     }),
   businessType: z.string().optional(),
   state: z.string().optional(),
+  partnerCode: z.string().optional(),
   otp: z
     .string()
     .optional()
