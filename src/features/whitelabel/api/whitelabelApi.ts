@@ -141,13 +141,15 @@ export const whitelabelApi = baseApi.injectEndpoints({
     /**
      * Authenticated branding for the caller's own organization. Needed on the
      * shared app domain, where the public by-domain lookup cannot identify an
-     * organization from the hostname alone.
+     * organization from the hostname alone. The empty case (no active branding,
+     * or a user with no organization) is a successful response carrying a null
+     * `data`, so callers must branch on `data`, never on `success`.
      */
     getCurrentWhitelabelBranding: builder.query<
       ApiResponse<PublicWhitelabelBranding | null>,
       void
     >({
-      query: () => "/api/whitelabel/branding/current",
+      query: () => "/api/whitelabel/branding/me",
       providesTags: ["Whitelabel"],
     }),
   }),
