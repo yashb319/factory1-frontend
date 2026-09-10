@@ -1,6 +1,7 @@
 import { baseApi } from "@/services/baseApi";
 import type {
   ApiResponse,
+  PartnerCodeValidation,
   PublicWhitelabelBranding,
   WhitelabelOrganization,
   WhitelabelOrganizationAdminUpdateRequest,
@@ -139,6 +140,23 @@ export const whitelabelApi = baseApi.injectEndpoints({
     }),
 
     /**
+     * Public, unauthenticated partner-code lookup used by the signup form to
+     * confirm which partner a code belongs to before submitting. Purely
+     * informational: unknown or inactive codes return a successful envelope
+     * carrying `valid: false`, so callers branch on `data.valid`. A transport
+     * failure means only "couldn't check right now" and must be swallowed.
+     */
+    validatePublicPartnerCode: builder.query<
+      ApiResponse<PartnerCodeValidation | null>,
+      string
+    >({
+      query: (code) => ({
+        url: "/api/public/whitelabel/partner-code",
+        params: { code },
+      }),
+    }),
+
+    /**
      * Authenticated branding for the caller's own organization. Needed on the
      * shared app domain, where the public by-domain lookup cannot identify an
      * organization from the hostname alone. The empty case (no active branding,
@@ -167,5 +185,6 @@ export const {
   useGetPartnerWhitelabelOrganizationQuery,
   useUpdatePartnerWhitelabelOrganizationMutation,
   useGetPublicWhitelabelBrandingQuery,
+  useValidatePublicPartnerCodeQuery,
   useGetCurrentWhitelabelBrandingQuery,
 } = whitelabelApi;

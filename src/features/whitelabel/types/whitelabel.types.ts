@@ -89,3 +89,14 @@ export type PublicWhitelabelBranding = {
   domainType?: WhitelabelDomainType;
   domainValue?: string | null;
 };
+
+/**
+ * Result of the public partner-code lookup used by the signup form. A miss is a
+ * definite answer rather than absent config, so unknown or inactive codes come
+ * back as a successful response with `valid: false` - callers must branch on
+ * `valid`, never on the envelope's `success`.
+ */
+export type PartnerCodeValidation = {
+  valid: boolean;
+  partnerName: string | null;
+};
