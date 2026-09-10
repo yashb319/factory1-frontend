@@ -22,6 +22,9 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Truck,
+  UserMinus,
+  UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -65,6 +68,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { KanbanBoard } from "./KanbanBoard";
 import { cn } from "@/lib/utils";
 import { useAppSelector } from "@/lib/hook";
 import { useGetActiveCustomersQuery } from "@/features/customers/api/customerApi";
@@ -72,6 +80,8 @@ import { useGetInventoryItemsQuery } from "@/features/inventory/api/inventoryApi
 import type { InventoryItem } from "@/features/inventory/types/inventory.types";
 import { useGetProductsQuery } from "@/features/products/api/productsApi";
 import { useGetUserAccountsQuery } from "@/features/access/api/accessApi";
+import { useGetActiveVendorsQuery } from "@/features/vendors/api/vendorApi";
+import type { Vendor } from "@/features/vendors/types/vendor.types";
 import {
   useCancelOrderMutation,
   useCreateBomMutation,
@@ -90,6 +100,7 @@ import {
   useGetExecutionBatchesQuery,
   useGetMaterialConsumptionsQuery,
   useGetOrderAssignmentsQuery,
+  useGetAuditLogQuery,
   useGetOrderQuery,
   useGetOrdersQuery,
   useGetProductionDashboardQuery,
@@ -107,11 +118,14 @@ import {
 } from "../api/productionApi";
 import type {
   AssignmentRole,
+  AuditEventType,
+  AuditLogResponse,
   Bom,
   BomItemRequest,
   KanbanCard,
   MaterialConsumptionRequest,
   MaterialRequirement,
+  OrderAssignment,
   OrderAssignmentRequest,
   OrderStatus,
   OrderPriority,
@@ -139,7 +153,7 @@ import type {
 type Tab = "orders" | "workflows" | "boms" | "analytics";
 type OrdersViewMode = "board" | "list";
 type OrderStatusFilter = "ALL" | OrderStatus;
-type DetailTab = "execution" | "assignments" | "quality" | "materials" | "timeline";
+type DetailTab = "execution" | "assignments" | "quality" | "materials" | "timeline" | "audit";
 
 const detailTabLabel: Record<DetailTab, string> = {
   execution: "Execution",
@@ -147,10 +161,14 @@ const detailTabLabel: Record<DetailTab, string> = {
   quality: "Quality",
   materials: "Materials",
   timeline: "Timeline",
+  audit: "Audit trail",
 };
 type AssignmentFormState = {
   assignmentRole: AssignmentRole;
+  assigneeType: "USER" | "VENDOR";
   assigneeUserId: string;
+  vendorId: string;
+  deadline: string;
 };
 type MaterialConsumptionDraft = {
   lotNumber: string;
@@ -188,6 +206,7 @@ const emptyOrder = (): ProductionOrderRequest => ({
   plannedQuantity: 1,
   priority: "NORMAL",
   workflowVersionId: "",
+  responsibleUserId: "",
 });
 
 const emptyWorkstationRecord = (): WorkstationRequest => ({
@@ -200,7 +219,10 @@ const emptyWorkstationRecord = (): WorkstationRequest => ({
 
 const emptyAssignment = (): AssignmentFormState => ({
   assignmentRole: "OPERATOR",
+  assigneeType: "USER",
   assigneeUserId: "",
+  vendorId: "",
+  deadline: "",
 });
 
 const emptyDashboard: ProductionDashboard = {
@@ -307,6 +329,7 @@ function Orders({
   const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>("ALL");
   const [stationFilter, setStationFilter] = useState("ALL");
   const [viewMode, setViewMode] = useState<OrdersViewMode>("board");
+  const [groupByWorkflowStep, setGroupByWorkflowStep] = useState(false);
 
   const ordersQuery = useGetOrdersQuery({ page: 0, size: 100 });
   const dashboardQuery = useGetProductionDashboardQuery();
@@ -347,6 +370,15 @@ function Orders({
         stationFilter
       ),
     [boardQuery.data, orders, search, stationFilter]
+  );
+
+  const ordersById = useMemo(
+    () => new Map(orders.map((order) => [order.id, order])),
+    [orders]
+  );
+  const boardItems = useMemo(
+    () => board.flatMap((column) => column.items),
+    [board]
   );
 
   const dashboard = dashboardQuery.data ?? emptyDashboard;
@@ -496,6 +528,24 @@ function Orders({
                 </Field>
               </div>
 
+              {viewMode === "board" ? (
+                <div className="flex items-center gap-3 rounded-md border bg-muted/20 px-3 py-2">
+                  <Switch
+                    id="group-by-workflow-step"
+                    checked={groupByWorkflowStep}
+                    onCheckedChange={setGroupByWorkflowStep}
+                  />
+                  <Label htmlFor="group-by-workflow-step" className="text-sm">
+                    Group columns by each order&apos;s current workflow step
+                  </Label>
+                  <span className="text-xs text-muted-foreground">
+                    {groupByWorkflowStep
+                      ? "Showing real workflow step columns"
+                      : "Showing To Do / In Progress / Done"}
+                  </span>
+                </div>
+              ) : null}
+
               <div className="flex flex-wrap gap-2" aria-label="Production status filters">
                 <Button
                   type="button"
@@ -560,10 +610,13 @@ function Orders({
                   }
                 />
               ) : viewMode === "board" ? (
-                <BoardView
-                  board={board}
+                <KanbanBoard
+                  items={boardItems}
+                  ordersById={ordersById}
+                  viewMode={groupByWorkflowStep ? "step" : "fixed"}
                   selectedOrderId={selectedOrderId}
                   onSelect={onSelect}
+                  onChanged={refreshAll}
                 />
               ) : (
                 <OrderListView
@@ -605,76 +658,6 @@ function Orders({
       </div>
 
       <CreateOrderDialog open={createOpen} onOpenChange={setCreateOpen} />
-    </div>
-  );
-}
-
-function BoardView({
-  board,
-  selectedOrderId,
-  onSelect,
-}: {
-  board: ProductionBoardColumn[];
-  selectedOrderId?: string;
-  onSelect: (id?: string) => void;
-}) {
-  return (
-    <div className="overflow-x-auto">
-      <div className="grid min-w-[960px] grid-flow-col auto-cols-[minmax(250px,1fr)] gap-4">
-        {board.map((column) => (
-          <div key={column.key} className="rounded-lg border bg-muted/25">
-            <div className="border-b px-3 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold">{column.label}</h3>
-                <StatusBadge tone={statusTone(column.key)}>{column.items.length}</StatusBadge>
-              </div>
-            </div>
-            <div className="space-y-3 p-3">
-              {column.items.length ? (
-                column.items.map((item) => (
-                  <button
-                    key={item.orderId}
-                    type="button"
-                    className={cn(
-                      "w-full rounded-lg border bg-white p-3 text-left transition hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--factory1-primary)]",
-                      selectedOrderId === item.orderId &&
-                        "border-primary bg-primary/5 ring-1 ring-primary/25"
-                    )}
-                    onClick={() => onSelect(item.orderId)}
-                    aria-pressed={selectedOrderId === item.orderId}
-                    aria-label={`Open order ${item.orderNumber}`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-medium">{item.orderNumber}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {item.productId}
-                        </div>
-                      </div>
-                      <StatusBadge tone={statusTone(item.priority)}>
-                        {item.priority}
-                      </StatusBadge>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
-                      <div>
-                        Output {formatNumber(item.completedQuantity)} / {formatNumber(item.plannedQuantity)}
-                      </div>
-                      <div>Current step: {item.currentStepName || "Not started"}</div>
-                      <div>
-                        Station: {item.stationName || item.workstationName || "Unassigned"}
-                      </div>
-                      <div>Due: {formatDate(item.dueDate)}</div>
-                    </div>
-                    <IndicatorRow indicators={item.indicators ?? buildDerivedOrderIndicators(item)} className="mt-3" />
-                  </button>
-                ))
-              ) : (
-                <Empty text="No orders in this lane." />
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -776,6 +759,11 @@ function CreateOrderDialog({
   const { data: productsPage } = useGetProductsQuery({ page: 0, size: 300 });
   const { data: customers = [] } = useGetActiveCustomersQuery();
   const { data: workflowsPage } = useGetWorkflowsQuery({ page: 0, size: 100 });
+  const userAccountsQuery = useGetUserAccountsQuery();
+  const assignableUsers = useMemo(
+    () => (userAccountsQuery.data ?? []).filter((user) => user.status === "ACTIVE"),
+    [userAccountsQuery.data]
+  );
   const products = productsPage?.content ?? [];
   const workflows = workflowsPage?.content ?? [];
 
@@ -805,9 +793,12 @@ function CreateOrderDialog({
       !form.orderNumber.trim() ||
       !form.productId ||
       !form.workflowVersionId ||
+      !form.responsibleUserId ||
       Number(form.plannedQuantity) <= 0
     ) {
-      toast.error("Order number, product, quantity, and a published workflow are required.");
+      toast.error(
+        "Order number, product, quantity, a published workflow, and a responsible person are required."
+      );
       return;
     }
 
@@ -868,6 +859,22 @@ function CreateOrderDialog({
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
                   {product.productCode} · {product.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Responsible person (notified if this order runs late)">
+            <select
+              className={selectClassName}
+              value={form.responsibleUserId}
+              onChange={(event) => update({ responsibleUserId: event.target.value })}
+              required
+            >
+              <option value="">Select responsible person</option>
+              {assignableUsers.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name || user.email}
                 </option>
               ))}
             </select>
@@ -1171,6 +1178,12 @@ function OrderDetail({
   const executionBatchesQuery = useGetExecutionBatchesQuery(orderId);
   const materialConsumptionsQuery = useGetMaterialConsumptionsQuery(orderId);
   const userAccountsQuery = useGetUserAccountsQuery();
+  const [auditPage, setAuditPage] = useState(0);
+  const auditLogQuery = useGetAuditLogQuery({ orderId, page: auditPage, size: 20 });
+  const actorsById = useMemo(
+    () => new Map((userAccountsQuery.data ?? []).map((user) => [user.id, user.name])),
+    [userAccountsQuery.data]
+  );
   const assignableUsers = useMemo(
     () => (userAccountsQuery.data ?? []).filter((user) => user.status === "ACTIVE"),
     [userAccountsQuery.data]
@@ -1200,6 +1213,33 @@ function OrderDetail({
   );
   const assigneeName = (userId: string) =>
     assignableUsers.find((user) => user.id === userId)?.name ?? userId;
+
+  const { data: activeVendors = [] } = useGetActiveVendorsQuery();
+  const vendorName = (vendorId: string) =>
+    activeVendors.find((vendor: Vendor) => vendor.id === vendorId)?.name ?? vendorId;
+  const isDeadlineOverdue = (assignment: OrderAssignment) =>
+    Boolean(
+      assignment.deadlineBreachNotifiedAt ||
+        // eslint-disable-next-line react-hooks/purity -- overdue badges must compare against the current wall-clock time at render.
+        (assignment.deadline && new Date(assignment.deadline).getTime() < Date.now())
+    );
+
+  const renderAssigneeLabel = (assignment: OrderAssignment) => (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <StatusBadge tone="pending">{humanize(assignment.assignmentRole)}</StatusBadge>
+      {assignment.vendorId ? (
+        <span>Vendor: {vendorName(assignment.vendorId)}</span>
+      ) : (
+        <span>{assigneeName(assignment.assigneeUserId ?? "")}</span>
+      )}
+      {assignment.deadline ? (
+        <Badge variant={isDeadlineOverdue(assignment) ? "destructive" : "outline"}>
+          {isDeadlineOverdue(assignment) ? "Overdue " : "Due "}
+          {new Date(assignment.deadline).toLocaleString()}
+        </Badge>
+      ) : null}
+    </span>
+  );
 
   const { data: inventoryPage } = useGetInventoryItemsQuery({ page: 0, size: 300 });
   const inventoryItems = useMemo(
@@ -1347,15 +1387,24 @@ function OrderDetail({
 
   const submitOrderAssignment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!orderAssignment.assigneeUserId) {
+    if (orderAssignment.assigneeType === "USER" && !orderAssignment.assigneeUserId) {
       toast.error("Select an assignee before assigning the order.");
+      return;
+    }
+    if (orderAssignment.assigneeType === "VENDOR" && !orderAssignment.vendorId) {
+      toast.error("Select a vendor before assigning the order.");
       return;
     }
 
     const body: OrderAssignmentRequest = {
       productionOrderId: orderId,
       assignmentRole: orderAssignment.assignmentRole,
-      assigneeUserId: orderAssignment.assigneeUserId,
+      assigneeUserId:
+        orderAssignment.assigneeType === "USER" ? orderAssignment.assigneeUserId : undefined,
+      vendorId: orderAssignment.assigneeType === "VENDOR" ? orderAssignment.vendorId : undefined,
+      deadline: orderAssignment.deadline
+        ? new Date(orderAssignment.deadline).toISOString()
+        : undefined,
     };
 
     try {
@@ -1371,8 +1420,12 @@ function OrderDetail({
   const submitStepAssignment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!currentStep) return;
-    if (!stepAssignment.assigneeUserId) {
+    if (stepAssignment.assigneeType === "USER" && !stepAssignment.assigneeUserId) {
       toast.error("Select an assignee before assigning the step.");
+      return;
+    }
+    if (stepAssignment.assigneeType === "VENDOR" && !stepAssignment.vendorId) {
+      toast.error("Select a vendor before assigning the step.");
       return;
     }
 
@@ -1380,7 +1433,12 @@ function OrderDetail({
       productionOrderId: orderId,
       orderStepSnapshotId: currentStep.id,
       assignmentRole: stepAssignment.assignmentRole,
-      assigneeUserId: stepAssignment.assigneeUserId,
+      assigneeUserId:
+        stepAssignment.assigneeType === "USER" ? stepAssignment.assigneeUserId : undefined,
+      vendorId: stepAssignment.assigneeType === "VENDOR" ? stepAssignment.vendorId : undefined,
+      deadline: stepAssignment.deadline
+        ? new Date(stepAssignment.deadline).toISOString()
+        : undefined,
     };
 
     try {
@@ -1594,7 +1652,7 @@ function OrderDetail({
           </div>
 
           <div className="flex flex-wrap gap-1.5 border-b pb-2" aria-label="Order detail sections">
-            {(["execution", "assignments", "quality", "materials", "timeline"] as DetailTab[]).map(
+            {(["execution", "assignments", "quality", "materials", "timeline", "audit"] as DetailTab[]).map(
               (item) => (
                 <Button
                   key={item}
@@ -1633,10 +1691,7 @@ function OrderDetail({
                         key={assignment.id}
                         className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 p-2 text-sm"
                       >
-                        <span>
-                          <StatusBadge tone="pending">{humanize(assignment.assignmentRole)}</StatusBadge>{" "}
-                          {assigneeName(assignment.assigneeUserId)}
-                        </span>
+                        {renderAssigneeLabel(assignment)}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1683,6 +1738,47 @@ function OrderDetail({
                         ))}
                       </select>
                     </Field>
+                    <Field label="Deadline (optional)">
+                      <Input
+                        type="datetime-local"
+                        value={orderAssignment.deadline}
+                        onChange={(event) =>
+                          setOrderAssignment((current) => ({
+                            ...current,
+                            deadline: event.target.value,
+                          }))
+                        }
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Assignee type">
+                    <RadioGroup
+                      className="grid grid-cols-2"
+                      value={orderAssignment.assigneeType}
+                      onValueChange={(value) =>
+                        setOrderAssignment((current) => ({
+                          ...current,
+                          assigneeType: value as "USER" | "VENDOR",
+                          assigneeUserId: value === "USER" ? current.assigneeUserId : "",
+                          vendorId: value === "VENDOR" ? current.vendorId : "",
+                        }))
+                      }
+                    >
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="USER" id="order-assignee-user" />
+                        <Label htmlFor="order-assignee-user" className="text-sm font-normal">
+                          Internal worker
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="VENDOR" id="order-assignee-vendor" />
+                        <Label htmlFor="order-assignee-vendor" className="text-sm font-normal">
+                          Third-party vendor
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </Field>
+                  {orderAssignment.assigneeType === "USER" ? (
                     <Field label="Assignee">
                       <select
                         className={selectClassName}
@@ -1703,7 +1799,33 @@ function OrderDetail({
                         ))}
                       </select>
                     </Field>
-                  </div>
+                  ) : (
+                    <Field label="Vendor">
+                      <select
+                        className={selectClassName}
+                        value={orderAssignment.vendorId}
+                        disabled={activeVendors.length === 0}
+                        onChange={(event) =>
+                          setOrderAssignment((current) => ({
+                            ...current,
+                            vendorId: event.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">Select vendor</option>
+                        {activeVendors.map((vendor: Vendor) => (
+                          <option key={vendor.id} value={vendor.id}>
+                            {vendor.name}
+                          </option>
+                        ))}
+                      </select>
+                      {activeVendors.length === 0 ? (
+                        <p className="mt-1 text-xs text-amber-600">
+                          No active vendors yet — add one in the Vendors page.
+                        </p>
+                      ) : null}
+                    </Field>
+                  )}
                   <div className="flex justify-end">
                     <Button
                       type="submit"
@@ -1741,10 +1863,7 @@ function OrderDetail({
                             key={assignment.id}
                             className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 p-2 text-sm"
                           >
-                            <span>
-                              <StatusBadge tone="pending">{humanize(assignment.assignmentRole)}</StatusBadge>{" "}
-                              {assigneeName(assignment.assigneeUserId)}
-                            </span>
+                            {renderAssigneeLabel(assignment)}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1791,6 +1910,47 @@ function OrderDetail({
                             ))}
                           </select>
                         </Field>
+                        <Field label="Deadline (optional)">
+                          <Input
+                            type="datetime-local"
+                            value={stepAssignment.deadline}
+                            onChange={(event) =>
+                              setStepAssignment((current) => ({
+                                ...current,
+                                deadline: event.target.value,
+                              }))
+                            }
+                          />
+                        </Field>
+                      </div>
+                      <Field label="Assignee type">
+                        <RadioGroup
+                          className="grid grid-cols-2"
+                          value={stepAssignment.assigneeType}
+                          onValueChange={(value) =>
+                            setStepAssignment((current) => ({
+                              ...current,
+                              assigneeType: value as "USER" | "VENDOR",
+                              assigneeUserId: value === "USER" ? current.assigneeUserId : "",
+                              vendorId: value === "VENDOR" ? current.vendorId : "",
+                            }))
+                          }
+                        >
+                          <div className="flex items-center gap-2">
+                            <RadioGroupItem value="USER" id="step-assignee-user" />
+                            <Label htmlFor="step-assignee-user" className="text-sm font-normal">
+                              Internal worker
+                            </Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <RadioGroupItem value="VENDOR" id="step-assignee-vendor" />
+                            <Label htmlFor="step-assignee-vendor" className="text-sm font-normal">
+                              Third-party vendor
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </Field>
+                      {stepAssignment.assigneeType === "USER" ? (
                         <Field label="Assignee">
                           <select
                             className={selectClassName}
@@ -1811,7 +1971,33 @@ function OrderDetail({
                             ))}
                           </select>
                         </Field>
-                      </div>
+                      ) : (
+                        <Field label="Vendor">
+                          <select
+                            className={selectClassName}
+                            value={stepAssignment.vendorId}
+                            disabled={activeVendors.length === 0}
+                            onChange={(event) =>
+                              setStepAssignment((current) => ({
+                                ...current,
+                                vendorId: event.target.value,
+                              }))
+                            }
+                          >
+                            <option value="">Select vendor</option>
+                            {activeVendors.map((vendor: Vendor) => (
+                              <option key={vendor.id} value={vendor.id}>
+                                {vendor.name}
+                              </option>
+                            ))}
+                          </select>
+                          {activeVendors.length === 0 ? (
+                            <p className="mt-1 text-xs text-amber-600">
+                              No active vendors yet — add one in the Vendors page.
+                            </p>
+                          ) : null}
+                        </Field>
+                      )}
                       <IndicatorRow indicators={stepIndicators} className="mt-1" />
                       <div className="flex justify-end">
                         <Button
@@ -2216,6 +2402,62 @@ function OrderDetail({
                   {timelineQuery.data.map((event) => (
                     <TimelineEventRow key={event.id} event={event} />
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          ) : null}
+
+          {detailTab === "audit" ? (
+          <Card className="border-dashed">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Audit trail
+              </CardTitle>
+              <CardDescription>
+                Every create, edit, assignment, execution, and completion event recorded for this order, newest first.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {auditLogQuery.isLoading ? (
+                <Loading text="Loading audit trail..." />
+              ) : auditLogQuery.isError ? (
+                <ErrorState
+                  title="Audit trail unavailable"
+                  message="The audit log could not be loaded for this order."
+                  onRetry={() => void auditLogQuery.refetch()}
+                />
+              ) : !auditLogQuery.data?.content.length ? (
+                <Empty text="No audit events recorded yet." />
+              ) : (
+                <div className="space-y-3">
+                  {auditLogQuery.data.content.map((event) => (
+                    <AuditLogRow key={event.id} event={event} actorName={actorsById.get(event.actorUserId ?? "")} />
+                  ))}
+                  <div className="flex items-center justify-between pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={auditPage === 0}
+                      onClick={() => setAuditPage((page) => Math.max(0, page - 1))}
+                    >
+                      Newer
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      Page {auditPage + 1} of {Math.max(1, auditLogQuery.data.totalPages ?? 1)}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={auditPage + 1 >= (auditLogQuery.data.totalPages ?? 1)}
+                      onClick={() => setAuditPage((page) => page + 1)}
+                    >
+                      Load more
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -3340,6 +3582,70 @@ function TimelineEventRow({ event }: { event: TimelineEvent }) {
         Completed {formatNumber(event.completedQuantity)} · Rejected {formatNumber(event.rejectedQuantity)}
         {event.notes ? ` · ${event.notes}` : ""}
       </p>
+    </div>
+  );
+}
+
+const auditEventTone: Record<AuditEventType, "success" | "error" | "warning" | "info" | "pending"> = {
+  CREATED: "info",
+  EDITED: "pending",
+  CANCELLED: "error",
+  ASSIGNED: "info",
+  REASSIGNED: "warning",
+  UNASSIGNED: "warning",
+  VENDOR_HANDOFF: "info",
+  STEP_STARTED: "pending",
+  STEP_PAUSED: "warning",
+  PARTIAL_COMPLETE: "pending",
+  STEP_COMPLETED: "success",
+  EXECUTION_BATCH_RECORDED: "pending",
+  QUALITY_RECORDED: "info",
+  MATERIAL_CONSUMED: "pending",
+  ORDER_COMPLETED: "success",
+  DEADLINE_BREACHED: "error",
+};
+
+const auditEventIcon: Record<AuditEventType, typeof History> = {
+  CREATED: Plus,
+  EDITED: Pencil,
+  CANCELLED: Ban,
+  ASSIGNED: UserPlus,
+  REASSIGNED: RefreshCw,
+  UNASSIGNED: UserMinus,
+  VENDOR_HANDOFF: Truck,
+  STEP_STARTED: Play,
+  STEP_PAUSED: Pause,
+  PARTIAL_COMPLETE: Check,
+  STEP_COMPLETED: BadgeCheck,
+  EXECUTION_BATCH_RECORDED: PackageCheck,
+  QUALITY_RECORDED: ShieldCheck,
+  MATERIAL_CONSUMED: Boxes,
+  ORDER_COMPLETED: ClipboardCheck,
+  DEADLINE_BREACHED: AlertTriangle,
+};
+
+function auditEventSummary(event: AuditLogResponse): string {
+  const base = humanize(event.eventType);
+  return event.details ? `${base} — ${event.details}` : base;
+}
+
+function AuditLogRow({ event, actorName }: { event: AuditLogResponse; actorName?: string }) {
+  const Icon = auditEventIcon[event.eventType] ?? History;
+  return (
+    <div className="flex gap-3 border-l-2 border-primary/30 pl-3 text-sm">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className="flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge tone={auditEventTone[event.eventType] ?? "pending"}>
+            {humanize(event.eventType)}
+          </StatusBadge>
+          <span className="text-xs text-muted-foreground">{formatDateTime(event.occurredAt)}</span>
+          {actorName ? (
+            <span className="text-xs text-muted-foreground">by {actorName}</span>
+          ) : null}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">{auditEventSummary(event)}</p>
+      </div>
     </div>
   );
 }
