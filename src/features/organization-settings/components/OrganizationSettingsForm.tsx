@@ -16,6 +16,7 @@ import { useForm } from "react-hook-form";
 
 import {
   AppForm,
+  CheckboxField,
   FormActions,
   NumberField,
   SelectField,
@@ -76,6 +77,7 @@ const schema = z.object({
     }),
   businessType: z.string().optional(),
   state: z.string().optional(),
+  employeeSelfProgressUpdateEnabled: z.boolean().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -175,6 +177,7 @@ export function OrganizationSettingsForm() {
       gstNumber: "",
       businessType: "MANUFACTURING",
       state: "",
+      employeeSelfProgressUpdateEnabled: false,
     },
   });
   const gstNumber = form.watch("gstNumber");
@@ -227,6 +230,9 @@ export function OrganizationSettingsForm() {
       gstNumber: data.data.gstNumber ?? "",
       businessType: data.data.businessType ?? "MANUFACTURING",
       state: data.data.state ?? "",
+      employeeSelfProgressUpdateEnabled: Boolean(
+        data.data.employeeSelfProgressUpdateEnabled
+      ),
     });
   }, [data, form]);
 
@@ -279,6 +285,7 @@ export function OrganizationSettingsForm() {
         state: values.state || stateNameFromGstNumber(values.gstNumber),
         weekendDays: data?.data.weekendDays ?? "SATURDAY,SUNDAY",
         weekendPaid: Boolean(data?.data.weekendPaid),
+        employeeSelfProgressUpdateEnabled: values.employeeSelfProgressUpdateEnabled,
       }).unwrap();
       toast.success("Organization settings updated successfully");
     } catch {
@@ -599,6 +606,22 @@ export function OrganizationSettingsForm() {
                     { label: "November", value: "11" },
                     { label: "December", value: "12" },
                   ]}
+                />
+              </div>
+            </div>
+
+            <div className="border-t pt-6">
+              <h2 className="text-sm font-semibold text-slate-950">
+                Employee Self-Service
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Let employees update progress on their own production assignments.
+              </p>
+              <div className="mt-4">
+                <CheckboxField<FormValues>
+                  name="employeeSelfProgressUpdateEnabled"
+                  label="Allow employees to start, log partial output, and complete their own assigned production steps"
+                  helperText="When off, employees can only view their assignments; production leads must record all progress."
                 />
               </div>
             </div>
