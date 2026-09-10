@@ -137,6 +137,19 @@ export const whitelabelApi = baseApi.injectEndpoints({
         params: { domain },
       }),
     }),
+
+    /**
+     * Authenticated branding for the caller's own organization. Needed on the
+     * shared app domain, where the public by-domain lookup cannot identify an
+     * organization from the hostname alone.
+     */
+    getCurrentWhitelabelBranding: builder.query<
+      ApiResponse<PublicWhitelabelBranding | null>,
+      void
+    >({
+      query: () => "/api/whitelabel/branding/current",
+      providesTags: ["Whitelabel"],
+    }),
   }),
 });
 
@@ -152,4 +165,5 @@ export const {
   useGetPartnerWhitelabelOrganizationQuery,
   useUpdatePartnerWhitelabelOrganizationMutation,
   useGetPublicWhitelabelBrandingQuery,
+  useGetCurrentWhitelabelBrandingQuery,
 } = whitelabelApi;

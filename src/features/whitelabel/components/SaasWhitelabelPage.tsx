@@ -66,6 +66,11 @@ import {
   WHITELABEL_FORM_COPY,
   WHITELABEL_PAGE_COPY,
   WHITELABEL_PARTNER_FORM_DEFAULTS,
+  getDomainValueDisplay,
+  getDomainValuePlaceholder,
+  getInvalidDomainMessage,
+  getSharedAppDomain,
+  getWhitelabelDomainDescription,
   getWhitelabelDomainOption,
 } from "../config/whitelabelUiConfig";
 import { WhitelabelBrandPreview } from "./WhitelabelBrandPreview";
@@ -243,7 +248,7 @@ export function SaasWhitelabelPage() {
     }
 
     if (draft.domainType !== "SHARED" && !isValidDomainValue(draft.domainValue)) {
-      toast.error(WHITELABEL_FORM_COPY.validation.invalidDomain);
+      toast.error(getInvalidDomainMessage(draft.domainType));
       return;
     }
 
@@ -385,7 +390,7 @@ export function SaasWhitelabelPage() {
                   <TableCell data-label="Domain">
                     <p className="text-sm">{getDomainTypeLabel(org.domainType)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {org.domainValue || "—"}
+                      {getDomainValueDisplay(org.domainType, org.domainValue)}
                     </p>
                   </TableCell>
                   <TableCell data-label="Verified">
@@ -621,15 +626,29 @@ export function SaasWhitelabelPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>{WHITELABEL_FORM_COPY.fields.domainValue.label}</Label>
+                <Label>
+                  {draft.domainType === "SHARED"
+                    ? WHITELABEL_FORM_COPY.fields.domainValue.sharedLabel
+                    : WHITELABEL_FORM_COPY.fields.domainValue.label}
+                </Label>
                 <Input
-                  value={draft.domainValue}
+                  value={
+                    draft.domainType === "SHARED"
+                      ? getSharedAppDomain()
+                      : draft.domainValue
+                  }
                   onChange={(event) =>
                     setDraft((current) => current && { ...current, domainValue: event.target.value })
                   }
-                  placeholder={WHITELABEL_FORM_COPY.fields.domainValue.placeholder}
+                  placeholder={getDomainValuePlaceholder(draft.domainType)}
                   disabled={draft.domainType === "SHARED"}
+                  readOnly={draft.domainType === "SHARED"}
                 />
+                {draft.domainType === "SHARED" ? (
+                  <p className="text-xs text-muted-foreground">
+                    {WHITELABEL_FORM_COPY.fields.domainValue.sharedHelp}
+                  </p>
+                ) : null}
               </div>
 
               <WhitelabelBrandPreview
@@ -770,7 +789,7 @@ function getDomainTypeLabel(value: WhitelabelDomainType) {
 }
 
 function getDomainTypeDescription(value: WhitelabelDomainType) {
-  return getWhitelabelDomainOption(value).description;
+  return getWhitelabelDomainDescription(value);
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
