@@ -1,6 +1,11 @@
 import { baseApi } from "@/services/baseApi";
 import type {
   ApiResponse,
+  ModuleAddon,
+  ModuleAddonRequest,
+  PricingPlan,
+  PricingPlanRequest,
+  PricingReorderRequest,
   SaasAdminDashboard,
   SaasAdminInsights,
   SaasFactory,
@@ -44,6 +49,104 @@ export const saasAdminApi = baseApi.injectEndpoints({
       query: ({ plan, body }) => ({
         url: `/api/saas-admin/plans/${plan}`,
         method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["SaasAdmin"],
+    }),
+
+    getPricingPlans: builder.query<ApiResponse<PricingPlan[]>, void>({
+      query: () => "/api/saas-admin/pricing/plans",
+      providesTags: ["SaasAdmin"],
+    }),
+
+    createPricingPlan: builder.mutation<
+      ApiResponse<PricingPlan>,
+      PricingPlanRequest
+    >({
+      query: (body) => ({
+        url: "/api/saas-admin/pricing/plans",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["SaasAdmin"],
+    }),
+
+    updatePricingPlan: builder.mutation<
+      ApiResponse<PricingPlan>,
+      { id: string; body: PricingPlanRequest }
+    >({
+      query: ({ id, body }) => ({
+        url: `/api/saas-admin/pricing/plans/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["SaasAdmin"],
+    }),
+
+    deletePricingPlan: builder.mutation<ApiResponse<void>, string>({
+      query: (id) => ({
+        url: `/api/saas-admin/pricing/plans/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["SaasAdmin"],
+    }),
+
+    reorderPricingPlans: builder.mutation<
+      ApiResponse<PricingPlan[]>,
+      PricingReorderRequest
+    >({
+      query: (body) => ({
+        url: "/api/saas-admin/pricing/plans/reorder",
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["SaasAdmin"],
+    }),
+
+    getModuleAddons: builder.query<ApiResponse<ModuleAddon[]>, void>({
+      query: () => "/api/saas-admin/pricing/add-ons",
+      providesTags: ["SaasAdmin"],
+    }),
+
+    createModuleAddon: builder.mutation<
+      ApiResponse<ModuleAddon>,
+      ModuleAddonRequest
+    >({
+      query: (body) => ({
+        url: "/api/saas-admin/pricing/add-ons",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["SaasAdmin"],
+    }),
+
+    updateModuleAddon: builder.mutation<
+      ApiResponse<ModuleAddon>,
+      { id: string; body: ModuleAddonRequest }
+    >({
+      query: ({ id, body }) => ({
+        url: `/api/saas-admin/pricing/add-ons/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["SaasAdmin"],
+    }),
+
+    deleteModuleAddon: builder.mutation<ApiResponse<void>, string>({
+      query: (id) => ({
+        url: `/api/saas-admin/pricing/add-ons/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["SaasAdmin"],
+    }),
+
+    reorderModuleAddons: builder.mutation<
+      ApiResponse<ModuleAddon[]>,
+      PricingReorderRequest
+    >({
+      query: (body) => ({
+        url: "/api/saas-admin/pricing/add-ons/reorder",
+        method: "PUT",
         body,
       }),
       invalidatesTags: ["SaasAdmin"],
@@ -110,6 +213,16 @@ export const {
   useCreateSaasOfferMutation,
   useUpdateSaasFactoryMutation,
   useUpdateSaasPlanMutation,
+  useGetPricingPlansQuery,
+  useCreatePricingPlanMutation,
+  useUpdatePricingPlanMutation,
+  useDeletePricingPlanMutation,
+  useReorderPricingPlansMutation,
+  useGetModuleAddonsQuery,
+  useCreateModuleAddonMutation,
+  useUpdateModuleAddonMutation,
+  useDeleteModuleAddonMutation,
+  useReorderModuleAddonsMutation,
   useGetSaasAdminInsightsQuery,
   useUpdateSaasFactoryStatusMutation,
   useTerminateSaasFactoryMutation,

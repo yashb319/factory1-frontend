@@ -18,6 +18,58 @@ export interface SaasPlanOption {
   serviceOfferings?: string | null;
 }
 
+export interface PricingPlanRequest {
+  code: string;
+  name: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  monthlyPriceFrom: boolean;
+  annualPriceFrom: boolean;
+  currency: string;
+  gstExtra: boolean;
+  employeeLimit: number;
+  userLimit: number;
+  aiPromptLimit: number | null;
+  aiPromptWindowMinutes: number | null;
+  includedModules: string;
+  idealFor: string;
+  badge: string | null;
+  higherScaleCopy: string;
+  active: boolean;
+  displayOrder: number;
+}
+
+export interface PricingPlan extends PricingPlanRequest {
+  id: string;
+  plan: string;
+  label: string;
+  defaultMonthlyPrice: number;
+  aiUnlimited: false;
+  serviceOfferings?: string | null;
+  displayNote?: string | null;
+  tag?: string | null;
+}
+
+export interface ModuleAddonRequest {
+  code: string;
+  name: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  currency: string;
+  gstExtra: boolean;
+  positioningText: string;
+  active: boolean;
+  displayOrder: number;
+}
+
+export interface ModuleAddon extends ModuleAddonRequest {
+  id: string;
+}
+
+export interface PricingReorderRequest {
+  ids: string[];
+}
+
 export interface SaasOffer {
   id: string;
   title: string;
