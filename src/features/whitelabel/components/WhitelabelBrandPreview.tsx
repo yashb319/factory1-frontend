@@ -1,5 +1,6 @@
 import {
   WHITELABEL_DEFAULT_BRANDING,
+  getSharedAppDomain,
   getWhitelabelDomainOption,
 } from "../config/whitelabelUiConfig";
 import type { WhitelabelDomainType } from "../types/whitelabel.types";
@@ -47,7 +48,7 @@ export function WhitelabelBrandPreview({
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{displayName}</p>
           <p className="truncate text-xs opacity-80">
-            {domainType === "SHARED" ? domainOption.description : domainValue}
+            {domainType === "SHARED" ? getSharedAppDomain() : domainValue}
           </p>
         </div>
       </div>

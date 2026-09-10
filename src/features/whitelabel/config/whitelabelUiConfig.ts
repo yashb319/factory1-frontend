@@ -15,6 +15,70 @@ export const WHITELABEL_ACCESS = {
   platformAdminName: "Factory1 platform administrators",
 } as const;
 
+/**
+ * Display-only domain configuration. These values never drive routing or API
+ * calls - they only shape the copy shown in the white-label admin forms so the
+ * environment the app is deployed to is described accurately.
+ */
+const SHARED_DOMAIN_FALLBACKS = {
+  production: "factory1.in",
+  local: "localhost",
+} as const;
+
+const SUBDOMAIN_EXAMPLE_TOKEN = "your-brand";
+const CUSTOM_DOMAIN_EXAMPLE_FALLBACK = "erp.your-company.com";
+
+function isLocalHostname(hostname: string) {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local")
+  );
+}
+
+/**
+ * Resolves the shared app domain used for display copy. Prefers the explicit
+ * env override, then falls back to a local or production default based on the
+ * environment the UI is currently running in.
+ */
+export function getSharedAppDomain(): string {
+  const configured = process.env.NEXT_PUBLIC_FACTORY1_SHARED_DOMAIN?.trim();
+  if (configured) return configured;
+
+  if (typeof window !== "undefined" && isLocalHostname(window.location.hostname)) {
+    return window.location.host || SHARED_DOMAIN_FALLBACKS.local;
+  }
+
+  return process.env.NODE_ENV === "production"
+    ? SHARED_DOMAIN_FALLBACKS.production
+    : SHARED_DOMAIN_FALLBACKS.local;
+}
+
+/** Example subdomain shown as placeholder/help text, e.g. `your-brand.factory1.in`. */
+export function getSubdomainExample(): string {
+  const configured = process.env.NEXT_PUBLIC_FACTORY1_SUBDOMAIN_EXAMPLE?.trim();
+  if (configured) return configured;
+
+  return `${SUBDOMAIN_EXAMPLE_TOKEN}.${getSharedAppDomain()}`;
+}
+
+/** Example customer-owned domain shown as placeholder/help text. */
+export function getCustomDomainExample(): string {
+  return (
+    process.env.NEXT_PUBLIC_FACTORY1_CUSTOM_DOMAIN_EXAMPLE?.trim() ||
+    CUSTOM_DOMAIN_EXAMPLE_FALLBACK
+  );
+}
+
+/** Example domain for the given domain type, used in placeholders and hints. */
+export function getDomainExample(domainType: WhitelabelDomainType): string {
+  if (domainType === "SHARED") return getSharedAppDomain();
+  if (domainType === "SUBDOMAIN") return getSubdomainExample();
+  return getCustomDomainExample();
+}
+
 export const WHITELABEL_DOMAIN_OPTIONS: ReadonlyArray<{
   value: WhitelabelDomainType;
   label: string;
@@ -36,6 +100,22 @@ export const WHITELABEL_DOMAIN_OPTIONS: ReadonlyArray<{
     description: "Route a customer-owned verified domain.",
   },
 ] as const;
+
+/**
+ * Domain-type description resolved against the configured environment so a
+ * SHARED selection names the actual shared app domain instead of an example.
+ */
+export function getWhitelabelDomainDescription(
+  domainType: WhitelabelDomainType
+): string {
+  const base = getWhitelabelDomainOption(domainType).description;
+
+  if (domainType === "SHARED") {
+    return `${base} Organizations sign in at ${getSharedAppDomain()}, so no domain value is needed.`;
+  }
+
+  return `${base} Example: ${getDomainExample(domainType)}`;
+}
 
 export const WHITELABEL_FORM_COPY = {
   fields: {
@@ -64,7 +144,9 @@ export const WHITELABEL_FORM_COPY = {
     },
     domainValue: {
       label: "Domain value",
-      placeholder: "acme.factory1.app",
+      sharedLabel: "Shared app domain",
+      sharedHelp:
+        "Shared organizations are served from the default app domain. Domain value is managed by Factory1 and cannot be edited.",
     },
     partnerName: {
       label: "Partner name",
@@ -83,7 +165,7 @@ export const WHITELABEL_FORM_COPY = {
     colors: "Colors must be valid hex values like #2563EB",
     urls: "Logo and favicon must be valid http(s) URLs",
     missingDomain: "Enter a domain value for a subdomain or custom domain",
-    invalidDomain: "Enter a valid domain, e.g. acme.factory1.app",
+    invalidDomain: "Enter a valid domain",
     partnerRequired: "Partner name, code and linked user ID are required",
   },
 } as const;
@@ -111,4 +193,30 @@ export function getWhitelabelDomainOption(value: WhitelabelDomainType) {
     WHITELABEL_DOMAIN_OPTIONS.find((option) => option.value === value) ??
     WHITELABEL_DOMAIN_OPTIONS[0]
   );
+}
+
+/** Placeholder for the domain value input, driven by the selected domain type. */
+export function getDomainValuePlaceholder(
+  domainType: WhitelabelDomainType
+): string {
+  return getDomainExample(domainType);
+}
+
+/** Validation message for an invalid domain, with an environment-aware example. */
+export function getInvalidDomainMessage(
+  domainType: WhitelabelDomainType
+): string {
+  return `${WHITELABEL_FORM_COPY.validation.invalidDomain}, e.g. ${getDomainExample(domainType)}`;
+}
+
+/**
+ * Domain value shown in read-only lists. SHARED organizations are served from
+ * the configured shared app domain, so show that instead of an empty value.
+ */
+export function getDomainValueDisplay(
+  domainType: WhitelabelDomainType,
+  domainValue?: string | null
+): string {
+  if (domainType === "SHARED") return getSharedAppDomain();
+  return domainValue?.trim() || "—";
 }

@@ -72,4 +72,20 @@ export type WhitelabelPartnerRequest = {
   active?: boolean;
 };
 
-export type PublicWhitelabelBranding = WhitelabelOrganization;
+/**
+ * Branding payload returned by the runtime branding lookups (public by-domain
+ * and authenticated current-organization). Only branding fields are exposed;
+ * organization identity fields are optional because the public endpoint omits
+ * them.
+ */
+export type PublicWhitelabelBranding = {
+  organizationId?: string | null;
+  organizationName?: string | null;
+  displayName?: string | null;
+  logoUrl?: string | null;
+  faviconUrl?: string | null;
+  primaryColorHex?: string | null;
+  accentColorHex?: string | null;
+  domainType?: WhitelabelDomainType;
+  domainValue?: string | null;
+};

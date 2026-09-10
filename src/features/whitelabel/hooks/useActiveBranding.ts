@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useGetPublicWhitelabelBrandingQuery } from "../api/whitelabelApi";
+import { useAppSelector } from "@/lib/hook";
+import {
+  useGetCurrentWhitelabelBrandingQuery,
+  useGetPublicWhitelabelBrandingQuery,
+} from "../api/whitelabelApi";
 import { WHITELABEL_DEFAULT_BRANDING } from "../config/whitelabelUiConfig";
 import type { PublicWhitelabelBranding } from "../types/whitelabel.types";
 
@@ -36,23 +40,41 @@ export type ActiveBranding = {
 };
 
 /**
- * Resolves the active org branding for the current hostname via the public,
- * unauthenticated by-domain lookup. Gracefully falls back to the default
- * Factory1 identity when there is no record, the lookup fails, or the app
- * is running on a shared/default domain.
+ * Resolves the active branding at runtime.
+ *
+ * - Unauthenticated (landing/login, including custom domains): the public,
+ *   unauthenticated by-domain lookup keyed on the current hostname.
+ * - Authenticated: the caller's own organization branding, which is the only
+ *   way to brand the app shell on the shared app domain where the hostname
+ *   cannot identify an organization. Falls back to the by-domain result when
+ *   the authenticated lookup has no record or is unavailable.
+ *
+ * Always degrades gracefully to the default Factory1 identity.
  */
 export function useActiveBranding(): ActiveBranding {
   const hostname = useActiveHostname();
-  const { data, isLoading, isFetching } = useGetPublicWhitelabelBrandingQuery(
-    hostname ?? "",
-    { skip: !hostname }
-  );
+  const isAuthenticated = useAppSelector((state) => Boolean(state.auth.token));
 
-  const branding = data?.data ?? null;
+  const domainQuery = useGetPublicWhitelabelBrandingQuery(hostname ?? "", {
+    skip: !hostname,
+  });
+  const currentQuery = useGetCurrentWhitelabelBrandingQuery(undefined, {
+    skip: !isAuthenticated,
+  });
+
+  const domainBranding = domainQuery.data?.data ?? null;
+  const currentBranding = currentQuery.data?.data ?? null;
+  const branding = currentBranding ?? domainBranding;
+
+  const isLoading =
+    !hostname ||
+    domainQuery.isLoading ||
+    domainQuery.isFetching ||
+    (isAuthenticated && (currentQuery.isLoading || currentQuery.isFetching));
 
   return {
     branding,
-    isLoading: !hostname || isLoading || isFetching,
+    isLoading,
     displayName: branding?.displayName || branding?.organizationName || DEFAULT_APP_NAME,
     logoUrl: branding?.logoUrl || null,
     faviconUrl: branding?.faviconUrl || DEFAULT_FAVICON_URL,
