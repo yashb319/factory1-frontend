@@ -114,6 +114,7 @@ export const baseApi = createApi({
     "Inventory",
     "StockMovement",
     "Supplier",
+    "Vendor",
     "Customer",
     "Products",
     "Billing",

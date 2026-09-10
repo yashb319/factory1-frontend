@@ -1,9 +1,11 @@
 import { baseApi } from "@/services/baseApi";
 import type {
   ApiResponse,
+  AuditLogResponse,
   Bom,
   BomRequest,
   KanbanCard,
+  MyAssignmentResponse,
   PageResponse,
   ProductionAnalytics,
   ProductionAnalyticsFilters,
@@ -330,6 +332,24 @@ export const productionApi = baseApi.injectEndpoints({
       providesTags: ["Production", "Inventory"],
     }),
 
+    getAuditLog: builder.query<
+      PageResponse<AuditLogResponse>,
+      { orderId: string; page?: number; size?: number; sortBy?: string; sortDirection?: string }
+    >({
+      query: ({ orderId, page = 0, size = 20, sortBy = "occurredAt", sortDirection = "DESC" }) => ({
+        url: `/api/production/orders/${orderId}/audit-log`,
+        params: { page, size, sortBy, sortDirection },
+      }),
+      transformResponse: (response: ApiResponse<PageResponse<AuditLogResponse>> | PageResponse<AuditLogResponse>) => unwrapData(response),
+      providesTags: ["Production"],
+    }),
+
+    getMyAssignments: builder.query<MyAssignmentResponse[], void>({
+      query: () => "/api/production/my-assignments",
+      transformResponse: (response: ApiResponse<MyAssignmentResponse[]> | MyAssignmentResponse[]) => unwrapData(response),
+      providesTags: ["Production"],
+    }),
+
     getProductionKanban: builder.query<PageResponse<KanbanCard>, ProductionBoardQuery>({
       query: (params) => ({ url: "/api/production/kanban", params: cleanParams(params) }),
       transformResponse: (response: ApiResponse<PageResponse<KanbanCard>> | PageResponse<KanbanCard>) => unwrapData(response),
@@ -366,6 +386,7 @@ export const {
   usePublishBomMutation,
   useGetOrdersQuery,
   useGetOrderQuery,
+  useLazyGetOrderQuery,
   useCreateOrderMutation,
   useCancelOrderMutation,
   useStepActionMutation,
@@ -390,6 +411,8 @@ export const {
   useCreateMaterialConsumptionMutation,
   useGetMaterialConsumptionsQuery,
   useGetProductionKanbanQuery,
+  useGetAuditLogQuery,
+  useGetMyAssignmentsQuery,
   useGetAnalyticsQuery,
   useGetOrderProgressQuery,
   useGetNotificationPreferencesQuery,

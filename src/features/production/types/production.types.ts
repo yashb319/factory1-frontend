@@ -40,6 +40,23 @@ export type ProductionIndicatorType =
   | "INFO";
 export type ProductionIndicatorSeverity = "info" | "warning" | "critical";
 export type QualityResultStatus = "PASS" | "FAIL" | "HOLD";
+export type AuditEventType =
+  | "CREATED"
+  | "EDITED"
+  | "CANCELLED"
+  | "ASSIGNED"
+  | "REASSIGNED"
+  | "UNASSIGNED"
+  | "VENDOR_HANDOFF"
+  | "STEP_STARTED"
+  | "STEP_PAUSED"
+  | "PARTIAL_COMPLETE"
+  | "STEP_COMPLETED"
+  | "EXECUTION_BATCH_RECORDED"
+  | "QUALITY_RECORDED"
+  | "MATERIAL_CONSUMED"
+  | "ORDER_COMPLETED"
+  | "DEADLINE_BREACHED";
 
 export type WorkflowStepRequest = {
   name: string;
@@ -136,6 +153,7 @@ export type ProductionOrderRequest = {
   dueDate?: string;
   workflowVersionId: string;
   notes?: string;
+  responsibleUserId: string;
 };
 
 export type OrderStep = {
@@ -313,12 +331,15 @@ export type OrderAssignmentRequest = {
   productionOrderId: string;
   orderStepSnapshotId?: string;
   assignmentRole: AssignmentRole;
-  assigneeUserId: string;
+  assigneeUserId?: string;
+  vendorId?: string;
+  deadline?: string;
 };
 
 export type OrderAssignment = OrderAssignmentRequest & {
   id: string;
   createdAt?: string;
+  deadlineBreachNotifiedAt?: string;
 };
 
 export type ExecutionBatchRequest = {
@@ -446,4 +467,31 @@ export type ProductionNotificationEvent =
 
 export type ProductionNotificationPreferences = {
   enabledEventTypes: ProductionNotificationEvent[];
+};
+
+export type AuditLogResponse = {
+  id: string;
+  productionOrderId: string;
+  orderStepSnapshotId?: string;
+  assignmentId?: string;
+  eventType: AuditEventType;
+  actorUserId?: string;
+  occurredAt: string;
+  details?: string;
+};
+
+export type MyAssignmentResponse = {
+  assignmentId: string;
+  orderId: string;
+  orderNumber: string;
+  productId: string;
+  productName?: string;
+  stepId: string;
+  stepName: string;
+  deadline?: string;
+  orderStatus: OrderStatus;
+  plannedQuantity: number;
+  completedQuantity: number;
+  rejectedQuantity: number;
+  stepStatus?: StepExecutionStatus;
 };
