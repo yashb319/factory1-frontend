@@ -47,7 +47,9 @@ export type ActiveBranding = {
  * - Authenticated: the caller's own organization branding, which is the only
  *   way to brand the app shell on the shared app domain where the hostname
  *   cannot identify an organization. Falls back to the by-domain result when
- *   the authenticated lookup has no record or is unavailable.
+ *   the authenticated lookup has no record or is unavailable. "No branding"
+ *   is a successful response with a null payload, so this branches on the
+ *   payload rather than on the response's `success` flag.
  *
  * Always degrades gracefully to the default Factory1 identity.
  */
