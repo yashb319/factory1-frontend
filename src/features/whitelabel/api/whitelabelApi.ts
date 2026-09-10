@@ -147,7 +147,7 @@ export const whitelabelApi = baseApi.injectEndpoints({
       ApiResponse<PublicWhitelabelBranding | null>,
       void
     >({
-      query: () => "/api/whitelabel/branding/current",
+      query: () => "/api/whitelabel/branding/me",
       providesTags: ["Whitelabel"],
     }),
   }),
