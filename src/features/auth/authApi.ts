@@ -7,6 +7,7 @@ import type {
   LoginRequest,
   MessageResponse,
   ResetPasswordRequest,
+  SandboxSignupRequest,
   SignupOrganizationRequest,
   SignupOtpRequest,
   ActivateEmployeeRequest,
@@ -28,6 +29,14 @@ export const authApi = baseApi.injectEndpoints({
     >({
       query: (body) => ({
         url: "/api/auth/register",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    sandboxSignup: builder.mutation<AuthResponse, SandboxSignupRequest>({
+      query: (body) => ({
+        url: "/api/public/sandbox/signup",
         method: "POST",
         body,
       }),
@@ -92,6 +101,7 @@ export const authApi = baseApi.injectEndpoints({
 export const {
   useLoginMutation,
   useSignupOrganizationMutation,
+  useSandboxSignupMutation,
   useSendSignupOtpMutation,
   useSendLoginOtpMutation,
   useSendForgotPasswordOtpMutation,

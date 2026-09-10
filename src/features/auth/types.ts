@@ -30,6 +30,12 @@ export type AuthResponse = {
   user: AuthUser;
 };
 
+export type SandboxSignupRequest = {
+  name: string;
+  organizationName: string;
+  email: string;
+};
+
 export type LoginRequest = {
   email: string;
   password: string;

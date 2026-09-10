@@ -21,9 +21,11 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useBranding } from "@/features/whitelabel/components/BrandingProvider";
 import { PublicPricingCards } from "@/features/public-pricing/components/PublicPricingCards";
+import { SandboxTrialDialog } from "@/features/auth/components/SandboxTrialDialog";
 
 const contactEmail = "official.factory.one@gmail.com";
 const macDownloadUrl =
@@ -82,6 +84,7 @@ const terms = [
 
 export default function LandingPage() {
   const { displayName, logoUrl } = useBranding();
+  const [sandboxDialogOpen, setSandboxDialogOpen] = useState(false);
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -155,6 +158,14 @@ export default function LandingPage() {
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button size="lg" asChild>
               <Link href="/signup">Create your organization</Link>
+            </Button>
+
+            <Button
+              size="lg"
+              variant="secondary"
+              onClick={() => setSandboxDialogOpen(true)}
+            >
+              Try it free — no signup approval needed
             </Button>
 
             <Button size="lg" variant="outline" asChild>
@@ -285,6 +296,11 @@ export default function LandingPage() {
 
         <PublicPricingCards />
       </section>
+
+      <SandboxTrialDialog
+        open={sandboxDialogOpen}
+        onOpenChange={setSandboxDialogOpen}
+      />
 
       <section id="desktop" className="border-y bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[0.9fr_1.1fr]">
