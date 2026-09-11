@@ -18,12 +18,16 @@ import {
 } from "../types/payroll.types";
 import { buildPayslipHtml } from "../utils/payrollPayslipHtml.utils";
 import {
-  downloadPayslipJpg,
-  printPayslip,
+  downloadPayslipJpgFromHtml,
+  getPayslipFileName,
+  printPayslipFromHtml,
 } from "../utils/payrollPayslipDownload.utils";
 import { useGetOrganizationSettingsQuery } from "@/features/organization-settings/api/organizationSettingsApi";
 import { useGetPayslipsForEmployeeQuery } from "@/features/payslips/api/payslipApi";
 import { ShareLinkPanel } from "@/features/payslips/components/ShareLinkPanel";
+import { PayslipDocument } from "@/features/payslips/components/PayslipDocument";
+import { buildTemplatePayslipHtml } from "@/features/payslips/utils/payslipTemplateHtml.utils";
+import { useGetPayslipTemplateQuery } from "@/features/payslip-templates/api/payslipTemplateApi";
 
 interface Props {
   open: boolean;
@@ -46,22 +50,42 @@ export function PayrollPayslipDialog({
     { skip: !item?.employeeId }
   );
 
+  const matchingPayslip = payslips?.data?.find(
+    (payslip) => payslip.payrollItemId === item?.id
+  );
+
+  const { data: template } = useGetPayslipTemplateQuery(
+    matchingPayslip?.templateId ?? "",
+    { skip: !matchingPayslip?.templateId }
+  );
+
+  const templatePayslip = useMemo(() => {
+    if (!matchingPayslip || !template?.data?.templateData) return null;
+    return {
+      templateData: template.data.templateData,
+      payslipData: matchingPayslip.payslipData,
+      payPeriodMonth: matchingPayslip.payPeriodMonth,
+      payPeriodYear: matchingPayslip.payPeriodYear,
+    };
+  }, [matchingPayslip, template]);
+
   const payslipHtml = useMemo(() => {
+    if (templatePayslip) return buildTemplatePayslipHtml(templatePayslip);
     if (!payroll || !item) return "";
     return buildPayslipHtml(payroll, item);
-  }, [payroll, item]);
+  }, [templatePayslip, payroll, item]);
 
   if (!payroll || !item) return null;
 
-  const matchingPayslip = payslips?.data?.find(
-    (payslip) => payslip.payrollItemId === item.id
-  );
   const shareLinkEnabled = Boolean(orgSettings?.data.payslipShareLinkEnabled);
 
   async function handleDownload() {
     setLoading(true);
     try {
-      await downloadPayslipJpg(payroll!, item!);
+      await downloadPayslipJpgFromHtml(
+        payslipHtml,
+        getPayslipFileName(payroll!, item!)
+      );
     } finally {
       setLoading(false);
     }
@@ -70,7 +94,7 @@ export function PayrollPayslipDialog({
   async function handlePrint() {
     setLoading(true);
     try {
-      await printPayslip(payroll!, item!);
+      await printPayslipFromHtml(payslipHtml);
     } finally {
       setLoading(false);
     }
@@ -113,11 +137,15 @@ export function PayrollPayslipDialog({
             </div>
           )}
           <div className="flex justify-center">
-            <iframe
-              title="Payslip Preview"
-              srcDoc={payslipHtml}
-              className="h-[760px] w-full rounded-xl border bg-white"
-            />
+            {templatePayslip ? (
+              <PayslipDocument payslip={templatePayslip} variant="embedded" />
+            ) : (
+              <iframe
+                title="Payslip Preview"
+                srcDoc={payslipHtml}
+                className="h-[760px] w-full rounded-xl border bg-white"
+              />
+            )}
           </div>
         </div>
       </DialogContent>

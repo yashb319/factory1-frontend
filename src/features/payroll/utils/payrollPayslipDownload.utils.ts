@@ -13,10 +13,7 @@ import {
   saveFile,
 } from "@/features/import-export/utils/localExportFiles";
 
-export async function createPayslipJpg(
-  payroll: PayrollRunDetailsResponse,
-  item: PayrollItemResponse
-) {
+export async function createPayslipJpgFromHtml(html: string) {
   const iframe = document.createElement("iframe");
 
   iframe.style.position = "fixed";
@@ -36,7 +33,7 @@ export async function createPayslipJpg(
   }
 
   doc.open();
-  doc.write(buildPayslipHtml(payroll, item));
+  doc.write(html);
   doc.close();
 
   await new Promise((resolve) => setTimeout(resolve, 300));
@@ -62,24 +59,45 @@ export async function createPayslipJpg(
   return dataUrl;
 }
 
+export async function createPayslipJpg(
+  payroll: PayrollRunDetailsResponse,
+  item: PayrollItemResponse
+) {
+  return createPayslipJpgFromHtml(buildPayslipHtml(payroll, item));
+}
+
+export async function downloadPayslipJpgFromHtml(
+  html: string,
+  fileName: string
+) {
+  const image = await createPayslipJpgFromHtml(html);
+  if (!image) return;
+
+  await saveFile({
+    fileName,
+    content: dataUrlToBlob(image),
+  });
+}
+
 export async function downloadPayslipJpg(
   payroll: PayrollRunDetailsResponse,
   item: PayrollItemResponse
 ) {
-  const image = await createPayslipJpg(payroll, item);
-  if (!image) return;
-
-  await saveFile({
-    fileName: getPayslipFileName(payroll, item),
-    content: dataUrlToBlob(image),
-  });
+  await downloadPayslipJpgFromHtml(
+    buildPayslipHtml(payroll, item),
+    getPayslipFileName(payroll, item)
+  );
 }
 
 export async function printPayslip(
   payroll: PayrollRunDetailsResponse,
   item: PayrollItemResponse
 ) {
-  const image = await createPayslipJpg(payroll, item);
+  await printPayslipFromHtml(buildPayslipHtml(payroll, item));
+}
+
+export async function printPayslipFromHtml(html: string) {
+  const image = await createPayslipJpgFromHtml(html);
   if (!image) return;
 
   const printWindow = window.open("", "_blank");
@@ -167,7 +185,7 @@ export async function downloadAllPayslipsZip(
   });
 }
 
-function getPayslipFileName(
+export function getPayslipFileName(
   payroll: PayrollRunDetailsResponse,
   item: PayrollItemResponse
 ) {
