@@ -201,6 +201,20 @@ export const productionApi = baseApi.injectEndpoints({
       invalidatesTags: ["Production"],
     }),
 
+    recordStepProduction: builder.mutation<
+      ProductionOrder,
+      { orderId: string; stepId: string; body: StepActionRequest }
+    >({
+      query: ({ orderId, stepId, body }) => ({
+        url: `/api/production/orders/${orderId}/steps/${stepId}/record`,
+        method: "POST",
+        body,
+      }),
+      transformResponse: (response: ApiResponse<ProductionOrder> | ProductionOrder) =>
+        unwrapData(response),
+      invalidatesTags: ["Production"],
+    }),
+
     getTimeline: builder.query<TimelineEvent[], string>({
       query: (id) => `/api/production/orders/${id}/timeline`,
       transformResponse: (response: ApiResponse<TimelineEvent[]> | TimelineEvent[]) => unwrapData(response),
@@ -390,6 +404,7 @@ export const {
   useCreateOrderMutation,
   useCancelOrderMutation,
   useStepActionMutation,
+  useRecordStepProductionMutation,
   useGetTimelineQuery,
   useGetProductionDashboardQuery,
   useGetDashboardStationsQuery,

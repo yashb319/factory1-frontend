@@ -170,6 +170,7 @@ export type OrderStep = {
   completedQuantity?: number;
   rejectedQuantity?: number;
   holdQuantity?: number;
+  remainingQuantity?: number;
   stationId?: string | null;
   stationName?: string | null;
   workstationId?: string | null;
@@ -181,6 +182,7 @@ export type OrderStep = {
 export type ProductionOrder = ProductionOrderRequest & {
   id: string;
   version?: number;
+  executionVersion?: number;
   completedQuantity: number;
   rejectedQuantity: number;
   remainingQuantity: number;
@@ -191,6 +193,7 @@ export type ProductionOrder = ProductionOrderRequest & {
   assignedStationName?: string | null;
   assignedWorkstationId?: string | null;
   assignedWorkstationName?: string | null;
+  hasActiveAssignment?: boolean;
   indicators?: ProductionIndicator[];
   steps: OrderStep[];
 };
@@ -265,6 +268,7 @@ export type ProductionBoardItem = {
   stationName?: string | null;
   workstationId?: string | null;
   workstationName?: string | null;
+  hasActiveAssignment?: boolean;
   indicators?: ProductionIndicator[];
 };
 
@@ -493,5 +497,8 @@ export type MyAssignmentResponse = {
   plannedQuantity: number;
   completedQuantity: number;
   rejectedQuantity: number;
+  remainingQuantity?: number;
   stepStatus?: StepExecutionStatus;
+  executionVersion: number;
+  stepExpectedVersion: number;
 };

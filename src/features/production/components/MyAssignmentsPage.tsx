@@ -8,10 +8,9 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import { useAppSelector } from "@/lib/hook";
 import { useGetOrganizationSettingsQuery } from "@/features/organization-settings/api/organizationSettingsApi";
-import { useGetMyAssignmentsQuery, useStepActionMutation } from "../api/productionApi";
+import { useGetMyAssignmentsQuery } from "../api/productionApi";
 import type { MyAssignmentResponse } from "../types/production.types";
 import { PartialCompletionForm } from "./PartialCompletionForm";
 
@@ -50,7 +49,7 @@ export function MyAssignmentsPage() {
         <Card className="border-dashed">
           <CardContent className="p-4 text-sm text-muted-foreground">
             Your organization has not enabled employee self-progress updates yet. You can view your
-            assignments below, but starting, logging output, and completing steps must be done by a
+            assignments below, but logging output and completing steps must be done by a
             production lead.
           </CardContent>
         </Card>
@@ -107,30 +106,15 @@ function MyAssignmentCard({
   currentUserId?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [stepAction, stepActionState] = useStepActionMutation();
   const overdue = isOverdue(assignment.deadline);
-  const remainingQuantity = Math.max(
-    assignment.plannedQuantity - assignment.completedQuantity - assignment.rejectedQuantity,
-    0
-  );
-
-  const startStep = async () => {
-    try {
-      await stepAction({
-        orderId: assignment.orderId,
-        stepId: assignment.stepId,
-        action: "start",
-        body: {},
-      }).unwrap();
-      toast.success(`${assignment.orderNumber} started`);
-    } catch (error) {
-      const message =
-        error && typeof error === "object" && "data" in error
-          ? (error as { data?: { message?: string } }).data?.message
-          : undefined;
-      toast.error(message ?? "Could not start this step");
-    }
-  };
+  const remainingQuantity =
+    assignment.remainingQuantity ??
+    Math.max(
+      assignment.plannedQuantity -
+        assignment.completedQuantity -
+        assignment.rejectedQuantity,
+      0
+    );
 
   return (
     <div className="rounded-lg border bg-white p-4">
@@ -166,18 +150,9 @@ function MyAssignmentCard({
 
       {canSelfUpdate ? (
         <div className="mt-3 space-y-2">
-          {assignment.stepStatus === "PENDING" || assignment.stepStatus === "READY" ? (
-            <Button
-              type="button"
-              size="sm"
-              disabled={stepActionState.isLoading}
-              onClick={() => void startStep()}
-            >
-              Start step
-            </Button>
-          ) : assignment.stepStatus !== "COMPLETED" ? (
+          {assignment.stepStatus !== "COMPLETED" ? (
             <Button type="button" size="sm" variant="outline" onClick={() => setExpanded((value) => !value)}>
-              {expanded ? "Hide output form" : "Record output"}
+              {expanded ? "Hide production form" : "Record production"}
             </Button>
           ) : null}
 
@@ -186,6 +161,8 @@ function MyAssignmentCard({
               orderId={assignment.orderId}
               stepId={assignment.stepId}
               remainingQuantity={remainingQuantity}
+              expectedOrderVersion={assignment.executionVersion}
+              expectedStepVersion={assignment.stepExpectedVersion}
               onDone={() => setExpanded(false)}
               onCancel={() => setExpanded(false)}
             />
