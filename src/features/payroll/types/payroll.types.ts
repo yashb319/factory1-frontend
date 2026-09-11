@@ -53,7 +53,32 @@ export interface PayrollItemResponse {
   grossSalary: number;
   overtimeAmount: number;
   deductions: number;
+  employeePf?: number | null;
+  voluntaryPf?: number | null;
+  tds?: number | null;
   netSalary: number;
+  statutoryCalculation?: PayrollStatutoryCalculationResponse | null;
+}
+
+export interface PayrollStatutoryCalculationResponse {
+  pfWages: number;
+  employeePf: number;
+  voluntaryPf: number;
+  employerPf: number;
+  employerEpf: number;
+  eps: number;
+  edli: number;
+  adminCharge: number;
+  projectedAnnualIncome: number;
+  taxableIncome: number;
+  baseTax: number;
+  annualTax: number;
+  taxAlreadyDeducted: number;
+  currentMonthTds: number;
+  taxRuleId?: string | null;
+  pfRuleId?: string | null;
+  calculationVersion?: string | null;
+  calculationSnapshotJson?: string | null;
 }
 
 export interface PayrollRunDetailsResponse extends PayrollRunSummaryResponse {

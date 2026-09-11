@@ -19,6 +19,7 @@ import {
 } from "../schemas/employee.schema";
 import { useUpdateEmployeeMutation } from "../api/employeeApi";
 import { EmployeeForm } from "./EmployeeForm";
+import { EmployeeStatutoryForm } from "./EmployeeStatutoryForm";
 
 interface Props {
   employee: Employee | null;
@@ -112,6 +113,7 @@ export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
           onCancel={() => handleOpenChange(false)}
           onSubmit={onSubmit}
         />
+        {employee && <EmployeeStatutoryForm employeeId={employee.id} />}
       </SheetContent>
     </Sheet>
   );

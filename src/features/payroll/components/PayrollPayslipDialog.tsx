@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "../utils/payroll.utils";
 
 import {
   PayrollItemResponse,
@@ -84,6 +85,7 @@ export function PayrollPayslipDialog({
         </div>
 
         <div className="flex-1 overflow-y-auto py-4">
+          <StatutoryBreakdown item={item} />
           <div className="flex justify-center">
             <iframe
               title="Payslip Preview"
@@ -94,5 +96,97 @@ export function PayrollPayslipDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function StatutoryBreakdown({ item }: { item: PayrollItemResponse }) {
+  const calculation = item.statutoryCalculation;
+  const hasStatutoryData =
+    Boolean(calculation) ||
+    [item.employeePf, item.voluntaryPf, item.tds].some(
+      (value) => value !== null && value !== undefined && value !== 0
+    );
+
+  if (!hasStatutoryData) return null;
+
+  return (
+    <section className="mb-4 rounded-xl border bg-slate-50 p-4">
+      <h3 className="text-sm font-semibold">Statutory deductions</h3>
+      <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+        <Amount label="Employee PF" value={item.employeePf} />
+        <Amount label="Voluntary PF" value={item.voluntaryPf} />
+        <Amount label="TDS" value={item.tds} />
+      </div>
+
+      {calculation && (
+        <details className="mt-4 rounded-lg border bg-white p-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            View calculation
+          </summary>
+          <div className="mt-4 grid gap-4 text-sm md:grid-cols-2">
+            <BreakdownGroup
+              title="PF calculation"
+              rows={[
+                ["PF wages", calculation.pfWages],
+                ["Employee PF", calculation.employeePf],
+                ["Voluntary PF", calculation.voluntaryPf],
+              ]}
+            />
+            <BreakdownGroup
+              title="Employer cost (does not affect net pay)"
+              rows={[
+                ["Employer PF", calculation.employerPf],
+                ["Employer EPF", calculation.employerEpf],
+                ["EPS", calculation.eps],
+                ["EDLI", calculation.edli],
+                ["Admin charge", calculation.adminCharge],
+              ]}
+            />
+            <BreakdownGroup
+              title="TDS calculation"
+              rows={[
+                ["Projected annual income", calculation.projectedAnnualIncome],
+                ["Taxable income", calculation.taxableIncome],
+                ["Base tax", calculation.baseTax],
+                ["Annual tax", calculation.annualTax],
+                ["Tax already deducted", calculation.taxAlreadyDeducted],
+                ["Current month TDS", calculation.currentMonthTds],
+              ]}
+            />
+          </div>
+        </details>
+      )}
+    </section>
+  );
+}
+
+function Amount({ label, value }: { label: string; value?: number | null }) {
+  return (
+    <div className="flex justify-between rounded-md border bg-white px-3 py-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium">{formatCurrency(value ?? 0)}</span>
+    </div>
+  );
+}
+
+function BreakdownGroup({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<[string, number]>;
+}) {
+  return (
+    <div>
+      <h4 className="mb-2 font-medium">{title}</h4>
+      <div className="space-y-1">
+        {rows.map(([label, value]) => (
+          <div className="flex justify-between gap-4" key={label}>
+            <span className="text-muted-foreground">{label}</span>
+            <span>{formatCurrency(value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

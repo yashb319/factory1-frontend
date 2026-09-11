@@ -21,6 +21,36 @@ export interface Employee {
   updatedAt?: string;
 }
 
+export type PfCalculationType =
+  | "STATUTORY_CEILING"
+  | "ACTUAL_WAGES"
+  | "CUSTOM";
+export type TaxRegime = "OLD" | "NEW";
+
+export interface EmployeeStatutoryProfileRequest {
+  panNumber?: string;
+  uan?: string;
+  pfAccountNumber?: string;
+  pfEnabled?: boolean;
+  epsMember?: boolean;
+  pfCalculationType?: PfCalculationType;
+  customPfWage?: number;
+  voluntaryPfEnabled?: boolean;
+  voluntaryPfPercent?: number;
+  taxRegime?: TaxRegime;
+  previousEmployerIncome?: number;
+  otherDeclaredIncome?: number;
+  housePropertyIncome?: number;
+  declaredDeductionsTotal?: number;
+}
+
+export interface EmployeeStatutoryProfileResponse
+  extends EmployeeStatutoryProfileRequest {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly employeeId: string;
+}
+
 export interface EmployeeListParams {
   page?: number;
   size?: number;

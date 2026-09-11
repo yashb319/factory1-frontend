@@ -78,6 +78,8 @@ const schema = z.object({
   businessType: z.string().optional(),
   state: z.string().optional(),
   employeeSelfProgressUpdateEnabled: z.boolean().optional(),
+  pfEnabled: z.boolean().optional(),
+  payrollTdsEnabled: z.boolean().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -178,6 +180,8 @@ export function OrganizationSettingsForm() {
       businessType: "MANUFACTURING",
       state: "",
       employeeSelfProgressUpdateEnabled: false,
+      pfEnabled: false,
+      payrollTdsEnabled: false,
     },
   });
   const gstNumber = form.watch("gstNumber");
@@ -233,6 +237,8 @@ export function OrganizationSettingsForm() {
       employeeSelfProgressUpdateEnabled: Boolean(
         data.data.employeeSelfProgressUpdateEnabled
       ),
+      pfEnabled: Boolean(data.data.pfEnabled),
+      payrollTdsEnabled: Boolean(data.data.payrollTdsEnabled),
     });
   }, [data, form]);
 
@@ -286,6 +292,8 @@ export function OrganizationSettingsForm() {
         weekendDays: data?.data.weekendDays ?? "SATURDAY,SUNDAY",
         weekendPaid: Boolean(data?.data.weekendPaid),
         employeeSelfProgressUpdateEnabled: values.employeeSelfProgressUpdateEnabled,
+        pfEnabled: values.pfEnabled,
+        payrollTdsEnabled: values.payrollTdsEnabled,
       }).unwrap();
       toast.success("Organization settings updated successfully");
     } catch {
@@ -622,6 +630,27 @@ export function OrganizationSettingsForm() {
                   name="employeeSelfProgressUpdateEnabled"
                   label="Allow employees to start, log partial output, and complete their own assigned production steps"
                   helperText="When off, employees can only view their assignments; production leads must record all progress."
+                />
+              </div>
+            </div>
+
+            <div className="border-t pt-6">
+              <h2 className="text-sm font-semibold text-slate-950">
+                Payroll statutory (India)
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                These opt-in controls affect payroll generated for all employees going forward.
+              </p>
+              <div className="mt-4 space-y-4">
+                <CheckboxField<FormValues>
+                  name="pfEnabled"
+                  label="Enable Provident Fund (PF)"
+                  helperText="Calculates employee and employer PF contributions when employee statutory profiles also enable PF."
+                />
+                <CheckboxField<FormValues>
+                  name="payrollTdsEnabled"
+                  label="Enable payroll TDS"
+                  helperText="Calculates monthly tax deductions from employee statutory profiles and tax regime details."
                 />
               </div>
             </div>
