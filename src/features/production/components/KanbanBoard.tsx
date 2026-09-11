@@ -16,14 +16,12 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { AlertTriangle, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { cn } from "@/lib/utils";
-import { useGetOrderAssignmentsQuery, useStepActionMutation } from "../api/productionApi";
+import { useGetOrderAssignmentsQuery } from "../api/productionApi";
 import { useGetActiveVendorsQuery } from "@/features/vendors/api/vendorApi";
 import type { Vendor } from "@/features/vendors/types/vendor.types";
-import type { OrderStep, ProductionBoardItem, ProductionOrder } from "../types/production.types";
-import { PartialCompletionForm } from "./PartialCompletionForm";
+import type { ProductionBoardItem, ProductionOrder } from "../types/production.types";
 
 export type KanbanViewMode = "fixed" | "step";
 
@@ -36,11 +34,11 @@ const FIXED_COLUMN_LABELS: Record<FixedColumnKey, string> = {
   DONE: "Done",
 };
 
-function fixedColumnForStatus(status: ProductionBoardItem["status"]): FixedColumnKey {
-  switch (status) {
+function fixedColumnForStatus(item: ProductionBoardItem): FixedColumnKey {
+  switch (item.status) {
     case "PLANNED":
     case "RELEASED":
-      return "TODO";
+      return item.hasActiveAssignment ? "IN_PROGRESS" : "TODO";
     case "COMPLETED":
     case "CANCELLED":
       return "DONE";
@@ -60,7 +58,7 @@ function buildFixedColumns(items: ProductionBoardItem[]): BoardColumn[] {
   return FIXED_COLUMN_KEYS.map((key) => ({
     key,
     label: FIXED_COLUMN_LABELS[key],
-    items: items.filter((item) => fixedColumnForStatus(item.status) === key),
+    items: items.filter((item) => fixedColumnForStatus(item) === key),
   }));
 }
 
@@ -106,18 +104,16 @@ export function KanbanBoard({
   viewMode,
   selectedOrderId,
   onSelect,
-  onChanged,
+  onRequestAdvance,
 }: {
   items: ProductionBoardItem[];
   ordersById: Map<string, ProductionOrder>;
   viewMode: KanbanViewMode;
   selectedOrderId?: string;
   onSelect: (id?: string) => void;
-  onChanged: () => void;
+  onRequestAdvance: (orderId: string, targetStepId?: string) => void;
 }) {
-  const [stepAction] = useStepActionMutation();
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -171,7 +167,8 @@ export function KanbanBoard({
       return;
     }
     if (from === "TODO" && to === "DONE") {
-      toast.error("Start the order before marking it done.");
+      onSelect(item.orderId);
+      toast.error("Record production before completing this order.");
       return;
     }
     if (!step) {
@@ -179,35 +176,13 @@ export function KanbanBoard({
       return;
     }
 
-    try {
-      if (from === "TODO" && to === "IN_PROGRESS") {
-        await stepAction({
-          orderId: item.orderId,
-          stepId: step.id,
-          action: "start",
-          body: {
-            expectedOrderVersion: order?.version,
-            expectedStepVersion: step.expectedVersion,
-          },
-        }).unwrap();
-        toast.success(`${item.orderNumber} started`);
-      } else if (from === "IN_PROGRESS" && to === "DONE") {
-        await stepAction({
-          orderId: item.orderId,
-          stepId: step.id,
-          action: "complete",
-          body: {
-            completedQuantity: item.remainingQuantity || undefined,
-            expectedOrderVersion: order?.version,
-            expectedStepVersion: step.expectedVersion,
-          },
-        }).unwrap();
-        toast.success(`${item.orderNumber} step completed`);
-      }
-      onChanged();
-    } catch (error) {
-      toast.error(apiErrorMessage(error) ?? "Could not move the order — it snapped back.");
+    if (from === "TODO" && to === "IN_PROGRESS") {
+      onSelect(item.orderId);
+      toast.info("Assign this order or a workflow step to move it into active work.");
+      return;
     }
+
+    onRequestAdvance(item.orderId);
   };
 
   const handleStepDrop = async (item: ProductionBoardItem, targetLabel: string) => {
@@ -232,33 +207,7 @@ export function KanbanBoard({
       return;
     }
 
-    try {
-      if (sourceStep.status === "PENDING" || sourceStep.status === "READY") {
-        await stepAction({
-          orderId: item.orderId,
-          stepId: sourceStep.id,
-          action: "start",
-          body: {
-            expectedOrderVersion: order.version,
-            expectedStepVersion: sourceStep.expectedVersion,
-          },
-        }).unwrap();
-      }
-      await stepAction({
-        orderId: item.orderId,
-        stepId: sourceStep.id,
-        action: "complete",
-        body: {
-          completedQuantity: item.remainingQuantity || undefined,
-          expectedOrderVersion: order.version,
-          expectedStepVersion: sourceStep.expectedVersion,
-        },
-      }).unwrap();
-      toast.success(`${item.orderNumber} moved to ${targetLabel}`);
-      onChanged();
-    } catch (error) {
-      toast.error(apiErrorMessage(error) ?? "Could not move the order — it snapped back.");
-    }
+    onRequestAdvance(item.orderId, targetStep.id);
   };
 
   return (
@@ -270,10 +219,6 @@ export function KanbanBoard({
             column={column}
             selectedOrderId={selectedOrderId}
             onSelect={onSelect}
-            expandedCardId={expandedCardId}
-            setExpandedCardId={setExpandedCardId}
-            ordersById={ordersById}
-            onChanged={onChanged}
           />
         ))}
       </div>
@@ -292,18 +237,10 @@ function KanbanColumn({
   column,
   selectedOrderId,
   onSelect,
-  expandedCardId,
-  setExpandedCardId,
-  ordersById,
-  onChanged,
 }: {
   column: BoardColumn;
   selectedOrderId?: string;
   onSelect: (id?: string) => void;
-  expandedCardId: string | null;
-  setExpandedCardId: (id: string | null) => void;
-  ordersById: Map<string, ProductionOrder>;
-  onChanged: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.key });
 
@@ -329,13 +266,7 @@ function KanbanColumn({
               item={item}
               columnKey={column.key}
               selected={selectedOrderId === item.orderId}
-              expanded={expandedCardId === item.orderId}
               onSelect={onSelect}
-              onToggleExpand={() =>
-                setExpandedCardId(expandedCardId === item.orderId ? null : item.orderId)
-              }
-              order={ordersById.get(item.orderId)}
-              onChanged={onChanged}
             />
           ))
         ) : (
@@ -352,20 +283,12 @@ function KanbanCard({
   item,
   columnKey,
   selected,
-  expanded,
   onSelect,
-  onToggleExpand,
-  order,
-  onChanged,
 }: {
   item: ProductionBoardItem;
   columnKey: string;
   selected: boolean;
-  expanded: boolean;
   onSelect: (id?: string) => void;
-  onToggleExpand: () => void;
-  order?: ProductionOrder;
-  onChanged: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: item.orderId,
@@ -386,8 +309,6 @@ function KanbanCard({
       // eslint-disable-next-line react-hooks/purity -- overdue badges must compare against the current wall-clock time at render.
       (currentAssignment?.deadline && new Date(currentAssignment.deadline).getTime() < Date.now())
   );
-
-  const step: OrderStep | undefined = order?.steps.find((s) => s.id === item.currentStepId);
 
   const style = transform
     ? { transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.4 : 1 }
@@ -434,7 +355,7 @@ function KanbanCard({
         <div>
           Output {item.completedQuantity} / {item.plannedQuantity}
         </div>
-        <div>Step: {item.currentStepName || "Not started"}</div>
+        <div>Step: {item.currentStepName || "Awaiting workflow step"}</div>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -451,38 +372,6 @@ function KanbanCard({
         ) : null}
       </div>
 
-      {step ? (
-        <div className="mt-2">
-          <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={onToggleExpand}>
-            {expanded ? "Hide output form" : "Record output"}
-          </Button>
-        </div>
-      ) : null}
-
-      {expanded && step ? (
-        <div className="mt-2">
-          <PartialCompletionForm
-            orderId={item.orderId}
-            stepId={step.id}
-            remainingQuantity={item.remainingQuantity}
-            expectedOrderVersion={order?.version}
-            expectedStepVersion={step.expectedVersion}
-            onDone={() => {
-              onToggleExpand();
-              onChanged();
-            }}
-            onCancel={onToggleExpand}
-          />
-        </div>
-      ) : null}
     </div>
   );
-}
-
-function apiErrorMessage(error: unknown) {
-  if (error && typeof error === "object" && "data" in error) {
-    const data = (error as { data?: { message?: string } }).data;
-    if (data?.message) return data.message;
-  }
-  return undefined;
 }

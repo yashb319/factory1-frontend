@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useStepActionMutation } from "../api/productionApi";
+import { useRecordStepProductionMutation } from "../api/productionApi";
 
 type Props = {
   orderId: string;
@@ -34,7 +34,7 @@ export function PartialCompletionForm({
   const [completedQuantity, setCompletedQuantity] = useState("");
   const [rejectedQuantity, setRejectedQuantity] = useState("");
   const [notes, setNotes] = useState("");
-  const [stepAction, stepActionState] = useStepActionMutation();
+  const [recordProduction, recordProductionState] = useRecordStepProductionMutation();
 
   const submit = async () => {
     const completed = Number(completedQuantity) || 0;
@@ -44,12 +44,15 @@ export function PartialCompletionForm({
       toast.error("Enter a completed or rejected quantity before recording output.");
       return;
     }
+    if (completed + rejected > remainingQuantity) {
+      toast.error(`You can record at most ${remainingQuantity} remaining units.`);
+      return;
+    }
 
     try {
-      await stepAction({
+      await recordProduction({
         orderId,
         stepId,
-        action: "complete",
         body: {
           completedQuantity: completed || undefined,
           rejectedQuantity: rejected || undefined,
@@ -58,7 +61,7 @@ export function PartialCompletionForm({
           expectedStepVersion,
         },
       }).unwrap();
-      toast.success("Output recorded");
+      toast.success("Production recorded");
       setCompletedQuantity("");
       setRejectedQuantity("");
       setNotes("");
@@ -68,7 +71,7 @@ export function PartialCompletionForm({
         error && typeof error === "object" && "data" in error
           ? (error as { data?: { message?: string } }).data?.message
           : undefined;
-      toast.error(message ?? "Could not record output");
+      toast.error(message ?? "Could not record production");
     }
   };
 
@@ -109,8 +112,13 @@ export function PartialCompletionForm({
             Cancel
           </Button>
         ) : null}
-        <Button type="button" size="sm" disabled={stepActionState.isLoading} onClick={() => void submit()}>
-          {stepActionState.isLoading ? "Saving..." : "Record output"}
+        <Button
+          type="button"
+          size="sm"
+          disabled={recordProductionState.isLoading}
+          onClick={() => void submit()}
+        >
+          {recordProductionState.isLoading ? "Saving..." : "Record production"}
         </Button>
       </div>
     </div>

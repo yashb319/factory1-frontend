@@ -73,6 +73,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { KanbanBoard } from "./KanbanBoard";
+import { PartialCompletionForm } from "./PartialCompletionForm";
 import { cn } from "@/lib/utils";
 import { useAppSelector } from "@/lib/hook";
 import { useGetActiveCustomersQuery } from "@/features/customers/api/customerApi";
@@ -141,7 +142,6 @@ import type {
   QualityResult,
   QualityResultRequest,
   QualityTemplateRequest,
-  StepAction,
   StepActionRequest,
   TimelineEvent,
   Workstation,
@@ -150,7 +150,7 @@ import type {
   WorkflowStepRequest,
 } from "../types/production.types";
 
-type Tab = "orders" | "workflows" | "boms" | "analytics";
+type Tab = "orders" | "workflows" | "boms" | "workstations" | "analytics";
 type OrdersViewMode = "board" | "list";
 type OrderStatusFilter = "ALL" | OrderStatus;
 type DetailTab = "execution" | "assignments" | "quality" | "materials" | "timeline" | "audit";
@@ -289,11 +289,14 @@ export function ProductionPage() {
       />
 
       <div className="flex flex-wrap gap-2 border-b pb-2">
-        {(["orders", "workflows", "boms", "analytics"] as Tab[]).map((item) => (
+        {(["orders", "workflows", "boms", "workstations", "analytics"] as Tab[]).map((item) => (
           <Button
             key={item}
             variant={tab === item ? "default" : "ghost"}
-            onClick={() => setTab(item)}
+            onClick={() => {
+              setTab(item);
+              if (item !== "orders") setSelectedOrderId(undefined);
+            }}
             aria-pressed={tab === item}
           >
             {item === "orders"
@@ -302,6 +305,8 @@ export function ProductionPage() {
                 ? "Workflow templates"
                 : item === "boms"
                   ? "BOM definitions"
+                  : item === "workstations"
+                    ? "Workstations"
                   : "Analytics"}
           </Button>
         ))}
@@ -312,6 +317,7 @@ export function ProductionPage() {
       ) : null}
       {tab === "workflows" ? <Workflows /> : null}
       {tab === "boms" ? <Boms /> : null}
+      {tab === "workstations" ? <Workstations /> : null}
       {tab === "analytics" ? <ProductionAnalytics /> : null}
     </div>
   );
@@ -330,11 +336,11 @@ function Orders({
   const [stationFilter, setStationFilter] = useState("ALL");
   const [viewMode, setViewMode] = useState<OrdersViewMode>("board");
   const [groupByWorkflowStep, setGroupByWorkflowStep] = useState(false);
+  const [stepAction] = useStepActionMutation();
 
   const ordersQuery = useGetOrdersQuery({ page: 0, size: 100 });
   const dashboardQuery = useGetProductionDashboardQuery();
   const workstationsQuery = useGetWorkstationsQuery({ page: 0, size: 200 });
-  const workstationWorkloadsQuery = useGetDashboardStationsQuery();
   const boardQuery = useGetProductionKanbanQuery({
     page: 0,
     size: 100,
@@ -396,8 +402,51 @@ function Orders({
     void ordersQuery.refetch();
     void dashboardQuery.refetch();
     void workstationsQuery.refetch();
-    void workstationWorkloadsQuery.refetch();
     void boardQuery.refetch();
+  };
+
+  const requestAdvance = async (orderId: string) => {
+    const order = ordersById.get(orderId);
+    const currentStep = order ? getCurrentOrderStep(order) : undefined;
+    if (!order || !currentStep) {
+      toast.error("The current workflow step is unavailable. Refresh and try again.");
+      return;
+    }
+
+    const recordedQuantity =
+      (currentStep.completedQuantity ?? 0) + (currentStep.rejectedQuantity ?? 0);
+    const remainingQuantity =
+      currentStep.remainingQuantity ??
+      Math.max(order.plannedQuantity - recordedQuantity, 0);
+    if (remainingQuantity > 0) {
+      onSelect(orderId);
+      toast.info(
+        `Record the remaining ${formatNumber(remainingQuantity)} units before advancing.`
+      );
+      return;
+    }
+
+    try {
+      await stepAction({
+        orderId,
+        stepId: currentStep.id,
+        action: "complete",
+        body: {
+          expectedOrderVersion: order.executionVersion ?? order.version,
+          expectedStepVersion: currentStep.expectedVersion,
+        },
+      }).unwrap();
+      toast.success(
+        order.steps.some(
+          (step) => step.active && step.sequenceNumber > currentStep.sequenceNumber
+        )
+          ? "Moved to next workflow step"
+          : "Production order completed"
+      );
+      refreshAll();
+    } catch (error) {
+      toast.error(apiErrorMessage(error) ?? "Could not advance this production order.");
+    }
   };
 
 
@@ -452,8 +501,7 @@ function Orders({
         />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.9fr)]">
-        <div className="space-y-5">
+      <div className="space-y-5">
           <Card>
             <CardHeader>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -616,7 +664,7 @@ function Orders({
                   viewMode={groupByWorkflowStep ? "step" : "fixed"}
                   selectedOrderId={selectedOrderId}
                   onSelect={onSelect}
-                  onChanged={refreshAll}
+                  onRequestAdvance={(orderId) => void requestAdvance(orderId)}
                 />
               ) : (
                 <OrderListView
@@ -627,37 +675,16 @@ function Orders({
               )}
             </CardContent>
           </Card>
-        </div>
-
-        <div className="space-y-5">
-          <WorkstationManager
-            stations={stations}
-            workloads={workstationWorkloadsQuery.data ?? []}
-            loading={workstationsQuery.isLoading && !stations.length}
-            error={workstationsQuery.isError && !stations.length}
-            onRefresh={() => {
-              void workstationsQuery.refetch();
-              void workstationWorkloadsQuery.refetch();
-            }}
-          />
-
-          {selectedOrderId ? (
-            <OrderDetail
-              key={selectedOrderId}
-              orderId={selectedOrderId}
-              onClose={() => onSelect(undefined)}
-            />
-          ) : (
-            <EmptyState
-              icon={ClipboardCheck}
-              title="Select an order"
-              description="Inspect assignments, partial execution, quality checks, material lots, and the immutable timeline from the detail panel."
-            />
-          )}
-        </div>
       </div>
 
       <CreateOrderDialog open={createOpen} onOpenChange={setCreateOpen} />
+      {selectedOrderId ? (
+        <OrderDetail
+          key={selectedOrderId}
+          orderId={selectedOrderId}
+          onClose={() => onSelect(undefined)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -725,7 +752,7 @@ function OrderListView({
               <TableCell>
                 {formatNumber(order.completedQuantity)} / {formatNumber(order.plannedQuantity)}
               </TableCell>
-              <TableCell>{currentStep?.name || "Not started"}</TableCell>
+              <TableCell>{currentStep?.name || "Awaiting workflow step"}</TableCell>
               <TableCell>
                 {order.assignedStationName ||
                   currentStep?.stationName ||
@@ -776,8 +803,10 @@ function CreateOrderDialog({
 
   useEffect(() => {
     if (!open) return;
-    setWorkflowId("");
-    setForm(emptyOrder());
+    queueMicrotask(() => {
+      setWorkflowId("");
+      setForm(emptyOrder());
+    });
   }, [open]);
 
   const publishedVersions = versions.filter((version) => version.status === "PUBLISHED");
@@ -985,6 +1014,27 @@ function CreateOrderDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Workstations() {
+  const workstationsQuery = useGetWorkstationsQuery({ page: 0, size: 200 });
+  const workstationWorkloadsQuery = useGetDashboardStationsQuery();
+  const stations = workstationsQuery.data?.content ?? [];
+
+  const refresh = () => {
+    void workstationsQuery.refetch();
+    void workstationWorkloadsQuery.refetch();
+  };
+
+  return (
+    <WorkstationManager
+      stations={stations}
+      workloads={workstationWorkloadsQuery.data ?? []}
+      loading={workstationsQuery.isLoading && !stations.length}
+      error={workstationsQuery.isError && !stations.length}
+      onRefresh={refresh}
+    />
   );
 }
 
@@ -1204,13 +1254,6 @@ function OrderDetail({
     () => assignments.filter((assignment) => !assignment.orderStepSnapshotId),
     [assignments]
   );
-  const stepAssignments = useMemo(
-    () =>
-      currentStep
-        ? assignments.filter((assignment) => assignment.orderStepSnapshotId === currentStep.id)
-        : [],
-    [assignments, currentStep]
-  );
   const assigneeName = (userId: string) =>
     assignableUsers.find((user) => user.id === userId)?.name ?? userId;
 
@@ -1288,9 +1331,7 @@ function OrderDetail({
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [orderAssignment, setOrderAssignment] = useState<AssignmentFormState>(emptyAssignment());
   const [stepAssignment, setStepAssignment] = useState<AssignmentFormState>(emptyAssignment());
-  const [completedQuantity, setCompletedQuantity] = useState("");
-  const [rejectedQuantity, setRejectedQuantity] = useState("");
-  const [executionNotes, setExecutionNotes] = useState("");
+  const [selectedAssignmentStepId, setSelectedAssignmentStepId] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [qualityChecks, setQualityChecks] = useState<Record<string, QualityCheckDraft>>({});
   const [materialDrafts, setMaterialDrafts] = useState<Record<string, MaterialConsumptionDraft>>({});
@@ -1303,13 +1344,6 @@ function OrderDetail({
       setOrderAssignment(emptyAssignment());
     });
   }, [order?.id]);
-
-  useEffect(() => {
-    if (!currentStep?.id) return;
-    queueMicrotask(() => {
-      setStepAssignment(emptyAssignment());
-    });
-  }, [currentStep?.id]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -1333,6 +1367,12 @@ function OrderDetail({
   const selectedTemplate = qualityTemplates.find(
     (template) => template.id === selectedTemplateId
   );
+  const assignmentStepId =
+    selectedAssignmentStepId || currentStep?.id || orderSteps[0]?.id || "";
+  const assignmentStep = orderSteps.find((step) => step.id === assignmentStepId);
+  const stepAssignments = assignments.filter(
+    (assignment) => assignment.orderStepSnapshotId === assignmentStepId
+  );
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -1354,8 +1394,14 @@ function OrderDetail({
 
   if (orderQuery.isLoading || !order) {
     return (
-      <Card>
-        <CardContent className="p-6">
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="w-full max-w-[calc(100%-2rem)] sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Production order details</DialogTitle>
+            <DialogDescription>
+              Review production progress, assignments, quality, materials, and history.
+            </DialogDescription>
+          </DialogHeader>
           {orderQuery.isError ? (
             <ErrorState
               title="Order details unavailable"
@@ -1365,15 +1411,23 @@ function OrderDetail({
           ) : (
             <Loading text="Loading order details..." />
           )}
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
     );
   }
 
-  const stepIndicators = currentStep?.indicators ?? [];
   const orderIndicators = order.indicators ?? [];
   const shortageCount = materialRequirements.filter((item) => item.shortage).length;
   const latestQualityResult = qualityResults[0];
+  const currentStepRecordedQuantity =
+    (currentStep?.completedQuantity ?? 0) + (currentStep?.rejectedQuantity ?? 0);
+  const currentStepRemainingQuantity =
+    currentStep?.remainingQuantity ??
+    Math.max(order.plannedQuantity - currentStepRecordedQuantity, 0);
+  const hasNextStep = Boolean(
+    currentStep &&
+      orderSteps.some((step) => step.sequenceNumber > currentStep.sequenceNumber && step.active)
+  );
 
   const refreshDetail = () => {
     void orderQuery.refetch();
@@ -1419,7 +1473,10 @@ function OrderDetail({
 
   const submitStepAssignment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!currentStep) return;
+    if (!assignmentStep) {
+      toast.error("Select a workflow step before assigning work.");
+      return;
+    }
     if (stepAssignment.assigneeType === "USER" && !stepAssignment.assigneeUserId) {
       toast.error("Select an assignee before assigning the step.");
       return;
@@ -1431,7 +1488,7 @@ function OrderDetail({
 
     const body: OrderAssignmentRequest = {
       productionOrderId: orderId,
-      orderStepSnapshotId: currentStep.id,
+      orderStepSnapshotId: assignmentStep.id,
       assignmentRole: stepAssignment.assignmentRole,
       assigneeUserId:
         stepAssignment.assigneeType === "USER" ? stepAssignment.assigneeUserId : undefined,
@@ -1443,7 +1500,7 @@ function OrderDetail({
 
     try {
       await createOrderAssignment({ orderId, body }).unwrap();
-      toast.success("Current step assigned");
+      toast.success(`${assignmentStep.name} assigned`);
       setStepAssignment(emptyAssignment());
       refreshDetail();
     } catch (error) {
@@ -1502,33 +1559,22 @@ function OrderDetail({
     }
   };
 
-  const runStepAction = async (action: StepAction) => {
+  const advanceCurrentStep = async () => {
     if (!currentStep) return;
 
     const body: StepActionRequest = {
-      completedQuantity: parseNullableNumber(completedQuantity),
-      rejectedQuantity: parseNullableNumber(rejectedQuantity),
-      notes: executionNotes.trim() || undefined,
-      expectedOrderVersion: order.version ?? undefined,
+      expectedOrderVersion: order.executionVersion ?? order.version,
       expectedStepVersion: currentStep.expectedVersion ?? undefined,
     };
 
-    if (
-      action === "complete" &&
-      !body.completedQuantity &&
-      !body.rejectedQuantity
-    ) {
-      toast.error("Enter a completed or rejected quantity before recording output.");
-      return;
-    }
-
     try {
       setExecutionConflict(null);
-      await stepAction({ orderId, stepId: currentStep.id, action, body }).unwrap();
-      toast.success(getStepActionSuccessMessage(action));
-      setCompletedQuantity("");
-      setRejectedQuantity("");
-      setExecutionNotes("");
+      await stepAction({ orderId, stepId: currentStep.id, action: "complete", body }).unwrap();
+      toast.success(
+        orderSteps.some((step) => step.sequenceNumber > currentStep.sequenceNumber)
+          ? "Moved to next workflow step"
+          : "Production order completed"
+      );
       refreshDetail();
     } catch (error) {
       if (getErrorStatus(error) === 409) {
@@ -1559,21 +1605,15 @@ function OrderDetail({
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <CardTitle>{order.orderNumber}</CardTitle>
-              <CardDescription>
-                {order.productId} · workflow v{order.workflowVersionNumber} · {formatNumber(order.completedQuantity)} complete · {formatNumber(order.rejectedQuantity)} rejected
-              </CardDescription>
-            </div>
-            <Button variant="ghost" onClick={onClose}>
-              Close
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-5">
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="w-full max-w-[calc(100%-2rem)] sm:max-w-6xl">
+          <DialogHeader className="pr-10">
+            <DialogTitle>{order.orderNumber}</DialogTitle>
+            <DialogDescription>
+              {order.productId} · workflow v{order.workflowVersionNumber} · {formatNumber(order.completedQuantity)} complete · {formatNumber(order.rejectedQuantity)} rejected
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone={statusTone(order.status)}>{humanize(order.status)}</StatusBadge>
             <span className="text-xs text-muted-foreground">
@@ -1599,7 +1639,7 @@ function OrderDetail({
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <MiniStat label="Completed" value={formatNumber(order.completedQuantity)} />
             <MiniStat label="Rejected" value={formatNumber(order.rejectedQuantity)} />
-            <MiniStat label="Active step" value={currentStep?.name || "Not started"} />
+            <MiniStat label="Active step" value={currentStep?.name || "Awaiting workflow step"} />
             <MiniStat label="Shortages" value={String(shortageCount)} />
           </div>
 
@@ -1829,7 +1869,11 @@ function OrderDetail({
                   <div className="flex justify-end">
                     <Button
                       type="submit"
-                      disabled={createOrderAssignmentState.isLoading || assignableUsers.length === 0}
+                      disabled={
+                        createOrderAssignmentState.isLoading ||
+                        (orderAssignment.assigneeType === "USER" && assignableUsers.length === 0) ||
+                        (orderAssignment.assigneeType === "VENDOR" && activeVendors.length === 0)
+                      }
                     >
                       {createOrderAssignmentState.isLoading ? "Saving..." : "Assign order"}
                     </Button>
@@ -1840,16 +1884,34 @@ function OrderDetail({
 
             <Card className="border-dashed">
               <CardHeader className="py-3">
-                <CardTitle className="text-sm">Current step assignment</CardTitle>
+                <CardTitle className="text-sm">Workflow step assignments</CardTitle>
                 <CardDescription>
-                  Assign a user with a role to the active workflow step.
+                  Review and assign a worker or vendor for any step in this order&apos;s workflow.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {!currentStep ? (
-                  <Empty text="This order has no active step yet." />
+                {!orderSteps.length ? (
+                  <Empty text="This order has no workflow steps." />
                 ) : (
                   <div className="space-y-3">
+                    <Field label="Workflow step">
+                      <select
+                        className={selectClassName}
+                        value={assignmentStepId}
+                        onChange={(event) => {
+                          setSelectedAssignmentStepId(event.target.value);
+                          setStepAssignment(emptyAssignment());
+                        }}
+                      >
+                        {orderSteps.map((step) => (
+                          <option key={step.id} value={step.id}>
+                            {step.sequenceNumber}. {step.name}
+                            {step.id === currentStep?.id ? " (current)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+
                     {assignmentsQuery.isError ? (
                       <InlineNotice tone="warning" title="Assignments unavailable">
                         Current assignments could not be loaded. You can still try assigning below.
@@ -1877,7 +1939,7 @@ function OrderDetail({
                         ))}
                       </div>
                     ) : (
-                      <Empty text="No one is assigned to this step yet." />
+                      <Empty text={`No one is assigned to ${assignmentStep?.name ?? "this step"} yet.`} />
                     )}
 
                     <form className="space-y-3" onSubmit={submitStepAssignment}>
@@ -1998,15 +2060,20 @@ function OrderDetail({
                           ) : null}
                         </Field>
                       )}
-                      <IndicatorRow indicators={stepIndicators} className="mt-1" />
+                      <IndicatorRow indicators={assignmentStep?.indicators ?? []} className="mt-1" />
                       <div className="flex justify-end">
                         <Button
                           type="submit"
                           disabled={
-                            createOrderAssignmentState.isLoading || assignableUsers.length === 0
+                            createOrderAssignmentState.isLoading ||
+                            !assignmentStep ||
+                            (stepAssignment.assigneeType === "USER" && assignableUsers.length === 0) ||
+                            (stepAssignment.assigneeType === "VENDOR" && activeVendors.length === 0)
                           }
                         >
-                          {createOrderAssignmentState.isLoading ? "Saving..." : "Assign current step"}
+                          {createOrderAssignmentState.isLoading
+                            ? "Saving..."
+                            : `Assign ${assignmentStep?.name ?? "step"}`}
                         </Button>
                       </div>
                     </form>
@@ -2179,7 +2246,7 @@ function OrderDetail({
             <CardHeader>
               <CardTitle>Material lots & shortages</CardTitle>
               <CardDescription>
-                Record inventory lot consumption against the order's BOM and track shortage risk.
+                Record inventory lot consumption against the order&apos;s BOM and track shortage risk.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -2251,7 +2318,7 @@ function OrderDetail({
             <CardHeader>
               <CardTitle>Step execution</CardTitle>
               <CardDescription>
-                Start, pause, or record completed and rejected quantities with concurrency-safe version checks.
+                Record completed and rejected quantities, then advance after the full planned quantity is accounted for.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -2269,67 +2336,50 @@ function OrderDetail({
                         : ""}
                     </div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2 text-xs text-muted-foreground">
-                      <span>Completed: {formatNumber(currentStep.completedQuantity ?? order.completedQuantity)}</span>
-                      <span>Rejected: {formatNumber(currentStep.rejectedQuantity ?? order.rejectedQuantity)}</span>
+                      <span>Completed: {formatNumber(currentStep.completedQuantity ?? 0)}</span>
+                      <span>Rejected: {formatNumber(currentStep.rejectedQuantity ?? 0)}</span>
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="Completed quantity">
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.001"
-                        value={completedQuantity}
-                        onChange={(event) => setCompletedQuantity(event.target.value)}
-                      />
-                    </Field>
-                    <Field label="Rejected quantity">
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.001"
-                        value={rejectedQuantity}
-                        onChange={(event) => setRejectedQuantity(event.target.value)}
-                      />
-                    </Field>
-                  </div>
-
-                  <Field label="Execution notes">
-                    <Textarea
-                      value={executionNotes}
-                      onChange={(event) => setExecutionNotes(event.target.value)}
-                      placeholder="Downtime, recovery, inspection, material, or shift notes"
+                  {currentStepRemainingQuantity > 0 ? (
+                    <PartialCompletionForm
+                      orderId={orderId}
+                      stepId={currentStep.id}
+                      remainingQuantity={currentStepRemainingQuantity}
+                      expectedOrderVersion={order.executionVersion ?? order.version}
+                      expectedStepVersion={currentStep.expectedVersion}
+                      onDone={refreshDetail}
                     />
-                  </Field>
+                  ) : (
+                    <InlineNotice tone="info" title="Current step production recorded">
+                      The full planned quantity is accounted for. Move this order forward when the
+                      next step is ready.
+                    </InlineNotice>
+                  )}
 
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={stepActionState.isLoading}
-                      onClick={() => void runStepAction("start")}
+                    <span
+                      title={
+                        currentStepRemainingQuantity > 0
+                          ? `Record the remaining ${formatNumber(currentStepRemainingQuantity)} units before advancing`
+                          : undefined
+                      }
                     >
-                      <Play className="mr-2 h-4 w-4" />
-                      Start
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={stepActionState.isLoading}
-                      onClick={() => void runStepAction("pause")}
-                    >
-                      <Pause className="mr-2 h-4 w-4" />
-                      Pause
-                    </Button>
-                    <Button
-                      type="button"
-                      disabled={stepActionState.isLoading}
-                      onClick={() => void runStepAction("complete")}
-                    >
+                      <Button
+                        type="button"
+                        disabled={stepActionState.isLoading || currentStepRemainingQuantity > 0}
+                        onClick={() => void advanceCurrentStep()}
+                      >
                       <Check className="mr-2 h-4 w-4" />
-                      Record output
-                    </Button>
+                        {hasNextStep ? "Move to next step" : "Complete step"}
+                      </Button>
+                    </span>
+                    {currentStepRemainingQuantity > 0 ? (
+                      <span className="self-center text-xs text-muted-foreground">
+                        Record the remaining {formatNumber(currentStepRemainingQuantity)} units
+                        before advancing.
+                      </span>
+                    ) : null}
                   </div>
                 </>
               )}
@@ -2463,8 +2513,9 @@ function OrderDetail({
             </CardContent>
           </Card>
           ) : null}
-        </CardContent>
-      </Card>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={confirmCancelOpen}
@@ -2592,7 +2643,15 @@ function WorkflowVersions({
           code: template.code,
           name: template.name,
           description: template.description,
-          steps: latest.steps.map(({ id: _id, ...step }) => step),
+          steps: latest.steps.map((step) => ({
+            name: step.name,
+            code: step.code,
+            sequenceNumber: step.sequenceNumber,
+            description: step.description,
+            workstation: step.workstation,
+            roleMetadata: step.roleMetadata,
+            active: step.active,
+          })),
         },
       }).unwrap();
       toast.success("Draft version created");
@@ -2705,7 +2764,9 @@ function WorkflowDialog({
 
   useEffect(() => {
     if (!open) return;
-    setForm({ code: "", name: "", description: "", steps: [emptyStep()] });
+    queueMicrotask(() => {
+      setForm({ code: "", name: "", description: "", steps: [emptyStep()] });
+    });
   }, [open]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -2927,8 +2988,10 @@ function Boms() {
   const [pendingPublishId, setPendingPublishId] = useState<string>();
 
   useEffect(() => {
-    setName("Default BOM");
-    setItems([{ inventoryItemId: "", quantityPerUnit: 1, unit: "", wastePercentage: 0 }]);
+    queueMicrotask(() => {
+      setName("Default BOM");
+      setItems([{ inventoryItemId: "", quantityPerUnit: 1, unit: "", wastePercentage: 0 }]);
+    });
   }, [productId]);
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
@@ -3198,18 +3261,20 @@ function WorkstationRecordDialog({
 
   useEffect(() => {
     if (!open) return;
-    setForm(
-      workstation
-        ? {
-            code: workstation.code,
-            name: workstation.name,
-            description: workstation.description || "",
-            location: workstation.location || "",
-            metadata: workstation.metadata,
-            active: workstation.active,
-          }
-        : emptyWorkstationRecord()
-    );
+    queueMicrotask(() => {
+      setForm(
+        workstation
+          ? {
+              code: workstation.code,
+              name: workstation.name,
+              description: workstation.description || "",
+              location: workstation.location || "",
+              metadata: workstation.metadata,
+              active: workstation.active,
+            }
+          : emptyWorkstationRecord()
+      );
+    });
   }, [open, workstation]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -3311,11 +3376,13 @@ function QualityTemplateDialog({
 
   useEffect(() => {
     if (!open) return;
-    setForm({
-      ...emptyQualityTemplate(),
-      stepCode: defaultStepCode,
-      productId: defaultProductId,
-      workflowVersionId: defaultWorkflowVersionId,
+    queueMicrotask(() => {
+      setForm({
+        ...emptyQualityTemplate(),
+        stepCode: defaultStepCode,
+        productId: defaultProductId,
+        workflowVersionId: defaultWorkflowVersionId,
+      });
     });
   }, [open, defaultStepCode, defaultProductId, defaultWorkflowVersionId]);
 
@@ -3871,6 +3938,7 @@ function buildBoardColumns(
       stationName: order?.assignedStationName ?? step?.stationName ?? null,
       workstationId: order?.assignedWorkstationId ?? step?.workstationId ?? null,
       workstationName: order?.assignedWorkstationName ?? step?.workstationName ?? null,
+      hasActiveAssignment: order?.hasActiveAssignment,
       indicators: order?.indicators,
     };
   });
@@ -3997,20 +4065,11 @@ function pickBestBom(boms: Bom[]) {
 }
 
 function getCurrentOrderStep(order: ProductionOrder) {
-  return order.steps.find((step) => step.id === order.currentStepId) ?? order.steps[0];
-}
-
-function getStepActionSuccessMessage(action: StepAction) {
-  switch (action) {
-    case "start":
-      return "Step started";
-    case "pause":
-      return "Step paused";
-    case "complete":
-      return "Step execution recorded";
-    default:
-      return "Execution updated";
+  const current = order.steps.find((step) => step.id === order.currentStepId);
+  if (current || order.status === "COMPLETED" || order.status === "CANCELLED") {
+    return current;
   }
+  return order.steps.find((step) => step.active);
 }
 
 function apiErrorMessage(error: unknown) {
