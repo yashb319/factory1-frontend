@@ -2,6 +2,7 @@ import { OrganizationSettingsForm } from "@/features/organization-settings/compo
 import { TerminateOrganizationPanel } from "@/features/organization-settings/components/TerminateOrganizationPanel";
 import { AccessManagementPanel } from "@/features/access/components/AccessManagementPanel";
 import { GstIntegrationPanel } from "@/features/gst-integration/components/GstIntegrationPanel";
+import { PayslipTemplatesPanel } from "@/features/payslip-templates/components/PayslipTemplatesPanel";
 
 export default function OrganizationSettingsPage() {
   return (
@@ -16,6 +17,7 @@ export default function OrganizationSettingsPage() {
       </div>
 
       <OrganizationSettingsForm />
+      <PayslipTemplatesPanel />
       <GstIntegrationPanel />
       <AccessManagementPanel />
       <TerminateOrganizationPanel />

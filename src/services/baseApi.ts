@@ -22,7 +22,8 @@ const rawBaseQuery = fetchBaseQuery({
       endpoint === "sendForgotPasswordOtp" ||
       endpoint === "resetPassword" ||
       endpoint === "activateEmployee" ||
-      endpoint === "submitEarlyRegistrationQuestionnaire"
+      endpoint === "submitEarlyRegistrationQuestionnaire" ||
+      endpoint === "accessPublicPayslip"
     ) {
       headers.delete("Authorization");
       return headers;
@@ -126,6 +127,8 @@ export const baseApi = createApi({
     "FeatureGating",
     "Whitelabel",
     "WhitelabelPartner",
+    "PayslipTemplate",
+    "Payslip",
   ],
 
   endpoints: () => ({}),
