@@ -9,6 +9,8 @@ import {
   EmployeeImportPreviewResponse,
   EmployeeImportResult,
   EmployeeInvitationResult,
+  EmployeeStatutoryProfileRequest,
+  EmployeeStatutoryProfileResponse,
 } from "../types/employee.types";
 
 export const employeeApi = baseApi.injectEndpoints({
@@ -119,6 +121,53 @@ export const employeeApi = baseApi.injectEndpoints({
         "data" in response ? response.data : response,
       providesTags: ["Employee"],
     }),
+
+    getEmployeeStatutoryProfile: builder.query<
+      EmployeeStatutoryProfileResponse,
+      string
+    >({
+      query: (id) => `/api/employees/${id}/statutory-profile`,
+      transformResponse: (
+        response: ApiResponse<EmployeeStatutoryProfileResponse>
+      ) => response.data,
+      providesTags: (_result, _error, id) => [
+        { type: "Employee", id: `${id}-statutory` },
+      ],
+    }),
+
+    createEmployeeStatutoryProfile: builder.mutation<
+      EmployeeStatutoryProfileResponse,
+      { employeeId: string; body: EmployeeStatutoryProfileRequest }
+    >({
+      query: ({ employeeId, body }) => ({
+        url: `/api/employees/${employeeId}/statutory-profile`,
+        method: "POST",
+        body,
+      }),
+      transformResponse: (
+        response: ApiResponse<EmployeeStatutoryProfileResponse>
+      ) => response.data,
+      invalidatesTags: (_result, _error, { employeeId }) => [
+        { type: "Employee", id: `${employeeId}-statutory` },
+      ],
+    }),
+
+    updateEmployeeStatutoryProfile: builder.mutation<
+      EmployeeStatutoryProfileResponse,
+      { employeeId: string; body: EmployeeStatutoryProfileRequest }
+    >({
+      query: ({ employeeId, body }) => ({
+        url: `/api/employees/${employeeId}/statutory-profile`,
+        method: "PUT",
+        body,
+      }),
+      transformResponse: (
+        response: ApiResponse<EmployeeStatutoryProfileResponse>
+      ) => response.data,
+      invalidatesTags: (_result, _error, { employeeId }) => [
+        { type: "Employee", id: `${employeeId}-statutory` },
+      ],
+    }),
   }),
 });
 
@@ -132,4 +181,7 @@ export const {
   useImportEmployeesMutation,
   useInviteEmployeesMutation,
   useGetMyEmployeeQuery,
+  useGetEmployeeStatutoryProfileQuery,
+  useCreateEmployeeStatutoryProfileMutation,
+  useUpdateEmployeeStatutoryProfileMutation,
 } = employeeApi;

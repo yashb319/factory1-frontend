@@ -56,6 +56,8 @@ export interface OrganizationSettingsRequest {
   accountingReportsEnabled?: boolean;
   tdsEnabled?: boolean;
   tcsEnabled?: boolean;
+  pfEnabled?: boolean;
+  payrollTdsEnabled?: boolean;
   employeeSelfProgressUpdateEnabled?: boolean;
 }
 
