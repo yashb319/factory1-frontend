@@ -21,6 +21,9 @@ import {
   downloadPayslipJpg,
   printPayslip,
 } from "../utils/payrollPayslipDownload.utils";
+import { useGetOrganizationSettingsQuery } from "@/features/organization-settings/api/organizationSettingsApi";
+import { useGetPayslipsForEmployeeQuery } from "@/features/payslips/api/payslipApi";
+import { ShareLinkPanel } from "@/features/payslips/components/ShareLinkPanel";
 
 interface Props {
   open: boolean;
@@ -37,12 +40,23 @@ export function PayrollPayslipDialog({
 }: Props) {
   const [loading, setLoading] = useState(false);
 
+  const { data: orgSettings } = useGetOrganizationSettingsQuery();
+  const { data: payslips } = useGetPayslipsForEmployeeQuery(
+    item?.employeeId ?? "",
+    { skip: !item?.employeeId }
+  );
+
   const payslipHtml = useMemo(() => {
     if (!payroll || !item) return "";
     return buildPayslipHtml(payroll, item);
   }, [payroll, item]);
 
   if (!payroll || !item) return null;
+
+  const matchingPayslip = payslips?.data?.find(
+    (payslip) => payslip.payrollItemId === item.id
+  );
+  const shareLinkEnabled = Boolean(orgSettings?.data.payslipShareLinkEnabled);
 
   async function handleDownload() {
     setLoading(true);
@@ -86,6 +100,18 @@ export function PayrollPayslipDialog({
 
         <div className="flex-1 overflow-y-auto py-4">
           <StatutoryBreakdown item={item} />
+          {shareLinkEnabled && matchingPayslip && (
+            <div className="mb-4">
+              <ShareLinkPanel
+                payslipId={matchingPayslip.id}
+                defaultExpiryDays={orgSettings?.data.payslipLinkExpiryDays ?? 30}
+                defaultMaxViews={orgSettings?.data.payslipMaxViews}
+                defaultPasswordRequired={Boolean(
+                  orgSettings?.data.payslipPasswordRequired
+                )}
+              />
+            </div>
+          )}
           <div className="flex justify-center">
             <iframe
               title="Payslip Preview"

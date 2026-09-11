@@ -59,6 +59,13 @@ export interface OrganizationSettingsRequest {
   pfEnabled?: boolean;
   payrollTdsEnabled?: boolean;
   employeeSelfProgressUpdateEnabled?: boolean;
+  payslipEmailDeliveryEnabled?: boolean;
+  payslipSmsDeliveryEnabled?: boolean;
+  payslipWhatsappDeliveryEnabled?: boolean;
+  payslipShareLinkEnabled?: boolean;
+  payslipLinkExpiryDays?: number;
+  payslipPasswordRequired?: boolean;
+  payslipMaxViews?: number | null;
 }
 
 export interface OrganizationSettingsResponse

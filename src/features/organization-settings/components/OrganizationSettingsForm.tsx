@@ -80,6 +80,13 @@ const schema = z.object({
   employeeSelfProgressUpdateEnabled: z.boolean().optional(),
   pfEnabled: z.boolean().optional(),
   payrollTdsEnabled: z.boolean().optional(),
+  payslipEmailDeliveryEnabled: z.boolean().optional(),
+  payslipSmsDeliveryEnabled: z.boolean().optional(),
+  payslipWhatsappDeliveryEnabled: z.boolean().optional(),
+  payslipShareLinkEnabled: z.boolean().optional(),
+  payslipLinkExpiryDays: z.number().min(1, "Must be at least 1 day").optional(),
+  payslipPasswordRequired: z.boolean().optional(),
+  payslipMaxViews: z.number().min(1, "Must be at least 1").optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -182,6 +189,13 @@ export function OrganizationSettingsForm() {
       employeeSelfProgressUpdateEnabled: false,
       pfEnabled: false,
       payrollTdsEnabled: false,
+      payslipEmailDeliveryEnabled: true,
+      payslipSmsDeliveryEnabled: false,
+      payslipWhatsappDeliveryEnabled: false,
+      payslipShareLinkEnabled: true,
+      payslipLinkExpiryDays: 30,
+      payslipPasswordRequired: false,
+      payslipMaxViews: undefined,
     },
   });
   const gstNumber = form.watch("gstNumber");
@@ -239,6 +253,15 @@ export function OrganizationSettingsForm() {
       ),
       pfEnabled: Boolean(data.data.pfEnabled),
       payrollTdsEnabled: Boolean(data.data.payrollTdsEnabled),
+      payslipEmailDeliveryEnabled: data.data.payslipEmailDeliveryEnabled ?? true,
+      payslipSmsDeliveryEnabled: Boolean(data.data.payslipSmsDeliveryEnabled),
+      payslipWhatsappDeliveryEnabled: Boolean(
+        data.data.payslipWhatsappDeliveryEnabled
+      ),
+      payslipShareLinkEnabled: data.data.payslipShareLinkEnabled ?? true,
+      payslipLinkExpiryDays: data.data.payslipLinkExpiryDays ?? 30,
+      payslipPasswordRequired: Boolean(data.data.payslipPasswordRequired),
+      payslipMaxViews: data.data.payslipMaxViews ?? undefined,
     });
   }, [data, form]);
 
@@ -294,6 +317,13 @@ export function OrganizationSettingsForm() {
         employeeSelfProgressUpdateEnabled: values.employeeSelfProgressUpdateEnabled,
         pfEnabled: values.pfEnabled,
         payrollTdsEnabled: values.payrollTdsEnabled,
+        payslipEmailDeliveryEnabled: values.payslipEmailDeliveryEnabled,
+        payslipSmsDeliveryEnabled: values.payslipSmsDeliveryEnabled,
+        payslipWhatsappDeliveryEnabled: values.payslipWhatsappDeliveryEnabled,
+        payslipShareLinkEnabled: values.payslipShareLinkEnabled,
+        payslipLinkExpiryDays: values.payslipLinkExpiryDays,
+        payslipPasswordRequired: values.payslipPasswordRequired,
+        payslipMaxViews: values.payslipMaxViews ?? undefined,
       }).unwrap();
       toast.success("Organization settings updated successfully");
     } catch {
@@ -651,6 +681,55 @@ export function OrganizationSettingsForm() {
                   name="payrollTdsEnabled"
                   label="Enable payroll TDS"
                   helperText="Calculates monthly tax deductions from employee statutory profiles and tax regime details."
+                />
+              </div>
+            </div>
+
+            <div className="border-t pt-6">
+              <h2 className="text-sm font-semibold text-slate-950">
+                Payslip delivery &amp; sharing
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Control how payslips are delivered to employees and the defaults used when creating secure
+                share links.
+              </p>
+              <div className="mt-4 space-y-4">
+                <CheckboxField<FormValues>
+                  name="payslipEmailDeliveryEnabled"
+                  label="Deliver payslips by email"
+                  helperText="Sends a payslip notification email to the employee's registered email address."
+                />
+                <CheckboxField<FormValues>
+                  name="payslipSmsDeliveryEnabled"
+                  label="Deliver payslips by SMS"
+                  helperText="Not yet connected to an SMS provider — this currently only logs the delivery attempt."
+                />
+                <CheckboxField<FormValues>
+                  name="payslipWhatsappDeliveryEnabled"
+                  label="Deliver payslips by WhatsApp"
+                  helperText="Not yet connected to a WhatsApp provider — this currently only logs the delivery attempt."
+                />
+                <CheckboxField<FormValues>
+                  name="payslipShareLinkEnabled"
+                  label="Allow secure share links"
+                  helperText="When off, no one can generate a shareable payslip link from the payroll workspace."
+                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <NumberField<FormValues>
+                    name="payslipLinkExpiryDays"
+                    label="Default link expiry (days)"
+                    min={1}
+                  />
+                  <NumberField<FormValues>
+                    name="payslipMaxViews"
+                    label="Default max views (leave blank for unlimited)"
+                    min={1}
+                  />
+                </div>
+                <CheckboxField<FormValues>
+                  name="payslipPasswordRequired"
+                  label="Require a password on new share links by default"
+                  helperText="Can still be overridden per-link when someone creates a share link."
                 />
               </div>
             </div>
