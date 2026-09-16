@@ -94,30 +94,45 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-export interface EmployeeImportPreviewRow {
+export interface EmployeeImportRowInput {
   rowNumber: number;
-  data?: Record<string, unknown>;
-  valid?: boolean;
-  errors?: string[];
-  warnings?: string[];
-  [key: string]: unknown;
+  employeeCode?: string | null;
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  photoDataUrl?: string | null;
+  employeeType?: string | null;
+  designation?: string | null;
+  department?: string | null;
+  salaryRate?: string | null;
+  salaryType?: string | null;
+  joiningDate?: string | null;
+  status?: string | null;
+}
+
+export interface BulkEmployeeImportRequest {
+  rows: EmployeeImportRowInput[];
+}
+
+export interface EmployeeImportRow {
+  rowNumber: number;
+  employeeCode?: string | null;
+  employee?: Partial<Employee> | null;
+  errors: string[];
 }
 
 export interface EmployeeImportPreviewResponse {
-  rows: EmployeeImportPreviewRow[];
-  totalRows?: number;
-  validRows?: number;
-  invalidRows?: number;
-  [key: string]: unknown;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  rows: EmployeeImportRow[];
 }
 
 export interface EmployeeImportResult {
-  imported?: number;
-  created?: number;
-  updated?: number;
-  skipped?: number;
-  errors?: number;
-  [key: string]: unknown;
+  createdRows: number;
+  updatedRows: number;
+  skippedRows: number;
+  errors: EmployeeImportRow[];
 }
 
 export interface EmployeeInvitationResult {

@@ -32,6 +32,7 @@ import {
   useImportEmployeesMutation,
   usePreviewEmployeeImportMutation,
 } from "../api/employeeApi";
+import { EmployeeImportRowInput } from "../types/employee.types";
 
 interface Props {
   open: boolean;
@@ -125,6 +126,27 @@ function mapRowsToEmployeeFields(
 
 function value(value: unknown) {
   return String(value ?? "").trim();
+}
+
+function toEmployeeImportRowInput(
+  row: ImportRow,
+  rowNumber: number
+): EmployeeImportRowInput {
+  return {
+    rowNumber,
+    employeeCode: value(row.employeeCode),
+    name: value(row.name),
+    phone: value(row.phone),
+    email: value(row.email),
+    photoDataUrl: value(row.photoDataUrl),
+    employeeType: value(row.employeeType),
+    designation: value(row.designation),
+    department: value(row.department),
+    salaryRate: value(row.salaryRate),
+    salaryType: value(row.salaryType),
+    joiningDate: value(row.joiningDate),
+    status: value(row.status),
+  };
 }
 
 function validateRows(mappedRows: ImportRow[]): ValidationRow[] {
@@ -263,9 +285,12 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     if (!selectedFile) return;
 
     try {
-      const result = await importEmployees(selectedFile).unwrap();
+      const rows: EmployeeImportRowInput[] = importableRows.map((row) =>
+        toEmployeeImportRowInput(row.data, row.rowNumber)
+      );
+      const result = await importEmployees(rows).unwrap();
       toast.success(
-        `Import complete${result.created !== undefined ? `: ${result.created} created` : ""}${result.updated !== undefined ? `, ${result.updated} updated` : ""}.`
+        `Import complete: ${result.createdRows} created, ${result.updatedRows} updated${result.skippedRows ? `, ${result.skippedRows} skipped` : ""}.`
       );
     } catch {
       toast.error("Employee import failed. Review the file and try again.");
@@ -321,10 +346,16 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
 
       const columns = Object.keys(parsedRows[0]);
 
+      const initialMapping = autoMapColumns(columns);
       setRawRows(parsedRows);
-      setMapping(autoMapColumns(columns));
+      setMapping(initialMapping);
 
-      const preview = await previewEmployeeImport(file).unwrap();
+      const mappedRows = mapRowsToEmployeeFields(parsedRows, initialMapping);
+      const rows: EmployeeImportRowInput[] = mappedRows.map((row, index) =>
+        toEmployeeImportRowInput(row, index + 2)
+      );
+
+      const preview = await previewEmployeeImport(rows).unwrap();
       setBackendPreview({
         validRows: preview.validRows,
         invalidRows: preview.invalidRows,

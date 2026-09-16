@@ -8,6 +8,7 @@ import {
   UpdateEmployeeRequest,
   EmployeeImportPreviewResponse,
   EmployeeImportResult,
+  EmployeeImportRowInput,
   EmployeeInvitationResult,
   EmployeeStatutoryProfileRequest,
   EmployeeStatutoryProfileResponse,
@@ -86,20 +87,25 @@ export const employeeApi = baseApi.injectEndpoints({
       invalidatesTags: ["Employee"],
     }),
 
-    previewEmployeeImport: builder.mutation<EmployeeImportPreviewResponse, File>({
-      query: (file) => {
-        const body = new FormData();
-        body.append("file", file);
-        return { url: "/api/employees/import/preview", method: "POST", body };
-      },
+    previewEmployeeImport: builder.mutation<
+      EmployeeImportPreviewResponse,
+      EmployeeImportRowInput[]
+    >({
+      query: (rows) => ({
+        url: "/api/employees/import/preview",
+        method: "POST",
+        body: { rows },
+      }),
     }),
 
-    importEmployees: builder.mutation<EmployeeImportResult, File>({
-      query: (file) => {
-        const body = new FormData();
-        body.append("file", file);
-        return { url: "/api/employees/import", method: "POST", body };
-      },
+    importEmployees: builder.mutation<EmployeeImportResult, EmployeeImportRowInput[]>({
+      query: (rows) => ({
+        url: "/api/employees/import",
+        method: "POST",
+        body: { rows },
+      }),
+      transformResponse: (response: ApiResponse<EmployeeImportResult>) =>
+        response.data,
       invalidatesTags: ["Employee"],
     }),
 
