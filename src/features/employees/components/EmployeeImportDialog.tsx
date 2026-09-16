@@ -136,6 +136,85 @@ function normalizeColumnName(value: string) {
   return value.trim().toLowerCase().replace(/[_-]/g, " ");
 }
 
+// Target fields whose value must reach the backend as YYYY-MM-DD, regardless
+// of how the source spreadsheet cell was authored/parsed.
+const DATE_TARGET_FIELDS = new Set(["dateOfBirth", "joiningDate"]);
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function excelSerialToIsoDate(serial: number): string | null {
+  if (!Number.isFinite(serial)) return null;
+  const parsed = XLSX.SSF.parse_date_code(serial);
+  if (!parsed) return null;
+  return `${parsed.y}-${pad2(parsed.m)}-${pad2(parsed.d)}`;
+}
+
+/**
+ * Normalizes a raw import cell into a YYYY-MM-DD string. Handles:
+ * - JS Date objects (e.g. from XLSX.read with cellDates: true)
+ * - Excel date serial numbers (e.g. when cellDates wasn't applied, or the
+ *   source data was copy-pasted as a plain number)
+ * - Strings already in YYYY-MM-DD (optionally with a time suffix)
+ * - Strings in DD/MM/YYYY or DD-MM-YYYY (common in Indian spreadsheets)
+ * - Any other parseable date string, via a native Date fallback
+ * Unparseable input is returned trimmed as-is so downstream validation can
+ * flag it, rather than silently dropping the value.
+ */
+function normalizeDateForImport(raw: unknown): string {
+  if (raw === null || raw === undefined) return "";
+
+  if (raw instanceof Date) {
+    if (Number.isNaN(raw.getTime())) return "";
+    // XLSX constructs date cells via Date.UTC(...), so read UTC parts to
+    // avoid the date shifting by a day in non-UTC local timezones.
+    return `${raw.getUTCFullYear()}-${pad2(raw.getUTCMonth() + 1)}-${pad2(raw.getUTCDate())}`;
+  }
+
+  if (typeof raw === "number") {
+    return excelSerialToIsoDate(raw) ?? "";
+  }
+
+  const text = String(raw).trim();
+  if (!text) return "";
+
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+  // Pure numeric string: some parsers stringify a numeric/date cell.
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    const iso = excelSerialToIsoDate(Number(text));
+    if (iso) return iso;
+  }
+
+  const slashMatch = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (slashMatch) {
+    const day = Number(slashMatch[1]);
+    const month = Number(slashMatch[2]);
+    const year = Number(slashMatch[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${pad2(month)}-${pad2(day)}`;
+    }
+  }
+
+  const parsedDate = new Date(text);
+  if (!Number.isNaN(parsedDate.getTime())) {
+    return `${parsedDate.getFullYear()}-${pad2(parsedDate.getMonth() + 1)}-${pad2(parsedDate.getDate())}`;
+  }
+
+  return text;
+}
+
+const PAYROLL_REQUIRED_FIELDS = ["employeeType", "salaryRate", "salaryType"];
+
+function targetFieldLabel(value: string): string {
+  return (
+    EMPLOYEE_TARGET_FIELDS.find((field) => field.value === value)?.label ??
+    value
+  );
+}
+
 function autoMapColumns(columns: string[]): ColumnMappingValue {
   const mapping: ColumnMappingValue = {};
 
@@ -163,7 +242,10 @@ function mapRowsToEmployeeFields(
 
     Object.entries(mapping).forEach(([sourceColumn, targetField]) => {
       if (targetField === "IGNORE") return;
-      mappedRow[targetField] = row[sourceColumn];
+      const raw = row[sourceColumn];
+      mappedRow[targetField] = DATE_TARGET_FIELDS.has(targetField)
+        ? normalizeDateForImport(raw)
+        : raw;
     });
 
     return mappedRow;
@@ -442,11 +524,16 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       (field) => !mappedTargetFields.includes(field)
     );
 
+    const missingPayrollFields = PAYROLL_REQUIRED_FIELDS.filter((field) =>
+      missingRequiredMappings.includes(field)
+    );
+
     return {
       valid: validationRows.filter((row) => row.status === "VALID").length,
       warning: validationRows.filter((row) => row.status === "WARNING").length,
       invalid: validationRows.filter((row) => row.status === "ERROR").length,
       missingRequiredMappings,
+      missingPayrollFields,
     };
   }, [validationRows, mapping]);
 
@@ -638,9 +725,29 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                     <p className="mt-1 text-sm text-muted-foreground">
                       Please map these fields:{" "}
                       <span className="font-medium">
-                        {validation.missingRequiredMappings.join(", ")}
+                        {validation.missingRequiredMappings
+                          .map(targetFieldLabel)
+                          .join(", ")}
                       </span>
                     </p>
+
+                    {validation.missingPayrollFields.length > 0 && (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        <span className="font-medium text-destructive">
+                          Payroll classification is required:
+                        </span>{" "}
+                        your spreadsheet has no column for{" "}
+                        {validation.missingPayrollFields
+                          .map(targetFieldLabel)
+                          .join(", ")}
+                        . Add these as columns (or map existing ones) in your
+                        source file — Factory1 will not guess or default
+                        these values, so rows will fail to import until they
+                        are provided. Employee Type accepts{" "}
+                        {VALID_EMPLOYEE_TYPES.join(", ")}; Salary Type accepts{" "}
+                        {VALID_SALARY_TYPES.join(", ")}.
+                      </p>
+                    )}
                   </div>
                 )}
 
