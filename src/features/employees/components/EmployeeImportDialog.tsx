@@ -28,7 +28,9 @@ import {
 } from "@/components/file-upload/FileValidationTable";
 import { useRouter } from "next/navigation";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
+import { getImportTemplateCsv } from "@/features/import-export/utils/importTemplates";
 import {
+  useGetEmployeesQuery,
   useImportEmployeesMutation,
   usePreviewEmployeeImportMutation,
 } from "../api/employeeApi";
@@ -45,23 +47,50 @@ const EMPLOYEE_TARGET_FIELDS: TargetField[] = [
   { label: "Employee Code", value: "employeeCode", required: true },
   { label: "Name", value: "name", required: true },
   { label: "Phone", value: "phone" },
+  { label: "Mobile", value: "mobile" },
   { label: "Email", value: "email" },
-  { label: "Employee Type", value: "employeeType" },
+  { label: "Employee Type", value: "employeeType", required: true },
   { label: "Designation", value: "designation" },
   { label: "Department", value: "department" },
   { label: "Salary Rate", value: "salaryRate", required: true },
   { label: "Salary Type", value: "salaryType", required: true },
   { label: "Joining Date", value: "joiningDate" },
   { label: "Status", value: "status" },
+  { label: "Location", value: "location" },
+  { label: "Date of Birth", value: "dateOfBirth" },
+  { label: "Gender", value: "gender" },
+  { label: "Employment Basis", value: "employmentBasis" },
+  { label: "Reporting To", value: "reportingTo" },
+  { label: "Address", value: "address" },
+  { label: "Permanent Address", value: "permanentAddress" },
+  { label: "Marital Status", value: "maritalStatus" },
+  { label: "Aadhaar Number", value: "aadhaarNumber" },
+  { label: "Account No", value: "bankAccountNumber" },
+  { label: "Bank Name", value: "bankName" },
+  { label: "Branch Name", value: "bankBranchName" },
+  { label: "IFSC Code", value: "bankIfscCode" },
+  { label: "PAN Number", value: "panNumber" },
+  { label: "UAN", value: "uan" },
+  { label: "Tax Regime", value: "taxRegime" },
 ];
 
 const REQUIRED_TARGET_FIELDS = EMPLOYEE_TARGET_FIELDS.filter(
   (field) => field.required
 ).map((field) => field.value);
 
-const VALID_EMPLOYEE_TYPES = ["BLUE_COLLAR", "WHITE_COLLAR", "CONTRACTOR"];
+const VALID_EMPLOYEE_TYPES = ["BLUE_COLLAR", "STAFF", "SUPERVISOR", "MANAGER"];
 const VALID_SALARY_TYPES = ["HOURLY", "DAILY", "MONTHLY"];
 const VALID_STATUS = ["ACTIVE", "INACTIVE"];
+const VALID_GENDERS = ["MALE", "FEMALE", "OTHER"];
+const VALID_MARITAL_STATUSES = [
+  "SINGLE",
+  "MARRIED",
+  "DIVORCED",
+  "WIDOWED",
+  "OTHER",
+];
+const VALID_EMPLOYMENT_BASIS = ["FULL_TIME", "PART_TIME", "CONTRACT"];
+const VALID_TAX_REGIMES = ["OLD", "NEW"];
 
 const COLUMN_SYNONYMS: Record<string, string[]> = {
   employeeCode: [
@@ -74,16 +103,33 @@ const COLUMN_SYNONYMS: Record<string, string[]> = {
     "code",
     "id",
   ],
-  name: ["name", "employee name", "full name", "worker name", "staff name"],
-  phone: ["phone", "mobile", "mobile number", "contact", "contact number"],
+  name: ["name", "employee name", "emp name", "full name", "worker name", "staff name"],
+  phone: ["phone"],
+  mobile: ["mobile", "mobile number", "contact", "contact number"],
   email: ["email", "email id", "email address"],
-  employeeType: ["employee type", "type", "worker type", "staff type"],
+  employeeType: ["employee type", "worker type", "staff type", "worker classification"],
   designation: ["designation", "role", "job title", "position"],
   department: ["department", "dept", "team"],
   salaryRate: ["salary", "salary rate", "wage", "rate", "amount", "pay"],
   salaryType: ["salary type", "pay type", "wage type"],
-  joiningDate: ["joining date", "join date", "date of joining", "doj"],
+  joiningDate: ["joining date", "join date", "date of joining", "date of join", "doj"],
   status: ["status", "employee status"],
+  location: ["location", "site", "plant", "branch location"],
+  dateOfBirth: ["date of birth", "dob", "birth date"],
+  gender: ["gender", "sex"],
+  employmentBasis: ["emp type", "employment basis", "employment type", "type"],
+  reportingTo: ["reporting to", "manager", "reports to", "reporting manager"],
+  address: ["address", "current address"],
+  permanentAddress: ["permanent address", "permanent addr"],
+  maritalStatus: ["marital status", "maritalstatus"],
+  aadhaarNumber: ["aadhaar number", "aadhaar", "aadhar number", "aadhar"],
+  bankAccountNumber: ["account no", "account number", "bank account no", "bank account number"],
+  bankName: ["bank name"],
+  bankBranchName: ["branch name", "bank branch name", "bank branch"],
+  bankIfscCode: ["ifsc code", "ifsc"],
+  panNumber: ["pan number", "pan"],
+  uan: ["uan"],
+  taxRegime: ["tax regime"],
 };
 
 function normalizeColumnName(value: string) {
@@ -137,6 +183,7 @@ function toEmployeeImportRowInput(
     employeeCode: value(row.employeeCode),
     name: value(row.name),
     phone: value(row.phone),
+    mobile: value(row.mobile),
     email: value(row.email),
     photoDataUrl: value(row.photoDataUrl),
     employeeType: value(row.employeeType),
@@ -146,10 +193,29 @@ function toEmployeeImportRowInput(
     salaryType: value(row.salaryType),
     joiningDate: value(row.joiningDate),
     status: value(row.status),
+    locationRaw: value(row.location),
+    dateOfBirth: value(row.dateOfBirth),
+    gender: value(row.gender),
+    employmentBasis: value(row.employmentBasis),
+    reportingTo: value(row.reportingTo),
+    address: value(row.address),
+    permanentAddress: value(row.permanentAddress),
+    maritalStatus: value(row.maritalStatus),
+    aadhaarNumber: value(row.aadhaarNumber),
+    bankAccountNumber: value(row.bankAccountNumber),
+    bankName: value(row.bankName),
+    bankBranchName: value(row.bankBranchName),
+    bankIfscCode: value(row.bankIfscCode),
+    panNumber: value(row.panNumber),
+    uan: value(row.uan),
+    taxRegime: value(row.taxRegime),
   };
 }
 
-function validateRows(mappedRows: ImportRow[]): ValidationRow[] {
+function validateRows(
+  mappedRows: ImportRow[],
+  reportingToResolved: boolean[] = []
+): ValidationRow[] {
   const employeeCodeCount = new Map<string, number>();
 
   mappedRows.forEach((row) => {
@@ -168,11 +234,21 @@ function validateRows(mappedRows: ImportRow[]): ValidationRow[] {
     const salaryType = value(row.salaryType);
     const employeeType = value(row.employeeType);
     const status = value(row.status);
+    const gender = value(row.gender);
+    const maritalStatus = value(row.maritalStatus);
+    const employmentBasis = value(row.employmentBasis);
+    const taxRegime = value(row.taxRegime);
+    const reportingTo = value(row.reportingTo);
 
     if (!employeeCode) errors.push("Employee Code is required");
     if (!name) errors.push("Name is required");
     if (!salaryRate) errors.push("Salary Rate is required");
     if (!salaryType) errors.push("Salary Type is required");
+    if (!employeeType) {
+      errors.push(
+        "Employee Type is required (BLUE_COLLAR, STAFF, SUPERVISOR or MANAGER) — map or add this column"
+      );
+    }
 
     if (employeeCode && employeeCodeCount.get(employeeCode)! > 1) {
       errors.push("Duplicate Employee Code in uploaded file");
@@ -183,21 +259,52 @@ function validateRows(mappedRows: ImportRow[]): ValidationRow[] {
     }
 
     if (salaryType && !VALID_SALARY_TYPES.includes(salaryType)) {
-      errors.push("Invalid Salary Type");
+      errors.push("Invalid Salary Type (use HOURLY, DAILY or MONTHLY)");
     }
 
     if (employeeType && !VALID_EMPLOYEE_TYPES.includes(employeeType)) {
-      errors.push("Invalid Employee Type");
+      errors.push(
+        "Invalid Employee Type (use BLUE_COLLAR, STAFF, SUPERVISOR or MANAGER)"
+      );
     }
 
     if (status && !VALID_STATUS.includes(status)) {
-      errors.push("Invalid Status");
+      errors.push("Invalid Status (use ACTIVE or INACTIVE)");
+    }
+
+    if (gender && !VALID_GENDERS.includes(gender)) {
+      errors.push("Invalid Gender (use MALE, FEMALE or OTHER)");
+    }
+
+    if (maritalStatus && !VALID_MARITAL_STATUSES.includes(maritalStatus)) {
+      errors.push(
+        "Invalid Marital Status (use SINGLE, MARRIED, DIVORCED, WIDOWED or OTHER)"
+      );
+    }
+
+    if (employmentBasis && !VALID_EMPLOYMENT_BASIS.includes(employmentBasis)) {
+      errors.push(
+        "Invalid Emp Type / Employment Basis (use FULL_TIME, PART_TIME or CONTRACT)"
+      );
+    }
+
+    if (taxRegime && !VALID_TAX_REGIMES.includes(taxRegime)) {
+      errors.push("Invalid Tax Regime (use OLD or NEW)");
+    }
+
+    if (reportingTo && reportingTo === employeeCode) {
+      errors.push("Reporting To cannot be the employee's own code");
     }
 
     if (!row.phone) warnings.push("Phone missing");
     if (!row.email) warnings.push("Email missing");
     if (!row.department) warnings.push("Department missing");
     if (!row.designation) warnings.push("Designation missing");
+    if (reportingTo && !reportingToResolved[index]) {
+      warnings.push(
+        "Reporting To could not be matched to an existing employee code — it will be sent as entered"
+      );
+    }
 
     const statusValue: ValidationRow["status"] =
       errors.length > 0 ? "ERROR" : warnings.length > 0 ? "WARNING" : "VALID";
@@ -236,6 +343,18 @@ async function downloadErrorRows(rows: ValidationRow[]) {
 }
 
 
+async function downloadTemplate() {
+  const template = getImportTemplateCsv("EMPLOYEE");
+  if (!template) return;
+
+  const blob = new Blob([template.content], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  await saveFile({ fileName: template.fileName, content: blob });
+  toast.success("Employee import template downloaded");
+}
+
 export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   const [fileName, setFileName] = useState("");
   const [rawRows, setRawRows] = useState<ImportRow[]>([]);
@@ -247,9 +366,25 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   } | null>(null);
   const [previewEmployeeImport] = usePreviewEmployeeImportMutation();
   const [importEmployees, importState] = useImportEmployeesMutation();
+  const { data: orgEmployeesPage } = useGetEmployeesQuery(
+    { size: 1000 },
+    { skip: !open }
+  );
 
   const router = useRouter();
   const logDataJob = useLogDataJob();
+
+  const managerLookup = useMemo(() => {
+    const codeSet = new Set<string>();
+    const nameToCode = new Map<string, string>();
+
+    (orgEmployeesPage?.content ?? []).forEach((candidate) => {
+      codeSet.add(candidate.employeeCode);
+      nameToCode.set(candidate.name.trim().toLowerCase(), candidate.employeeCode);
+    });
+
+    return { codeSet, nameToCode };
+  }, [orgEmployeesPage]);
 
   const sourceColumns = useMemo(() => {
     if (!rawRows.length) return [];
@@ -260,9 +395,43 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     return mapRowsToEmployeeFields(rawRows, mapping);
   }, [rawRows, mapping]);
 
+  // Resolve "Reporting To" manager names to employee codes where possible,
+  // since the import contract expects reportingTo to be a manager's
+  // employeeCode. Rows already using a valid code are left untouched.
+  const { resolvedRows, reportingToResolved } = useMemo(() => {
+    const resolvedFlags: boolean[] = [];
+
+    const rows = mappedRows.map((row) => {
+      const rawReportingTo = value(row.reportingTo);
+      if (!rawReportingTo) {
+        resolvedFlags.push(true);
+        return row;
+      }
+
+      if (managerLookup.codeSet.has(rawReportingTo)) {
+        resolvedFlags.push(true);
+        return row;
+      }
+
+      const matchedCode = managerLookup.nameToCode.get(
+        rawReportingTo.toLowerCase()
+      );
+
+      if (matchedCode) {
+        resolvedFlags.push(true);
+        return { ...row, reportingTo: matchedCode };
+      }
+
+      resolvedFlags.push(false);
+      return row;
+    });
+
+    return { resolvedRows: rows, reportingToResolved: resolvedFlags };
+  }, [mappedRows, managerLookup]);
+
   const validationRows = useMemo(() => {
-    return validateRows(mappedRows);
-  }, [mappedRows]);
+    return validateRows(resolvedRows, reportingToResolved);
+  }, [resolvedRows, reportingToResolved]);
 
   const validation = useMemo(() => {
     const mappedTargetFields = Object.values(mapping).filter(
@@ -398,10 +567,32 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
 
         <div className="h-[calc(90vh-73px)] overflow-y-auto px-6 py-6">
           <div className="space-y-6">
-            {!rawRows.length && <FileDropzone onFileSelect={handleFileSelect} />}
+            {!rawRows.length && (
+              <div className="space-y-3">
+                <div className="flex justify-end">
+                  <Button variant="outline" onClick={downloadTemplate}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Template
+                  </Button>
+                </div>
+                <FileDropzone onFileSelect={handleFileSelect} />
+              </div>
+            )}
 
             {rawRows.length > 0 && (
               <>
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                  <p className="font-medium">Reporting To mapping</p>
+                  <p className="mt-1">
+                    Enter the manager&apos;s <strong>Employee Code</strong> or
+                    their exact <strong>name</strong> as it appears in
+                    Factory1 — matching names are resolved to employee codes
+                    automatically. Unmatched values are still submitted as
+                    entered, and the server will report a clear error if no
+                    matching employee is found.
+                  </p>
+                </div>
+
                 <div className="flex flex-col justify-between gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center">
                   <div className="flex items-center gap-3">
                     <div className="rounded-lg bg-primary/10 p-2">

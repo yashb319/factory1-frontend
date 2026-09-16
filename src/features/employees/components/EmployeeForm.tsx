@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox, ComboboxOption } from "@/components/ui/combobox";
 
 import { EmployeeFormValues } from "../schemas/employee.schema";
 
@@ -20,6 +21,8 @@ interface Props {
   form: UseFormReturn<EmployeeFormValues>;
   mode: "create" | "edit";
   loading?: boolean;
+  designationOptions?: string[];
+  reportingToOptions?: ComboboxOption[];
   onCancel: () => void;
   onSubmit: (values: EmployeeFormValues) => void;
 }
@@ -28,6 +31,8 @@ export function EmployeeForm({
   form,
   mode,
   loading = false,
+  designationOptions = [],
+  reportingToOptions = [],
   onCancel,
   onSubmit,
 }: Props) {
@@ -169,8 +174,66 @@ export function EmployeeForm({
 
         <div className="space-y-2">
           <label className="text-sm font-medium">Designation</label>
-          <Input placeholder="Machine Operator" {...form.register("designation")} />
+          <Combobox
+            value={form.watch("designation") ?? ""}
+            onChange={(next) =>
+              form.setValue("designation", next, { shouldDirty: true })
+            }
+            options={designationOptions.map((designation) => ({
+              value: designation,
+              label: designation,
+            }))}
+            placeholder="Machine Operator"
+            emptyText="No existing designations — type to add a new one"
+            allowFreeText
+          />
         </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Employment Basis</label>
+          <Select
+            value={form.watch("employmentBasis") ?? ""}
+            onValueChange={(value) =>
+              form.setValue(
+                "employmentBasis",
+                value as EmployeeFormValues["employmentBasis"],
+                { shouldValidate: true }
+              )
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select basis" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="FULL_TIME">Full Time</SelectItem>
+              <SelectItem value="PART_TIME">Part Time</SelectItem>
+              <SelectItem value="CONTRACT">Contract</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Location</label>
+          <Input placeholder="Bangalore Plant" {...form.register("location")} />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Reporting To</label>
+        <Combobox
+          value={form.watch("reportingToEmployeeId") ?? ""}
+          onChange={(next) =>
+            form.setValue("reportingToEmployeeId", next, {
+              shouldDirty: true,
+            })
+          }
+          options={reportingToOptions}
+          placeholder="Search employee by name or code"
+          emptyText="No employees available"
+          allowFreeText={false}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -217,6 +280,127 @@ export function EmployeeForm({
       <div className="space-y-2">
         <label className="text-sm font-medium">Joining Date</label>
         <Input type="date" {...form.register("joiningDate")} />
+      </div>
+
+      <div className="space-y-4 border-t pt-5">
+        <h3 className="text-sm font-semibold">Personal Details</h3>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Date of Birth</label>
+            <Input type="date" {...form.register("dateOfBirth")} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Gender</label>
+            <Select
+              value={form.watch("gender") ?? ""}
+              onValueChange={(value) =>
+                form.setValue(
+                  "gender",
+                  value as EmployeeFormValues["gender"],
+                  { shouldValidate: true }
+                )
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select gender" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MALE">Male</SelectItem>
+                <SelectItem value="FEMALE">Female</SelectItem>
+                <SelectItem value="OTHER">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Marital Status</label>
+          <Select
+            value={form.watch("maritalStatus") ?? ""}
+            onValueChange={(value) =>
+              form.setValue(
+                "maritalStatus",
+                value as EmployeeFormValues["maritalStatus"],
+                { shouldValidate: true }
+              )
+            }
+          >
+            <SelectTrigger className="sm:max-w-xs">
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="SINGLE">Single</SelectItem>
+              <SelectItem value="MARRIED">Married</SelectItem>
+              <SelectItem value="DIVORCED">Divorced</SelectItem>
+              <SelectItem value="WIDOWED">Widowed</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-4 border-t pt-5">
+        <h3 className="text-sm font-semibold">Contact &amp; Identity</h3>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Mobile</label>
+            <Input placeholder="9876543210" {...form.register("mobile")} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Aadhaar Number</label>
+            <Input
+              placeholder="XXXX XXXX XXXX"
+              {...form.register("aadhaarNumber")}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Address</label>
+          <Input placeholder="Current address" {...form.register("address")} />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Permanent Address</label>
+          <Input
+            placeholder="Permanent address"
+            {...form.register("permanentAddress")}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-4 border-t pt-5">
+        <h3 className="text-sm font-semibold">Bank Details</h3>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Account Number</label>
+            <Input {...form.register("bankAccountNumber")} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Bank Name</label>
+            <Input {...form.register("bankName")} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Branch Name</label>
+            <Input {...form.register("bankBranchName")} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">IFSC Code</label>
+            <Input placeholder="ABCD0123456" {...form.register("bankIfscCode")} />
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          PAN, UAN and Tax Regime are managed in Statutory Details below.
+        </p>
       </div>
 
       <div className="flex justify-end gap-2 border-t pt-5">

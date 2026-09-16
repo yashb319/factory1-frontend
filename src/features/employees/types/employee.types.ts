@@ -1,6 +1,9 @@
 export type EmployeeStatus = "ACTIVE" | "INACTIVE";
 export type EmployeeType = "BLUE_COLLAR" | "STAFF" | "SUPERVISOR" | "MANAGER";
 export type SalaryType = "HOURLY" | "DAILY" | "MONTHLY";
+export type Gender = "MALE" | "FEMALE" | "OTHER";
+export type MaritalStatus = "SINGLE" | "MARRIED" | "DIVORCED" | "WIDOWED" | "OTHER";
+export type EmploymentBasis = "FULL_TIME" | "PART_TIME" | "CONTRACT";
 
 export interface Employee {
   id: string;
@@ -19,6 +22,27 @@ export interface Employee {
   accountActivated?: boolean;
   createdAt?: string;
   updatedAt?: string;
+
+  location?: string;
+  dateOfBirth?: string;
+  gender?: Gender;
+  address?: string;
+  mobile?: string;
+  permanentAddress?: string;
+  maritalStatus?: MaritalStatus;
+  aadhaarNumber?: string;
+  bankAccountNumber?: string;
+  bankName?: string;
+  bankBranchName?: string;
+  bankIfscCode?: string;
+  employmentBasis?: EmploymentBasis;
+  reportingToEmployeeId?: string;
+
+  // Read-only, resolved/sourced server-side.
+  readonly reportingToEmployeeCode?: string;
+  readonly panNumber?: string;
+  readonly uan?: string;
+  readonly taxRegime?: TaxRegime;
 }
 
 export type PfCalculationType =
@@ -75,6 +99,21 @@ export interface CreateEmployeeRequest {
   salaryType: SalaryType;
   joiningDate?: string;
   status: EmployeeStatus;
+
+  location?: string;
+  dateOfBirth?: string;
+  gender?: Gender;
+  address?: string;
+  mobile?: string;
+  permanentAddress?: string;
+  maritalStatus?: MaritalStatus;
+  aadhaarNumber?: string;
+  bankAccountNumber?: string;
+  bankName?: string;
+  bankBranchName?: string;
+  bankIfscCode?: string;
+  employmentBasis?: EmploymentBasis;
+  reportingToEmployeeId?: string;
 }
 
 export type UpdateEmployeeRequest = CreateEmployeeRequest;
@@ -108,6 +147,24 @@ export interface EmployeeImportRowInput {
   salaryType?: string | null;
   joiningDate?: string | null;
   status?: string | null;
+
+  locationRaw?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  address?: string | null;
+  mobile?: string | null;
+  permanentAddress?: string | null;
+  maritalStatus?: string | null;
+  aadhaarNumber?: string | null;
+  bankAccountNumber?: string | null;
+  bankName?: string | null;
+  bankBranchName?: string | null;
+  bankIfscCode?: string | null;
+  employmentBasis?: string | null;
+  reportingTo?: string | null;
+  panNumber?: string | null;
+  uan?: string | null;
+  taxRegime?: string | null;
 }
 
 export interface BulkEmployeeImportRequest {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   CalendarDays,
   Mail,
@@ -9,6 +10,10 @@ import {
   UserRound,
   Building2,
   IdCard,
+  MapPin,
+  Landmark,
+  Users,
+  FileText,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +25,7 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Employee } from "../types/employee.types";
+import { useGetEmployeesQuery } from "../api/employeeApi";
 
 interface Props {
   employee: Employee | null;
@@ -55,6 +61,20 @@ export function EmployeeDetailsDrawer({
   open,
   onOpenChange,
 }: Props) {
+  const { data: employeesPage } = useGetEmployeesQuery(
+    { size: 1000 },
+    { skip: !open }
+  );
+
+  const reportingManagerName = useMemo(() => {
+    if (!employee?.reportingToEmployeeCode) return undefined;
+    const code = employee.reportingToEmployeeCode;
+    const manager = (employeesPage?.content ?? []).find(
+      (candidate) => candidate.employeeCode === code
+    );
+    return manager ? `${manager.name} (${manager.employeeCode})` : code;
+  }, [employee, employeesPage]);
+
   if (!employee) return null;
 
   return (
@@ -98,6 +118,13 @@ export function EmployeeDetailsDrawer({
             <div className="grid gap-3 sm:grid-cols-2">
               <DetailItem icon={Phone} label="Phone" value={employee.phone} />
               <DetailItem icon={Mail} label="Email" value={employee.email} />
+              <DetailItem icon={Phone} label="Mobile" value={employee.mobile} />
+              <DetailItem icon={MapPin} label="Address" value={employee.address} />
+              <DetailItem
+                icon={MapPin}
+                label="Permanent Address"
+                value={employee.permanentAddress}
+              />
             </div>
           </section>
 
@@ -126,9 +153,96 @@ export function EmployeeDetailsDrawer({
               />
 
               <DetailItem
+                icon={MapPin}
+                label="Location"
+                value={employee.location}
+              />
+
+              <DetailItem
+                icon={BriefcaseBusiness}
+                label="Employment Basis"
+                value={employee.employmentBasis?.replace("_", " ")}
+              />
+
+              <DetailItem
+                icon={Users}
+                label="Reporting Manager"
+                value={reportingManagerName}
+              />
+
+              <DetailItem
                 icon={CalendarDays}
                 label="Joining Date"
                 value={employee.joiningDate}
+              />
+            </div>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Personal Details</h3>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <DetailItem
+                icon={CalendarDays}
+                label="Date of Birth"
+                value={employee.dateOfBirth}
+              />
+              <DetailItem
+                icon={UserRound}
+                label="Gender"
+                value={employee.gender}
+              />
+              <DetailItem
+                icon={UserRound}
+                label="Marital Status"
+                value={employee.maritalStatus}
+              />
+              <DetailItem
+                icon={IdCard}
+                label="Aadhaar Number"
+                value={employee.aadhaarNumber}
+              />
+            </div>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Bank &amp; Statutory Details</h3>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <DetailItem
+                icon={Landmark}
+                label="Account Number"
+                value={employee.bankAccountNumber}
+              />
+              <DetailItem
+                icon={Landmark}
+                label="Bank Name"
+                value={employee.bankName}
+              />
+              <DetailItem
+                icon={Landmark}
+                label="Branch Name"
+                value={employee.bankBranchName}
+              />
+              <DetailItem
+                icon={Landmark}
+                label="IFSC Code"
+                value={employee.bankIfscCode}
+              />
+              <DetailItem
+                icon={FileText}
+                label="PAN Number"
+                value={employee.panNumber}
+              />
+              <DetailItem icon={FileText} label="UAN" value={employee.uan} />
+              <DetailItem
+                icon={FileText}
+                label="Tax Regime"
+                value={employee.taxRegime}
               />
             </div>
           </section>

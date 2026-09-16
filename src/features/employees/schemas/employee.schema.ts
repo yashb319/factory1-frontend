@@ -18,6 +18,25 @@ export const employeeFormSchema = z.object({
 
   joiningDate: z.string().optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]),
+
+  location: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
+  address: z.string().optional(),
+  mobile: z.string().optional(),
+  permanentAddress: z.string().optional(),
+  maritalStatus: z
+    .enum(["SINGLE", "MARRIED", "DIVORCED", "WIDOWED", "OTHER"])
+    .optional(),
+  aadhaarNumber: z.string().optional(),
+  bankAccountNumber: z.string().optional(),
+  bankName: z.string().optional(),
+  bankBranchName: z.string().optional(),
+  bankIfscCode: z.string().optional(),
+  employmentBasis: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT"]).optional(),
+  // Stores the selected employee's id client-side; mapped to
+  // reportingToEmployeeId on submit.
+  reportingToEmployeeId: z.string().optional(),
 });
 
 export type EmployeeFormValues = z.infer<typeof employeeFormSchema>;
