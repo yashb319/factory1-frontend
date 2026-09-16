@@ -19,7 +19,7 @@ interface Props {
 export function EmployeeFilters({ filters, onChange }: Props) {
   return (
     <div className="rounded-xl border bg-card p-4">
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <div className="relative lg:col-span-2">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -41,22 +41,6 @@ export function EmployeeFilters({ filters, onChange }: Props) {
             <SelectItem value="ALL">All Status</SelectItem>
             <SelectItem value="ACTIVE">Active</SelectItem>
             <SelectItem value="INACTIVE">Inactive</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={filters.employeeType ?? "ALL"}
-          onValueChange={(value) => onChange({ employeeType: value as any })}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Employee Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All Types</SelectItem>
-            <SelectItem value="BLUE_COLLAR">Blue Collar</SelectItem>
-            <SelectItem value="STAFF">Staff</SelectItem>
-            <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
-            <SelectItem value="MANAGER">Manager</SelectItem>
           </SelectContent>
         </Select>
 

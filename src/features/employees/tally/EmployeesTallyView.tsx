@@ -44,7 +44,6 @@ export function EmployeesTallyView({
         { key: "name", label: "Name" },
         { key: "department", label: "Department" },
         { key: "designation", label: "Designation" },
-        { key: "employeeType", label: "Type" },
         {
           key: "salaryRate",
           label: "Salary",
@@ -61,18 +60,6 @@ export function EmployeesTallyView({
         { key: "name", label: "Name", type: "text", required: true, autoFocus: true },
         { key: "phone", label: "Phone", type: "text" },
         { key: "email", label: "Email", type: "email" },
-        {
-          key: "employeeType",
-          label: "Employee Type",
-          type: "select",
-          required: true,
-          options: [
-            { value: "BLUE_COLLAR", label: "Blue Collar" },
-            { value: "STAFF", label: "Staff" },
-            { value: "SUPERVISOR", label: "Supervisor" },
-            { value: "MANAGER", label: "Manager" },
-          ],
-        },
         { key: "department", label: "Department", type: "text" },
         { key: "designation", label: "Designation", type: "text" },
         { key: "salaryRate", label: "Salary Rate", type: "number", required: true },

@@ -31,10 +31,6 @@ export const employeeApi = baseApi.injectEndpoints({
         !params?.status || params.status === "ALL"
           ? undefined
           : params.status,
-      employeeType:
-        !params?.employeeType || params.employeeType === "ALL"
-          ? undefined
-          : params.employeeType,
       salaryType:
         !params?.salaryType || params.salaryType === "ALL"
           ? undefined
