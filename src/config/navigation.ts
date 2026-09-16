@@ -24,6 +24,7 @@ import {
   LifeBuoy,
   SlidersHorizontal,
   Paintbrush,
+  Network,
 } from "lucide-react";
 import type { ComponentType, CSSProperties } from "react";
 import type { AuthUser, UserRole } from "@/features/auth/types";
@@ -84,6 +85,13 @@ export const navigationItems: NavigationItem[] = [
     icon: Settings,
     roles: ["OWNER", "ADMIN"],
     module: "organization",
+  },
+  {
+    title: "Org Intelligence",
+    href: "/org-intelligence",
+    icon: Network,
+    roles: ["OWNER"],
+    module: "orgIntelligence",
   },
   {
     title: "SaaS Admin",

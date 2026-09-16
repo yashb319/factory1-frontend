@@ -55,6 +55,7 @@ export const moduleTheme = {
   projects: { color: "#6366F1", light: "#E0E7FF" },
   settings: { color: "#6B7280", light: "#F3F4F6" },
   organization: { color: "#1E3A8A", light: "#DBEAFE" },
+  orgIntelligence: { color: "#9333EA", light: "#F3E8FF" },
   notifications: { color: "#FB923C", light: "#FFEDD5" },
   auditLogs: { color: "#475569", light: "#E2E8F0" },
 } as const;
@@ -79,6 +80,7 @@ export function moduleForHref(href?: string | null): ModuleKey {
   if (href.startsWith("/ai")) return "aiInsights";
   if (href.startsWith("/import-export")) return "documents";
   if (href.startsWith("/organization-settings")) return "organization";
+  if (href.startsWith("/org-intelligence")) return "orgIntelligence";
   if (href.startsWith("/help")) return "settings";
   if (href.startsWith("/saas-admin")) return "settings";
   if (href.startsWith("/partner")) return "settings";
