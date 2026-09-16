@@ -92,6 +92,8 @@ export function EmployeeTable({
 
               <TableHead>Department</TableHead>
               <TableHead>Designation</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead>Reporting To</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Salary</TableHead>
               <TableHead>Status</TableHead>
@@ -103,7 +105,7 @@ export function EmployeeTable({
             {loading &&
               Array.from({ length: 5 }).map((_, index) => (
                 <TableRow key={index}>
-                  <TableCell colSpan={9}>
+                  <TableCell colSpan={11}>
                     <div className="h-8 animate-pulse rounded-md bg-muted" />
                   </TableCell>
                 </TableRow>
@@ -111,7 +113,7 @@ export function EmployeeTable({
 
             {!loading && employees.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={11} className="h-32 text-center text-muted-foreground">
                   No employees found.
                 </TableCell>
               </TableRow>
@@ -137,13 +139,20 @@ export function EmployeeTable({
                     <div>
                       <p className="font-medium">{employee.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {employee.phone || employee.email || "No contact"}
+                        {employee.mobile ||
+                          employee.phone ||
+                          employee.email ||
+                          "No contact"}
                       </p>
                     </div>
                   </TableCell>
 
                   <TableCell data-label="Department">{employee.department || "-"}</TableCell>
                   <TableCell data-label="Designation">{employee.designation || "-"}</TableCell>
+                  <TableCell data-label="Location">{employee.location || "-"}</TableCell>
+                  <TableCell data-label="Reporting To">
+                    {employee.reportingToEmployeeCode || "-"}
+                  </TableCell>
 
                   <TableCell data-label="Type">
                     <Badge variant="outline">
