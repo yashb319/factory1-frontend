@@ -67,6 +67,9 @@ export function EmployeeDetailsDrawer({
   );
 
   const reportingManagerName = useMemo(() => {
+    if (employee?.reportingToEmployeeName) {
+      return employee.reportingToEmployeeName;
+    }
     if (!employee?.reportingToEmployeeCode) return undefined;
     const code = employee.reportingToEmployeeCode;
     const manager = (employeesPage?.content ?? []).find(
