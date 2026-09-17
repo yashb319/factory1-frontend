@@ -331,7 +331,9 @@ function KanbanCard({
           aria-pressed={selected}
         >
           <div className="font-medium">{item.orderNumber}</div>
-          <div className="text-xs text-muted-foreground">{item.productId}</div>
+          <div className="text-xs text-muted-foreground">
+            {item.productName || item.productCode || item.productId}
+          </div>
         </button>
         <button
           type="button"

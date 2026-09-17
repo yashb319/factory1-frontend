@@ -40,6 +40,12 @@ export interface LeaveTypeRequest {
   expiryMonths: number;
 }
 
+export interface LeaveTypeDeleteResponse {
+  deleted: boolean;
+  message: string;
+  leaveType: LeaveTypeResponse | null;
+}
+
 export interface LeaveBalanceResponse {
   leaveTypeId: string;
   leaveTypeCode: string;

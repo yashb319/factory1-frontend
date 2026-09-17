@@ -109,11 +109,15 @@ export type BomRequest = {
 
 export type BomItem = BomItemRequest & {
   id: string;
+  itemCode?: string;
+  itemName?: string;
 };
 
 export type Bom = {
   id: string;
   productId: string;
+  productCode?: string;
+  productName?: string;
   versionNumber: number;
   name: string;
   status: WorkflowStatus;
@@ -255,6 +259,8 @@ export type ProductionBoardItem = {
   orderId: string;
   orderNumber: string;
   productId: string;
+  productCode?: string;
+  productName?: string;
   priority: OrderPriority;
   status: OrderStatus;
   dueDate?: string;
@@ -489,7 +495,6 @@ export type MyAssignmentResponse = {
   orderId: string;
   orderNumber: string;
   productId: string;
-  productName?: string;
   stepId: string;
   stepName: string;
   deadline?: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -20,8 +20,10 @@ import {
   useCreateEmployeeMutation,
   useGetEmployeeDesignationsQuery,
   useGetEmployeesQuery,
+  useGetNextEmployeeCodeQuery,
 } from "../api/employeeApi";
 import { EmployeeForm } from "./EmployeeForm";
+import { isCodeConflict } from "@/lib/apiError";
 
 interface Props {
   open: boolean;
@@ -29,6 +31,7 @@ interface Props {
 }
 
 const defaultValues: EmployeeFormValues = {
+  code: "",
   name: "",
   phone: "",
   email: "",
@@ -60,6 +63,10 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
   const { data: designations } = useGetEmployeeDesignationsQuery(undefined, {
     skip: !open,
   });
+  const { data: nextCode } = useGetNextEmployeeCodeQuery(undefined, {
+    skip: !open,
+    refetchOnMountOrArgChange: true,
+  });
   const { data: employeesPage } = useGetEmployeesQuery(
     { size: 1000, sortBy: "name", sortDirection: "asc" },
     { skip: !open }
@@ -80,10 +87,17 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
     defaultValues,
   });
 
+  useEffect(() => {
+    if (open && nextCode && !form.getValues("code")) {
+      form.setValue("code", nextCode);
+    }
+  }, [form, nextCode, open]);
+
   async function onSubmit(values: EmployeeFormValues) {
     try {
       await createEmployee({
         ...values,
+        code: values.code?.trim().toUpperCase() || undefined,
         phone: values.phone || undefined,
         email: values.email || undefined,
         photoDataUrl: values.photoDataUrl || undefined,
@@ -109,7 +123,11 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
       toast.success("Employee added successfully");
       form.reset(defaultValues);
       onOpenChange(false);
-    } catch {
+    } catch (error) {
+      if (isCodeConflict(error)) {
+        form.setError("code", { message: "This code is already in use, try another" });
+        return;
+      }
       toast.error("Failed to add employee");
     }
   }

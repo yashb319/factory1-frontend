@@ -150,7 +150,7 @@ export function EmployeeTable({
                   <TableCell data-label="Designation">{employee.designation || "-"}</TableCell>
                   <TableCell data-label="Location">{employee.location || "-"}</TableCell>
                   <TableCell data-label="Reporting To">
-                    {employee.reportingToEmployeeCode || "-"}
+                    {employee.reportingToEmployeeName || employee.reportingToEmployeeCode || "-"}
                   </TableCell>
 
                   <TableCell data-label="Salary">

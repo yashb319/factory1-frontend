@@ -7,6 +7,7 @@ import {
   useCreateEmployeeMutation,
   useUpdateEmployeeMutation,
   useDeleteEmployeeMutation,
+  useGetNextEmployeeCodeQuery,
 } from "../api/employeeApi";
 import { TallyMasterList } from "@/components/layout/TallyMasterList";
 import type {
@@ -30,6 +31,9 @@ export function EmployeesTallyView({
   const [createEmployee, createEmployeeState] = useCreateEmployeeMutation();
   const [updateEmployee, updateEmployeeState] = useUpdateEmployeeMutation();
   const [deleteEmployee] = useDeleteEmployeeMutation();
+  const { data: suggestedCode } = useGetNextEmployeeCodeQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
 
   const items = useMemo(() => data?.content ?? [], [data]);
 
@@ -57,6 +61,7 @@ export function EmployeesTallyView({
         { key: "status", label: "Status" },
       ]}
       fields={[
+        { key: "code", label: "Employee Code", type: "text", createOnly: true },
         { key: "name", label: "Name", type: "text", required: true, autoFocus: true },
         { key: "phone", label: "Phone", type: "text" },
         { key: "email", label: "Email", type: "email" },
@@ -93,6 +98,7 @@ export function EmployeesTallyView({
       onDeleteItem={(id) => deleteEmployee(id).unwrap()}
       isCreating={createEmployeeState.isLoading}
       isUpdating={updateEmployeeState.isLoading}
+      suggestedCode={suggestedCode}
       onBack={() => router.push("/gateway?menu=employees")}
     />
   );

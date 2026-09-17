@@ -57,6 +57,7 @@ export type InventoryItem = {
 };
 
 export type InventoryItemRequest = {
+  code?: string;
   name: string;
   category?: string;
   itemType: InventoryItemType;

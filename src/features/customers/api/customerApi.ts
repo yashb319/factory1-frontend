@@ -51,6 +51,11 @@ export const customerApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Customer"],
     }),
+    getNextCustomerCode: builder.query<string, void>({
+      query: () => "/api/customers/next-code",
+      transformResponse: (response: { nextCode: string }) => response.nextCode,
+      providesTags: ["Customer"],
+    }),
 
     updateCustomer: builder.mutation<
       ApiResponse<Customer>,
@@ -92,6 +97,7 @@ export const {
   useGetCustomerDashboardQuery,
   useGetCustomerInsightsQuery,
   useCreateCustomerMutation,
+  useGetNextCustomerCodeQuery,
   useUpdateCustomerMutation,
   useDeleteCustomerMutation,
   useBulkCreateCustomersMutation,

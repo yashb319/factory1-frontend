@@ -27,8 +27,10 @@ import type {
 } from "../types/inventory.types";
 import {
   useCreateInventoryItemMutation,
+  useGetNextInventoryItemCodeQuery,
   useUpdateInventoryItemMutation,
 } from "../api/inventoryApi";
+import { isCodeConflict } from "@/lib/apiError";
 import { useLazyGetGstSuggestionsQuery } from "@/features/billing/api/billingApi";
 import type { GstRateSuggestion } from "@/features/billing/types/billing.types";
 
@@ -39,6 +41,7 @@ type Props = {
 };
 
 type FormValues = {
+  code: string;
   name: string;
   category: string;
   itemType: string;
@@ -91,6 +94,10 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
   const sellingPrice = form.watch("sellingPrice");
   const itemName = form.watch("name");
   const hsnCode = form.watch("hsnCode");
+  const { data: nextCode } = useGetNextInventoryItemCodeQuery(undefined, {
+    skip: !open || isEdit,
+    refetchOnMountOrArgChange: true,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -99,6 +106,7 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
       setGstSuggestions([]);
       form.reset({
         name: item.name,
+        code: "",
         category: item.category ?? "",
         itemType: item.itemType,
         unit: item.unit,
@@ -117,6 +125,7 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
       setGstSuggestions([]);
       form.reset({
         name: "",
+        code: nextCode ?? "",
         category: "",
         itemType: "RAW_MATERIAL",
         unit: "pcs",
@@ -133,6 +142,12 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
       });
     }
   }, [open, item, form]);
+
+  useEffect(() => {
+    if (open && !isEdit && nextCode && !form.getValues("code")) {
+      form.setValue("code", nextCode);
+    }
+  }, [form, isEdit, nextCode, open]);
 
   useEffect(() => {
     if (!open) {
@@ -188,6 +203,7 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
       }
 
       const body: InventoryItemRequest = {
+        code: values.code.trim().toUpperCase() || undefined,
         name: values.name,
         category: values.category,
         itemType: values.itemType as InventoryItemRequest["itemType"],
@@ -212,7 +228,11 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
 
       toast.success("Inventory item created successfully");
       onClose();
-    } catch {
+    } catch (error) {
+      if (!isEdit && isCodeConflict(error)) {
+        form.setError("code", { message: "This code is already in use, try another" });
+        return;
+      }
       toast.error(
         isEdit
           ? "Failed to update inventory item"
@@ -263,6 +283,7 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
 
           <AppForm form={form} onSubmit={onSubmit}>
             <div className="grid gap-4 md:grid-cols-2">
+              {!isEdit && <TextField name="code" label="Item Code" placeholder="ITM0001" />}
               <TextField name="name" label="Item Name" required />
 
               <TextField name="category" label="Category" />

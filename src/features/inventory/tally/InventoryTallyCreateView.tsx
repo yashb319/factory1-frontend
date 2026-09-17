@@ -4,13 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { playUiSound } from "@/lib/uiSounds";
 import { useRouter } from "next/navigation";
-import { useCreateInventoryItemMutation } from "../api/inventoryApi";
+import { useCreateInventoryItemMutation, useGetNextInventoryItemCodeQuery } from "../api/inventoryApi";
+import { isCodeConflict } from "@/lib/apiError";
 import type { InventoryItemRequest } from "../types/inventory.types";
 import { inventoryFields } from "./InventoryTallyListView";
 
 export function InventoryTallyCreateView() {
   const router = useRouter();
   const [createItem, createItemState] = useCreateInventoryItemMutation();
+  const { data: nextCode } = useGetNextInventoryItemCodeQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
+  const [codeError, setCodeError] = useState("");
 
   const [formDraft, setFormDraft] = useState<Record<string, unknown>>(() => {
     const draft: Record<string, unknown> = {};
@@ -26,6 +31,14 @@ export function InventoryTallyCreateView() {
     fieldRefs.current[0]?.focus();
   }, []);
 
+  useEffect(() => {
+    if (nextCode && !formDraft.code) {
+      queueMicrotask(() => {
+        setFormDraft((draft) => ({ ...draft, code: nextCode }));
+      });
+    }
+  }, [formDraft.code, nextCode]);
+
   const handleChange = (key: string, value: unknown) => {
     setFormDraft((prev) => ({ ...prev, [key]: value }));
   };
@@ -39,10 +52,17 @@ export function InventoryTallyCreateView() {
       }
     }
     try {
-      await createItem(formDraft as unknown as InventoryItemRequest).unwrap();
+      await createItem({
+        ...formDraft,
+        code: formDraft.code ? String(formDraft.code).trim().toUpperCase() : undefined,
+      } as unknown as InventoryItemRequest).unwrap();
       toast.success("Inventory item created");
       router.push("/tally/inventory");
-    } catch {
+    } catch (error) {
+      if (isCodeConflict(error)) {
+        setCodeError("This code is already in use, try another");
+        return;
+      }
       toast.error("Could not create inventory item");
     }
   };
@@ -179,6 +199,7 @@ export function InventoryTallyCreateView() {
                   className="h-6 border-0 border-b border-[#0F766E] bg-transparent px-1 outline-none focus:bg-[#FFF7C2]"
                 />
               )}
+              {field.key === "code" && codeError ? <span className="col-start-2 text-xs text-red-600">{codeError}</span> : null}
             </label>
           ))}
         </div>
