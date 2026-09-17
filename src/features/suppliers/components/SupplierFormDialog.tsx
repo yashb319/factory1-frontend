@@ -54,6 +54,7 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
   const [updateSupplier, updateState] = useUpdateSupplierMutation();
   const { data: nextCode } = useGetNextSupplierCodeQuery(undefined, {
     skip: !open || isEdit,
+    refetchOnMountOrArgChange: true,
   });
   const gstNumber = form.watch("gstNumber");
   const city = form.watch("city");

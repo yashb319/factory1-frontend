@@ -185,8 +185,6 @@ export type OrderStep = {
 
 export type ProductionOrder = ProductionOrderRequest & {
   id: string;
-  productCode?: string;
-  productName?: string;
   version?: number;
   executionVersion?: number;
   completedQuantity: number;
@@ -497,8 +495,6 @@ export type MyAssignmentResponse = {
   orderId: string;
   orderNumber: string;
   productId: string;
-  productCode?: string;
-  productName?: string;
   stepId: string;
   stepName: string;
   deadline?: string;

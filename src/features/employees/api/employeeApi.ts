@@ -52,6 +52,7 @@ export const employeeApi = baseApi.injectEndpoints({
     getNextEmployeeCode: builder.query<string, void>({
       query: () => "/api/employees/next-code",
       transformResponse: (response: { nextCode: string }) => response.nextCode,
+      providesTags: ["Employee"],
     }),
 
     getEmployeeById: builder.query<Employee, string>({

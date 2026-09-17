@@ -96,6 +96,7 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
   const hsnCode = form.watch("hsnCode");
   const { data: nextCode } = useGetNextInventoryItemCodeQuery(undefined, {
     skip: !open || isEdit,
+    refetchOnMountOrArgChange: true,
   });
 
   useEffect(() => {

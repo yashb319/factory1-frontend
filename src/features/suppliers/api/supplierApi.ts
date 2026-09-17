@@ -55,6 +55,7 @@ export const supplierApi = baseApi.injectEndpoints({
     getNextSupplierCode: builder.query<string, void>({
       query: () => "/api/suppliers/next-code",
       transformResponse: (response: { nextCode: string }) => response.nextCode,
+      providesTags: ["Supplier"],
     }),
 
     updateSupplier: builder.mutation<

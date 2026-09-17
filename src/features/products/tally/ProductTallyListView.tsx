@@ -31,12 +31,13 @@ type FieldDef = {
   label: string;
   type: "text" | "number" | "select" | "textarea";
   required?: boolean;
+  createOnly?: boolean;
   options?: Array<{ value: string; label: string }>;
   dynamic?: "finishedGood";
 };
 
 export const productFields: FieldDef[] = [
-  { key: "code", label: "Product Code", type: "text" },
+  { key: "code", label: "Product Code", type: "text", createOnly: true },
   { key: "name", label: "Name", type: "text", required: true },
   { key: "description", label: "Description", type: "textarea" },
   {
@@ -110,7 +111,7 @@ export function ProductTallyListView() {
 
   const submitAlter = async () => {
     if (!editingItem) return;
-    for (const f of productFields) {
+    for (const f of productFields.filter((field) => !field.createOnly)) {
       if (f.required && !formDraft[f.key as string] && formDraft[f.key as string] !== 0) {
         toast.error(`${f.label} is required`);
         return;
@@ -361,7 +362,7 @@ export function ProductTallyListView() {
 
         <div className="grid h-[calc(100%-6rem)] overflow-auto p-6">
           <div className="mx-auto grid w-full max-w-lg gap-y-3">
-            {productFields.map((field, index) => (
+            {productFields.filter((field) => !field.createOnly).map((field, index) => (
               <label
                 key={field.key as string}
                 className="tally-company-field grid grid-cols-[180px_1fr] items-center gap-3"

@@ -28,7 +28,9 @@ export function SupplierTallyView({
   const [deleteSupplier] = useDeleteSupplierMutation();
   const [createSupplier, createSupplierState] = useCreateSupplierMutation();
   const [updateSupplier, updateSupplierState] = useUpdateSupplierMutation();
-  const { data: suggestedCode } = useGetNextSupplierCodeQuery();
+  const { data: suggestedCode } = useGetNextSupplierCodeQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
 
   const suppliers = useMemo(() => data?.content ?? [], [data]);
 
@@ -48,7 +50,7 @@ export function SupplierTallyView({
         { key: "status", label: "Status" },
       ]}
       fields={[
-        { key: "code", label: "Supplier Code", type: "text" },
+        { key: "code", label: "Supplier Code", type: "text", createOnly: true },
         { key: "name", label: "Name", type: "text", required: true, autoFocus: true },
         { key: "phone", label: "Phone", type: "text" },
         { key: "email", label: "Email", type: "email" },

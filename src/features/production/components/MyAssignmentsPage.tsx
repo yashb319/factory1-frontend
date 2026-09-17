@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAppSelector } from "@/lib/hook";
 import { useGetOrganizationSettingsQuery } from "@/features/organization-settings/api/organizationSettingsApi";
+import { useGetProductsQuery } from "@/features/products/api/productsApi";
 import { useGetMyAssignmentsQuery } from "../api/productionApi";
 import type { MyAssignmentResponse } from "../types/production.types";
 import { PartialCompletionForm } from "./PartialCompletionForm";
@@ -29,12 +30,17 @@ function isOverdue(deadline?: string) {
 export function MyAssignmentsPage() {
   const user = useAppSelector((state) => state.auth.user);
   const assignmentsQuery = useGetMyAssignmentsQuery();
+  const { data: productsPage } = useGetProductsQuery({ page: 0, size: 300 });
   const orgSettingsQuery = useGetOrganizationSettingsQuery();
   const selfServiceEnabled = Boolean(
     orgSettingsQuery.data?.data.employeeSelfProgressUpdateEnabled
   );
 
   const assignments = useMemo(() => assignmentsQuery.data ?? [], [assignmentsQuery.data]);
+  const productsById = useMemo(
+    () => new Map((productsPage?.content ?? []).map((product) => [product.id, product])),
+    [productsPage]
+  );
 
   return (
     <div className="space-y-6">
@@ -85,6 +91,7 @@ export function MyAssignmentsPage() {
                 <MyAssignmentCard
                   key={assignment.assignmentId}
                   assignment={assignment}
+                  product={productsById.get(assignment.productId)}
                   canSelfUpdate={selfServiceEnabled}
                   currentUserId={user?.id}
                 />
@@ -99,9 +106,11 @@ export function MyAssignmentsPage() {
 
 function MyAssignmentCard({
   assignment,
+  product,
   canSelfUpdate,
 }: {
   assignment: MyAssignmentResponse;
+  product?: { productCode: string; name: string };
   canSelfUpdate: boolean;
   currentUserId?: string;
 }) {
@@ -122,7 +131,7 @@ function MyAssignmentCard({
         <div>
           <div className="font-medium">{assignment.orderNumber}</div>
           <div className="text-xs text-muted-foreground">
-            {assignment.productName || assignment.productCode || assignment.productId}
+            {product?.name || product?.productCode || assignment.productId}
           </div>
         </div>
         <StatusBadge tone={statusTone(assignment.orderStatus)}>{assignment.orderStatus}</StatusBadge>

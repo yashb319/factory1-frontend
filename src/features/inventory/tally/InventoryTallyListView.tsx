@@ -19,8 +19,9 @@ export const inventoryFields: Array<{
   type: "text" | "number" | "email" | "select" | "textarea";
   required?: boolean;
   options?: Array<{ value: string; label: string }>;
+  createOnly?: boolean;
 }> = [
-  { key: "code", label: "Item Code", type: "text" },
+  { key: "code", label: "Item Code", type: "text", createOnly: true },
   { key: "name", label: "Name", type: "text", required: true },
   {
     key: "itemType",
@@ -116,7 +117,7 @@ export function InventoryTallyListView() {
 
   const submitAlter = async () => {
     if (!editingItem) return;
-    for (const f of inventoryFields) {
+    for (const f of inventoryFields.filter((field) => !field.createOnly)) {
       if (f.required && !formDraft[f.key as string] && formDraft[f.key as string] !== 0) {
         toast.error(`${f.label} is required`);
         return;
@@ -308,7 +309,7 @@ export function InventoryTallyListView() {
 
         <div className="grid h-[calc(100%-6rem)] overflow-auto p-6">
           <div className="mx-auto grid w-full max-w-lg gap-y-3">
-            {inventoryFields.map((field, index) => (
+            {inventoryFields.filter((field) => !field.createOnly).map((field, index) => (
               <label
                 key={field.key as string}
                 className="tally-company-field grid grid-cols-[180px_1fr] items-center gap-3"

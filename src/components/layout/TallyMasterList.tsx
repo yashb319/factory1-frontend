@@ -20,6 +20,7 @@ export type TallyMasterField = {
   required?: boolean;
   autoFocus?: boolean;
   placeholder?: string;
+  createOnly?: boolean;
 };
 
 export type TallyMasterListProps<T extends { id: string }> = {
@@ -69,6 +70,7 @@ export function TallyMasterList<T extends { id: string }>({
   const listRef = useRef<HTMLDivElement>(null);
 
   const sorted = useMemo(() => items, [items]);
+  const formFields = screen === "create" ? fields : fields.filter((field) => !field.createOnly);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -84,7 +86,7 @@ export function TallyMasterList<T extends { id: string }>({
   const openCreate = () => {
     setEditingItem(null);
     const draft: Record<string, unknown> = {};
-    fields.forEach((f) => {
+    formFields.forEach((f) => {
       draft[f.key] = f.type === "checkbox" ? false : "";
     });
     if ("code" in draft && suggestedCode) draft.code = suggestedCode;
@@ -96,7 +98,7 @@ export function TallyMasterList<T extends { id: string }>({
   const openAlter = (item: T) => {
     setEditingItem(item);
     const draft: Record<string, unknown> = {};
-    fields.forEach((f) => {
+    formFields.forEach((f) => {
       const value = (item as Record<string, unknown>)[f.key];
       draft[f.key] = value ?? (f.type === "checkbox" ? false : "");
     });
@@ -105,7 +107,7 @@ export function TallyMasterList<T extends { id: string }>({
   };
 
   const submitCreate = async () => {
-    for (const f of fields) {
+    for (const f of formFields) {
       if (f.required && !formDraft[f.key] && formDraft[f.key] !== false) {
         toast.error(`${f.label} is required`);
         return;
@@ -129,7 +131,7 @@ export function TallyMasterList<T extends { id: string }>({
 
   const submitAlter = async () => {
     if (!editingItem) return;
-    for (const f of fields) {
+    for (const f of formFields) {
       if (f.required && !formDraft[f.key] && formDraft[f.key] !== false) {
         toast.error(`${f.label} is required`);
         return;
@@ -320,7 +322,7 @@ export function TallyMasterList<T extends { id: string }>({
 
         <div className="grid h-[calc(100%-6rem)] overflow-auto p-6">
           <div className="mx-auto grid w-full max-w-lg gap-y-3">
-            {fields.map((field) => (
+            {formFields.map((field) => (
               <label
                 key={field.key}
                 className="tally-company-field grid grid-cols-[180px_1fr] items-center gap-3"

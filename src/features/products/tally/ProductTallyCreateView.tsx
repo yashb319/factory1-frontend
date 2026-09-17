@@ -12,7 +12,9 @@ import { productFields } from "./ProductTallyListView";
 export function ProductTallyCreateView() {
   const router = useRouter();
   const [createProduct, createState] = useCreateProductMutation();
-  const { data: nextCode } = useGetNextProductCodeQuery();
+  const { data: nextCode } = useGetNextProductCodeQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
   const [codeError, setCodeError] = useState("");
   const { data: inventoryPage } = useGetInventoryItemsQuery({
     page: 0,

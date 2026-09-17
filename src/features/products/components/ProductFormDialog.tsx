@@ -73,6 +73,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
   const selectedFinishedGoodId = form.watch("finishedGoodInventoryItemId");
   const { data: nextCode } = useGetNextProductCodeQuery(undefined, {
     skip: !open || isEdit,
+    refetchOnMountOrArgChange: true,
   });
 
   useEffect(() => {

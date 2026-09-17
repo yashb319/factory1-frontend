@@ -63,7 +63,10 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
   const { data: designations } = useGetEmployeeDesignationsQuery(undefined, {
     skip: !open,
   });
-  const { data: nextCode } = useGetNextEmployeeCodeQuery(undefined, { skip: !open });
+  const { data: nextCode } = useGetNextEmployeeCodeQuery(undefined, {
+    skip: !open,
+    refetchOnMountOrArgChange: true,
+  });
   const { data: employeesPage } = useGetEmployeesQuery(
     { size: 1000, sortBy: "name", sortDirection: "asc" },
     { skip: !open }

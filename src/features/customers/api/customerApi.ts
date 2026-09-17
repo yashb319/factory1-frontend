@@ -54,6 +54,7 @@ export const customerApi = baseApi.injectEndpoints({
     getNextCustomerCode: builder.query<string, void>({
       query: () => "/api/customers/next-code",
       transformResponse: (response: { nextCode: string }) => response.nextCode,
+      providesTags: ["Customer"],
     }),
 
     updateCustomer: builder.mutation<

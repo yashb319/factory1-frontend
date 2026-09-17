@@ -28,7 +28,9 @@ export function CustomerTallyView({
   const [deleteCustomer] = useDeleteCustomerMutation();
   const [createCustomer, createCustomerState] = useCreateCustomerMutation();
   const [updateCustomer, updateCustomerState] = useUpdateCustomerMutation();
-  const { data: suggestedCode } = useGetNextCustomerCodeQuery();
+  const { data: suggestedCode } = useGetNextCustomerCodeQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
 
   const customers = useMemo(() => data?.content ?? [], [data]);
 
@@ -48,7 +50,7 @@ export function CustomerTallyView({
         { key: "status", label: "Status" },
       ]}
       fields={[
-        { key: "code", label: "Customer Code", type: "text" },
+        { key: "code", label: "Customer Code", type: "text", createOnly: true },
         { key: "name", label: "Name", type: "text", required: true, autoFocus: true },
         { key: "phone", label: "Phone", type: "text" },
         { key: "email", label: "Email", type: "email" },

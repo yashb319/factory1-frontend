@@ -65,6 +65,7 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
   const [updateCustomer, updateState] = useUpdateCustomerMutation();
   const { data: nextCode } = useGetNextCustomerCodeQuery(undefined, {
     skip: !open || isEdit,
+    refetchOnMountOrArgChange: true,
   });
   const gstNumber = form.watch("gstNumber");
   const city = form.watch("city");

@@ -59,6 +59,7 @@ export const inventoryApi = baseApi.injectEndpoints({
     getNextInventoryItemCode: builder.query<string, void>({
       query: () => "/api/inventory/items/next-code",
       transformResponse: (response: { nextCode: string }) => response.nextCode,
+      providesTags: ["Inventory"],
     }),
 
     updateInventoryItem: builder.mutation<

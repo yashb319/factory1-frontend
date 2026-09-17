@@ -155,6 +155,7 @@ type Tab = "orders" | "workflows" | "boms" | "workstations" | "analytics";
 type OrdersViewMode = "board" | "list";
 type OrderStatusFilter = "ALL" | OrderStatus;
 type DetailTab = "execution" | "assignments" | "quality" | "materials" | "timeline" | "audit";
+type DisplayOrder = ProductionOrder & { productCode?: string; productName?: string };
 
 const detailTabLabel: Record<DetailTab, string> = {
   execution: "Execution",
@@ -340,6 +341,7 @@ function Orders({
   const [stepAction] = useStepActionMutation();
 
   const ordersQuery = useGetOrdersQuery({ page: 0, size: 100 });
+  const { data: productsPage } = useGetProductsQuery({ page: 0, size: 300 });
   const dashboardQuery = useGetProductionDashboardQuery();
   const workstationsQuery = useGetWorkstationsQuery({ page: 0, size: 200 });
   const boardQuery = useGetProductionKanbanQuery({
@@ -352,6 +354,17 @@ function Orders({
     () => ordersQuery.data?.content ?? [],
     [ordersQuery.data]
   );
+  const productsById = useMemo(
+    () => new Map((productsPage?.content ?? []).map((product) => [product.id, product])),
+    [productsPage]
+  );
+  const displayOrders = useMemo<DisplayOrder[]>(
+    () => orders.map((order) => {
+      const product = productsById.get(order.productId);
+      return { ...order, productCode: product?.productCode, productName: product?.name };
+    }),
+    [orders, productsById]
+  );
   const stations = useMemo(
     () => workstationsQuery.data?.content ?? [],
     [workstationsQuery.data]
@@ -360,28 +373,28 @@ function Orders({
   const filteredOrders = useMemo(
     () =>
       filterOrders({
-        orders,
+        orders: displayOrders,
         search,
         statusFilter,
         stationFilter,
       }),
-    [orders, search, statusFilter, stationFilter]
+    [displayOrders, search, statusFilter, stationFilter]
   );
 
   const board = useMemo(
     () =>
       buildBoardColumns(
         boardQuery.data?.content ?? [],
-        orders,
+        displayOrders,
         search,
         stationFilter
       ),
-    [boardQuery.data, orders, search, stationFilter]
+    [boardQuery.data, displayOrders, search, stationFilter]
   );
 
   const ordersById = useMemo(
-    () => new Map(orders.map((order) => [order.id, order])),
-    [orders]
+    () => new Map(displayOrders.map((order) => [order.id, order])),
+    [displayOrders]
   );
   const boardItems = useMemo(
     () => board.flatMap((column) => column.items),
@@ -695,7 +708,7 @@ function OrderListView({
   selectedOrderId,
   onSelect,
 }: {
-  orders: ProductionOrder[];
+  orders: DisplayOrder[];
   selectedOrderId?: string;
   onSelect: (id?: string) => void;
 }) {
@@ -1613,7 +1626,7 @@ function OrderDetail({
           <DialogHeader className="pr-10">
             <DialogTitle>{order.orderNumber}</DialogTitle>
             <DialogDescription>
-              {order.productName || order.productCode || product?.name || product?.productCode || order.productId} · workflow v{order.workflowVersionNumber} · {formatNumber(order.completedQuantity)} complete · {formatNumber(order.rejectedQuantity)} rejected
+              {product?.name || product?.productCode || order.productId} · workflow v{order.workflowVersionNumber} · {formatNumber(order.completedQuantity)} complete · {formatNumber(order.rejectedQuantity)} rejected
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
@@ -3871,7 +3884,7 @@ function filterOrders({
   statusFilter,
   stationFilter,
 }: {
-  orders: ProductionOrder[];
+  orders: DisplayOrder[];
   search: string;
   statusFilter: OrderStatusFilter;
   stationFilter: string;
@@ -3911,7 +3924,7 @@ function filterOrders({
 // station) sourced from the already-loaded orders list.
 function buildBoardColumns(
   cards: KanbanCard[],
-  orders: ProductionOrder[],
+  orders: DisplayOrder[],
   search: string,
   stationFilter: string
 ): ProductionBoardColumn[] {

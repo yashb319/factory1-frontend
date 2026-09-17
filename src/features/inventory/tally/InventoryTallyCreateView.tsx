@@ -12,7 +12,9 @@ import { inventoryFields } from "./InventoryTallyListView";
 export function InventoryTallyCreateView() {
   const router = useRouter();
   const [createItem, createItemState] = useCreateInventoryItemMutation();
-  const { data: nextCode } = useGetNextInventoryItemCodeQuery();
+  const { data: nextCode } = useGetNextInventoryItemCodeQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
   const [codeError, setCodeError] = useState("");
 
   const [formDraft, setFormDraft] = useState<Record<string, unknown>>(() => {

@@ -40,6 +40,7 @@ export const productsApi = baseApi.injectEndpoints({
     getNextProductCode: builder.query<string, void>({
       query: () => "/api/products/next-code",
       transformResponse: (response: { nextCode: string }) => response.nextCode,
+      providesTags: ["Products"],
     }),
 
     updateProduct: builder.mutation<
