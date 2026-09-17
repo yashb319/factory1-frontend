@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { passwordSchema } from "@/lib/passwordPolicy";
 
 export const signupSchema = z.object({
   organizationName: z.string().min(2, "Organization name is required"),
   ownerName: z.string().min(2, "Owner name is required"),
   email: z.string().email("Enter a valid email"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: passwordSchema,
   location: z.string().min(2, "Factory location is required"),
   city: z.string().optional(),
   pincode: z.string().optional(),

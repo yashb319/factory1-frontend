@@ -34,6 +34,7 @@ import {
 import { useBranding } from "@/features/whitelabel/components/BrandingProvider";
 import { useValidatePublicPartnerCodeQuery } from "@/features/whitelabel/api/whitelabelApi";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { getErrorMessage } from "@/lib/apiError";
 
 const PARTNER_CODE_MIN_LOOKUP_LENGTH = 3;
 
@@ -385,11 +386,12 @@ export function SignupForm() {
               label="Password"
               placeholder="Create password"
               required
+              showRequirements
             />
 
             {error && (
               <p className="text-sm font-medium text-red-600">
-                Signup failed. Please try again.
+                {getErrorMessage(error, "Signup failed. Please try again.")}
               </p>
             )}
 

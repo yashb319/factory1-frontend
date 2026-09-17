@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Factory, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordRequirementsList } from "@/components/forms";
+import { isPasswordPolicyValid, passwordPolicyDescription } from "@/lib/passwordPolicy";
+import { getErrorMessage } from "@/lib/apiError";
 import { useActivateEmployeeMutation } from "../authApi";
 import { setCredentials } from "../authSlice";
 import { useAppDispatch } from "@/lib/hook";
@@ -14,6 +17,7 @@ export function EmployeeActivation() {
   const params = useSearchParams();
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const passwordRequirementsId = useId();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [activate, { isLoading, isSuccess }] = useActivateEmployeeMutation();
@@ -22,8 +26,8 @@ export function EmployeeActivation() {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token) return;
-    if (password.length < 8) {
-      toast.error("Password must be at least 8 characters.");
+    if (!isPasswordPolicyValid(password)) {
+      toast.error(passwordPolicyDescription);
       return;
     }
     if (password !== confirmPassword) {
@@ -35,8 +39,10 @@ export function EmployeeActivation() {
       dispatch(setCredentials({ token: response.token, user: response.user }));
       toast.success("Your employee account is active.");
       router.replace("/leave");
-    } catch {
-      toast.error("This activation link is invalid or has expired.");
+    } catch (error) {
+      toast.error(
+        getErrorMessage(error, "This activation link is invalid or has expired.")
+      );
     }
   }
 
@@ -62,13 +68,20 @@ export function EmployeeActivation() {
           <form className="mt-8 space-y-4" onSubmit={submit}>
             <div>
               <h2 className="text-xl font-semibold">Set your password</h2>
-              <p className="mt-1 text-sm text-slate-500">Use at least 8 characters to activate your account.</p>
+              <p className="mt-1 text-sm text-slate-500">{passwordPolicyDescription}</p>
             </div>
             {!token && <p className="text-sm font-medium text-red-600">Activation token is missing.</p>}
             <label className="block space-y-2 text-sm font-medium text-slate-700">
               Password
-              <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+              <Input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                aria-describedby={passwordRequirementsId}
+                required
+              />
             </label>
+            <PasswordRequirementsList id={passwordRequirementsId} password={password} />
             <label className="block space-y-2 text-sm font-medium text-slate-700">
               Confirm password
               <Input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
