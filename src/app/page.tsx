@@ -2,21 +2,34 @@
 
 import Link from "next/link";
 import {
+  ArrowRight,
   Apple,
+  BadgeCheck,
   Bot,
+  Building2,
   CalendarCheck,
   CheckCircle2,
+  ClipboardList,
   Clock,
   Download,
+  FileSpreadsheet,
   Smartphone,
   IndianRupee,
+  KeyRound,
+  Landmark,
   Laptop,
+  Layers,
+  LineChart,
   Mail,
   MapPin,
   Factory,
   FileText,
+  Network,
   Package,
+  Repeat,
   ShieldCheck,
+  Sparkles,
+  Truck,
   Users,
   Wallet,
   type LucideIcon,
@@ -41,36 +54,162 @@ const iosDownloadUrl =
   process.env.NEXT_PUBLIC_FACTORY1_IOS_DOWNLOAD_URL ??
   "https://github.com/yashb319/factory1-frontend/releases/latest/download/Factory1-ios-project.zip";
 
-const features = [
+const modules = [
   {
-    title: "Employee Management",
-    description: "Manage workers, departments, salary types and employee records.",
+    title: "Production",
+    description: "Plan production runs, track work-in-progress and see output against targets in real time.",
+    icon: Factory,
+  },
+  {
+    title: "Products & BOM",
+    description: "Maintain a product catalogue with bill-of-materials so costing and stock consumption stay accurate.",
+    icon: Layers,
+  },
+  {
+    title: "Inventory",
+    description: "Track raw materials and finished stock, get low-stock alerts and see material movement history.",
+    icon: Package,
+  },
+  {
+    title: "Employees",
+    description: "Manage worker profiles, departments, salary types and documents in one directory.",
     icon: Users,
   },
   {
     title: "Attendance",
-    description: "Track daily attendance and reduce manual register work.",
+    description: "Log daily attendance and shifts, and cut down on manual register work.",
     icon: CalendarCheck,
   },
   {
+    title: "Leave management",
+    description: "Handle leave requests and approvals with a clear balance and history for every employee.",
+    icon: ClipboardList,
+  },
+  {
     title: "Payroll",
-    description: "Generate salary calculations from attendance and salary rules.",
+    description: "Turn attendance and salary rules into accurate, review-ready salary runs each cycle.",
     icon: Wallet,
   },
   {
-    title: "Inventory",
-    description: "Track stock, low inventory and material movement.",
-    icon: Package,
+    title: "Accounting",
+    description: "Keep ledgers, expenses and financial records organised alongside day-to-day operations.",
+    icon: Landmark,
   },
   {
     title: "Billing",
-    description: "Create invoices and manage customer billing workflows.",
+    description: "Create invoices, track payments and manage recurring customer billing workflows.",
     icon: FileText,
   },
   {
-    title: "AI Insights",
-    description: "Get smart alerts for attendance, payroll, stock and operations.",
+    title: "Customers",
+    description: "Maintain customer profiles, contact details and sales history for faster follow-up.",
+    icon: Users,
+  },
+  {
+    title: "Suppliers",
+    description: "Track supplier records, purchase context and material sourcing relationships.",
+    icon: Truck,
+  },
+  {
+    title: "AI assistant",
+    description: "Ask questions in plain language and get answers grounded in your own factory data.",
     icon: Bot,
+  },
+  {
+    title: "SaaS admin",
+    description: "Manage plans, features and workspace-level controls for one or many factory organizations.",
+    icon: Building2,
+  },
+  {
+    title: "Organization settings",
+    description: "Configure organization profile, operational defaults and policy settings in one place.",
+    icon: ShieldCheck,
+  },
+  {
+    title: "Whitelabel & partner",
+    description: "Support partner branding and whitelabel experiences for managed factory deployments.",
+    icon: BadgeCheck,
+  },
+  {
+    title: "Import/export & accounting sync",
+    description: "Move data in and out cleanly with import/export workflows and accounting-friendly integration paths.",
+    icon: Repeat,
+  },
+  {
+    title: "Org intelligence",
+    description: "See reporting hierarchy and cross-team operational insights for smarter leadership decisions.",
+    icon: LineChart,
+  },
+  {
+    title: "Gateway & public pages",
+    description: "Share controlled public-facing pages and gateway workflows while core operations stay protected.",
+    icon: Network,
+  },
+];
+
+const workflowSteps = [
+  {
+    title: "Produce",
+    description: "Log production runs and consume raw materials against a bill of materials.",
+    icon: Factory,
+  },
+  {
+    title: "Stock",
+    description: "Finished goods and material movements update inventory automatically.",
+    icon: Package,
+  },
+  {
+    title: "Staff",
+    description: "Attendance, leave and payroll keep the people behind production accounted for.",
+    icon: Users,
+  },
+  {
+    title: "Bill",
+    description: "Sales flow into invoices, and costs flow into your accounting records.",
+    icon: FileText,
+  },
+];
+
+const platformHighlights = [
+  {
+    title: "Approval workflows",
+    description: "Route leave, purchases and other requests through clear approval chains instead of chat threads.",
+    icon: CheckCircle2,
+  },
+  {
+    title: "Auto-generated codes",
+    description: "Products, invoices and other records get consistent, human-readable IDs automatically — no manual numbering.",
+    icon: FileSpreadsheet,
+  },
+  {
+    title: "Readable data everywhere",
+    description: "Reports and lists show meaningful names and statuses instead of raw internal identifiers.",
+    icon: BadgeCheck,
+  },
+  {
+    title: "Reporting hierarchy",
+    description: "Roll up production, people and financial reports across teams so leadership sees the full picture.",
+    icon: LineChart,
+  },
+  {
+    title: "AI-assisted operations",
+    description: "Get proactive alerts and answers about attendance, stock and payroll before they become problems.",
+    icon: Sparkles,
+  },
+  {
+    title: "Multi-tenant SaaS",
+    description: "Run one or many organizations with isolated data, plans and administration from a single account.",
+    icon: Network,
+  },
+  {
+    title: "Role-based access",
+    description: "Give every team member exactly the permissions their role needs — nothing more, nothing less.",
+    icon: KeyRound,
+  },
+  {
+    title: "Import & sync friendly",
+    description: "Bring in existing accounting and inventory data through guided import and export workflows.",
+    icon: Repeat,
   },
 ];
 
@@ -106,11 +245,14 @@ export default function LandingPage() {
           </Link>
 
           <nav className="hidden items-center gap-8 text-sm text-slate-600 md:flex">
-            <a href="#features" className="hover:text-slate-950">
-              Features
+            <a href="#modules" className="hover:text-slate-950">
+              Modules
             </a>
-            <a href="#why" className="hover:text-slate-950">
-              Why Factory1
+            <a href="#workflow" className="hover:text-slate-950">
+              Workflow
+            </a>
+            <a href="#platform" className="hover:text-slate-950">
+              Platform
             </a>
             <a href="#pricing" className="hover:text-slate-950">
               Pricing
@@ -118,9 +260,6 @@ export default function LandingPage() {
             <a href="#desktop" className="hover:text-slate-950">
               Apps
             </a>
-            <Link href="/terms-of-service" className="hover:text-slate-950">
-              Terms
-            </Link>
             <a href="#contact" className="hover:text-slate-950">
               Contact
             </a>
@@ -142,17 +281,17 @@ export default function LandingPage() {
         <div>
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-sm text-slate-600">
             <Bot size={15} className="text-blue-600" />
-            AI-powered factory operations
+            One platform for production to payroll
           </div>
 
           <h1 className="max-w-3xl text-5xl font-semibold tracking-tight text-slate-950">
-            Run your factory smarter without ERP complexity.
+            The operations platform that connects your entire factory.
           </h1>
 
           <p className="mt-6 max-w-xl text-lg text-slate-600">
-            Factory1 helps small and mid-sized factories manage employees,
-            attendance, payroll, inventory, billing and AI insights from one
-            simple workspace.
+            Production, inventory, people, billing and accounting — Factory1
+            brings every module your factory needs into one connected
+            workspace, backed by an AI assistant that understands your data.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -226,29 +365,102 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="features" className="mx-auto max-w-7xl px-6 py-16">
+      <section id="modules" className="mx-auto max-w-7xl px-6 py-16">
         <div className="max-w-2xl">
           <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
-            Everything your factory needs in one workspace.
+            Every module your factory needs, in one workspace.
           </h2>
           <p className="mt-3 text-slate-600">
-            Start with attendance and payroll. Expand into inventory, billing,
-            suppliers, customers and AI-powered decision making.
+            Start with the modules you need today and turn on more as your
+            factory grows — production, people, money and everything in
+            between stays connected.
           </p>
         </div>
 
         <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => {
-            const Icon = feature.icon;
+          {modules.map((moduleItem) => {
+            const Icon = moduleItem.icon;
 
             return (
-              <div key={feature.title} className="rounded-2xl border bg-white p-6">
+              <div key={moduleItem.title} className="rounded-2xl border bg-white p-6">
                 <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
                   <Icon size={21} />
                 </div>
-                <h3 className="font-semibold text-slate-950">{feature.title}</h3>
+                <h3 className="font-semibold text-slate-950">{moduleItem.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {feature.description}
+                  {moduleItem.description}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section id="workflow" className="border-y bg-white">
+        <div className="mx-auto max-w-7xl px-6 py-16">
+          <div className="max-w-2xl">
+            <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+              One workflow, from the shop floor to the ledger.
+            </h2>
+            <p className="mt-3 text-slate-600">
+              Every module feeds the next, so data is entered once and reused
+              everywhere it matters.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-4 lg:grid-cols-4">
+            {workflowSteps.map((step, index) => {
+              const Icon = step.icon;
+
+              return (
+                <div key={step.title} className="flex items-center gap-4">
+                  <div className="flex-1 rounded-2xl border bg-slate-50 p-5">
+                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-white text-slate-700 shadow-sm">
+                      <Icon size={21} />
+                    </div>
+                    <h3 className="font-semibold text-slate-950">{step.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      {step.description}
+                    </p>
+                  </div>
+
+                  {index < workflowSteps.length - 1 && (
+                    <ArrowRight
+                      size={20}
+                      className="hidden shrink-0 text-slate-300 lg:block"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section id="platform" className="mx-auto max-w-7xl px-6 py-16">
+        <div className="max-w-2xl">
+          <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+            Built to run reliably, not just look good.
+          </h2>
+          <p className="mt-3 text-slate-600">
+            Beyond individual modules, Factory1 is designed as a platform —
+            with the controls, structure and intelligence factories need at
+            scale.
+          </p>
+        </div>
+
+        <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+          {platformHighlights.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <div key={item.title} className="rounded-2xl border bg-white p-6">
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                  <Icon size={21} />
+                </div>
+                <h3 className="font-semibold text-slate-950">{item.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {item.description}
                 </p>
               </div>
             );
@@ -301,6 +513,30 @@ export default function LandingPage() {
         open={sandboxDialogOpen}
         onOpenChange={setSandboxDialogOpen}
       />
+
+      <section className="mx-auto max-w-7xl px-6 py-16">
+        <div className="rounded-3xl bg-slate-950 px-8 py-12 text-white md:px-12">
+          <p className="text-sm font-medium text-slate-300">Get started with Factory1</p>
+          <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight">
+            Launch your factory operations stack without a long ERP rollout.
+          </h2>
+          <p className="mt-4 max-w-2xl text-slate-300">
+            Create your workspace, invite your team and start running production, people and billing workflows from one system.
+          </p>
+
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Button size="lg" className="bg-white text-slate-950 hover:bg-slate-100" asChild>
+              <Link href="/signup">Create organization</Link>
+            </Button>
+            <Button size="lg" variant="outline" className="border-white/30 bg-transparent text-white hover:bg-white/10" asChild>
+              <Link href="/login">Login</Link>
+            </Button>
+            <Button size="lg" variant="secondary" asChild>
+              <Link href="/contact">Talk to sales</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
 
       <section id="desktop" className="border-y bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[0.9fr_1.1fr]">
