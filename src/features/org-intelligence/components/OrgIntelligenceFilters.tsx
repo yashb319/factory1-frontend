@@ -32,7 +32,7 @@ export function OrgIntelligenceFilters({
 }: Props) {
   return (
     <div className="rounded-xl border bg-card p-4">
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <div className="relative lg:col-span-2">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -73,17 +73,6 @@ export function OrgIntelligenceFilters({
             ))}
           </SelectContent>
         </Select>
-
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant={filters.issuesOnly ? "default" : "outline"}
-            className="w-full"
-            onClick={() => onChange({ issuesOnly: !filters.issuesOnly })}
-          >
-            Data issues only
-          </Button>
-        </div>
       </div>
 
       <div className="mt-3 flex justify-end gap-2 border-t pt-3">
