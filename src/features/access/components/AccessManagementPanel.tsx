@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { KeyRound, ShieldCheck, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,6 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PasswordRequirementsList } from "@/components/forms";
+import { isPasswordPolicyValid, passwordPolicyDescription } from "@/lib/passwordPolicy";
+import { getErrorMessage } from "@/lib/apiError";
 import { useGetEmployeesQuery } from "@/features/employees/api/employeeApi";
 import type { Employee } from "@/features/employees/types/employee.types";
 import type { UserRole } from "@/features/auth/types";
@@ -58,6 +61,7 @@ export function AccessManagementPanel() {
 
   const [createUser, createState] = useCreateUserAccountMutation();
   const [deactivateUser, deactivateState] = useDeactivateUserAccountMutation();
+  const passwordRequirementsId = useId();
 
   const employees = useMemo(
     () => employeesPage?.content?.filter((employee) => employee.email) ?? [],
@@ -86,8 +90,8 @@ export function AccessManagementPanel() {
   }
 
   async function handleCreate() {
-    if (!name.trim() || !email.trim() || password.length < 8) {
-      toast.error("Enter name, email and an 8 character password");
+    if (!name.trim() || !email.trim() || !isPasswordPolicyValid(password)) {
+      toast.error(`Enter name, email and a password. ${passwordPolicyDescription}`);
       return;
     }
 
@@ -105,8 +109,8 @@ export function AccessManagementPanel() {
       setEmail("");
       setPassword("");
       setRole("MANAGEMENT");
-    } catch {
-      toast.error("Could not create login access");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not create login access"));
     }
   }
 
@@ -178,7 +182,9 @@ export function AccessManagementPanel() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder="Minimum 8 characters"
+              aria-describedby={passwordRequirementsId}
             />
+            <PasswordRequirementsList id={passwordRequirementsId} password={password} />
           </Field>
 
           <Field label="Role">

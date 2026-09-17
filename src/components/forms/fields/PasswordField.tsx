@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { useFormContext, type FieldValues, type Path } from "react-hook-form";
+import { useFormContext, useWatch, type FieldValues, type Path } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { FieldError } from "../FieldError";
 import { FieldHelper } from "../FieldHelper";
+import { PasswordRequirementsList } from "../PasswordRequirementsList";
 
 type PasswordFieldProps<T extends FieldValues> = {
   name: Path<T>;
@@ -14,6 +15,12 @@ type PasswordFieldProps<T extends FieldValues> = {
   helperText?: string;
   disabled?: boolean;
   required?: boolean;
+  /**
+   * Shows the password policy checklist below the field, visible before
+   * typing and live-updating as the user types. Enable this for
+   * set/reset-password fields, not for the login password field.
+   */
+  showRequirements?: boolean;
 };
 
 export function PasswordField<T extends FieldValues>({
@@ -23,12 +30,19 @@ export function PasswordField<T extends FieldValues>({
   helperText,
   disabled = false,
   required = false,
+  showRequirements = false,
 }: PasswordFieldProps<T>) {
   const [visible, setVisible] = useState(false);
+  const requirementsId = useId();
   const {
     register,
+    control,
     formState: { errors },
   } = useFormContext<T>();
+
+  const value = useWatch({ control, name, disabled: !showRequirements }) as
+    | string
+    | undefined;
 
   const error = errors[name]?.message as string | undefined;
   const Icon = visible ? EyeOff : Eye;
@@ -46,6 +60,7 @@ export function PasswordField<T extends FieldValues>({
           placeholder={placeholder}
           disabled={disabled}
           className="pr-10"
+          aria-describedby={showRequirements ? requirementsId : undefined}
           {...register(name)}
         />
 
@@ -62,6 +77,9 @@ export function PasswordField<T extends FieldValues>({
 
       <FieldHelper text={helperText} />
       <FieldError message={error} />
+      {showRequirements && (
+        <PasswordRequirementsList id={requirementsId} password={value ?? ""} />
+      )}
     </div>
   );
 }

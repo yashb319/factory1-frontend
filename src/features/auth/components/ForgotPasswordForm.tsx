@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Factory, MailCheck } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordRequirementsList } from "@/components/forms";
+import { isPasswordPolicyValid, passwordPolicyDescription } from "@/lib/passwordPolicy";
+import { getErrorMessage } from "@/lib/apiError";
 import {
   useResetPasswordMutation,
   useSendForgotPasswordOtpMutation,
@@ -17,6 +20,7 @@ import { useBranding } from "@/features/whitelabel/components/BrandingProvider";
 export function ForgotPasswordForm() {
   const router = useRouter();
   const { displayName, logoUrl } = useBranding();
+  const passwordRequirementsId = useId();
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
@@ -47,8 +51,8 @@ export function ForgotPasswordForm() {
       return;
     }
 
-    if (password.length < 8) {
-      toast.error("Password must be at least 8 characters");
+    if (!isPasswordPolicyValid(password)) {
+      toast.error(passwordPolicyDescription);
       return;
     }
 
@@ -66,8 +70,8 @@ export function ForgotPasswordForm() {
 
       toast.success("Password reset successfully");
       router.push("/login");
-    } catch {
-      toast.error("Could not reset password");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not reset password"));
     }
   }
 
@@ -126,6 +130,11 @@ export function ForgotPasswordForm() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Minimum 8 characters"
+                  aria-describedby={passwordRequirementsId}
+                />
+                <PasswordRequirementsList
+                  id={passwordRequirementsId}
+                  password={password}
                 />
               </Field>
 

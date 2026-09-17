@@ -1,5 +1,6 @@
 export { AppForm } from "./AppForm";
 export { FormActions } from "./FormActions";
+export { PasswordRequirementsList } from "./PasswordRequirementsList";
 
 export { TextField } from "./fields/TextField";
 export { PasswordField } from "./fields/PasswordField";
