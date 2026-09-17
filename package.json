@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check:password-policy": "node --experimental-strip-types scripts/check-password-policy.ts",
     "desktop:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:3000/login && electron .\"",
     "desktop:start": "electron .",
     "desktop:pack": "npm run build && electron-builder",
