@@ -59,6 +59,7 @@ import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 import { inferIntraState, stateNameFromGstNumber } from "@/lib/gstState";
 import { handleTallyFieldNavigation } from "@/lib/tallyKeyboard";
 import { playUiSound } from "@/lib/uiSounds";
+import { humanizeEnum } from "@/lib/format";
 import { GstIntegrationPanel } from "@/features/gst-integration/components/GstIntegrationPanel";
 import { AutoPurchaseBillImportDialog } from "./AutoPurchaseBillImportDialog";
 
@@ -1376,7 +1377,7 @@ export function BillingPage() {
                           variant={bill.status === "CANCELLED" ? "destructive" : "secondary"}
                           className="rounded-md"
                         >
-                          {bill.status}
+                          {humanizeEnum(bill.status)}
                         </Badge>
                       </div>
                       <div className="mt-3 flex items-center justify-between">

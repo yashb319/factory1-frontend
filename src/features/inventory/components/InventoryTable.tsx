@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { InventoryItem } from "../types/inventory.types";
+import { humanizeEnum } from "@/lib/format";
 import {
   formatCurrency,
   formatNumber,
@@ -127,7 +128,7 @@ export function InventoryTable({
                     <Badge
                       variant={item.status === "ACTIVE" ? "default" : "outline"}
                     >
-                      {item.status}
+                      {humanizeEnum(item.status)}
                     </Badge>
                   </td>
 

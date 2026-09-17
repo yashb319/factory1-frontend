@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { humanizeEnum } from "@/lib/format";
 import type { Supplier } from "../types/supplier.types";
 
 type Props = {
@@ -86,7 +87,7 @@ export function SupplierTable({
 
                   <td className="px-4 py-3" data-label="Status">
                     <Badge variant={supplier.status === "ACTIVE" ? "default" : "outline"}>
-                      {supplier.status}
+                      {humanizeEnum(supplier.status)}
                     </Badge>
                   </td>
 

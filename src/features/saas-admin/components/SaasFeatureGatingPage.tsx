@@ -283,7 +283,9 @@ function OrganizationRow({
             <Building2 size={16} />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{organization.name}</p>
+            <p className="truncate text-sm font-medium">
+              {organization.name?.trim() || "Unnamed organization"}
+            </p>
             <p className="truncate text-xs text-slate-500">
               {organization.organizationId}
             </p>
@@ -291,7 +293,7 @@ function OrganizationRow({
         </div>
       </TableCell>
       <TableCell>
-        <Badge variant="secondary">{organization.plan}</Badge>
+        <Badge variant="secondary">{organization.plan || "—"}</Badge>
       </TableCell>
       <TableCell>
         <StatusBadge status={organization.status} />

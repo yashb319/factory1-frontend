@@ -1,5 +1,5 @@
 export type AllocationPeriod = "MONTHLY" | "FORTNIGHT" | "YEARLY";
-export type LeaveRequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+export type LeaveRequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "NEEDS_CLARIFICATION";
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -55,6 +55,7 @@ export interface LeaveBalanceResponse {
 export interface LeaveRequestResponse {
   id: string;
   employeeId: string;
+  employeeName?: string | null;
   leaveTypeId: string;
   leaveTypeCode: string;
   startDate: string;

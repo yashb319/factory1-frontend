@@ -18,6 +18,7 @@ import {
 import { PasswordRequirementsList } from "@/components/forms";
 import { isPasswordPolicyValid, passwordPolicyDescription } from "@/lib/passwordPolicy";
 import { getErrorMessage } from "@/lib/apiError";
+import { humanizeEnum } from "@/lib/format";
 import { useGetEmployeesQuery } from "@/features/employees/api/employeeApi";
 import type { Employee } from "@/features/employees/types/employee.types";
 import type { UserRole } from "@/features/auth/types";
@@ -48,6 +49,10 @@ const roles: Array<{
     description: "Work with payroll, billing and financial records.",
   },
 ];
+
+function roleLabel(role: UserRole) {
+  return roles.find((option) => option.value === role)?.label ?? humanizeEnum(role);
+}
 
 export function AccessManagementPanel() {
   const { data: users = [], isFetching } = useGetUserAccountsQuery();
@@ -237,14 +242,14 @@ export function AccessManagementPanel() {
                   </TableCell>
                   <TableCell data-label="Role">
                     <Badge variant={user.role === "OWNER" ? "default" : "outline"}>
-                      {user.role}
+                      {roleLabel(user.role)}
                     </Badge>
                   </TableCell>
                   <TableCell data-label="Status">
                     <Badge
                       variant={user.status === "ACTIVE" ? "secondary" : "destructive"}
                     >
-                      {user.status}
+                      {humanizeEnum(user.status)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right" data-label="Action">

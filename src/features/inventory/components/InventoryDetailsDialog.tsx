@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { InventoryItem } from "../types/inventory.types";
 import { useGetStockMovementsQuery } from "../api/inventoryApi";
+import { humanizeEnum } from "@/lib/format";
 import {
   formatCurrency,
   formatNumber,
@@ -60,7 +61,7 @@ export function InventoryDetailsDialog({ open, item, onClose }: Props) {
                 {item.lowStock && !item.outOfStock && (
                   <Badge variant="secondary">Low Stock</Badge>
                 )}
-                <Badge>{item.status}</Badge>
+                <Badge>{humanizeEnum(item.status)}</Badge>
               </div>
             </div>
 
