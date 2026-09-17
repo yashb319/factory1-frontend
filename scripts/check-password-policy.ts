@@ -53,6 +53,18 @@ const cases: Case[] = [
     label: "newline does not count as a special character",
   },
   {
+    value: "Aa1Aa1Aa\u001c",
+    expected: false,
+    label:
+      "U+001C (file separator) does not count as special - Java treats it as whitespace even though JS \\p{White_Space} excludes it",
+  },
+  {
+    value: "Aa1Aa1Aa\u0085",
+    expected: true,
+    label:
+      "U+0085 (NEL) counts as special - Java does NOT treat it as whitespace even though JS \\p{White_Space} includes it",
+  },
+  {
     value: "Aa1Aa1A!",
     expected: true,
     label: "ASCII special character still satisfies the rule",
