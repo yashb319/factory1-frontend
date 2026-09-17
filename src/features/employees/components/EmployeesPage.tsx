@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Mail, Plus, Upload } from "lucide-react";
+import { Mail, Network, Plus, Upload, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAppSelector } from "@/lib/hook";
 import {
   useGetEmployeesQuery,
   useInviteEmployeesMutation,
@@ -19,10 +20,20 @@ import { EmployeeImportDialog } from "./EmployeeImportDialog";
 import { EmployeeDetailsDrawer } from "./EmployeeDetailsDrawer";
 import { EditEmployeeDrawer } from "./EditEmployeeDrawer";
 import { DeleteEmployeeDialog } from "./DeleteEmployeeDialog";
+import { OrgIntelligenceHierarchyView } from "@/features/org-intelligence/components/OrgIntelligenceHierarchyView";
+
 export function EmployeesPage() {
   const { filters, updateFilters } = useEmployeeFilters();
 
-  const { data, isLoading, isFetching } = useGetEmployeesQuery(filters);
+  const user = useAppSelector((state) => state.auth.user);
+  const isOwner = user?.role === "OWNER";
+
+  const [viewMode, setViewMode] = useState<"list" | "hierarchy">("list");
+  const showHierarchy = isOwner && viewMode === "hierarchy";
+
+  const { data, isLoading, isFetching } = useGetEmployeesQuery(filters, {
+    skip: showHierarchy,
+  });
   const [inviteEmployees, inviteState] = useInviteEmployeesMutation();
 
   const [addOpen, setAddOpen] = useState(false);
@@ -60,59 +71,92 @@ export function EmployeesPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <EmployeeExportMenu employees={data?.content ?? []} />
+          {isOwner && (
+            <div className="flex items-center gap-1 rounded-md border p-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={viewMode === "list" ? "default" : "ghost"}
+                onClick={() => setViewMode("list")}
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Employee List
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={viewMode === "hierarchy" ? "default" : "ghost"}
+                onClick={() => setViewMode("hierarchy")}
+              >
+                <Network className="mr-2 h-4 w-4" />
+                Reporting Hierarchy
+              </Button>
+            </div>
+          )}
 
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
-            <Upload className="mr-2 h-4 w-4" />
-            Import
-          </Button>
+          {!showHierarchy && (
+            <>
+              <EmployeeExportMenu employees={data?.content ?? []} />
 
-          <Button
-            variant="outline"
-            disabled={!selectedInvitationIds.length || inviteState.isLoading}
-            onClick={sendInvitations}
-          >
-            <Mail className="mr-2 h-4 w-4" />
-            {inviteState.isLoading ? "Sending…" : `Invite selected${selectedInvitationIds.length ? ` (${selectedInvitationIds.length})` : ""}`}
-          </Button>
+              <Button variant="outline" onClick={() => setImportOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Import
+              </Button>
 
-          <Button onClick={() => setAddOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Employee
-          </Button>
+              <Button
+                variant="outline"
+                disabled={!selectedInvitationIds.length || inviteState.isLoading}
+                onClick={sendInvitations}
+              >
+                <Mail className="mr-2 h-4 w-4" />
+                {inviteState.isLoading ? "Sending…" : `Invite selected${selectedInvitationIds.length ? ` (${selectedInvitationIds.length})` : ""}`}
+              </Button>
+
+              <Button onClick={() => setAddOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Employee
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      <EmployeeFilters filters={filters} onChange={updateFilters} />
+      {showHierarchy ? (
+        <OrgIntelligenceHierarchyView enabled={showHierarchy} />
+      ) : (
+        <>
+          <EmployeeFilters filters={filters} onChange={updateFilters} />
 
-      <EmployeeTable
-        employees={data?.content ?? []}
-        loading={isLoading || isFetching}
-        onView={setDetailsEmployee}
-        onEdit={setEditEmployee}
-        onDelete={setDeleteTarget}
-        onSort={(sortBy) =>
-          updateFilters({
-            sortBy,
-            sortDirection:
-              filters.sortBy === sortBy && filters.sortDirection === "asc"
-                ? "desc"
-                : "asc",
-          })
-        }
-        selectedIds={selectedInvitationIds}
-        onToggleSelected={toggleInvitation}
-      />
+          <EmployeeTable
+            employees={data?.content ?? []}
+            loading={isLoading || isFetching}
+            onView={setDetailsEmployee}
+            onEdit={setEditEmployee}
+            onDelete={setDeleteTarget}
+            onSort={(sortBy) =>
+              updateFilters({
+                sortBy,
+                sortDirection:
+                  filters.sortBy === sortBy && filters.sortDirection === "asc"
+                    ? "desc"
+                    : "asc",
+              })
+            }
+            selectedIds={selectedInvitationIds}
+            onToggleSelected={toggleInvitation}
+          />
 
-      {data && (
-        <EmployeePagination
-          page={data.page}
-          size={data.size}
-          totalPages={data.totalPages}
-          totalElements={data.totalElements}
-          onPageChange={(page) => updateFilters({ page })}
-          onSizeChange={(size) => updateFilters({ size, page: 0 })}
-        />
+          {data && (
+            <EmployeePagination
+              page={data.page}
+              size={data.size}
+              totalPages={data.totalPages}
+              totalElements={data.totalElements}
+              onPageChange={(page) => updateFilters({ page })}
+              onSizeChange={(size) => updateFilters({ size, page: 0 })}
+            />
+          )}
+        </>
       )}
 
       <AddEmployeeDrawer open={addOpen} onOpenChange={setAddOpen} />
