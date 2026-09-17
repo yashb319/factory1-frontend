@@ -26,7 +26,6 @@ const EMPLOYEE_EXPORT_COLUMNS: ExportColumn[] = [
   { label: "Phone", value: "phone" },
   { label: "Mobile", value: "mobile" },
   { label: "Email", value: "email" },
-  { label: "Employee Type", value: "employeeType" },
   { label: "Department", value: "department" },
   { label: "Designation", value: "designation" },
   { label: "Salary Rate", value: "salaryRate" },

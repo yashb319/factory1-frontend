@@ -156,7 +156,7 @@ export function AccessManagementPanel() {
           {selectedEmployee && (
             <div className="rounded-md border bg-white p-3 text-xs text-slate-600">
               <p>{selectedEmployee.department || "No department"}</p>
-              <p>{selectedEmployee.designation || selectedEmployee.employeeType}</p>
+              <p>{selectedEmployee.designation || "No designation"}</p>
             </div>
           )}
 

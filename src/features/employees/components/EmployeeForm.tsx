@@ -122,30 +122,6 @@ export function EmployeeForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Employee Type *</label>
-          <Select
-            value={form.watch("employeeType")}
-            onValueChange={(value) =>
-              form.setValue(
-                "employeeType",
-                value as EmployeeFormValues["employeeType"],
-                { shouldValidate: true }
-              )
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="BLUE_COLLAR">Blue Collar</SelectItem>
-              <SelectItem value="STAFF">Staff</SelectItem>
-              <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
-              <SelectItem value="MANAGER">Manager</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
           <label className="text-sm font-medium">Status *</label>
           <Select
             value={form.watch("status")}

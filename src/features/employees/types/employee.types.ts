@@ -1,5 +1,4 @@
 export type EmployeeStatus = "ACTIVE" | "INACTIVE";
-export type EmployeeType = "BLUE_COLLAR" | "STAFF" | "SUPERVISOR" | "MANAGER";
 export type SalaryType = "HOURLY" | "DAILY" | "MONTHLY";
 export type Gender = "MALE" | "FEMALE" | "OTHER";
 export type MaritalStatus = "SINGLE" | "MARRIED" | "DIVORCED" | "WIDOWED" | "OTHER";
@@ -12,7 +11,6 @@ export interface Employee {
   phone?: string;
   email?: string;
   photoDataUrl?: string;
-  employeeType: EmployeeType;
   designation?: string;
   department?: string;
   salaryRate: number;
@@ -83,7 +81,6 @@ export interface EmployeeListParams {
   search?: string;
   department?: string;
   status?: EmployeeStatus | "ALL";
-  employeeType?: EmployeeType | "ALL";
   salaryType?: SalaryType | "ALL";
 }
 
@@ -92,7 +89,6 @@ export interface CreateEmployeeRequest {
   phone?: string;
   email?: string;
   photoDataUrl?: string;
-  employeeType: EmployeeType;
   designation?: string;
   department?: string;
   salaryRate: number;
@@ -140,7 +136,6 @@ export interface EmployeeImportRowInput {
   phone?: string | null;
   email?: string | null;
   photoDataUrl?: string | null;
-  employeeType?: string | null;
   designation?: string | null;
   department?: string | null;
   salaryRate?: string | null;

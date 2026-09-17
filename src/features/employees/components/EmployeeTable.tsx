@@ -94,7 +94,6 @@ export function EmployeeTable({
               <TableHead>Designation</TableHead>
               <TableHead>Location</TableHead>
               <TableHead>Reporting To</TableHead>
-              <TableHead>Type</TableHead>
               <TableHead>Salary</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-[70px] text-right">Action</TableHead>
@@ -105,7 +104,7 @@ export function EmployeeTable({
             {loading &&
               Array.from({ length: 5 }).map((_, index) => (
                 <TableRow key={index}>
-                  <TableCell colSpan={11}>
+                  <TableCell colSpan={10}>
                     <div className="h-8 animate-pulse rounded-md bg-muted" />
                   </TableCell>
                 </TableRow>
@@ -113,7 +112,7 @@ export function EmployeeTable({
 
             {!loading && employees.length === 0 && (
               <TableRow>
-                <TableCell colSpan={11} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
                   No employees found.
                 </TableCell>
               </TableRow>
@@ -152,12 +151,6 @@ export function EmployeeTable({
                   <TableCell data-label="Location">{employee.location || "-"}</TableCell>
                   <TableCell data-label="Reporting To">
                     {employee.reportingToEmployeeCode || "-"}
-                  </TableCell>
-
-                  <TableCell data-label="Type">
-                    <Badge variant="outline">
-                      {employee.employeeType.replace("_", " ")}
-                    </Badge>
                   </TableCell>
 
                   <TableCell data-label="Salary">

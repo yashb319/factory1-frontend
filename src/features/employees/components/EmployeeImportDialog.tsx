@@ -49,7 +49,6 @@ const EMPLOYEE_TARGET_FIELDS: TargetField[] = [
   { label: "Phone", value: "phone" },
   { label: "Mobile", value: "mobile" },
   { label: "Email", value: "email" },
-  { label: "Employee Type", value: "employeeType", required: true },
   { label: "Designation", value: "designation" },
   { label: "Department", value: "department" },
   { label: "Salary Rate", value: "salaryRate", required: true },
@@ -78,7 +77,6 @@ const REQUIRED_TARGET_FIELDS = EMPLOYEE_TARGET_FIELDS.filter(
   (field) => field.required
 ).map((field) => field.value);
 
-const VALID_EMPLOYEE_TYPES = ["BLUE_COLLAR", "STAFF", "SUPERVISOR", "MANAGER"];
 const VALID_SALARY_TYPES = ["HOURLY", "DAILY", "MONTHLY"];
 const VALID_STATUS = ["ACTIVE", "INACTIVE"];
 const VALID_GENDERS = ["MALE", "FEMALE", "OTHER"];
@@ -107,7 +105,6 @@ const COLUMN_SYNONYMS: Record<string, string[]> = {
   phone: ["phone"],
   mobile: ["mobile", "mobile number", "contact", "contact number"],
   email: ["email", "email id", "email address"],
-  employeeType: ["employee type", "worker type", "staff type", "worker classification"],
   designation: ["designation", "role", "job title", "position"],
   department: ["department", "dept", "team"],
   salaryRate: ["salary", "salary rate", "wage", "rate", "amount", "pay"],
@@ -206,7 +203,7 @@ function normalizeDateForImport(raw: unknown): string {
   return text;
 }
 
-const PAYROLL_REQUIRED_FIELDS = ["employeeType", "salaryRate", "salaryType"];
+const PAYROLL_REQUIRED_FIELDS = ["salaryRate", "salaryType"];
 
 function targetFieldLabel(value: string): string {
   return (
@@ -268,7 +265,6 @@ function toEmployeeImportRowInput(
     mobile: value(row.mobile),
     email: value(row.email),
     photoDataUrl: value(row.photoDataUrl),
-    employeeType: value(row.employeeType),
     designation: value(row.designation),
     department: value(row.department),
     salaryRate: value(row.salaryRate),
@@ -314,7 +310,6 @@ function validateRows(
     const name = value(row.name);
     const salaryRate = value(row.salaryRate);
     const salaryType = value(row.salaryType);
-    const employeeType = value(row.employeeType);
     const status = value(row.status);
     const gender = value(row.gender);
     const maritalStatus = value(row.maritalStatus);
@@ -326,11 +321,6 @@ function validateRows(
     if (!name) errors.push("Name is required");
     if (!salaryRate) errors.push("Salary Rate is required");
     if (!salaryType) errors.push("Salary Type is required");
-    if (!employeeType) {
-      errors.push(
-        "Employee Type is required (BLUE_COLLAR, STAFF, SUPERVISOR or MANAGER) — map or add this column"
-      );
-    }
 
     if (employeeCode && employeeCodeCount.get(employeeCode)! > 1) {
       errors.push("Duplicate Employee Code in uploaded file");
@@ -342,12 +332,6 @@ function validateRows(
 
     if (salaryType && !VALID_SALARY_TYPES.includes(salaryType)) {
       errors.push("Invalid Salary Type (use HOURLY, DAILY or MONTHLY)");
-    }
-
-    if (employeeType && !VALID_EMPLOYEE_TYPES.includes(employeeType)) {
-      errors.push(
-        "Invalid Employee Type (use BLUE_COLLAR, STAFF, SUPERVISOR or MANAGER)"
-      );
     }
 
     if (status && !VALID_STATUS.includes(status)) {
@@ -743,8 +727,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                         . Add these as columns (or map existing ones) in your
                         source file — Factory1 will not guess or default
                         these values, so rows will fail to import until they
-                        are provided. Employee Type accepts{" "}
-                        {VALID_EMPLOYEE_TYPES.join(", ")}; Salary Type accepts{" "}
+                        are provided. Salary Type accepts{" "}
                         {VALID_SALARY_TYPES.join(", ")}.
                       </p>
                     )}

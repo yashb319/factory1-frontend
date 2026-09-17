@@ -103,9 +103,9 @@ export function EmployeeDetailsDrawer({
                     <Badge>
                       {employee.status}
                     </Badge>
-                    <Badge variant="secondary">
-                      {employee.employeeType.replace("_", " ")}
-                    </Badge>
+                    {employee.department ? (
+                      <Badge variant="secondary">{employee.department}</Badge>
+                    ) : null}
                   </div>
                 </div>
               </div>

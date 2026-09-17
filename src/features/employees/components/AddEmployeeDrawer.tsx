@@ -33,7 +33,6 @@ const defaultValues: EmployeeFormValues = {
   phone: "",
   email: "",
   photoDataUrl: "",
-  employeeType: "BLUE_COLLAR",
   designation: "",
   department: "",
   salaryRate: 0,

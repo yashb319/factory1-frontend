@@ -129,6 +129,7 @@ export const baseApi = createApi({
     "WhitelabelPartner",
     "PayslipTemplate",
     "Payslip",
+    "OrgIntelligence",
   ],
 
   endpoints: () => ({}),

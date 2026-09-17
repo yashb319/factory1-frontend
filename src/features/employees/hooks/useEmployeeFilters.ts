@@ -11,7 +11,6 @@ export function useEmployeeFilters() {
     sortDirection: "desc",
     search: "",
     status: "ALL",
-    employeeType: "ALL",
     salaryType: "ALL",
   });
 
