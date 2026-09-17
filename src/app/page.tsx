@@ -97,7 +97,7 @@ const modules = [
   },
   {
     title: "Billing",
-    description: "Create invoices, track payments and manage recurring customer billing workflows.",
+    description: "Create invoices, track payments and manage one-off customer billing workflows.",
     icon: FileText,
   },
   {
@@ -137,7 +137,7 @@ const modules = [
   },
   {
     title: "Org intelligence",
-    description: "See reporting hierarchy and cross-team operational insights for smarter leadership decisions.",
+    description: "Understand employee reporting hierarchy and use operational dashboards for smarter leadership decisions.",
     icon: LineChart,
   },
   {
@@ -173,7 +173,7 @@ const workflowSteps = [
 const platformHighlights = [
   {
     title: "Approval workflows",
-    description: "Route leave, purchases and other requests through clear approval chains instead of chat threads.",
+    description: "Route leave requests and payroll or management approvals through clear approval chains instead of chat threads.",
     icon: CheckCircle2,
   },
   {
@@ -188,7 +188,7 @@ const platformHighlights = [
   },
   {
     title: "Reporting hierarchy",
-    description: "Roll up production, people and financial reports across teams so leadership sees the full picture.",
+    description: "Understand employee reporting lines alongside accounting reports, dashboards and AI insights for better decisions.",
     icon: LineChart,
   },
   {
