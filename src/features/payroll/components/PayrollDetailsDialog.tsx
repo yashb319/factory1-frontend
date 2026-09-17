@@ -24,6 +24,7 @@ import { useGetPayrollRunByIdQuery } from "../api/payrollApi";
 import { PayrollItemResponse } from "../types/payroll.types";
 
 import { formatCurrency, getMonthName } from "../utils/payroll.utils";
+import { humanizeEnum } from "@/lib/format";
 import { exportPayrollCsv } from "../utils/payrollExport.utils";
 import { downloadAllPayslipsZip } from "../utils/payrollPayslipDownload.utils";
 
@@ -176,7 +177,7 @@ export function PayrollDetailsDialog({
 
                         <TableCell data-label="Code">{item.employeeCode}</TableCell>
 
-                        <TableCell data-label="Salary Type">{item.salaryType}</TableCell>
+                        <TableCell data-label="Salary Type">{humanizeEnum(item.salaryType)}</TableCell>
 
                         <TableCell data-label="Base">{formatCurrency(item.baseSalary)}</TableCell>
 

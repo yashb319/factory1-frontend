@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { humanizeEnum } from "@/lib/format";
 import type { Customer } from "../types/customer.types";
 
 type Props = {
@@ -100,7 +101,7 @@ export function CustomerTable({
                         customer.status === "ACTIVE" ? "default" : "outline"
                       }
                     >
-                      {customer.status}
+                      {humanizeEnum(customer.status)}
                     </Badge>
                   </td>
 

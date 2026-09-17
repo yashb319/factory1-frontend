@@ -19,6 +19,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,6 +36,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAppSelector } from "@/lib/hook";
 import { cn } from "@/lib/utils";
+import { humanizeEnum } from "@/lib/format";
 import {
   useGetOrganizationSettingsQuery,
   useUpdateOrganizationSettingsMutation,
@@ -63,6 +74,7 @@ const statusVariant: Record<LeaveRequestStatus, "default" | "secondary" | "destr
   APPROVED: "default",
   REJECTED: "destructive",
   CANCELLED: "outline",
+  NEEDS_CLARIFICATION: "secondary",
 };
 
 export function LeavePage() {
@@ -386,7 +398,7 @@ function DayDetails({ date, entries, holidays, onApply }: { date: string | null;
   const dayEntries = entries.filter((entry) => normalizeDate(entry.date) === date);
   const holiday = holidays.find((item) => normalizeDate(item.holidayDate) === date);
   if (!dayEntries.length && !holiday) return <div className="space-y-3"><p className="text-sm text-slate-500">This day is available for a leave request.</p><Button size="sm" onClick={onApply}><Plus className="mr-1 h-3.5 w-3.5" />Request this day</Button></div>;
-  return <div className="space-y-3">{holiday ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="font-medium text-amber-900">{holiday.name}</p><p className="mt-1 text-xs text-amber-800">{holiday.paid ? "Paid holiday" : "Unpaid holiday"}</p></div> : null}{dayEntries.map((entry, index) => <div key={`${entry.date}-${index}`} className="rounded-lg border p-3"><div className="flex items-center justify-between gap-2"><p className="font-medium text-slate-900">{entry.label}</p><Badge variant={entry.status === "PENDING" ? "secondary" : entry.status === "REJECTED" ? "destructive" : "default"}>{entry.status ?? "APPROVED"}</Badge></div><p className="mt-1 text-xs text-slate-500">{entry.paid ? "Paid leave" : "Unpaid leave"} · {entry.kind}</p></div>)}</div>;
+  return <div className="space-y-3">{holiday ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="font-medium text-amber-900">{holiday.name}</p><p className="mt-1 text-xs text-amber-800">{holiday.paid ? "Paid holiday" : "Unpaid holiday"}</p></div> : null}{dayEntries.map((entry, index) => <div key={`${entry.date}-${index}`} className="rounded-lg border p-3"><div className="flex items-center justify-between gap-2"><p className="font-medium text-slate-900">{entry.label}</p><Badge variant={entry.status === "PENDING" ? "secondary" : entry.status === "REJECTED" ? "destructive" : "default"}>{humanizeEnum(entry.status ?? "APPROVED")}</Badge></div><p className="mt-1 text-xs text-slate-500">{entry.paid ? "Paid leave" : "Unpaid leave"} · {entry.kind}</p></div>)}</div>;
 }
 
 function RequestTable({ requests, loading, canDecide, onView, onCancel, onDecide }: {
@@ -406,10 +418,10 @@ function RequestTable({ requests, loading, canDecide, onView, onCancel, onDecide
         {requests.map((request) => (
           <TableRow key={request.id}>
             <TableCell><button className="text-left font-medium text-blue-700 hover:underline" onClick={() => onView(request.id)}>{request.leaveTypeCode}</button><span className="block text-xs text-slate-500">{request.reason || "No reason provided"}</span></TableCell>
-            {canDecide && <TableCell className="text-slate-600">{request.employeeId}</TableCell>}
+            {canDecide && <TableCell className="text-slate-600">{request.employeeName || request.employeeId}</TableCell>}
             <TableCell>{formatDate(request.startDate)} - {formatDate(request.endDate)}</TableCell>
             <TableCell>{formatDays(request.days)}</TableCell>
-            <TableCell><Badge variant={statusVariant[request.status]}>{request.status}</Badge></TableCell>
+            <TableCell><Badge variant={statusVariant[request.status]}>{humanizeEnum(request.status)}</Badge></TableCell>
             <TableCell className="text-right">
               <div className="flex justify-end gap-1">
                 <Button size="sm" variant="outline" onClick={() => onView(request.id)}>View</Button>
@@ -425,9 +437,60 @@ function RequestTable({ requests, loading, canDecide, onView, onCancel, onDecide
 }
 
 function TypeTable({ types, loading, onEdit }: { types: LeaveTypeResponse[]; loading: boolean; onEdit: (type: LeaveTypeResponse) => void }) {
+  const [updateType, { isLoading: toggling }] = useUpdateLeaveTypeMutation();
+  const [toggleTarget, setToggleTarget] = useState<LeaveTypeResponse | null>(null);
+
+  async function handleToggleConfirm() {
+    if (!toggleTarget) return;
+    const nextActive = !toggleTarget.active;
+    try {
+      await updateType({
+        id: toggleTarget.id,
+        body: {
+          code: toggleTarget.code,
+          name: toggleTarget.name,
+          allocationPeriod: toggleTarget.allocationPeriod,
+          allocationDays: toggleTarget.allocationDays,
+          paid: toggleTarget.paid,
+          active: nextActive,
+          carryForward: toggleTarget.carryForward,
+          maxCarryForwardDays: toggleTarget.maxCarryForwardDays,
+          expiryMonths: toggleTarget.expiryMonths,
+        },
+      }).unwrap();
+      toast.success(nextActive ? "Leave type reactivated" : "Leave type deactivated");
+      setToggleTarget(null);
+    } catch {
+      toast.error(`Unable to ${nextActive ? "reactivate" : "deactivate"} leave type`);
+    }
+  }
+
   if (loading) return <LoadingBlock />;
   if (!types.length) return <EmptyState icon={Settings2} title="No leave types configured" description="Create the first leave type for your organization." />;
-  return <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Type</TableHead><TableHead>Allocation</TableHead><TableHead>Carry forward</TableHead><TableHead>Expiry</TableHead><TableHead>Paid</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>{types.map((type) => <TableRow key={type.id}><TableCell><span className="font-medium">{type.name}</span><span className="block text-xs text-slate-500">{type.code}</span></TableCell><TableCell>{formatDays(type.allocationDays)} / {type.allocationPeriod.toLowerCase()}</TableCell><TableCell>{type.carryForward ? `Up to ${formatDays(type.maxCarryForwardDays)}` : "No"}</TableCell><TableCell>{type.expiryMonths ? `${type.expiryMonths} months` : "No expiry"}</TableCell><TableCell>{type.paid ? "Yes" : "No"}</TableCell><TableCell><Badge variant={type.active ? "default" : "outline"}>{type.active ? "Active" : "Inactive"}</Badge></TableCell><TableCell className="text-right"><Button size="sm" variant="outline" onClick={() => onEdit(type)}>Edit</Button></TableCell></TableRow>)}</TableBody></Table></div>;
+  return (
+    <div className="overflow-x-auto">
+      <Table><TableHeader><TableRow><TableHead>Type</TableHead><TableHead>Allocation</TableHead><TableHead>Carry forward</TableHead><TableHead>Expiry</TableHead><TableHead>Paid</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>{types.map((type) => <TableRow key={type.id}><TableCell><span className="font-medium">{type.name}</span><span className="block text-xs text-slate-500">{type.code}</span></TableCell><TableCell>{formatDays(type.allocationDays)} / {type.allocationPeriod.toLowerCase()}</TableCell><TableCell>{type.carryForward ? `Up to ${formatDays(type.maxCarryForwardDays)}` : "No"}</TableCell><TableCell>{type.expiryMonths ? `${type.expiryMonths} months` : "No expiry"}</TableCell><TableCell>{type.paid ? "Yes" : "No"}</TableCell><TableCell><Badge variant={type.active ? "default" : "outline"}>{type.active ? "Active" : "Inactive"}</Badge></TableCell><TableCell className="text-right"><div className="flex justify-end gap-1"><Button size="sm" variant="outline" onClick={() => onEdit(type)}>Edit</Button><Button size="sm" variant={type.active ? "destructive" : "outline"} onClick={() => setToggleTarget(type)}>{type.active ? "Deactivate" : "Reactivate"}</Button></div></TableCell></TableRow>)}</TableBody></Table>
+
+      <AlertDialog open={toggleTarget !== null} onOpenChange={(open) => { if (!open && !toggling) setToggleTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{toggleTarget?.active ? "Deactivate" : "Reactivate"} {toggleTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {toggleTarget?.active
+                ? "This leave type will be hidden from new leave requests, but existing history and balances are kept."
+                : "This leave type will become available again for new leave requests."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={toggling}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={toggling} onClick={handleToggleConfirm}>
+              {toggling ? "Saving..." : toggleTarget?.active ? "Deactivate" : "Reactivate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
 }
 
 function ApplyLeaveDialog({ open, onOpenChange, types, loading, initialStartDate, initialEndDate, onSubmit }: { open: boolean; onOpenChange: (open: boolean) => void; types: LeaveTypeResponse[]; loading: boolean; initialStartDate: string; initialEndDate: string; onSubmit: (body: { leaveTypeId: string; startDate: string; endDate: string; reason: string }) => Promise<void> }) {
@@ -470,7 +533,7 @@ function LeaveTypeDialog({ open, onOpenChange, type }: { open: boolean; onOpenCh
 }
 
 function RequestDetailDialog({ request, loading, open, onOpenChange, onCancel }: { request?: LeaveRequestResponse; loading: boolean; open: boolean; onOpenChange: (open: boolean) => void; onCancel: (request: LeaveRequestResponse) => void }) {
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Leave request details</DialogTitle><DialogDescription>{request ? `${request.leaveTypeCode} · ${formatDate(request.startDate)} to ${formatDate(request.endDate)}` : "Loading request..."}</DialogDescription></DialogHeader>{loading || !request ? <LoadingBlock /> : <div className="space-y-3 text-sm"><div className="grid grid-cols-2 gap-3"><Detail label="Days" value={formatDays(request.days)} /><Detail label="Status" value={request.status} /><Detail label="Employee" value={request.employeeId} /><Detail label="Decision date" value={request.decisionAt ? formatDate(request.decisionAt) : "—"} /></div><div><p className="text-xs font-medium text-slate-500">Reason</p><p className="mt-1 whitespace-pre-wrap">{request.reason || "No reason provided"}</p></div>{request.decisionComment ? <div><p className="text-xs font-medium text-slate-500">Decision comment</p><p className="mt-1 whitespace-pre-wrap">{request.decisionComment}</p></div> : null}<DialogFooter>{request.status === "PENDING" ? <Button variant="outline" onClick={() => onCancel(request)}>Cancel request</Button> : null}<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button></DialogFooter></div>}</DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Leave request details</DialogTitle><DialogDescription>{request ? `${request.leaveTypeCode} · ${formatDate(request.startDate)} to ${formatDate(request.endDate)}` : "Loading request..."}</DialogDescription></DialogHeader>{loading || !request ? <LoadingBlock /> : <div className="space-y-3 text-sm"><div className="grid grid-cols-2 gap-3"><Detail label="Days" value={formatDays(request.days)} /><Detail label="Status" value={humanizeEnum(request.status)} /><Detail label="Employee" value={request.employeeName || request.employeeId} /><Detail label="Decision date" value={request.decisionAt ? formatDate(request.decisionAt) : "—"} /></div><div><p className="text-xs font-medium text-slate-500">Reason</p><p className="mt-1 whitespace-pre-wrap">{request.reason || "No reason provided"}</p></div>{request.decisionComment ? <div><p className="text-xs font-medium text-slate-500">Decision comment</p><p className="mt-1 whitespace-pre-wrap">{request.decisionComment}</p></div> : null}<DialogFooter>{request.status === "PENDING" ? <Button variant="outline" onClick={() => onCancel(request)}>Cancel request</Button> : null}<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button></DialogFooter></div>}</DialogContent></Dialog>;
 }
 
 function DecisionDialog({ decision, loading, onOpenChange, onSubmit }: { decision: { request: LeaveRequestResponse; action: "approve" | "reject" } | null; loading: boolean; onOpenChange: (open: boolean) => void; onSubmit: (comment: string) => Promise<void> }) {

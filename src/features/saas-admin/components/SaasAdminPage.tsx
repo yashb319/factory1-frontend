@@ -22,6 +22,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { useAppSelector } from "@/lib/hook";
+import { humanizeEnum } from "@/lib/format";
 import {
   useCreateSaasOfferMutation,
   useGetSaasAdminDashboardQuery,
@@ -423,7 +424,10 @@ export function StatusBadge({ status }: { status: OrganizationStatus }) {
     TERMINATED: { label: "Terminated", variant: "destructive" },
   };
 
-  const { label, variant } = map[status];
+  const { label, variant } = map[status] ?? {
+    label: status ? humanizeEnum(status) : "Unknown",
+    variant: "outline" as const,
+  };
 
   return (
     <Badge variant={variant} className="gap-1">

@@ -75,6 +75,7 @@ import { Switch } from "@/components/ui/switch";
 import { KanbanBoard } from "./KanbanBoard";
 import { PartialCompletionForm } from "./PartialCompletionForm";
 import { cn } from "@/lib/utils";
+import { humanizeEnum } from "@/lib/format";
 import { useAppSelector } from "@/lib/hook";
 import { useGetActiveCustomersQuery } from "@/features/customers/api/customerApi";
 import { useGetInventoryItemsQuery } from "@/features/inventory/api/inventoryApi";
@@ -3215,7 +3216,7 @@ function Boms() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <StatusBadge tone={statusTone(bom.status)}>{bom.status}</StatusBadge>
+                        <StatusBadge tone={statusTone(bom.status)}>{humanize(bom.status)}</StatusBadge>
                         {bom.status === "DRAFT" ? (
                           <Button size="sm" onClick={() => setPendingPublishId(bom.id)}>
                             Publish
@@ -4117,10 +4118,7 @@ function parseNullableNumber(value?: string) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function humanize(value?: string | null) {
-  if (!value) return "—";
-  return value.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\w/g, (match) => match.toUpperCase());
-}
+const humanize = humanizeEnum;
 
 function formatDate(value?: string | null) {
   const date = safeDate(value);
