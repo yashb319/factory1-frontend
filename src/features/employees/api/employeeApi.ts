@@ -49,6 +49,10 @@ export const employeeApi = baseApi.injectEndpoints({
         Array.isArray(response) ? response : response.data,
       providesTags: ["Employee"],
     }),
+    getNextEmployeeCode: builder.query<string, void>({
+      query: () => "/api/employees/next-code",
+      transformResponse: (response: { nextCode: string }) => response.nextCode,
+    }),
 
     getEmployeeById: builder.query<Employee, string>({
       query: (id) => ({
@@ -186,6 +190,7 @@ export const employeeApi = baseApi.injectEndpoints({
 export const {
   useGetEmployeesQuery,
   useGetEmployeeDesignationsQuery,
+  useGetNextEmployeeCodeQuery,
   useGetEmployeeByIdQuery,
   useCreateEmployeeMutation,
   useUpdateEmployeeMutation,

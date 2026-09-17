@@ -122,7 +122,7 @@ function MyAssignmentCard({
         <div>
           <div className="font-medium">{assignment.orderNumber}</div>
           <div className="text-xs text-muted-foreground">
-            {assignment.productName ?? assignment.productId}
+            {assignment.productName || assignment.productCode || assignment.productId}
           </div>
         </div>
         <StatusBadge tone={statusTone(assignment.orderStatus)}>{assignment.orderStatus}</StatusBadge>

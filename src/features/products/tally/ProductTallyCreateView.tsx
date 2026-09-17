@@ -4,13 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { playUiSound } from "@/lib/uiSounds";
 import { useRouter } from "next/navigation";
-import { useCreateProductMutation } from "../api/productsApi";
+import { useCreateProductMutation, useGetNextProductCodeQuery } from "../api/productsApi";
+import { isCodeConflict } from "@/lib/apiError";
 import { useGetInventoryItemsQuery } from "@/features/inventory/api/inventoryApi";
 import { productFields } from "./ProductTallyListView";
 
 export function ProductTallyCreateView() {
   const router = useRouter();
   const [createProduct, createState] = useCreateProductMutation();
+  const { data: nextCode } = useGetNextProductCodeQuery();
+  const [codeError, setCodeError] = useState("");
   const { data: inventoryPage } = useGetInventoryItemsQuery({
     page: 0,
     size: 300,
@@ -41,6 +44,14 @@ export function ProductTallyCreateView() {
     fieldRefs.current[0]?.focus();
   }, []);
 
+  useEffect(() => {
+    if (nextCode && !formDraft.code) {
+      queueMicrotask(() => {
+        setFormDraft((draft) => ({ ...draft, code: nextCode }));
+      });
+    }
+  }, [formDraft.code, nextCode]);
+
   const submitCreate = async () => {
     for (const f of productFields) {
       if (f.required && !formDraft[f.key as string] && formDraft[f.key as string] !== 0) {
@@ -50,6 +61,7 @@ export function ProductTallyCreateView() {
     }
     try {
       await createProduct({
+        code: formDraft.code ? String(formDraft.code).trim().toUpperCase() : undefined,
         name: String(formDraft.name ?? ""),
         description: formDraft.description ? String(formDraft.description) : undefined,
         finishedGoodInventoryItemId: String(formDraft.finishedGoodInventoryItemId ?? ""),
@@ -58,7 +70,11 @@ export function ProductTallyCreateView() {
       }).unwrap();
       toast.success("Product created");
       router.push("/tally/product");
-    } catch {
+    } catch (error) {
+      if (isCodeConflict(error)) {
+        setCodeError("This code is already in use, try another");
+        return;
+      }
       toast.error("Could not create product");
     }
   };
@@ -225,6 +241,7 @@ export function ProductTallyCreateView() {
                 {field.label}
               </span>
               {renderField(field, index)}
+              {field.key === "code" && codeError ? <span className="col-start-2 text-xs text-red-600">{codeError}</span> : null}
             </label>
           ))}
         </div>

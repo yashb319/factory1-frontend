@@ -18,8 +18,10 @@ import {
 import { useGetInventoryItemsQuery } from "@/features/inventory/api/inventoryApi";
 import {
   useCreateProductMutation,
+  useGetNextProductCodeQuery,
   useUpdateProductMutation,
 } from "../api/productsApi";
+import { isCodeConflict } from "@/lib/apiError";
 import type { Product, ProductRequest } from "../types/product.types";
 
 type Props = {
@@ -29,6 +31,7 @@ type Props = {
 };
 
 type FormValues = {
+  code: string;
   name: string;
   description: string;
   finishedGoodInventoryItemId: string;
@@ -68,18 +71,28 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
   const [createProduct, createState] = useCreateProductMutation();
   const [updateProduct, updateState] = useUpdateProductMutation();
   const selectedFinishedGoodId = form.watch("finishedGoodInventoryItemId");
+  const { data: nextCode } = useGetNextProductCodeQuery(undefined, {
+    skip: !open || isEdit,
+  });
 
   useEffect(() => {
     if (!open) return;
 
     form.reset({
       name: product?.name ?? "",
+      code: "",
       description: product?.description ?? "",
       finishedGoodInventoryItemId: product?.finishedGoodInventoryItemId ?? "",
       unit: product?.unit ?? "PCS",
       active: String(product?.active ?? true),
     });
   }, [open, product, form]);
+
+  useEffect(() => {
+    if (open && !isEdit && nextCode && !form.getValues("code")) {
+      form.setValue("code", nextCode);
+    }
+  }, [form, isEdit, nextCode, open]);
 
   useEffect(() => {
     if (!open) {
@@ -109,6 +122,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       }
 
       const body: ProductRequest = {
+        code: values.code.trim().toUpperCase() || undefined,
         name: values.name,
         description: values.description,
         finishedGoodInventoryItemId: values.finishedGoodInventoryItemId,
@@ -126,7 +140,11 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       await createProduct(body).unwrap();
       toast.success("Product created successfully");
       onOpenChange(false);
-    } catch {
+    } catch (error) {
+      if (!isEdit && isCodeConflict(error)) {
+        form.setError("code", { message: "This code is already in use, try another" });
+        return;
+      }
       toast.error(isEdit ? "Failed to update product" : "Failed to create product");
     }
   };
@@ -142,6 +160,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
 
         <AppForm form={form} onSubmit={onSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
+            {!isEdit && <TextField name="code" label="Product Code" placeholder="PRD0001" />}
             <TextField name="name" label="Product Name" required />
 
             <div className="md:col-span-2">

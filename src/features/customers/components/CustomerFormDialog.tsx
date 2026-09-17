@@ -17,8 +17,10 @@ import {
 } from "@/components/forms";
 import {
   useCreateCustomerMutation,
+  useGetNextCustomerCodeQuery,
   useUpdateCustomerMutation,
 } from "../api/customerApi";
+import { isCodeConflict } from "@/lib/apiError";
 import type { Customer, CustomerRequest } from "../types/customer.types";
 import { stateNameFromGstNumber } from "@/lib/gstState";
 import { LocationSuggestionHint } from "@/components/forms/LocationSuggestionHint";
@@ -34,7 +36,7 @@ type Props = {
   onClose: () => void;
 };
 
-type FormValues = CustomerRequest;
+type FormValues = CustomerRequest & { code: string };
 
 export function CustomerFormDialog({ open, customer, onClose }: Props) {
   const isEdit = Boolean(customer);
@@ -42,6 +44,7 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
   const form = useForm<FormValues>({
     defaultValues: {
       name: "",
+      code: "",
       phone: "",
       email: "",
       gstNumber: "",
@@ -60,6 +63,9 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
 
   const [createCustomer, createState] = useCreateCustomerMutation();
   const [updateCustomer, updateState] = useUpdateCustomerMutation();
+  const { data: nextCode } = useGetNextCustomerCodeQuery(undefined, {
+    skip: !open || isEdit,
+  });
   const gstNumber = form.watch("gstNumber");
   const city = form.watch("city");
   const locationSuggestions = getLocationSuggestions(city);
@@ -76,6 +82,7 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
 
     form.reset({
       name: customer?.name ?? "",
+      code: "",
       phone: customer?.phone ?? "",
       email: customer?.email ?? "",
       gstNumber: customer?.gstNumber ?? "",
@@ -91,6 +98,12 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
       notes: customer?.notes ?? "",
     });
   }, [open, customer, form]);
+
+  useEffect(() => {
+    if (open && !isEdit && nextCode && !form.getValues("code")) {
+      form.setValue("code", nextCode);
+    }
+  }, [form, isEdit, nextCode, open]);
 
   useEffect(() => {
     if (!open) {
@@ -129,6 +142,7 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
   const onSubmit = async (values: FormValues) => {
     const payload = {
       ...values,
+      code: values.code.trim().toUpperCase() || undefined,
       gstNumber: values.gstNumber?.trim().toUpperCase(),
       state: values.state || stateNameFromGstNumber(values.gstNumber),
       country: values.country || "India",
@@ -150,7 +164,11 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
 
       toast.success("Customer created successfully");
       onClose();
-    } catch {
+    } catch (error) {
+      if (!isEdit && isCodeConflict(error)) {
+        form.setError("code", { message: "This code is already in use, try another" });
+        return;
+      }
       toast.error(
         isEdit ? "Failed to update customer" : "Failed to create customer"
       );
@@ -168,6 +186,7 @@ export function CustomerFormDialog({ open, customer, onClose }: Props) {
 
         <AppForm form={form} onSubmit={onSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
+            {!isEdit && <TextField name="code" label="Customer Code" placeholder="CUS0001" />}
             <TextField name="name" label="Customer Name" required />
 
             <TextField name="phone" label="Phone" />

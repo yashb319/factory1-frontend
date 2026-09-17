@@ -52,6 +52,10 @@ export const supplierApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Supplier"],
     }),
+    getNextSupplierCode: builder.query<string, void>({
+      query: () => "/api/suppliers/next-code",
+      transformResponse: (response: { nextCode: string }) => response.nextCode,
+    }),
 
     updateSupplier: builder.mutation<
       ApiResponse<Supplier>,
@@ -93,6 +97,7 @@ export const {
   useGetSupplierDashboardQuery,
   useGetSupplierInsightsQuery,
   useCreateSupplierMutation,
+  useGetNextSupplierCodeQuery,
   useUpdateSupplierMutation,
   useDeleteSupplierMutation,
   useBulkCreateSuppliersMutation,

@@ -37,6 +37,10 @@ export const productsApi = baseApi.injectEndpoints({
       transformResponse: (response: ApiResponse<Product>) => response.data,
       invalidatesTags: ["Products"],
     }),
+    getNextProductCode: builder.query<string, void>({
+      query: () => "/api/products/next-code",
+      transformResponse: (response: { nextCode: string }) => response.nextCode,
+    }),
 
     updateProduct: builder.mutation<
       Product,
@@ -90,6 +94,7 @@ export const productsApi = baseApi.injectEndpoints({
 export const {
   useGetProductsQuery,
   useCreateProductMutation,
+  useGetNextProductCodeQuery,
   useUpdateProductMutation,
   useDeleteProductMutation,
   useGetBomQuery,

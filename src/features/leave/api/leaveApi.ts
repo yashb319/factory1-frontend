@@ -7,6 +7,7 @@ import type {
   LeaveRequestResponse,
   LeaveTypeRequest,
   LeaveTypeResponse,
+  LeaveTypeDeleteResponse,
   PageResponse,
   HolidayRequest,
   HolidayResponse,
@@ -30,6 +31,11 @@ export const leaveApi = baseApi.injectEndpoints({
     }),
     updateLeaveType: builder.mutation<LeaveTypeResponse, { id: string; body: LeaveTypeRequest }>({
       query: ({ id, body }) => ({ url: `/api/leave/types/${id}`, method: "PUT", body }),
+      invalidatesTags: ["Leave"],
+    }),
+    deleteLeaveType: builder.mutation<LeaveTypeDeleteResponse, string>({
+      query: (id) => ({ url: `/api/leave/types/${id}`, method: "DELETE" }),
+      transformResponse: (response: ApiResponse<LeaveTypeDeleteResponse>) => response.data,
       invalidatesTags: ["Leave"],
     }),
     getLeaveBalances: builder.query<LeaveBalanceResponse[], number>({
@@ -108,6 +114,7 @@ export const {
   useGetLeaveTypesQuery,
   useCreateLeaveTypeMutation,
   useUpdateLeaveTypeMutation,
+  useDeleteLeaveTypeMutation,
   useGetLeaveBalancesQuery,
   useCreateLeaveRequestMutation,
   useGetLeaveRequestsQuery,

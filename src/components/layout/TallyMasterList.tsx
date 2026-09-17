@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { playUiSound } from "@/lib/uiSounds";
+import { isCodeConflict } from "@/lib/apiError";
 
 export type TallyMasterColumn<T> = {
   key: string;
@@ -37,6 +38,7 @@ export type TallyMasterListProps<T extends { id: string }> = {
   onBack: () => void;
   getItemName?: (item: T) => string;
   initialScreen?: "list" | "create" | "alter";
+  suggestedCode?: string;
 };
 
 export function TallyMasterList<T extends { id: string }>({
@@ -55,6 +57,7 @@ export function TallyMasterList<T extends { id: string }>({
   onBack,
   getItemName,
   initialScreen = "list",
+  suggestedCode,
 }: TallyMasterListProps<T>) {
   const [screen, setScreen] = useState<"list" | "create" | "alter">(initialScreen);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -62,6 +65,7 @@ export function TallyMasterList<T extends { id: string }>({
   const [showQuitPrompt, setShowQuitPrompt] = useState(false);
   const [showDeletePrompt, setShowDeletePrompt] = useState(false);
   const [formDraft, setFormDraft] = useState<Record<string, unknown>>({});
+  const [codeError, setCodeError] = useState<string>();
   const listRef = useRef<HTMLDivElement>(null);
 
   const sorted = useMemo(() => items, [items]);
@@ -83,6 +87,8 @@ export function TallyMasterList<T extends { id: string }>({
     fields.forEach((f) => {
       draft[f.key] = f.type === "checkbox" ? false : "";
     });
+    if ("code" in draft && suggestedCode) draft.code = suggestedCode;
+    setCodeError(undefined);
     setFormDraft(draft);
     setScreen("create");
   };
@@ -106,10 +112,17 @@ export function TallyMasterList<T extends { id: string }>({
       }
     }
     try {
-      await onCreateItem(formDraft);
+      await onCreateItem({
+        ...formDraft,
+        code: typeof formDraft.code === "string" ? formDraft.code.trim().toUpperCase() || undefined : formDraft.code,
+      });
       toast.success(`${title.replace(/s$/, "")} created`);
       setScreen("list");
-    } catch {
+    } catch (error) {
+      if (isCodeConflict(error)) {
+        setCodeError("This code is already in use, try another");
+        return;
+      }
       toast.error(`Could not create ${title.toLowerCase().replace(/s$/, "")}`);
     }
   };
@@ -362,6 +375,9 @@ export function TallyMasterList<T extends { id: string }>({
                     placeholder={field.placeholder}
                   />
                 )}
+                {field.key === "code" && codeError ? (
+                  <span className="col-start-2 text-xs text-red-600">{codeError}</span>
+                ) : null}
               </label>
             ))}
           </div>

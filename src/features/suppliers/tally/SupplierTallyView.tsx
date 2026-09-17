@@ -7,6 +7,7 @@ import {
   useGetSuppliersQuery,
   useCreateSupplierMutation,
   useUpdateSupplierMutation,
+  useGetNextSupplierCodeQuery,
 } from "../api/supplierApi";
 import { TallyMasterList } from "@/components/layout/TallyMasterList";
 import type { SupplierRequest } from "../types/supplier.types";
@@ -27,6 +28,7 @@ export function SupplierTallyView({
   const [deleteSupplier] = useDeleteSupplierMutation();
   const [createSupplier, createSupplierState] = useCreateSupplierMutation();
   const [updateSupplier, updateSupplierState] = useUpdateSupplierMutation();
+  const { data: suggestedCode } = useGetNextSupplierCodeQuery();
 
   const suppliers = useMemo(() => data?.content ?? [], [data]);
 
@@ -46,6 +48,7 @@ export function SupplierTallyView({
         { key: "status", label: "Status" },
       ]}
       fields={[
+        { key: "code", label: "Supplier Code", type: "text" },
         { key: "name", label: "Name", type: "text", required: true, autoFocus: true },
         { key: "phone", label: "Phone", type: "text" },
         { key: "email", label: "Email", type: "email" },
@@ -75,6 +78,7 @@ export function SupplierTallyView({
       onDeleteItem={(id) => deleteSupplier(id).unwrap()}
       isCreating={createSupplierState.isLoading}
       isUpdating={updateSupplierState.isLoading}
+      suggestedCode={suggestedCode}
       onBack={() => router.push("/gateway?menu=suppliers")}
     />
   );

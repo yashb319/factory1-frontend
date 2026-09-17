@@ -36,6 +36,7 @@ type FieldDef = {
 };
 
 export const productFields: FieldDef[] = [
+  { key: "code", label: "Product Code", type: "text" },
   { key: "name", label: "Name", type: "text", required: true },
   { key: "description", label: "Description", type: "textarea" },
   {

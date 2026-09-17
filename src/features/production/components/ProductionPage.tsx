@@ -749,7 +749,7 @@ function OrderListView({
                   {order.orderNumber}
                 </button>
               </TableCell>
-              <TableCell>{order.productId}</TableCell>
+              <TableCell>{order.productName || order.productCode || order.productId}</TableCell>
               <TableCell>
                 {formatNumber(order.completedQuantity)} / {formatNumber(order.plannedQuantity)}
               </TableCell>
@@ -1247,6 +1247,8 @@ function OrderDetail({
   const [createQualityTemplate, createQualityTemplateState] = useCreateQualityCheckTemplateMutation();
 
   const order = orderQuery.data;
+  const { data: productsPage } = useGetProductsQuery({ page: 0, size: 300 });
+  const product = productsPage?.content.find((candidate) => candidate.id === order?.productId);
   const orderSteps = order?.steps ?? [];
   const currentStep = order ? getCurrentOrderStep(order) : undefined;
 
@@ -1611,7 +1613,7 @@ function OrderDetail({
           <DialogHeader className="pr-10">
             <DialogTitle>{order.orderNumber}</DialogTitle>
             <DialogDescription>
-              {order.productId} · workflow v{order.workflowVersionNumber} · {formatNumber(order.completedQuantity)} complete · {formatNumber(order.rejectedQuantity)} rejected
+              {order.productName || order.productCode || product?.name || product?.productCode || order.productId} · workflow v{order.workflowVersionNumber} · {formatNumber(order.completedQuantity)} complete · {formatNumber(order.rejectedQuantity)} rejected
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
@@ -2261,8 +2263,8 @@ function OrderDetail({
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <div className="font-medium">
-                          {requirement.itemCode || requirement.inventoryItemId}
-                          {requirement.itemName ? ` · ${requirement.itemName}` : ""}
+                          {requirement.itemName || requirement.itemCode || requirement.inventoryItemId}
+                          {requirement.itemName && requirement.itemCode ? ` · ${requirement.itemCode}` : ""}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           Need ~{formatNumber(requirement.estimatedRequiredQuantity ?? 0)} {requirement.unit}
@@ -3882,6 +3884,8 @@ function filterOrders({
       !needle ||
       [
         order.orderNumber,
+        order.productName,
+        order.productCode,
         order.productId,
         currentStep?.name,
         currentStep?.code,
@@ -3926,6 +3930,8 @@ function buildBoardColumns(
       orderId: card.orderId,
       orderNumber: card.orderNumber,
       productId: order?.productId ?? "",
+      productCode: order?.productCode,
+      productName: order?.productName,
       priority: order?.priority ?? "NORMAL",
       status: card.status,
       dueDate: order?.dueDate,
@@ -3947,7 +3953,7 @@ function buildBoardColumns(
   const filtered = items.filter((item) => {
     const matchesSearch =
       !needle ||
-      [item.orderNumber, item.productId, item.currentStepName]
+      [item.orderNumber, item.productName, item.productCode, item.productId, item.currentStepName]
         .filter(Boolean)
         .some((value) => value?.toLowerCase().includes(needle));
 

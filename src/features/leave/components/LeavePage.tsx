@@ -47,6 +47,7 @@ import {
   useCreateLeaveRequestMutation,
   useCreateLeaveTypeMutation,
   useCreateHolidayMutation,
+  useDeleteLeaveTypeMutation,
   useDeleteHolidayMutation,
   useGetLeaveBalancesQuery,
   useGetLeaveRequestQuery,
@@ -438,7 +439,9 @@ function RequestTable({ requests, loading, canDecide, onView, onCancel, onDecide
 
 function TypeTable({ types, loading, onEdit }: { types: LeaveTypeResponse[]; loading: boolean; onEdit: (type: LeaveTypeResponse) => void }) {
   const [updateType, { isLoading: toggling }] = useUpdateLeaveTypeMutation();
+  const [deleteType, { isLoading: deleting }] = useDeleteLeaveTypeMutation();
   const [toggleTarget, setToggleTarget] = useState<LeaveTypeResponse | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<LeaveTypeResponse | null>(null);
 
   async function handleToggleConfirm() {
     if (!toggleTarget) return;
@@ -463,13 +466,25 @@ function TypeTable({ types, loading, onEdit }: { types: LeaveTypeResponse[]; loa
     } catch {
       toast.error(`Unable to ${nextActive ? "reactivate" : "deactivate"} leave type`);
     }
+
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deleteTarget) return;
+    try {
+      const result = await deleteType(deleteTarget.id).unwrap();
+      toast.success(result.deleted ? "Leave type deleted" : result.message);
+      setDeleteTarget(null);
+    } catch {
+      toast.error("Unable to delete leave type");
+    }
   }
 
   if (loading) return <LoadingBlock />;
   if (!types.length) return <EmptyState icon={Settings2} title="No leave types configured" description="Create the first leave type for your organization." />;
   return (
     <div className="overflow-x-auto">
-      <Table><TableHeader><TableRow><TableHead>Type</TableHead><TableHead>Allocation</TableHead><TableHead>Carry forward</TableHead><TableHead>Expiry</TableHead><TableHead>Paid</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>{types.map((type) => <TableRow key={type.id}><TableCell><span className="font-medium">{type.name}</span><span className="block text-xs text-slate-500">{type.code}</span></TableCell><TableCell>{formatDays(type.allocationDays)} / {type.allocationPeriod.toLowerCase()}</TableCell><TableCell>{type.carryForward ? `Up to ${formatDays(type.maxCarryForwardDays)}` : "No"}</TableCell><TableCell>{type.expiryMonths ? `${type.expiryMonths} months` : "No expiry"}</TableCell><TableCell>{type.paid ? "Yes" : "No"}</TableCell><TableCell><Badge variant={type.active ? "default" : "outline"}>{type.active ? "Active" : "Inactive"}</Badge></TableCell><TableCell className="text-right"><div className="flex justify-end gap-1"><Button size="sm" variant="outline" onClick={() => onEdit(type)}>Edit</Button><Button size="sm" variant={type.active ? "destructive" : "outline"} onClick={() => setToggleTarget(type)}>{type.active ? "Deactivate" : "Reactivate"}</Button></div></TableCell></TableRow>)}</TableBody></Table>
+      <Table><TableHeader><TableRow><TableHead>Type</TableHead><TableHead>Allocation</TableHead><TableHead>Carry forward</TableHead><TableHead>Expiry</TableHead><TableHead>Paid</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>{types.map((type) => <TableRow key={type.id}><TableCell><span className="font-medium">{type.name}</span><span className="block text-xs text-slate-500">{type.code}</span></TableCell><TableCell>{formatDays(type.allocationDays)} / {type.allocationPeriod.toLowerCase()}</TableCell><TableCell>{type.carryForward ? `Up to ${formatDays(type.maxCarryForwardDays)}` : "No"}</TableCell><TableCell>{type.expiryMonths ? `${type.expiryMonths} months` : "No expiry"}</TableCell><TableCell>{type.paid ? "Yes" : "No"}</TableCell><TableCell><Badge variant={type.active ? "default" : "outline"}>{type.active ? "Active" : "Inactive"}</Badge></TableCell><TableCell className="text-right"><div className="flex justify-end gap-1"><Button size="sm" variant="outline" onClick={() => onEdit(type)}>Edit</Button><Button size="sm" variant={type.active ? "destructive" : "outline"} onClick={() => setToggleTarget(type)}>{type.active ? "Deactivate" : "Reactivate"}</Button><Button size="sm" variant="destructive" onClick={() => setDeleteTarget(type)}>Delete</Button></div></TableCell></TableRow>)}</TableBody></Table>
 
       <AlertDialog open={toggleTarget !== null} onOpenChange={(open) => { if (!open && !toggling) setToggleTarget(null); }}>
         <AlertDialogContent>
@@ -486,6 +501,18 @@ function TypeTable({ types, loading, onEdit }: { types: LeaveTypeResponse[]; loa
             <AlertDialogAction disabled={toggling} onClick={handleToggleConfirm}>
               {toggling ? "Saving..." : toggleTarget?.active ? "Deactivate" : "Reactivate"}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this leave type?</AlertDialogTitle>
+            <AlertDialogDescription>Delete this leave type? If it&apos;s currently in use, it will be deactivated instead of deleted.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={deleting} onClick={handleDeleteConfirm}>{deleting ? "Deleting..." : "Delete"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

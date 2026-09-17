@@ -7,8 +7,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AppForm, FormActions, SelectField, TextField } from "@/components/forms";
 import {
   useCreateSupplierMutation,
+  useGetNextSupplierCodeQuery,
   useUpdateSupplierMutation,
 } from "../api/supplierApi";
+import { isCodeConflict } from "@/lib/apiError";
 import type { Supplier, SupplierRequest } from "../types/supplier.types";
 import { stateNameFromGstNumber } from "@/lib/gstState";
 import { LocationSuggestionHint } from "@/components/forms/LocationSuggestionHint";
@@ -24,7 +26,7 @@ type Props = {
   onClose: () => void;
 };
 
-type FormValues = SupplierRequest;
+type FormValues = SupplierRequest & { code: string };
 
 export function SupplierFormDialog({ open, supplier, onClose }: Props) {
   const isEdit = Boolean(supplier);
@@ -32,6 +34,7 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
   const form = useForm<FormValues>({
     defaultValues: {
       name: "",
+      code: "",
       phone: "",
       email: "",
       gstNumber: "",
@@ -49,6 +52,9 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
 
   const [createSupplier, createState] = useCreateSupplierMutation();
   const [updateSupplier, updateState] = useUpdateSupplierMutation();
+  const { data: nextCode } = useGetNextSupplierCodeQuery(undefined, {
+    skip: !open || isEdit,
+  });
   const gstNumber = form.watch("gstNumber");
   const city = form.watch("city");
   const locationSuggestions = getLocationSuggestions(city);
@@ -65,6 +71,7 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
 
     form.reset({
       name: supplier?.name ?? "",
+      code: "",
       phone: supplier?.phone ?? "",
       email: supplier?.email ?? "",
       gstNumber: supplier?.gstNumber ?? "",
@@ -79,6 +86,12 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
       notes: supplier?.notes ?? "",
     });
   }, [open, supplier, form]);
+
+  useEffect(() => {
+    if (open && !isEdit && nextCode && !form.getValues("code")) {
+      form.setValue("code", nextCode);
+    }
+  }, [form, isEdit, nextCode, open]);
 
   useEffect(() => {
     if (!open) {
@@ -117,6 +130,7 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
   const onSubmit = async (values: FormValues) => {
     const payload = {
       ...values,
+      code: values.code.trim().toUpperCase() || undefined,
       gstNumber: values.gstNumber?.trim().toUpperCase(),
       state: values.state || stateNameFromGstNumber(values.gstNumber),
       country: values.country || "India",
@@ -138,7 +152,11 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
 
       toast.success("Supplier created successfully");
       onClose();
-    } catch {
+    } catch (error) {
+      if (!isEdit && isCodeConflict(error)) {
+        form.setError("code", { message: "This code is already in use, try another" });
+        return;
+      }
       toast.error(isEdit ? "Failed to update supplier" : "Failed to create supplier");
     }
   };
@@ -154,6 +172,7 @@ export function SupplierFormDialog({ open, supplier, onClose }: Props) {
 
         <AppForm form={form} onSubmit={onSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
+            {!isEdit && <TextField name="code" label="Supplier Code" placeholder="SUP0001" />}
             <TextField name="name" label="Supplier Name" required />
             <TextField name="phone" label="Phone" />
             <TextField name="email" label="Email" />

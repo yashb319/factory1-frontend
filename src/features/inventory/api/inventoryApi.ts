@@ -56,6 +56,10 @@ export const inventoryApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Inventory"],
     }),
+    getNextInventoryItemCode: builder.query<string, void>({
+      query: () => "/api/inventory/items/next-code",
+      transformResponse: (response: { nextCode: string }) => response.nextCode,
+    }),
 
     updateInventoryItem: builder.mutation<
       ApiResponse<InventoryItem>,
@@ -122,6 +126,7 @@ export const {
   useGetInventoryItemsQuery,
   useGetInventoryItemQuery,
   useCreateInventoryItemMutation,
+  useGetNextInventoryItemCodeQuery,
   useUpdateInventoryItemMutation,
   useDeleteInventoryItemMutation,
   useBulkCreateInventoryItemsMutation,

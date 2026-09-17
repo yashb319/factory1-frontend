@@ -38,6 +38,7 @@ export interface Employee {
 
   // Read-only, resolved/sourced server-side.
   readonly reportingToEmployeeCode?: string;
+  readonly reportingToEmployeeName?: string;
   readonly panNumber?: string;
   readonly uan?: string;
   readonly taxRegime?: TaxRegime;
@@ -85,6 +86,7 @@ export interface EmployeeListParams {
 }
 
 export interface CreateEmployeeRequest {
+  code?: string;
   name: string;
   phone?: string;
   email?: string;

@@ -7,6 +7,7 @@ import {
   useGetCustomersQuery,
   useCreateCustomerMutation,
   useUpdateCustomerMutation,
+  useGetNextCustomerCodeQuery,
 } from "../api/customerApi";
 import { TallyMasterList } from "@/components/layout/TallyMasterList";
 import type { CustomerRequest } from "../types/customer.types";
@@ -27,6 +28,7 @@ export function CustomerTallyView({
   const [deleteCustomer] = useDeleteCustomerMutation();
   const [createCustomer, createCustomerState] = useCreateCustomerMutation();
   const [updateCustomer, updateCustomerState] = useUpdateCustomerMutation();
+  const { data: suggestedCode } = useGetNextCustomerCodeQuery();
 
   const customers = useMemo(() => data?.content ?? [], [data]);
 
@@ -46,6 +48,7 @@ export function CustomerTallyView({
         { key: "status", label: "Status" },
       ]}
       fields={[
+        { key: "code", label: "Customer Code", type: "text" },
         { key: "name", label: "Name", type: "text", required: true, autoFocus: true },
         { key: "phone", label: "Phone", type: "text" },
         { key: "email", label: "Email", type: "email" },
@@ -76,6 +79,7 @@ export function CustomerTallyView({
       onDeleteItem={(id) => deleteCustomer(id).unwrap()}
       isCreating={createCustomerState.isLoading}
       isUpdating={updateCustomerState.isLoading}
+      suggestedCode={suggestedCode}
       onBack={() => router.push("/gateway?menu=customers")}
     />
   );

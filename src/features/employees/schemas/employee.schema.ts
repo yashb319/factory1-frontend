@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const employeeFormSchema = z.object({
+  code: z.string().optional(),
   name: z.string().min(2, "Name must be at least 2 characters"),
 
   phone: z.string().optional(),

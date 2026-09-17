@@ -20,6 +20,7 @@ export const inventoryFields: Array<{
   required?: boolean;
   options?: Array<{ value: string; label: string }>;
 }> = [
+  { key: "code", label: "Item Code", type: "text" },
   { key: "name", label: "Name", type: "text", required: true },
   {
     key: "itemType",

@@ -10,3 +10,14 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   }
   return fallback;
 }
+
+export function isCodeConflict(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("status" in error)) {
+    return false;
+  }
+
+  return (
+    (error as { status?: number }).status === 409 &&
+    getErrorMessage(error, "") === "The submitted code conflicts with an existing record"
+  );
+}
