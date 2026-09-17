@@ -145,7 +145,7 @@ export function OrgIntelligenceTree({ roots, filters, expandSignal, expandAll }:
           key={root.employeeId}
           node={root}
           filters={filters}
-          initiallyExpanded={true}
+          initiallyExpanded={expandSignal === 0 ? true : expandAll}
           expandAll={expandAll}
         />
       ))}
