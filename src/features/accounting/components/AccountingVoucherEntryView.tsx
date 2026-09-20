@@ -31,9 +31,23 @@ const EMPTY_LINE: LineDraft = {
   description: "",
 };
 
-function focusables(): HTMLElement[] {
+function focusables(root: HTMLElement | null): HTMLElement[] {
+  if (!root) return [];
   return Array.from(
-    document.querySelectorAll<HTMLElement>("[data-tally-focus]"),
+    root.querySelectorAll<HTMLElement>("[data-tally-focus]"),
+  );
+}
+
+function isEditableControl(target: HTMLElement) {
+  return (
+    target.isContentEditable ||
+    target.matches("input, textarea, select, [contenteditable='true']") ||
+    target.getAttribute("role") === "combobox" ||
+    Boolean(
+      target.closest(
+        "[contenteditable]:not([contenteditable='false']), [role='combobox']",
+      ),
+    )
   );
 }
 
@@ -74,6 +88,17 @@ export function AccountingVoucherEntryView({
   const rootRef = useRef<HTMLDivElement>(null);
 
   const ledgers = masters?.ledgers ?? [];
+  const historicalLedgerIds = useMemo(
+    () => new Set(mode === "alter" ? voucher?.lines.map((line) => line.ledgerId) : []),
+    [mode, voucher],
+  );
+  const selectableLedgers = useMemo(
+    () =>
+      ledgers.filter(
+        (ledger) => ledger.active || historicalLedgerIds.has(ledger.id),
+      ),
+    [historicalLedgerIds, ledgers],
+  );
   const ledgerNames = useMemo(() => {
     const map: Record<string, string> = {};
     ledgers.forEach((ledger) => {
@@ -98,14 +123,14 @@ export function AccountingVoucherEntryView({
   }, [lines]);
 
   useEffect(() => {
-    const nodes = focusables();
+    const nodes = focusables(rootRef.current);
     const target = nodes[Math.min(focusIndex, nodes.length - 1)];
     target?.focus();
   }, [focusIndex, lines.length]);
 
   function moveFocus(delta: number) {
     setFocusIndex((index) => {
-      const count = focusables().length;
+      const count = focusables(rootRef.current).length;
       return Math.max(0, Math.min(count - 1, index + delta));
     });
   }
@@ -117,7 +142,10 @@ export function AccountingVoucherEntryView({
   function addLine() {
     playUiSound("enter");
     setLines((prev) => [...prev, { ...EMPTY_LINE }]);
-    setTimeout(() => moveFocus(focusables().length), 0);
+    setTimeout(
+      () => setFocusIndex(focusables(rootRef.current).length - 1),
+      0,
+    );
   }
 
   function removeLine(index: number) {
@@ -151,6 +179,13 @@ export function AccountingVoucherEntryView({
     for (const line of lines) {
       if (!line.ledgerId) {
         toast.error("Every entry needs a ledger");
+        return false;
+      }
+      if (
+        mode === "create" &&
+        !ledgers.some((ledger) => ledger.id === line.ledgerId && ledger.active)
+      ) {
+        toast.error("New vouchers can only use active ledgers");
         return false;
       }
       if (!(Number(line.amount) > 0)) {
@@ -231,7 +266,7 @@ export function AccountingVoucherEntryView({
     function onKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement;
       const tag = target.tagName;
-      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
+      if (isEditableControl(target)) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
           moveFocus(1);
@@ -245,32 +280,36 @@ export function AccountingVoucherEntryView({
         if (event.key === "Enter" && tag !== "TEXTAREA" && tag !== "SELECT") {
           event.preventDefault();
           moveFocus(1);
-          return;
         }
+        return;
       }
 
       const key = event.key.toLowerCase();
-      if (key === "a") {
+      const unmodified =
+        !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+      if (unmodified && key === "a") {
         event.preventDefault();
         void accept();
-      } else if (key === "q" || key === "o") {
+      } else if (unmodified && (key === "q" || key === "o")) {
         event.preventDefault();
         onBack();
-      } else if (key === "p") {
+      } else if (unmodified && key === "p") {
         event.preventDefault();
         void onPrint();
-      } else if (key === "h") {
+      } else if (unmodified && key === "h") {
         event.preventDefault();
         void onShare();
-      } else if (key === "d") {
+      } else if (unmodified && key === "d") {
         event.preventDefault();
         void onDownload();
       } else if (key === "insert") {
         event.preventDefault();
         addLine();
       } else if (key === "delete") {
-        const idx = focusables().indexOf(target);
-        const lineIdx = idx - 2;
+        const lineIdx = Number(
+          target.closest<HTMLElement>("[data-tally-line-index]")?.dataset
+            .tallyLineIndex,
+        );
         if (lineIdx >= 0 && lineIdx < lines.length) {
           event.preventDefault();
           removeLine(lineIdx);
@@ -338,6 +377,7 @@ export function AccountingVoucherEntryView({
         {lines.map((line, index) => (
           <div
             key={index}
+            data-tally-line-index={index}
             className="my-1 grid grid-cols-[40px_1fr_80px_140px_1fr_28px] items-center gap-2"
           >
             <span className="text-center text-[var(--factory1-text-muted)]">{index + 1}</span>
@@ -348,9 +388,9 @@ export function AccountingVoucherEntryView({
               className="h-6 w-full border-0 border-b border-[#0F766E] bg-transparent outline-none focus:bg-[#FFF7C2]"
             >
               <option value="">Select Ledger</option>
-              {ledgers.map((ledger) => (
+              {selectableLedgers.map((ledger) => (
                 <option key={ledger.id} value={ledger.id}>
-                  {ledger.name}
+                  {ledger.name}{ledger.active ? "" : " (inactive)"}
                 </option>
               ))}
             </select>
@@ -384,6 +424,7 @@ export function AccountingVoucherEntryView({
               type="button"
               data-tally-focus
               onClick={() => removeLine(index)}
+              aria-label={`Remove voucher line ${index + 1}`}
               className="h-6 rounded border border-[#0F766E] hover:bg-[#6366F1] hover:text-white"
             >
               X

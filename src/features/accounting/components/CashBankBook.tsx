@@ -119,7 +119,10 @@ export function CashBankBook({ vouchers, ledgers }: Props) {
                 value={selectedLedger?.id ?? ""}
                 onValueChange={setSelectedLedgerId}
               >
-                <SelectTrigger className="w-[240px]">
+                <SelectTrigger
+                  className="w-[240px]"
+                  aria-label="Cash or bank ledger"
+                >
                   <SelectValue placeholder="Select cash/bank ledger" />
                 </SelectTrigger>
                 <SelectContent>
@@ -213,33 +216,46 @@ function buildCashBankRows(
 ): CashBankRow[] {
   let runningBalance = openingBalance(ledger);
 
-  return vouchers
+  const transactions = vouchers
     .flatMap((voucher) =>
       voucher.lines
         .filter((line) => line.ledgerId === ledger.id)
-        .map((line) => {
-          const amount = Number(line.amount || 0);
-          const debit = line.entryType === "DR" ? amount : 0;
-          const credit = line.entryType === "CR" ? amount : 0;
-          runningBalance += debit - credit;
-
-          const oppositeLedgers = voucher.lines
-            .filter((other) => other.ledgerId !== ledger.id)
-            .map((other) => other.ledgerName)
-            .filter(Boolean)
-            .join(", ");
-
-          return {
-            voucherDate: voucher.voucherDate,
-            voucherNumber: voucher.voucherNumber,
-            voucherType: labelCase(voucher.voucherType),
-            particulars: oppositeLedgers || voucher.narration || "Voucher movement",
-            debit,
-            credit,
-            balance: runningBalance,
-          };
-        })
+        .map((line) => ({ line, voucher }))
+    )
+    .sort(
+      (first, second) =>
+        first.voucher.voucherDate.localeCompare(second.voucher.voucherDate) ||
+        first.voucher.voucherNumber.localeCompare(
+          second.voucher.voucherNumber,
+          undefined,
+          { numeric: true }
+        ) ||
+        first.voucher.id.localeCompare(second.voucher.id) ||
+        first.line.id.localeCompare(second.line.id)
     );
+
+  return transactions.map(({ line, voucher }) => {
+    const amount = Number(line.amount || 0);
+    const debit = line.entryType === "DR" ? amount : 0;
+    const credit = line.entryType === "CR" ? amount : 0;
+    runningBalance += debit - credit;
+
+    const oppositeLedgers = voucher.lines
+      .filter((other) => other.ledgerId !== ledger.id)
+      .map((other) => other.ledgerName)
+      .filter(Boolean)
+      .join(", ");
+
+    return {
+      voucherDate: voucher.voucherDate,
+      voucherNumber: voucher.voucherNumber,
+      voucherType: labelCase(voucher.voucherType),
+      particulars: oppositeLedgers || voucher.narration || "Voucher movement",
+      debit,
+      credit,
+      balance: runningBalance,
+    };
+  });
 }
 
 function isCashBankLedger(ledger: AccountLedger) {
