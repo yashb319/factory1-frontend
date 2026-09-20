@@ -21,6 +21,7 @@ import { getFactoryUiMode } from "@/lib/uiModePreference";
 import { TALLY_UI_ENABLED } from "@/config/features";
 import { useActiveBranding } from "@/features/whitelabel/hooks/useActiveBranding";
 import { Button } from "@/components/ui/button";
+import { safeProductionReturnPath } from "@/lib/productionOrderLink";
 
 export function LoginForm() {
   const router = useRouter();
@@ -61,14 +62,17 @@ export function LoginForm() {
         })
       );
 
+      const productionReturn = response.user?.role === "PARTNER_ADMIN"
+        ? undefined
+        : safeProductionReturnPath(new URLSearchParams(window.location.search).get("next"));
       const landingRoute =
         response.user?.organizationStatus === "PENDING_APPROVAL"
           ? "/registration-pending"
           : response.user?.platformAdmin
         ? "/saas-admin"
-        : TALLY_UI_ENABLED && getFactoryUiMode(response.user ?? null) === "tally"
+        : productionReturn ?? (TALLY_UI_ENABLED && getFactoryUiMode(response.user ?? null) === "tally"
           ? "/gateway"
-          : "/dashboard";
+          : "/dashboard");
       router.push(landingRoute);
     } catch (caughtError) {
       if (isLoginOtpRequired(caughtError)) {

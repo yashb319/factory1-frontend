@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
 import {
   AlertTriangle,
@@ -21,6 +22,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  ScanLine,
   ShieldCheck,
   Truck,
   UserMinus,
@@ -74,18 +76,28 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { KanbanBoard } from "./KanbanBoard";
 import { PartialCompletionForm } from "./PartialCompletionForm";
+import { OrderBomBinding } from "./OrderBomBinding";
+import { CatalogPagination } from "./CatalogPagination";
+import { OrderQrLabel } from "./OrderQrLabel";
+import { OrderQrScanner } from "./OrderQrScanner";
+import { productionOrderPath, safeProductionReturnPath } from "@/lib/productionOrderLink";
+import { hasExecutionVersions, matchesProductionAction, productionActionBody, reviewProductionAction, type ProductionActionSnapshot } from "../utils/productionAction";
+import { bomRevision, buildPinnedMaterialRequirements, isSelectableBom, validBomRequest, workflowRevision } from "../utils/lifecycle";
 import { cn } from "@/lib/utils";
 import { humanizeEnum } from "@/lib/format";
 import { useAppSelector } from "@/lib/hook";
 import { useGetActiveCustomersQuery } from "@/features/customers/api/customerApi";
 import { useGetInventoryItemsQuery } from "@/features/inventory/api/inventoryApi";
-import type { InventoryItem } from "@/features/inventory/types/inventory.types";
 import { useGetProductsQuery } from "@/features/products/api/productsApi";
 import { useGetUserAccountsQuery } from "@/features/access/api/accessApi";
 import { useGetActiveVendorsQuery } from "@/features/vendors/api/vendorApi";
 import type { Vendor } from "@/features/vendors/types/vendor.types";
 import {
   useCancelOrderMutation,
+  useArchiveBomMutation,
+  useArchiveWorkflowMutation,
+  useCreateBomDraftMutation,
+  useGetProductionBomQuery,
   useCreateBomMutation,
   useCreateMaterialConsumptionMutation,
   useCreateOrderAssignmentMutation,
@@ -143,11 +155,12 @@ import type {
   QualityResult,
   QualityResultRequest,
   QualityTemplateRequest,
-  StepActionRequest,
   TimelineEvent,
   Workstation,
   WorkstationRequest,
   WorkflowRequest,
+  WorkflowTemplate,
+  WorkflowVersion,
   WorkflowStepRequest,
 } from "../types/production.types";
 
@@ -208,6 +221,7 @@ const emptyOrder = (): ProductionOrderRequest => ({
   plannedQuantity: 1,
   priority: "NORMAL",
   workflowVersionId: "",
+  bomId: "",
   responsibleUserId: "",
 });
 
@@ -269,13 +283,23 @@ const indicatorTone = (severity: ProductionIndicatorSeverity) => {
 export function ProductionPage() {
   const user = useAppSelector((state) => state.auth.user);
   const [tab, setTab] = useState<Tab>("orders");
-  const [selectedOrderId, setSelectedOrderId] = useState<string>();
+  const [scanOpen, setScanOpen] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const orderLink = safeProductionReturnPath(`/production?${searchParams.toString()}`);
+  const selectedOrderId = orderLink ? searchParams.get("orderId") ?? undefined : undefined;
+  const visibleTab = selectedOrderId ? "orders" : tab;
+  const invalidOrderLink = searchParams.has("orderId") && !orderLink;
+  const selectOrder = (id?: string) => {
+    setTab("orders");
+    router.replace(id ? productionOrderPath(id) : "/production", { scroll: false });
+  };
 
   if (!user || !opsRoles.includes(user.role)) {
     return (
       <Card>
         <CardContent className="p-8 text-center text-sm text-muted-foreground">
-          Production administration is available to owners, admins, and management only.
+          Access denied. Production orders and QR actions are available to owners, admins, and management only. Scanning a label does not grant access.
         </CardContent>
       </Card>
     );
@@ -289,17 +313,23 @@ export function ProductionPage() {
         icon={Factory}
         module="production"
       />
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="outline" onClick={() => setScanOpen(true)}><ScanLine className="mr-2 h-4 w-4" />Scan order QR</Button>
+        <p className="text-sm text-muted-foreground">Scanning only opens an order. Review and confirm each production action separately.</p>
+      </div>
+      <OrderQrScanner open={scanOpen} onOpenChange={setScanOpen} onOrderDetected={selectOrder} />
+      {invalidOrderLink ? <ErrorState title="Invalid order link" message="Use a Factory1 order QR, its exact link, or its order ID. No order has been opened." onRetry={() => router.replace("/production")} /> : null}
 
       <div className="flex flex-wrap gap-2 border-b pb-2">
         {(["orders", "workflows", "boms", "workstations", "analytics"] as Tab[]).map((item) => (
           <Button
             key={item}
-            variant={tab === item ? "default" : "ghost"}
+            variant={visibleTab === item ? "default" : "ghost"}
             onClick={() => {
               setTab(item);
-              if (item !== "orders") setSelectedOrderId(undefined);
+              if (item !== "orders") router.replace("/production", { scroll: false });
             }}
-            aria-pressed={tab === item}
+            aria-pressed={visibleTab === item}
           >
             {item === "orders"
               ? "Production orders"
@@ -314,13 +344,13 @@ export function ProductionPage() {
         ))}
       </div>
 
-      {tab === "orders" ? (
-        <Orders selectedOrderId={selectedOrderId} onSelect={setSelectedOrderId} />
+      {visibleTab === "orders" ? (
+        <Orders selectedOrderId={selectedOrderId} onSelect={selectOrder} />
       ) : null}
-      {tab === "workflows" ? <Workflows /> : null}
-      {tab === "boms" ? <Boms /> : null}
-      {tab === "workstations" ? <Workstations /> : null}
-      {tab === "analytics" ? <ProductionAnalytics /> : null}
+      {visibleTab === "workflows" ? <Workflows /> : null}
+      {visibleTab === "boms" ? <Boms /> : null}
+      {visibleTab === "workstations" ? <Workstations /> : null}
+      {visibleTab === "analytics" ? <ProductionAnalytics /> : null}
     </div>
   );
 }
@@ -338,7 +368,6 @@ function Orders({
   const [stationFilter, setStationFilter] = useState("ALL");
   const [viewMode, setViewMode] = useState<OrdersViewMode>("board");
   const [groupByWorkflowStep, setGroupByWorkflowStep] = useState(false);
-  const [stepAction] = useStepActionMutation();
 
   const ordersQuery = useGetOrdersQuery({ page: 0, size: 100 });
   const { data: productsPage } = useGetProductsQuery({ page: 0, size: 300 });
@@ -419,7 +448,7 @@ function Orders({
     void boardQuery.refetch();
   };
 
-  const requestAdvance = async (orderId: string) => {
+  const requestAdvance = (orderId: string) => {
     const order = ordersById.get(orderId);
     const currentStep = order ? getCurrentOrderStep(order) : undefined;
     if (!order || !currentStep) {
@@ -440,27 +469,8 @@ function Orders({
       return;
     }
 
-    try {
-      await stepAction({
-        orderId,
-        stepId: currentStep.id,
-        action: "complete",
-        body: {
-          expectedOrderVersion: order.executionVersion ?? order.version,
-          expectedStepVersion: currentStep.expectedVersion,
-        },
-      }).unwrap();
-      toast.success(
-        order.steps.some(
-          (step) => step.active && step.sequenceNumber > currentStep.sequenceNumber
-        )
-          ? "Moved to next workflow step"
-          : "Production order completed"
-      );
-      refreshAll();
-    } catch (error) {
-      toast.error(apiErrorMessage(error) ?? "Could not advance this production order.");
-    }
+    onSelect(orderId);
+    toast.info("Review the current step and confirm advancement in the order details.");
   };
 
 
@@ -797,33 +807,44 @@ function CreateOrderDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { data: productsPage } = useGetProductsQuery({ page: 0, size: 300 });
+  const [productPage, setProductPage] = useState(0);
+  const [workflowPage, setWorkflowPage] = useState(0);
+  const productsQuery = useGetProductsQuery({ page: productPage, size: 50 });
   const { data: customers = [] } = useGetActiveCustomersQuery();
-  const { data: workflowsPage } = useGetWorkflowsQuery({ page: 0, size: 100 });
+  const workflowsQuery = useGetWorkflowsQuery({ page: workflowPage, size: 50 });
   const userAccountsQuery = useGetUserAccountsQuery();
   const assignableUsers = useMemo(
     () => (userAccountsQuery.data ?? []).filter((user) => user.status === "ACTIVE"),
     [userAccountsQuery.data]
   );
-  const products = productsPage?.content ?? [];
-  const workflows = workflowsPage?.content ?? [];
+  const products = productsQuery.currentData?.content ?? [];
+  const workflows = (workflowsQuery.currentData?.content ?? []).filter((workflow) => workflow.active);
 
   const [workflowId, setWorkflowId] = useState("");
-  const { data: versions = [] } = useGetWorkflowVersionsQuery(workflowId, {
+  const versionsQuery = useGetWorkflowVersionsQuery(workflowId, {
     skip: !workflowId,
   });
   const [form, setForm] = useState<ProductionOrderRequest>(emptyOrder());
+  const bomsQuery = useGetBomsQuery({ productId: form.productId }, { skip: !form.productId });
+  const selectableBoms = (bomsQuery.currentData ?? []).filter((bom) => isSelectableBom(bom, form.productId));
   const [create, state] = useCreateOrderMutation();
 
   useEffect(() => {
     if (!open) return;
     queueMicrotask(() => {
       setWorkflowId("");
+      setProductPage(0);
+      setWorkflowPage(0);
       setForm(emptyOrder());
     });
   }, [open]);
 
-  const publishedVersions = versions.filter((version) => version.status === "PUBLISHED");
+  const publishedVersions = (versionsQuery.currentData ?? []).filter((version) => version.status === "PUBLISHED");
+  const selectionsLoading = productsQuery.isFetching || workflowsQuery.isFetching || versionsQuery.isFetching || bomsQuery.isFetching;
+  const selectionError = productsQuery.isError || workflowsQuery.isError || versionsQuery.isError || bomsQuery.isError;
+  const validSelection = workflows.some((workflow) => workflow.id === workflowId) &&
+    publishedVersions.some((version) => version.id === form.workflowVersionId) &&
+    selectableBoms.some((bom) => bom.id === form.bomId);
 
   const update = (patch: Partial<ProductionOrderRequest>) => {
     setForm((current) => ({ ...current, ...patch }));
@@ -836,11 +857,12 @@ function CreateOrderDialog({
       !form.orderNumber.trim() ||
       !form.productId ||
       !form.workflowVersionId ||
+      !validSelection || selectionsLoading || selectionError ||
       !form.responsibleUserId ||
-      Number(form.plannedQuantity) <= 0
+      !Number.isFinite(form.plannedQuantity) || Number(form.plannedQuantity) <= 0
     ) {
       toast.error(
-        "Order number, product, quantity, a published workflow, and a responsible person are required."
+        "Order number, product, positive quantity, an active published workflow and BOM, and a responsible person are required."
       );
       return;
     }
@@ -864,7 +886,7 @@ function CreateOrderDialog({
         <DialogHeader>
           <DialogTitle>Create production order</DialogTitle>
           <DialogDescription>
-            Orders stay compatible with the Phase 1 workflow while exposing Phase 2 execution controls.
+            The selected published workflow and BOM versions are saved with this order. Later revisions and archives do not replace them.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
@@ -895,7 +917,7 @@ function CreateOrderDialog({
             <select
               className={selectClassName}
               value={form.productId}
-              onChange={(event) => update({ productId: event.target.value })}
+              onChange={(event) => update({ productId: event.target.value, bomId: "" })}
               required
             >
               <option value="">Select product</option>
@@ -905,6 +927,15 @@ function CreateOrderDialog({
                 </option>
               ))}
             </select>
+            <CatalogPagination page={productPage} totalPages={productsQuery.currentData?.totalPages ?? 0} loading={productsQuery.isFetching} onChange={(page) => { setProductPage(page); update({ productId: "", bomId: "" }); }} />
+          </Field>
+
+          <Field label="Published BOM">
+            <select className={selectClassName} required disabled={!form.productId || bomsQuery.isFetching} value={selectableBoms.some((bom) => bom.id === form.bomId) ? form.bomId : ""} onChange={(event) => update({ bomId: event.target.value })}>
+              <option value="">Select published BOM</option>
+              {selectableBoms.map((bom) => <option key={bom.id} value={bom.id}>{bom.name} · v{bom.versionNumber}</option>)}
+            </select>
+            {form.productId && !bomsQuery.isFetching && !bomsQuery.isError && !selectableBoms.length ? <p className="text-sm text-amber-600">Publish an active BOM for this product before creating an order.</p> : null}
           </Field>
 
           <Field label="Responsible person (notified if this order runs late)">
@@ -972,7 +1003,7 @@ function CreateOrderDialog({
           <Field label="Workflow template">
             <select
               className={selectClassName}
-              value={workflowId}
+              value={workflows.some((workflow) => workflow.id === workflowId) ? workflowId : ""}
               onChange={(event) => {
                 setWorkflowId(event.target.value);
                 update({ workflowVersionId: "" });
@@ -986,19 +1017,20 @@ function CreateOrderDialog({
                 </option>
               ))}
             </select>
+            <CatalogPagination page={workflowPage} totalPages={workflowsQuery.currentData?.totalPages ?? 0} loading={workflowsQuery.isFetching} onChange={(page) => { setWorkflowPage(page); setWorkflowId(""); update({ workflowVersionId: "" }); }} />
           </Field>
 
           <Field label="Published version">
             <select
               className={selectClassName}
-              value={form.workflowVersionId}
+              value={publishedVersions.some((version) => version.id === form.workflowVersionId) ? form.workflowVersionId : ""}
               onChange={(event) => update({ workflowVersionId: event.target.value })}
               required
             >
               <option value="">Select version</option>
               {publishedVersions.map((version) => (
                 <option key={version.id} value={version.id}>
-                  v{version.versionNumber}
+                  {version.name} · v{version.versionNumber}
                 </option>
               ))}
             </select>
@@ -1009,6 +1041,8 @@ function CreateOrderDialog({
             ) : null}
           </Field>
 
+          {selectionError ? <ErrorState title="Order choices unavailable" message="Reload the catalog before selecting workflow and BOM versions." onRetry={() => { void productsQuery.refetch(); void workflowsQuery.refetch(); if (workflowId) void versionsQuery.refetch(); if (form.productId) void bomsQuery.refetch(); }} /> : null}
+          {selectionsLoading ? <Loading text="Loading order choices..." /> : null}
           <Field label="Notes (optional)">
             <Textarea
               value={form.notes || ""}
@@ -1021,7 +1055,7 @@ function CreateOrderDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button disabled={state.isLoading} type="submit">
+            <Button disabled={state.isLoading || selectionsLoading || selectionError || !validSelection} type="submit">
               {state.isLoading ? "Creating..." : "Create order"}
             </Button>
           </DialogFooter>
@@ -1256,6 +1290,8 @@ function OrderDetail({
   const [createOrderAssignment, createOrderAssignmentState] = useCreateOrderAssignmentMutation();
   const [deleteAssignment, deleteAssignmentState] = useDeleteAssignmentMutation();
   const [stepAction, stepActionState] = useStepActionMutation();
+  const [pendingAdvance, setPendingAdvance] = useState<(ProductionActionSnapshot & { stepName: string; completesOrder: boolean }) | null>(null);
+  const advancingRef = useRef(false);
   const [createQualityResult, createQualityResultState] = useCreateQualityResultMutation();
   const [createQualityTemplate, createQualityTemplateState] = useCreateQualityCheckTemplateMutation();
 
@@ -1305,13 +1341,13 @@ function OrderDetail({
     () => inventoryPage?.content ?? [],
     [inventoryPage]
   );
-  const { data: boms = [] } = useGetBomsQuery(order?.productId || "", {
-    skip: !order?.productId,
+  const pinnedBomQuery = useGetProductionBomQuery(order?.bomId || "", {
+    skip: !order?.bomId,
   });
 
-  const activeBom = useMemo(() => pickBestBom(boms), [boms]);
+  const activeBom = pinnedBomQuery.currentData;
   const materialRequirements = useMemo(
-    () => buildMaterialRequirements(activeBom, inventoryItems, order),
+    () => buildPinnedMaterialRequirements(activeBom, inventoryItems, order),
     [activeBom, inventoryItems, order]
   );
   const materialConsumptions = useMemo(
@@ -1421,7 +1457,7 @@ function OrderDetail({
           {orderQuery.isError ? (
             <ErrorState
               title="Order details unavailable"
-              message="The selected production order could not be loaded."
+              message="The order could not be loaded. It may not exist, or your account may not have access to it."
               onRetry={() => void orderQuery.refetch()}
             />
           ) : (
@@ -1444,11 +1480,22 @@ function OrderDetail({
     currentStep &&
       orderSteps.some((step) => step.sequenceNumber > currentStep.sequenceNumber && step.active)
   );
+  const actionContext = {
+    orderId: order.id,
+    stepId: currentStep?.id ?? "",
+    remainingQuantity: currentStepRemainingQuantity,
+    expectedOrderVersion: order.executionVersion,
+    expectedStepVersion: currentStep?.expectedVersion,
+  };
+  const executionBlocked = orderQuery.isFetching || orderQuery.isError ||
+    ["COMPLETED", "PARTIALLY_COMPLETED", "CANCELLED"].includes(order.status) ||
+    !currentStep?.active || currentStep.id !== order.currentStepId;
+  const staleAdvance = Boolean(pendingAdvance && !matchesProductionAction(pendingAdvance, actionContext));
 
   const refreshDetail = () => {
     void orderQuery.refetch();
     void timelineQuery.refetch();
-    void qualityResultsQuery.refetch();
+    if (currentStep) void qualityResultsQuery.refetch();
     void qualityTemplatesQuery.refetch();
     void assignmentsQuery.refetch();
     void executionBatchesQuery.refetch();
@@ -1576,35 +1623,39 @@ function OrderDetail({
   };
 
   const advanceCurrentStep = async () => {
-    if (!currentStep) return;
-
-    const body: StepActionRequest = {
-      expectedOrderVersion: order.executionVersion ?? order.version,
-      expectedStepVersion: currentStep.expectedVersion ?? undefined,
-    };
+    if (!pendingAdvance || advancingRef.current || staleAdvance || executionBlocked) return;
+    advancingRef.current = true;
 
     try {
       setExecutionConflict(null);
-      await stepAction({ orderId, stepId: currentStep.id, action: "complete", body }).unwrap();
+      await stepAction({
+        orderId: pendingAdvance.orderId, stepId: pendingAdvance.stepId, action: "complete",
+        body: productionActionBody(pendingAdvance),
+      }).unwrap();
       toast.success(
-        orderSteps.some((step) => step.sequenceNumber > currentStep.sequenceNumber)
-          ? "Moved to next workflow step"
-          : "Production order completed"
+        pendingAdvance.completesOrder ? "Production order completed" : "Moved to next workflow step"
       );
+      setPendingAdvance(null);
       refreshDetail();
     } catch (error) {
+      setPendingAdvance(null);
       if (getErrorStatus(error) === 409) {
         setExecutionConflict({
           message:
             apiErrorMessage(error) ??
             "Another operator updated this order. Refresh and review the latest state.",
         });
-        toast.warning("Execution conflict detected. Latest order state has been reloaded.");
+        toast.warning("Execution conflict detected. Reloading the order; review it before trying again.");
         refreshDetail();
         return;
       }
 
-      toast.error(apiErrorMessage(error) ?? "Could not process step action");
+      const message = apiErrorMessage(error) ?? "Advancement could not be confirmed. Refresh and review the order before trying again.";
+      setExecutionConflict({ message });
+      toast.error(message);
+      refreshDetail();
+    } finally {
+      advancingRef.current = false;
     }
   };
 
@@ -1630,6 +1681,9 @@ function OrderDetail({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
+          <OrderQrLabel orderId={order.id} orderNumber={order.orderNumber} />
+          {orderQuery.isError ? <ErrorState title="Order refresh failed" message="Displayed information may be stale. Production actions are disabled until a successful refresh." onRetry={() => void orderQuery.refetch()} /> : null}
+          <OrderBomBinding key={order.id} order={order} />
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone={statusTone(order.status)}>{humanize(order.status)}</StatusBadge>
             <span className="text-xs text-muted-foreground">
@@ -2266,12 +2320,18 @@ function OrderDetail({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {!activeBom ? (
-                <Empty text="No BOM is available for this product yet." />
+              {pinnedBomQuery.isFetching ? (
+                <Loading text="Loading the order's saved BOM version..." />
+              ) : pinnedBomQuery.isError ? (
+                <ErrorState title="Saved BOM unavailable" message="Material estimates cannot be shown until the saved BOM is loaded." onRetry={() => void pinnedBomQuery.refetch()} />
+              ) : !activeBom ? (
+                <Empty text="The original BOM is unknown. No current product BOM has been substituted." />
               ) : !materialRequirements.length ? (
                 <Empty text="The selected BOM has no consumable material lines." />
               ) : (
-                materialRequirements.map((requirement) => (
+                <>
+                <p className="text-sm">Saved BOM: {activeBom.name} · v{activeBom.versionNumber}{!activeBom.active ? " · Archived (retained for this order)" : ""}. Estimates cover remaining output and include waste.</p>
+                {materialRequirements.map((requirement) => (
                   <div key={requirement.inventoryItemId} className="rounded-lg border p-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
@@ -2282,10 +2342,12 @@ function OrderDetail({
                         <div className="text-xs text-muted-foreground">
                           Need ~{formatNumber(requirement.estimatedRequiredQuantity ?? 0)} {requirement.unit}
                           {" · "}
-                          Available {formatNumber(requirement.availableQuantity ?? 0)} {requirement.unit}
+                          Available {requirement.availableQuantity === undefined ? "unknown" : formatNumber(requirement.availableQuantity)} {requirement.unit}
                         </div>
                       </div>
-                      {requirement.shortage ? (
+                      {requirement.shortage === undefined ? (
+                        <StatusBadge tone="warning">Stock unavailable</StatusBadge>
+                      ) : requirement.shortage ? (
                         <StatusBadge tone="warning">Shortage risk</StatusBadge>
                       ) : (
                         <StatusBadge tone="success">Stock available</StatusBadge>
@@ -2310,20 +2372,18 @@ function OrderDetail({
                         void materialConsumptionsQuery.refetch();
                       }}
                     />
-                    {materialConsumptions.filter((item) => item.inventoryItemId === requirement.inventoryItemId).length ? (
-                      <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                        {materialConsumptions
-                          .filter((item) => item.inventoryItemId === requirement.inventoryItemId)
-                          .map((item) => (
-                            <div key={item.id}>
-                              Lot {item.lotNumber} · {formatNumber(item.quantity)} {item.unit}
-                            </div>
-                          ))}
-                      </div>
-                    ) : null}
                   </div>
-                ))
+                ))}
+                </>
               )}
+              <div className="border-t pt-3">
+                <h4 className="text-sm font-medium">Recorded material consumption (actuals)</h4>
+                {materialConsumptionsQuery.isError ? (
+                  <ErrorState title="Consumption history unavailable" message="Could not load recorded material consumption." onRetry={() => void materialConsumptionsQuery.refetch()} />
+                ) : materialConsumptionsQuery.isFetching ? <Loading text="Loading consumption history..." /> : materialConsumptions.length ? materialConsumptions.map((item) => (
+                  <p key={item.id} className="text-sm text-muted-foreground">{item.inventoryItemId} · Lot {item.lotNumber} · {formatNumber(item.quantity)} {item.unit}</p>
+                )) : <Empty text="No material consumption recorded." />}
+              </div>
             </CardContent>
           </Card>
           ) : null}
@@ -2359,12 +2419,15 @@ function OrderDetail({
 
                   {currentStepRemainingQuantity > 0 ? (
                     <PartialCompletionForm
+                      key={currentStep.id}
                       orderId={orderId}
                       stepId={currentStep.id}
                       remainingQuantity={currentStepRemainingQuantity}
-                      expectedOrderVersion={order.executionVersion ?? order.version}
+                      expectedOrderVersion={order.executionVersion}
                       expectedStepVersion={currentStep.expectedVersion}
                       onDone={refreshDetail}
+                      onRefresh={refreshDetail}
+                      disabled={executionBlocked || order.bomBindingStatus === "LEGACY_UNRESOLVED"}
                     />
                   ) : (
                     <InlineNotice tone="info" title="Current step production recorded">
@@ -2383,11 +2446,17 @@ function OrderDetail({
                     >
                       <Button
                         type="button"
-                        disabled={stepActionState.isLoading || currentStepRemainingQuantity > 0}
-                        onClick={() => void advanceCurrentStep()}
+                        disabled={stepActionState.isLoading || currentStepRemainingQuantity > 0 || executionBlocked || !hasExecutionVersions(actionContext)}
+                        onClick={() => {
+                          try {
+                            setPendingAdvance({ ...reviewProductionAction(actionContext, "complete", 0, 0), stepName: currentStep.name, completesOrder: !hasNextStep });
+                          } catch (error) {
+                            toast.error(error instanceof Error ? error.message : "Refresh and review this step before advancing.");
+                          }
+                        }}
                       >
                       <Check className="mr-2 h-4 w-4" />
-                        {hasNextStep ? "Move to next step" : "Complete step"}
+                        {hasNextStep ? "Move to next step" : "Complete order"}
                       </Button>
                     </span>
                     {currentStepRemainingQuantity > 0 ? (
@@ -2397,6 +2466,7 @@ function OrderDetail({
                       </span>
                     ) : null}
                   </div>
+                  {!hasExecutionVersions(actionContext) ? <InlineNotice tone="warning" title="Refresh required">Order and step concurrency versions must be available before saving output or advancing.</InlineNotice> : null}
                 </>
               )}
             </CardContent>
@@ -2534,6 +2604,18 @@ function OrderDetail({
       </Dialog>
 
       <ConfirmDialog
+        open={Boolean(pendingAdvance)}
+        onOpenChange={(open) => { if (!open && !advancingRef.current) setPendingAdvance(null); }}
+        title={pendingAdvance?.completesOrder ? "Complete this production order?" : "Move to the next workflow step?"}
+        description={staleAdvance
+          ? "The order or step changed after your review. Cancel, refresh, and review again before advancing."
+          : `Finish ${pendingAdvance?.stepName ?? "this step"}${pendingAdvance?.completesOrder ? " and complete this order" : " and move to the next active step"}? This action records no quantities. Recorded production is not changed.`}
+        confirmLabel={stepActionState.isLoading ? "Advancing..." : "Confirm advancement"}
+        loading={stepActionState.isLoading}
+        disabled={staleAdvance || executionBlocked}
+        onConfirm={() => void advanceCurrentStep()}
+      />
+      <ConfirmDialog
         open={confirmCancelOpen}
         onOpenChange={setConfirmCancelOpen}
         title="Cancel this production order?"
@@ -2558,11 +2640,13 @@ function OrderDetail({
 }
 
 function Workflows() {
-  const workflowsQuery = useGetWorkflowsQuery({ page: 0, size: 50 });
+  const [page, setPage] = useState(0);
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const workflowsQuery = useGetWorkflowsQuery({ page, size: 50, includeArchived });
   const [selectedId, setSelectedId] = useState<string>();
   const [createOpen, setCreateOpen] = useState(false);
 
-  const selectedTemplate = workflowsQuery.data?.content.find(
+  const selectedTemplate = workflowsQuery.currentData?.content.find(
     (workflow) => workflow.id === selectedId
   );
 
@@ -2584,7 +2668,11 @@ function Workflows() {
           </div>
         </CardHeader>
         <CardContent>
-          {workflowsQuery.isLoading ? (
+          <label className="mb-3 flex items-center gap-2 text-sm">
+            <Switch checked={includeArchived} onCheckedChange={(checked) => { setIncludeArchived(checked); setPage(0); setSelectedId(undefined); }} />
+            Include archived templates
+          </label>
+          {workflowsQuery.isFetching ? (
             <Loading text="Loading workflow templates..." />
           ) : workflowsQuery.isError ? (
             <ErrorState
@@ -2592,7 +2680,7 @@ function Workflows() {
               message="Workflow APIs could not be loaded."
               onRetry={() => void workflowsQuery.refetch()}
             />
-          ) : !workflowsQuery.data?.content.length ? (
+          ) : !workflowsQuery.currentData?.content.length ? (
             <EmptyState
               icon={Factory}
               title="No workflow templates"
@@ -2600,7 +2688,7 @@ function Workflows() {
             />
           ) : (
             <div className="space-y-2">
-              {workflowsQuery.data.content.map((workflow) => (
+              {workflowsQuery.currentData.content.map((workflow) => (
                 <button
                   key={workflow.id}
                   type="button"
@@ -2612,6 +2700,7 @@ function Workflows() {
                 >
                   <div className="font-medium">
                     {workflow.code} · {workflow.name}
+                    {!workflow.active ? <StatusBadge tone="draft">Archived</StatusBadge> : null}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {workflow.description || "No description"}
@@ -2620,11 +2709,12 @@ function Workflows() {
               ))}
             </div>
           )}
+          <CatalogPagination page={page} totalPages={workflowsQuery.currentData?.totalPages ?? 0} loading={workflowsQuery.isFetching} onChange={(next) => { setPage(next); setSelectedId(undefined); }} />
         </CardContent>
       </Card>
 
       {selectedTemplate ? (
-        <WorkflowVersions template={selectedTemplate} />
+        <WorkflowVersions key={selectedTemplate.id} template={selectedTemplate} />
       ) : (
         <EmptyState
           icon={ClipboardCheck}
@@ -2641,39 +2731,22 @@ function Workflows() {
 function WorkflowVersions({
   template,
 }: {
-  template: { id: string; code: string; name: string; description?: string };
+  template: WorkflowTemplate;
 }) {
   const versionsQuery = useGetWorkflowVersionsQuery(template.id);
   const [publishWorkflow, publishState] = usePublishWorkflowMutation();
-  const [createDraft, createDraftState] = useCreateWorkflowDraftMutation();
+  const [archiveWorkflow, archiveState] = useArchiveWorkflowMutation();
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [revision, setRevision] = useState<{ template: WorkflowTemplate; version: WorkflowVersion }>();
   const [pendingPublishId, setPendingPublishId] = useState<string>();
 
-  const latest = versionsQuery.data?.[versionsQuery.data.length - 1];
-
-  const cloneLatest = async () => {
-    if (!latest) return;
+  const archive = async () => {
     try {
-      await createDraft({
-        templateId: template.id,
-        body: {
-          code: template.code,
-          name: template.name,
-          description: template.description,
-          steps: latest.steps.map((step) => ({
-            name: step.name,
-            code: step.code,
-            sequenceNumber: step.sequenceNumber,
-            description: step.description,
-            workstation: step.workstation,
-            roleMetadata: step.roleMetadata,
-            active: step.active,
-          })),
-        },
-      }).unwrap();
-      toast.success("Draft version created");
-      void versionsQuery.refetch();
+      await archiveWorkflow(template.id).unwrap();
+      setArchiveOpen(false);
+      toast.success("Workflow archived. Existing orders are unchanged.");
     } catch (error) {
-      toast.error(apiErrorMessage(error) ?? "Could not create draft version");
+      toast.error(apiErrorMessage(error) ?? "Could not archive workflow");
     }
   };
 
@@ -2697,40 +2770,38 @@ function WorkflowVersions({
             <div>
               <CardTitle>Workflow versions</CardTitle>
               <CardDescription>
-                Published versions are immutable and can be reused by multiple orders.
+                {template.active ? "Edit any version into a new draft. Publishing is a separate action; existing orders keep their saved version." : "Archived template. Versions remain available for history; this workflow cannot be selected for new orders."}
               </CardDescription>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => void cloneLatest()}
-              disabled={!latest || createDraftState.isLoading}
-            >
-              {createDraftState.isLoading ? "Creating..." : "New draft"}
-            </Button>
+            {template.active ? <Button variant="outline" onClick={() => setArchiveOpen(true)}>Archive template</Button> : <StatusBadge tone="draft">Archived</StatusBadge>}
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {versionsQuery.isLoading ? (
+          {versionsQuery.isFetching ? (
             <Loading text="Loading workflow versions..." />
+          ) : versionsQuery.isError ? (
+            <ErrorState title="Workflow versions unavailable" message="Could not load workflow history." onRetry={() => void versionsQuery.refetch()} />
           ) : !versionsQuery.data?.length ? (
             <Empty text="No workflow versions yet." />
           ) : (
-            versionsQuery.data.map((version) => (
+            [...versionsQuery.data].sort((a, b) => b.versionNumber - a.versionNumber).map((version) => (
               <div key={version.id} className="rounded-lg border p-3">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                   <div>
-                    <div className="font-medium">Version {version.versionNumber}</div>
+                    <div className="font-medium">{version.name} · Version {version.versionNumber}</div>
+                    {version.description ? <p className="text-sm text-muted-foreground">{version.description}</p> : null}
                     <div className="text-xs text-muted-foreground">
                       {version.publishedAt
                         ? `Published ${formatDateTime(version.publishedAt)}`
                         : "Draft version"}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge tone={statusTone(version.status)}>
                       {version.status}
                     </StatusBadge>
-                    {version.status === "DRAFT" ? (
+                    {template.active ? <Button size="sm" variant="outline" onClick={() => setRevision({ template, version })}>Edit as new version</Button> : null}
+                    {template.active && version.status === "DRAFT" ? (
                       <Button size="sm" onClick={() => setPendingPublishId(version.id)}>
                         Publish
                       </Button>
@@ -2738,7 +2809,7 @@ function WorkflowVersions({
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                  {version.steps.map((step) => (
+                  {[...version.steps].sort((a, b) => a.sequenceNumber - b.sequenceNumber).map((step) => (
                     <span key={step.id} className="rounded bg-muted px-2 py-1 text-xs">
                       {step.sequenceNumber}. {step.name}
                     </span>
@@ -2750,6 +2821,8 @@ function WorkflowVersions({
         </CardContent>
       </Card>
 
+      <WorkflowDialog open={Boolean(revision)} onOpenChange={(open) => !open && setRevision(undefined)} template={revision?.template} sourceVersion={revision?.version} />
+      <ConfirmDialog open={archiveOpen} onOpenChange={setArchiveOpen} title={`Archive ${template.name}?`} description="All versions will be unavailable for future orders. Existing orders, their saved steps, and version history are preserved. Nothing is permanently deleted." confirmLabel="Archive template" loading={archiveState.isLoading} onConfirm={() => void archive()} />
       <ConfirmDialog
         open={Boolean(pendingPublishId)}
         onOpenChange={(open) => !open && setPendingPublishId(undefined)}
@@ -2766,9 +2839,13 @@ function WorkflowVersions({
 function WorkflowDialog({
   open,
   onOpenChange,
+  template,
+  sourceVersion,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  template?: WorkflowTemplate;
+  sourceVersion?: WorkflowVersion;
 }) {
   const [form, setForm] = useState<WorkflowRequest>({
     code: "",
@@ -2777,23 +2854,25 @@ function WorkflowDialog({
     steps: [emptyStep()],
   });
   const [createWorkflow, state] = useCreateWorkflowMutation();
+  const [createDraft, draftState] = useCreateWorkflowDraftMutation();
+  const saving = state.isLoading || draftState.isLoading;
 
   useEffect(() => {
     if (!open) return;
     queueMicrotask(() => {
-      setForm({ code: "", name: "", description: "", steps: [emptyStep()] });
+      setForm(template && sourceVersion ? workflowRevision(template, sourceVersion) : { code: "", name: "", description: "", steps: [emptyStep()] });
     });
-  }, [open]);
+  }, [open, template, sourceVersion]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!form.code.trim() || !form.name.trim() || form.steps.some((step) => !step.name.trim() || !step.code.trim())) {
-      toast.error("Template code, name, and every step name/code are required.");
+    if (!form.code.trim() || !form.name.trim() || !form.steps.length || !form.steps.some((step) => step.active !== false) || form.steps.some((step) => !step.name.trim() || !step.code.trim()) || new Set(form.steps.map((step) => step.code.trim())).size !== form.steps.length) {
+      toast.error("Template code, name, at least one active step, and unique step codes with names are required.");
       return;
     }
 
     try {
-      await createWorkflow({
+      const body: WorkflowRequest = {
         code: form.code.trim(),
         name: form.name.trim(),
         description: form.description?.trim() || undefined,
@@ -2804,8 +2883,13 @@ function WorkflowDialog({
           description: step.description?.trim() || undefined,
           sequenceNumber: index + 1,
         })),
-      }).unwrap();
-      toast.success("Workflow draft created");
+      };
+      if (template && sourceVersion) {
+        await createDraft({ templateId: template.id, body }).unwrap();
+      } else {
+        await createWorkflow(body).unwrap();
+      }
+      toast.success("Workflow draft created. Publish it separately when ready.");
       onOpenChange(false);
     } catch (error) {
       toast.error(apiErrorMessage(error) ?? "Could not create workflow");
@@ -2816,7 +2900,7 @@ function WorkflowDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-full max-w-[calc(100%-2rem)] sm:max-w-3xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>New workflow template</DialogTitle>
+          <DialogTitle>{sourceVersion ? `Edit workflow v${sourceVersion.versionNumber} as a new version` : "New workflow template"}</DialogTitle>
           <DialogDescription>
             Create a draft template, then publish immutable versions for production orders.
           </DialogDescription>
@@ -2826,6 +2910,7 @@ function WorkflowDialog({
             <Field label="Code">
               <Input
                 value={form.code}
+                disabled={Boolean(template)}
                 onChange={(event) => setForm({ ...form, code: event.target.value })}
                 required
               />
@@ -2947,6 +3032,17 @@ function WorkflowDialog({
                   />
                 </Field>
                 <div className="mt-3 flex justify-end">
+                  <label className="mr-auto flex items-center gap-2 text-sm"><Switch checked={step.active !== false} onCheckedChange={(active) => setForm((current) => ({ ...current, steps: current.steps.map((item, itemIndex) => itemIndex === index ? { ...item, active } : item) }))} />Active step</label>
+                  <Button type="button" variant="ghost" disabled={index === 0} onClick={() => setForm((current) => {
+                    const steps = [...current.steps];
+                    [steps[index - 1], steps[index]] = [steps[index], steps[index - 1]];
+                    return { ...current, steps: steps.map((item, stepIndex) => ({ ...item, sequenceNumber: stepIndex + 1 })) };
+                  })}>Move up</Button>
+                  <Button type="button" variant="ghost" disabled={index === form.steps.length - 1} onClick={() => setForm((current) => {
+                    const steps = [...current.steps];
+                    [steps[index], steps[index + 1]] = [steps[index + 1], steps[index]];
+                    return { ...current, steps: steps.map((item, stepIndex) => ({ ...item, sequenceNumber: stepIndex + 1 })) };
+                  })}>Move down</Button>
                   <Button
                     type="button"
                     variant="ghost"
@@ -2974,8 +3070,8 @@ function WorkflowDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button disabled={state.isLoading} type="submit">
-              {state.isLoading ? "Creating..." : "Create draft"}
+            <Button disabled={saving || (template && !template.active)} type="submit">
+              {saving ? "Creating..." : "Save new draft"}
             </Button>
           </DialogFooter>
         </form>
@@ -2985,18 +3081,25 @@ function WorkflowDialog({
 }
 
 function Boms() {
-  const { data: productsPage } = useGetProductsQuery({ page: 0, size: 300 });
-  const products = productsPage?.content ?? [];
+  const [productPage, setProductPage] = useState(0);
+  const [inventoryPageNumber, setInventoryPageNumber] = useState(0);
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const productsQuery = useGetProductsQuery({ page: productPage, size: 50 });
+  const products = productsQuery.currentData?.content ?? [];
   const [productId, setProductId] = useState("");
-  const bomsQuery = useGetBomsQuery(productId, { skip: !productId });
-  const { data: inventoryPage } = useGetInventoryItemsQuery({
-    page: 0,
-    size: 300,
+  const bomsQuery = useGetBomsQuery({ productId, includeArchived }, { skip: !productId });
+  const inventoryQuery = useGetInventoryItemsQuery({
+    page: inventoryPageNumber,
+    size: 50,
     itemType: "RAW_MATERIAL",
   });
-  const inventoryItems = inventoryPage?.content ?? [];
+  const inventoryItems = inventoryQuery.currentData?.content ?? [];
   const [createBom, createState] = useCreateBomMutation();
+  const [createDraft, draftState] = useCreateBomDraftMutation();
+  const [archiveBom, archiveState] = useArchiveBomMutation();
   const [publishBom, publishState] = usePublishBomMutation();
+  const [sourceBom, setSourceBom] = useState<Bom>();
+  const [archiveTarget, setArchiveTarget] = useState<Bom>();
   const [name, setName] = useState("Default BOM");
   const [items, setItems] = useState<BomItemRequest[]>([
     { inventoryItemId: "", quantityPerUnit: 1, unit: "", wastePercentage: 0 },
@@ -3006,27 +3109,47 @@ function Boms() {
   useEffect(() => {
     queueMicrotask(() => {
       setName("Default BOM");
+      setSourceBom(undefined);
+      setPendingPublishId(undefined);
+      setArchiveTarget(undefined);
       setItems([{ inventoryItemId: "", quantityPerUnit: 1, unit: "", wastePercentage: 0 }]);
     });
   }, [productId]);
 
+  const editRevision = (bom: Bom) => {
+    const draft = bomRevision(bom);
+    setSourceBom(bom);
+    setName(draft.name);
+    setItems(draft.items);
+  };
+
+  const resetDraft = () => {
+    setSourceBom(undefined);
+    setName("Default BOM");
+    setItems([{ inventoryItemId: "", quantityPerUnit: 1, unit: "", wastePercentage: 0 }]);
+  };
+
+  const archive = async () => {
+    if (!archiveTarget) return;
+    try {
+      await archiveBom(archiveTarget.id).unwrap();
+      toast.success("BOM version archived. Existing orders keep their saved BOM.");
+      setArchiveTarget(undefined);
+    } catch (error) {
+      toast.error(apiErrorMessage(error) ?? "Could not archive BOM");
+    }
+  };
+
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (
-      !productId ||
-      !name.trim() ||
-      items.some(
-        (item) =>
-          !item.inventoryItemId || Number(item.quantityPerUnit) <= 0 || !item.unit.trim()
-      )
-    ) {
-      toast.error("Select a product and provide valid material, quantity, and unit for every BOM row.");
+    if (!validBomRequest({ productId, name, items })) {
+      toast.error("Select a product, name, and unique materials with positive quantities, units, and non-negative waste.");
       return;
     }
 
     try {
-      await createBom({
+      const body = {
         productId,
         name: name.trim(),
         items: items.map((item) => ({
@@ -3035,8 +3158,14 @@ function Boms() {
           unit: item.unit.trim(),
           wastePercentage: Number(item.wastePercentage || 0),
         })),
-      }).unwrap();
-      toast.success("BOM draft created");
+      };
+      if (sourceBom) {
+        await createDraft({ id: sourceBom.id, body }).unwrap();
+      } else {
+        await createBom(body).unwrap();
+      }
+      toast.success("New BOM draft created. Publish it separately when ready.");
+      resetDraft();
       void bomsQuery.refetch();
     } catch (error) {
       toast.error(apiErrorMessage(error) ?? "Could not save BOM");
@@ -3060,9 +3189,9 @@ function Boms() {
       <div className="grid gap-5 lg:grid-cols-[minmax(280px,0.75fr)_minmax(0,1.25fr)]">
         <Card>
           <CardHeader>
-            <CardTitle>Product BOM</CardTitle>
+            <CardTitle>{sourceBom ? `Edit BOM v${sourceBom.versionNumber} as a new version` : "New product BOM"}</CardTitle>
             <CardDescription>
-              Link raw materials to finished goods so execution can forecast shortages.
+              {sourceBom ? "Saving creates a new draft. The source version and existing orders remain unchanged." : "Link raw materials to finished goods so execution can forecast shortages."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -3071,6 +3200,7 @@ function Boms() {
                 className={selectClassName}
                 value={productId}
                 onChange={(event) => setProductId(event.target.value)}
+                disabled={createState.isLoading || draftState.isLoading}
               >
                 <option value="">Select product</option>
                 {products.map((product) => (
@@ -3079,7 +3209,9 @@ function Boms() {
                   </option>
                 ))}
               </select>
+              <CatalogPagination page={productPage} totalPages={productsQuery.currentData?.totalPages ?? 0} loading={productsQuery.isFetching || createState.isLoading || draftState.isLoading} onChange={(page) => { setProductPage(page); setProductId(""); }} />
             </Field>
+            {productsQuery.isError ? <ErrorState title="Products unavailable" message="Could not load products." onRetry={() => void productsQuery.refetch()} /> : null}
 
             {productId ? (
               <form onSubmit={save} className="mt-4 space-y-3">
@@ -3110,6 +3242,7 @@ function Boms() {
                         }}
                       >
                         <option value="">Select raw material</option>
+                        {item.inventoryItemId && !inventoryItems.some((candidate) => candidate.id === item.inventoryItemId) ? <option value={item.inventoryItemId}>{sourceBom?.items.find((candidate) => candidate.inventoryItemId === item.inventoryItemId)?.itemName ?? item.inventoryItemId} (selected)</option> : null}
                         {inventoryItems.map((inventoryItem) => (
                           <option key={inventoryItem.id} value={inventoryItem.id}>
                             {inventoryItem.itemCode} · {inventoryItem.name}
@@ -3173,8 +3306,11 @@ function Boms() {
                         />
                       </Field>
                     </div>
+                    <Button type="button" size="sm" variant="ghost" disabled={items.length === 1} onClick={() => setItems((current) => current.filter((_, itemIndex) => itemIndex !== index))}>Remove item</Button>
                   </div>
                 ))}
+                <CatalogPagination page={inventoryPageNumber} totalPages={inventoryQuery.currentData?.totalPages ?? 0} loading={inventoryQuery.isFetching} onChange={setInventoryPageNumber} />
+                {inventoryQuery.isError ? <ErrorState title="Materials unavailable" message="Could not load the material catalog. Saved revision items are preserved." onRetry={() => void inventoryQuery.refetch()} /> : null}
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -3188,9 +3324,10 @@ function Boms() {
                   >
                     Add item
                   </Button>
-                  <Button disabled={createState.isLoading} type="submit">
-                    {createState.isLoading ? "Saving..." : "Save draft"}
+                  <Button disabled={createState.isLoading || draftState.isLoading} type="submit">
+                    {createState.isLoading || draftState.isLoading ? "Saving..." : "Save new draft"}
                   </Button>
+                  {sourceBom ? <Button type="button" variant="outline" disabled={draftState.isLoading} onClick={resetDraft}>Cancel revision</Button> : null}
                 </div>
               </form>
             ) : null}
@@ -3205,7 +3342,8 @@ function Boms() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {bomsQuery.isLoading ? (
+            <label className="mb-3 flex items-center gap-2 text-sm"><Switch checked={includeArchived} onCheckedChange={setIncludeArchived} />Include archived BOM versions</label>
+            {bomsQuery.isFetching ? (
               <Loading text="Loading BOM versions..." />
             ) : bomsQuery.isError ? (
               <ErrorState
@@ -3215,13 +3353,13 @@ function Boms() {
               />
             ) : !productId ? (
               <Empty text="BOMs are scoped to a product." />
-            ) : !bomsQuery.data?.length ? (
+            ) : !bomsQuery.currentData?.length ? (
               <Empty text="No BOM versions yet." />
             ) : (
               <div className="space-y-2">
-                {bomsQuery.data.map((bom) => (
+                {[...bomsQuery.currentData].sort((a, b) => b.versionNumber - a.versionNumber).map((bom) => (
                   <div key={bom.id} className="rounded-lg border p-3">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                       <div>
                         <div className="font-medium">
                           {bom.name} · v{bom.versionNumber}
@@ -3230,14 +3368,20 @@ function Boms() {
                           {bom.items.length} material lines
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <StatusBadge tone={statusTone(bom.status)}>{humanize(bom.status)}</StatusBadge>
-                        {bom.status === "DRAFT" ? (
+                        {!bom.active ? <StatusBadge tone="draft">Archived</StatusBadge> : null}
+                        {bom.active ? <Button size="sm" variant="outline" disabled={draftState.isLoading || createState.isLoading} onClick={() => editRevision(bom)}>Edit as new version</Button> : null}
+                        {bom.active ? <Button size="sm" variant="outline" onClick={() => setArchiveTarget(bom)}>Archive</Button> : null}
+                        {bom.active && bom.status === "DRAFT" ? (
                           <Button size="sm" onClick={() => setPendingPublishId(bom.id)}>
                             Publish
                           </Button>
                         ) : null}
                       </div>
+                    </div>
+                    <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                      {bom.items.map((item) => <p key={item.id}>{item.itemName ?? item.itemCode ?? item.inventoryItemId} · {formatNumber(item.quantityPerUnit)} {item.unit} per unit · {formatNumber(item.wastePercentage ?? 0)}% waste</p>)}
                     </div>
                   </div>
                 ))}
@@ -3247,6 +3391,7 @@ function Boms() {
         </Card>
       </div>
 
+      <ConfirmDialog open={Boolean(archiveTarget)} onOpenChange={(open) => !open && setArchiveTarget(undefined)} title={`Archive ${archiveTarget?.name ?? "BOM"} v${archiveTarget?.versionNumber ?? ""}?`} description="This version will be unavailable for new orders. Existing orders retain it, including material assumptions and history. Nothing is permanently deleted." confirmLabel="Archive version" loading={archiveState.isLoading} onConfirm={() => void archive()} />
       <ConfirmDialog
         open={Boolean(pendingPublishId)}
         onOpenChange={(open) => !open && setPendingPublishId(undefined)}
@@ -3742,6 +3887,7 @@ function ConfirmDialog({
   onConfirm,
   loading,
   destructive = false,
+  disabled = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -3751,6 +3897,7 @@ function ConfirmDialog({
   onConfirm: () => void;
   loading?: boolean;
   destructive?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -3762,9 +3909,9 @@ function ConfirmDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            disabled={loading}
+            disabled={loading || disabled}
             variant={destructive ? "destructive" : "default"}
-            onClick={onConfirm}
+            onClick={(event) => { event.preventDefault(); onConfirm(); }}
           >
             {confirmLabel}
           </AlertDialogAction>
@@ -4052,36 +4199,6 @@ function deriveOrderRiskIndicators(
   }
 
   return indicators;
-}
-
-function buildMaterialRequirements(
-  bom: Bom | undefined,
-  inventoryItems: InventoryItem[],
-  order?: ProductionOrder
-): MaterialRequirement[] {
-  if (!bom || !order) return [];
-
-  return bom.items.map((item) => {
-    const inventoryItem = inventoryItems.find(
-      (candidate) => candidate.id === item.inventoryItemId
-    );
-    const estimatedRequiredQuantity = Number(order.remainingQuantity || 0) * Number(item.quantityPerUnit || 0);
-    const availableQuantity = Number(inventoryItem?.currentStock || 0);
-    return {
-      inventoryItemId: item.inventoryItemId,
-      itemCode: inventoryItem?.itemCode,
-      itemName: inventoryItem?.name,
-      unit: item.unit,
-      quantityPerUnit: item.quantityPerUnit,
-      estimatedRequiredQuantity,
-      availableQuantity,
-      shortage: availableQuantity < estimatedRequiredQuantity,
-    };
-  });
-}
-
-function pickBestBom(boms: Bom[]) {
-  return boms.find((bom) => bom.status === "PUBLISHED") ?? boms.at(-1);
 }
 
 function getCurrentOrderStep(order: ProductionOrder) {

@@ -89,6 +89,8 @@ export type WorkflowVersion = {
   id: string;
   templateId: string;
   versionNumber: number;
+  name: string;
+  description: string | null;
   status: WorkflowStatus;
   publishedAt?: string;
   steps: WorkflowStep[];
@@ -120,6 +122,7 @@ export type Bom = {
   productName?: string;
   versionNumber: number;
   name: string;
+  active: boolean;
   status: WorkflowStatus;
   publishedAt?: string;
   items: BomItem[];
@@ -156,6 +159,7 @@ export type ProductionOrderRequest = {
   priority: OrderPriority;
   dueDate?: string;
   workflowVersionId: string;
+  bomId: string;
   notes?: string;
   responsibleUserId: string;
 };
@@ -183,8 +187,13 @@ export type OrderStep = {
   indicators?: ProductionIndicator[];
 };
 
-export type ProductionOrder = ProductionOrderRequest & {
+export type BomBindingStatus = "PINNED" | "LEGACY_UNRESOLVED" | "LEGACY_SELECTED";
+
+export type ProductionOrder = Omit<ProductionOrderRequest, "bomId"> & {
   id: string;
+  bomId: string | null;
+  bomVersionNumber: number | null;
+  bomBindingStatus: BomBindingStatus;
   version?: number;
   executionVersion?: number;
   completedQuantity: number;
@@ -427,6 +436,8 @@ export type ProductionAnalyticsFilters = {
 };
 
 export type ProductionAnalytics = {
+  estimatedMaterialConsumptionComplete: boolean;
+  unresolvedBomOrderCount: number;
   averageCycleHours?: number;
   cycleHours?: number;
   completedQuantity?: number;
