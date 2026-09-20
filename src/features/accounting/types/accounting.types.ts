@@ -133,6 +133,14 @@ export type VoucherType =
   | "SALES"
   | "PURCHASE";
 
+export type VoucherLifecycleStatus =
+  | "DRAFT"
+  | "POSTED"
+  | "REVERSED"
+  | "CANCELLED";
+
+export type AccountingPeriodStatus = "OPEN" | "CLOSED";
+
 export type AccountGroup = {
   id: string;
   name: string;
@@ -210,8 +218,14 @@ export type AccountingVoucher = {
   totalDebit: number;
   totalCredit: number;
   posted: boolean;
+  lifecycleStatus: VoucherLifecycleStatus;
   sourceBillId?: string | null;
   sourceType?: string | null;
+  sourceEventKey?: string | null;
+  reversalOfVoucherId?: string | null;
+  reversedAt?: string | null;
+  reversedBy?: string | null;
+  reversalReason?: string | null;
   cancelledAt?: string | null;
   cancelledReason?: string | null;
   lines: AccountingVoucherLine[];
@@ -234,7 +248,43 @@ export type AccountingVoucherMutationRequest = CreateAccountingVoucherRequest & 
   id: string;
 };
 
-export type CancelAccountingVoucherRequest = {
+export type ReverseAccountingVoucherRequest = {
+  id: string;
+  effectiveDate: string;
+  reason: string;
+};
+
+export type AccountingVoucherAudit = {
+  id: string;
+  action: string;
+  actorId?: string | null;
+  reason?: string | null;
+  snapshot?: string | null;
+  eventData?: string | null;
+  createdAt: string;
+};
+
+export type AccountingPeriod = {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: AccountingPeriodStatus;
+  closedAt?: string | null;
+  closedBy?: string | null;
+  closeReason?: string | null;
+  reopenedAt?: string | null;
+  reopenedBy?: string | null;
+  reopenReason?: string | null;
+};
+
+export type CreateAccountingPeriodRequest = {
+  name: string;
+  startDate: string;
+  endDate: string;
+};
+
+export type AccountingPeriodActionRequest = {
   id: string;
   reason?: string | null;
 };

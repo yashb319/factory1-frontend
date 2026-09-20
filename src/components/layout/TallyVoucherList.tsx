@@ -9,6 +9,10 @@ import type {
   VoucherType,
 } from "@/features/accounting/types/accounting.types";
 import { labelCase } from "@/features/accounting/utils/accountingFormat";
+import {
+  VoucherLifecycleBadge,
+  voucherStatus,
+} from "@/features/accounting/components/VoucherLifecycle";
 
 type TallyVoucherListProps = {
   voucherType: VoucherType;
@@ -86,17 +90,14 @@ export function TallyVoucherList({
       ),
     [vouchers]
   );
-
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [vouchers]);
+  const activeIndex = Math.min(selectedIndex, Math.max(sorted.length - 1, 0));
 
   useEffect(() => {
     const el = listRef.current?.querySelector<HTMLElement>(
-      `[data-voucher-index="${selectedIndex}"]`
+      `[data-voucher-index="${activeIndex}"]`
     );
     el?.scrollIntoView({ block: "nearest" });
-  }, [selectedIndex]);
+  }, [activeIndex]);
 
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
@@ -155,7 +156,7 @@ export function TallyVoucherList({
 
       if (event.key === "Enter") {
         event.preventDefault();
-        const v = sorted[selectedIndex];
+        const v = sorted[activeIndex];
         if (v) onSelectVoucher(v);
         return;
       }
@@ -175,7 +176,7 @@ export function TallyVoucherList({
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [showQuitPrompt, selectedIndex, sorted, onSelectVoucher, onCreateNew, onBack]);
+  }, [showQuitPrompt, activeIndex, sorted, onSelectVoucher, onCreateNew, onBack]);
 
   return (
     <div className="h-[calc(100vh-2rem)] overflow-hidden border border-[#0F766E] bg-[#FEFCE8] font-mono text-[13px] text-[#0F172A]">
@@ -228,6 +229,7 @@ export function TallyVoucherList({
                 <th className="w-12 px-2 py-1">S.No.</th>
                 <th className="px-2 py-1">Date</th>
                 <th className="px-2 py-1">Vch No.</th>
+                <th className="px-2 py-1">Status</th>
                 <th className="px-2 py-1">Particulars</th>
                 <th className="px-2 py-1 text-right">Debit</th>
                 <th className="px-2 py-1 text-right">Credit</th>
@@ -235,7 +237,7 @@ export function TallyVoucherList({
             </thead>
             <tbody>
               {sorted.map((voucher, index) => {
-                const isSelected = index === selectedIndex;
+                const isSelected = index === activeIndex;
                 const particulars = voucher.lines
                   .map((l) => l.ledgerName ?? l.ledgerId)
                   .slice(0, 2)
@@ -254,7 +256,8 @@ export function TallyVoucherList({
                       isSelected
                         ? "bg-[#0F172A] text-white"
                         : "hover:bg-[#6366F1]/10",
-                      voucher.cancelledAt
+                      voucherStatus(voucher) === "REVERSED" ||
+                      voucherStatus(voucher) === "CANCELLED"
                         ? "line-through opacity-60"
                         : "",
                     ].join(" ")}
@@ -263,6 +266,9 @@ export function TallyVoucherList({
                     <td className="px-2 py-0.5">{formatDate(voucher.voucherDate)}</td>
                     <td className="px-2 py-0.5 font-semibold">
                       {voucher.voucherNumber || "---"}
+                    </td>
+                    <td className="px-2 py-0.5">
+                      <VoucherLifecycleBadge voucher={voucher} />
                     </td>
                     <td className="px-2 py-0.5">{particulars || "---"}</td>
                     <td className="px-2 py-0.5 text-right">
@@ -281,7 +287,7 @@ export function TallyVoucherList({
               {sorted.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-2 py-8 text-center text-slate-500"
                   >
                     {isFetching
@@ -307,11 +313,11 @@ export function TallyVoucherList({
           type="button"
           className="border-r border-[#0F766E] px-2 py-1 text-left hover:bg-[#6366F1] hover:text-white"
           onClick={() => {
-            const v = sorted[selectedIndex];
+            const v = sorted[activeIndex];
             if (v) onSelectVoucher(v);
           }}
         >
-          Enter: Alter
+          Enter: Open
         </button>
         <span className="border-r border-[#0F766E] px-2 py-1 text-slate-600">
           P: Print

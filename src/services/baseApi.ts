@@ -120,6 +120,8 @@ export const baseApi = createApi({
     "Products",
     "Billing",
     "Accounting",
+    "AccountingVoucher",
+    "AccountingPeriod",
     "ImportExport",
     "Dashboard",
     "SaasAdmin",

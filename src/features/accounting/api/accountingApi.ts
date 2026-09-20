@@ -8,16 +8,20 @@ import type {
   AccountGroupMutationRequest,
   AccountLedgerMutationRequest,
   AccountingVoucherMutationRequest,
+  AccountingVoucherAudit,
+  AccountingPeriod,
+  AccountingPeriodActionRequest,
   AgingReport,
   AgingReportRequest,
   AccountingTaxSection,
   AccountingTaxSectionMutationRequest,
   AccountingTaxSectionRequest,
   BalanceSheet,
-  CancelAccountingVoucherRequest,
   CreateAccountGroupRequest,
   CreateAccountLedgerRequest,
+  CreateAccountingPeriodRequest,
   CreateAccountingVoucherRequest,
+  ReverseAccountingVoucherRequest,
   VoucherType,
   GstReport,
   LedgerReport,
@@ -197,7 +201,7 @@ export const accountingApi = baseApi.injectEndpoints({
             }
           : undefined,
       }),
-      providesTags: ["Accounting"],
+      providesTags: ["Accounting", "AccountingVoucher"],
     }),
 
     createAccountingVoucher: builder.mutation<
@@ -209,7 +213,19 @@ export const accountingApi = baseApi.injectEndpoints({
         method: "POST",
         body,
       }),
-      invalidatesTags: ["Accounting"],
+      invalidatesTags: ["Accounting", "AccountingVoucher"],
+    }),
+
+    createAccountingVoucherDraft: builder.mutation<
+      { data: AccountingVoucher; message: string; success: boolean },
+      CreateAccountingVoucherRequest
+    >({
+      query: (body) => ({
+        url: "/api/accounting/vouchers/drafts",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["AccountingVoucher"],
     }),
 
     updateAccountingVoucher: builder.mutation<
@@ -221,19 +237,78 @@ export const accountingApi = baseApi.injectEndpoints({
         method: "PUT",
         body,
       }),
-      invalidatesTags: ["Accounting"],
+      invalidatesTags: ["Accounting", "AccountingVoucher"],
     }),
 
-    cancelAccountingVoucher: builder.mutation<
+    postAccountingVoucher: builder.mutation<
       { data: AccountingVoucher; message: string; success: boolean },
-      CancelAccountingVoucherRequest
+      string
+    >({
+      query: (id) => ({
+        url: `/api/accounting/vouchers/${id}/post`,
+        method: "POST",
+      }),
+      invalidatesTags: ["Accounting", "AccountingVoucher"],
+    }),
+
+    reverseAccountingVoucher: builder.mutation<
+      { data: AccountingVoucher; message: string; success: boolean },
+      ReverseAccountingVoucherRequest
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/api/accounting/vouchers/${id}/reverse`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Accounting", "AccountingVoucher"],
+    }),
+
+    getAccountingVoucherHistory: builder.query<AccountingVoucherAudit[], string>({
+      query: (id) => `/api/accounting/vouchers/${id}/history`,
+      providesTags: (_result, _error, id) => [
+        { type: "AccountingVoucher", id },
+      ],
+    }),
+
+    getAccountingPeriods: builder.query<AccountingPeriod[], void>({
+      query: () => "/api/accounting/periods",
+      providesTags: ["AccountingPeriod"],
+    }),
+
+    createAccountingPeriod: builder.mutation<
+      { data: AccountingPeriod; message: string; success: boolean },
+      CreateAccountingPeriodRequest
+    >({
+      query: (body) => ({
+        url: "/api/accounting/periods",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Accounting", "AccountingPeriod"],
+    }),
+
+    closeAccountingPeriod: builder.mutation<
+      { data: AccountingPeriod; message: string; success: boolean },
+      AccountingPeriodActionRequest
     >({
       query: ({ id, reason }) => ({
-        url: `/api/accounting/vouchers/${id}`,
-        method: "DELETE",
+        url: `/api/accounting/periods/${id}/close`,
+        method: "POST",
+        body: reason ? { reason } : undefined,
+      }),
+      invalidatesTags: ["Accounting", "AccountingPeriod"],
+    }),
+
+    reopenAccountingPeriod: builder.mutation<
+      { data: AccountingPeriod; message: string; success: boolean },
+      AccountingPeriodActionRequest
+    >({
+      query: ({ id, reason }) => ({
+        url: `/api/accounting/periods/${id}/reopen`,
+        method: "POST",
         body: { reason },
       }),
-      invalidatesTags: ["Accounting"],
+      invalidatesTags: ["Accounting", "AccountingPeriod"],
     }),
 
      suggestVoucherNumber: builder.query<string, VoucherType>({
@@ -255,7 +330,9 @@ export const accountingApi = baseApi.injectEndpoints({
 });
 
 export const {
-  useCancelAccountingVoucherMutation,
+  useCloseAccountingPeriodMutation,
+  useCreateAccountingPeriodMutation,
+  useCreateAccountingVoucherDraftMutation,
   useCreateAccountingVoucherMutation,
   useCreateAccountGroupMutation,
   useCreateAccountLedgerMutation,
@@ -266,6 +343,8 @@ export const {
   useGetAccountingGstSummaryQuery,
   useGetAccountingTaxSectionCatalogQuery,
   useGetAccountingTaxSectionsQuery,
+  useGetAccountingPeriodsQuery,
+  useGetAccountingVoucherHistoryQuery,
   useGetAccountingVouchersQuery,
   useGetAgingReportQuery,
   useGetBalanceSheetQuery,
@@ -273,6 +352,9 @@ export const {
   useGetProfitLossQuery,
   useGetTrialBalanceQuery,
   useLazyGetAccountingGstSummaryQuery,
+  usePostAccountingVoucherMutation,
+  useReopenAccountingPeriodMutation,
+  useReverseAccountingVoucherMutation,
   useUpdateAccountingVoucherMutation,
   useUpdateAccountingTaxSectionMutation,
   useUpdateAccountGroupMutation,
