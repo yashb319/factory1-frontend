@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import { logout } from "@/features/auth/authSlice";
 import type { RootState } from "@/lib/store";
+import { productionLoginPath } from "@/lib/productionOrderLink";
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
@@ -50,7 +51,7 @@ const baseQueryWithAuthRedirect: BaseQueryFn<
     api.dispatch(logout());
 
     if (typeof window !== "undefined") {
-      window.location.assign("/login");
+      window.location.assign(productionLoginPath(window.location.pathname + window.location.search));
     }
   }
 

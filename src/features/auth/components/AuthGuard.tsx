@@ -9,6 +9,7 @@ import {
   logout,
 } from "../authSlice";
 import { TALLY_UI_ENABLED } from "@/config/features";
+import { productionLoginPath, safeProductionReturnPath } from "@/lib/productionOrderLink";
 
 type AuthGuardProps = {
   children: React.ReactNode;
@@ -44,7 +45,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const logoutInactiveUser = useCallback(() => {
     clearLogoutTimer();
     dispatch(logout());
-    router.replace("/login");
+    router.replace(productionLoginPath(window.location.pathname + window.location.search));
   }, [clearLogoutTimer, dispatch, router]);
 
   const scheduleLogout = useCallback(
@@ -79,7 +80,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     }
 
     if (!token) {
-      router.replace("/login");
+      router.replace(productionLoginPath(window.location.pathname + window.location.search));
       return;
     }
 
@@ -111,7 +112,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
     if (
       user?.role === "EMPLOYEE" &&
       pathname !== "/leave" &&
-      pathname !== "/profile"
+      pathname !== "/profile" &&
+      !safeProductionReturnPath(pathname + window.location.search)
     ) {
       router.replace("/leave");
     }

@@ -61,11 +61,11 @@ export const productionApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getWorkflows: builder.query<
       PageResponse<WorkflowTemplate>,
-      { page?: number; size?: number }
+      { page?: number; size?: number; includeArchived?: boolean }
     >({
-      query: ({ page = 0, size = 50 }) => ({
+      query: ({ page = 0, size = 50, includeArchived = false }) => ({
         url: "/api/production/workflows",
-        params: { page, size, sortBy: "name", sortDirection: "ASC" },
+        params: { page, size, includeArchived, sortBy: "name", sortDirection: "ASC" },
       }),
       transformResponse: (response: ApiResponse<PageResponse<WorkflowTemplate>> | PageResponse<WorkflowTemplate>) => unwrapData(response),
       providesTags: ["Production"],
@@ -77,6 +77,12 @@ export const productionApi = baseApi.injectEndpoints({
         method: "POST",
         body,
       }),
+      transformResponse: (response: ApiResponse<WorkflowTemplate> | WorkflowTemplate) => unwrapData(response),
+      invalidatesTags: ["Production"],
+    }),
+
+    archiveWorkflow: builder.mutation<WorkflowTemplate, string>({
+      query: (id) => ({ url: `/api/production/workflows/${id}/archive`, method: "POST" }),
       transformResponse: (response: ApiResponse<WorkflowTemplate> | WorkflowTemplate) => unwrapData(response),
       invalidatesTags: ["Production"],
     }),
@@ -109,13 +115,31 @@ export const productionApi = baseApi.injectEndpoints({
       invalidatesTags: ["Production"],
     }),
 
-    getBoms: builder.query<Bom[], string>({
-      query: (productId) => ({
+    getBoms: builder.query<Bom[], { productId: string; includeArchived?: boolean }>({
+      query: ({ productId, includeArchived = false }) => ({
         url: "/api/production/boms",
-        params: { productId },
+        params: { productId, includeArchived },
       }),
       transformResponse: (response: ApiResponse<Bom[]> | Bom[]) => unwrapData(response),
       providesTags: ["Production"],
+    }),
+
+    getProductionBom: builder.query<Bom, string>({
+      query: (id) => `/api/production/boms/${id}`,
+      transformResponse: (response: ApiResponse<Bom> | Bom) => unwrapData(response),
+      providesTags: ["Production"],
+    }),
+
+    createBomDraft: builder.mutation<Bom, { id: string; body: BomRequest }>({
+      query: ({ id, body }) => ({ url: `/api/production/boms/${id}/drafts`, method: "POST", body }),
+      transformResponse: (response: ApiResponse<Bom> | Bom) => unwrapData(response),
+      invalidatesTags: ["Production"],
+    }),
+
+    archiveBom: builder.mutation<Bom, string>({
+      query: (id) => ({ url: `/api/production/boms/${id}/archive`, method: "POST" }),
+      transformResponse: (response: ApiResponse<Bom> | Bom) => unwrapData(response),
+      invalidatesTags: ["Production"],
     }),
 
     createBom: builder.mutation<Bom, BomRequest>({
@@ -168,6 +192,19 @@ export const productionApi = baseApi.injectEndpoints({
     createOrder: builder.mutation<ProductionOrder, ProductionOrderRequest>({
       query: (body) => ({
         url: "/api/production/orders",
+        method: "POST",
+        body,
+      }),
+      transformResponse: (response: ApiResponse<ProductionOrder> | ProductionOrder) => unwrapData(response),
+      invalidatesTags: ["Production"],
+    }),
+
+    bindOrderBom: builder.mutation<
+      ProductionOrder,
+      { orderId: string; body: { bomId: string; reason: string; expectedOrderVersion: number } }
+    >({
+      query: ({ orderId, body }) => ({
+        url: `/api/production/orders/${orderId}/bom-binding`,
         method: "POST",
         body,
       }),
@@ -389,6 +426,11 @@ export const productionApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useArchiveWorkflowMutation,
+  useArchiveBomMutation,
+  useCreateBomDraftMutation,
+  useGetProductionBomQuery,
+  useBindOrderBomMutation,
   useGetWorkflowsQuery,
   useCreateWorkflowMutation,
   useGetWorkflowVersionsQuery,
