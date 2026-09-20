@@ -1,4 +1,5 @@
 import { baseApi } from "@/services/baseApi";
+import type { ProductionOrderGuard } from "../types/productionFlow.types";
 import type {
   ApiResponse,
   AuditLogResponse,
@@ -44,7 +45,7 @@ const cleanParams = <T extends Record<string, unknown>>(params: T) => {
   );
 };
 
-const unwrapData = <T>(response: ApiResponse<T> | T): T => {
+export const unwrapData = <T>(response: ApiResponse<T> | T): T => {
   if (
     response &&
     typeof response === "object" &&
@@ -173,11 +174,11 @@ export const productionApi = baseApi.injectEndpoints({
 
     getOrders: builder.query<
       PageResponse<ProductionOrder>,
-      { page?: number; size?: number }
+      { page?: number; size?: number; scope?: "ROOTS" | "LEAVES" | "ALL" }
     >({
-      query: ({ page = 0, size = 50 }) => ({
+      query: ({ page = 0, size = 50, scope = "ROOTS" }) => ({
         url: "/api/production/orders",
-        params: { page, size, sortBy: "createdAt", sortDirection: "DESC" },
+        params: { page, size, scope, sortBy: "createdAt", sortDirection: "DESC" },
       }),
       transformResponse: (response: ApiResponse<PageResponse<ProductionOrder>> | PageResponse<ProductionOrder>) => unwrapData(response),
       providesTags: ["Production"],
@@ -201,7 +202,7 @@ export const productionApi = baseApi.injectEndpoints({
 
     bindOrderBom: builder.mutation<
       ProductionOrder,
-      { orderId: string; body: { bomId: string; reason: string; expectedOrderVersion: number } }
+      { orderId: string; body: { bomId: string; reason: string; expectedOrderVersion: number; expectedFamilyVersion?: number } }
     >({
       query: ({ orderId, body }) => ({
         url: `/api/production/orders/${orderId}/bom-binding`,
@@ -235,7 +236,7 @@ export const productionApi = baseApi.injectEndpoints({
         body,
       }),
       transformResponse: (response: ApiResponse<ProductionOrder> | ProductionOrder) => unwrapData(response),
-      invalidatesTags: ["Production"],
+      invalidatesTags: ["Production", "Inventory", "Products"],
     }),
 
     recordStepProduction: builder.mutation<
@@ -249,7 +250,7 @@ export const productionApi = baseApi.injectEndpoints({
       }),
       transformResponse: (response: ApiResponse<ProductionOrder> | ProductionOrder) =>
         unwrapData(response),
-      invalidatesTags: ["Production"],
+      invalidatesTags: ["Production", "Inventory", "Products"],
     }),
 
     getTimeline: builder.query<TimelineEvent[], string>({
@@ -336,8 +337,12 @@ export const productionApi = baseApi.injectEndpoints({
       invalidatesTags: ["Production"],
     }),
 
-    deleteAssignment: builder.mutation<void, string>({
-      query: (id) => ({ url: `/api/production/assignments/${id}`, method: "DELETE" }),
+    deleteAssignment: builder.mutation<void, string | ({ id: string } & ProductionOrderGuard)>({
+      query: (request) => typeof request === "string"
+        ? { url: `/api/production/assignments/${request}`, method: "DELETE" }
+        : { url: `/api/production/assignments/${request.id}`, method: "DELETE", params: {
+          expectedOrderVersion: request.expectedOrderVersion, expectedFamilyVersion: request.expectedFamilyVersion,
+        } },
       invalidatesTags: ["Production"],
     }),
 
@@ -350,7 +355,7 @@ export const productionApi = baseApi.injectEndpoints({
     createExecutionBatch: builder.mutation<ExecutionBatch, { orderId: string; body: ExecutionBatchRequest }>({
       query: ({ orderId, body }) => ({ url: `/api/production/orders/${orderId}/execution-batches`, method: "POST", body }),
       transformResponse: (response: ApiResponse<ExecutionBatch> | ExecutionBatch) => unwrapData(response),
-      invalidatesTags: ["Production"],
+      invalidatesTags: ["Production", "Inventory", "Products"],
     }),
 
     getExecutionBatches: builder.query<ExecutionBatch[], string>({

@@ -8,12 +8,12 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useAppSelector } from "@/lib/hook";
 import { useGetOrganizationSettingsQuery } from "@/features/organization-settings/api/organizationSettingsApi";
 import { useGetProductsQuery } from "@/features/products/api/productsApi";
 import { useGetMyAssignmentsQuery } from "../api/productionApi";
 import type { MyAssignmentResponse } from "../types/production.types";
 import { PartialCompletionForm } from "./PartialCompletionForm";
+import { canProductionAction, productionIsTerminal } from "../utils/productionFlow";
 
 function statusTone(status?: string) {
   if (status === "COMPLETED") return "success" as const;
@@ -28,7 +28,6 @@ function isOverdue(deadline?: string) {
 }
 
 export function MyAssignmentsPage() {
-  const user = useAppSelector((state) => state.auth.user);
   const assignmentsQuery = useGetMyAssignmentsQuery();
   const { data: productsPage } = useGetProductsQuery({ page: 0, size: 300 });
   const orgSettingsQuery = useGetOrganizationSettingsQuery();
@@ -92,8 +91,8 @@ export function MyAssignmentsPage() {
                   key={assignment.assignmentId}
                   assignment={assignment}
                   product={productsById.get(assignment.productId)}
-                  canSelfUpdate={selfServiceEnabled}
-                  currentUserId={user?.id}
+                  canSelfUpdate={selfServiceEnabled && !assignmentsQuery.isFetching && !orgSettingsQuery.isFetching && !orgSettingsQuery.isError}
+                  onRefresh={() => void assignmentsQuery.refetch()}
                 />
               ))}
             </div>
@@ -108,28 +107,33 @@ function MyAssignmentCard({
   assignment,
   product,
   canSelfUpdate,
+  onRefresh,
 }: {
   assignment: MyAssignmentResponse;
   product?: { productCode: string; name: string };
   canSelfUpdate: boolean;
-  currentUserId?: string;
+  onRefresh: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const overdue = isOverdue(assignment.deadline);
   const remainingQuantity =
     assignment.remainingQuantity ??
-    Math.max(
+    (assignment.quantityModel === "FLOW_V1" ? NaN : Math.max(
       assignment.plannedQuantity -
         assignment.completedQuantity -
         assignment.rejectedQuantity,
       0
-    );
+    ));
+  const canRecord = canSelfUpdate && assignment.quantityModel !== "FLOW_V1" &&
+    !productionIsTerminal({ ...assignment, status: assignment.orderStatus }) &&
+    canProductionAction(assignment, "RECORD_GOOD") && assignment.stepStatus !== "COMPLETED";
 
   return (
     <div className="rounded-lg border bg-white p-4">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="font-medium">{assignment.orderNumber}</div>
+          <div className="font-medium">{assignment.batch?.batchLabel ?? assignment.orderNumber}</div>
+          {assignment.batch?.parentOrderId ? <p className="break-all text-xs text-muted-foreground">Original request: {assignment.batch.rootOrderId}</p> : null}
           <div className="text-xs text-muted-foreground">
             {product?.name || product?.productCode || assignment.productId}
           </div>
@@ -157,7 +161,8 @@ function MyAssignmentCard({
         ) : null}
       </div>
 
-      {canSelfUpdate ? (
+      {assignment.quantityModel === "FLOW_V1" ? <p className="mt-3 text-sm text-muted-foreground">A production lead must review this quantity-flow batch in Production, including any final-output material coverage. Your assignment remains viewable; this page does not grant family, split or closure permissions.</p> : null}
+      {canRecord ? (
         <div className="mt-3 space-y-2">
           {assignment.stepStatus !== "COMPLETED" ? (
             <Button type="button" size="sm" variant="outline" onClick={() => setExpanded((value) => !value)}>
@@ -172,6 +177,9 @@ function MyAssignmentCard({
               remainingQuantity={remainingQuantity}
               expectedOrderVersion={assignment.executionVersion}
               expectedStepVersion={assignment.stepExpectedVersion}
+              expectedFamilyVersion={assignment.batch?.familyVersion}
+              quantityModel={assignment.quantityModel}
+              onRefresh={onRefresh}
               onDone={() => setExpanded(false)}
               onCancel={() => setExpanded(false)}
             />

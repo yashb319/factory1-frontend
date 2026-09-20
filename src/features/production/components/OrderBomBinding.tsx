@@ -11,15 +11,16 @@ import {
 import { useAppSelector } from "@/lib/hook";
 import { useBindOrderBomMutation, useGetBomsQuery, useGetOrderQuery } from "../api/productionApi";
 import type { ProductionOrder } from "../types/production.types";
+import { canProductionAction, productionIsTerminal, productionOrderGuard } from "../utils/productionFlow";
 
 export function OrderBomBinding({ order }: { order: ProductionOrder }) {
   const user = useAppSelector((state) => state.auth.user);
-  const canBind = !!user && ["OWNER", "ADMIN", "MANAGEMENT"].includes(user.role);
+  const canBind = !!user && ["OWNER", "ADMIN", "MANAGEMENT"].includes(user.role) && canProductionAction(order, "BIND_BOM");
 
   if (order.bomBindingStatus === "PINNED") return null;
 
   const selected = order.bomBindingStatus === "LEGACY_SELECTED";
-  const terminal = ["COMPLETED", "PARTIALLY_COMPLETED", "CANCELLED"].includes(order.status);
+  const terminal = productionIsTerminal(order) || order.batch?.nodeType === "SUMMARY";
 
   return (
     <section className="space-y-4 rounded-lg border border-amber-500/50 bg-amber-500/10 p-4">
@@ -52,7 +53,7 @@ function LegacyBomSelection({ order }: { order: ProductionOrder }) {
   const id = useId();
   const [bomId, setBomId] = useState("");
   const [reason, setReason] = useState("");
-  const [review, setReview] = useState<{ bomId: string; reason: string; expectedOrderVersion: number }>();
+  const [review, setReview] = useState<{ bomId: string; reason: string; expectedOrderVersion: number; expectedFamilyVersion?: number }>();
   const [refreshing, setRefreshing] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [error, setError] = useState<string>();
@@ -68,11 +69,15 @@ function LegacyBomSelection({ order }: { order: ProductionOrder }) {
   const chosen = choices.find((bom) => bom.id === bomId);
   const version = order.executionVersion;
   const hasVersion = typeof version === "number" && Number.isInteger(version) && version >= 0;
+  const familyVersion = order.batch?.familyVersion;
+  const hasFamilyVersion = order.quantityModel !== "FLOW_V1" ||
+    (typeof familyVersion === "number" && Number.isSafeInteger(familyVersion) && familyVersion >= 0);
   const ready = !boms.isFetching && !boms.isError && !!boms.currentData;
-  const canSubmit = ready && hasVersion && !!chosen && !!reason.trim()
+  const canSubmit = ready && hasVersion && hasFamilyVersion && !!chosen && !!reason.trim()
     && !binding.isLoading && !binding.isSuccess && !conflict && !refreshing && !orderQuery.isFetching && !orderQuery.isError;
   const reviewIsCurrent = !!review && review.expectedOrderVersion === version
     && review.bomId === bomId && review.reason === reason.trim();
+  const familyReviewIsCurrent = order.quantityModel !== "FLOW_V1" || review?.expectedFamilyVersion === familyVersion;
 
   async function refreshOrder() {
     setRefreshing(true);
@@ -88,7 +93,7 @@ function LegacyBomSelection({ order }: { order: ProductionOrder }) {
   }
 
   async function confirmBinding() {
-    if (!canSubmit || !reviewIsCurrent || !review) return;
+    if (!canSubmit || !reviewIsCurrent || !familyReviewIsCurrent || !review) return;
     setError(undefined);
     try {
       await bindBom({
@@ -111,7 +116,7 @@ function LegacyBomSelection({ order }: { order: ProductionOrder }) {
   return (
     <div className="space-y-3 text-sm">
       <p>Select an active, published BOM for this product. This one-time selection cannot be changed and applies only to future output.</p>
-      {!hasVersion && <p role="alert">The order execution version is unavailable. Reload the order before selecting a BOM; binding is disabled.</p>}
+      {(!hasVersion || !hasFamilyVersion) && <p role="alert">The order or required family version is unavailable. Reload before selecting a BOM; binding is disabled.</p>}
       {orderQuery.isFetching && <p role="status">Refreshing the order… Confirmation is disabled.</p>}
       {orderQuery.isError && <p role="alert">{apiErrorMessage(orderQuery.error) ?? "The latest order could not be loaded."} Refresh the order before confirming.</p>}
       {boms.isFetching && <p role="status">Refreshing eligible BOMs… Selection is disabled until fresh data is available.</p>}
@@ -126,7 +131,7 @@ function LegacyBomSelection({ order }: { order: ProductionOrder }) {
       {error && <p role="alert" className="text-destructive">{error}</p>}
       {conflict && <p role="alert">The order changed or the BOM is no longer eligible. Refresh and review the latest state before trying again. Your inputs have been retained.</p>}
       {(!hasVersion || conflict || orderQuery.isError) && <Button type="button" size="sm" variant="outline" disabled={refreshing} onClick={() => void refreshOrder()}>{refreshing ? "Refreshing…" : "Refresh order and BOMs"}</Button>}
-      <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (canSubmit && version !== undefined) setReview({ bomId, reason: reason.trim(), expectedOrderVersion: version }); }}>
+      <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (canSubmit && version !== undefined) setReview({ bomId, reason: reason.trim(), ...productionOrderGuard(order), expectedOrderVersion: version }); }}>
         <fieldset disabled={!ready || !hasVersion || binding.isLoading || conflict || refreshing} className="space-y-3 disabled:opacity-60">
           <div className="space-y-1">
             <label htmlFor={`${id}-bom`} className="font-medium">BOM for future output</label>
@@ -153,11 +158,11 @@ function LegacyBomSelection({ order }: { order: ProductionOrder }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <p className="break-words text-sm"><strong>Reason:</strong> {review?.reason}</p>
-          {!reviewIsCurrent && <p role="alert" className="text-sm">The order changed after review. Cancel and review the latest order version before confirming. Your inputs are retained.</p>}
+          {(!reviewIsCurrent || !familyReviewIsCurrent) && <p role="alert" className="text-sm">The order or family changed after review. Cancel and review the latest version before confirming. Your inputs are retained.</p>}
           {!canSubmit && !binding.isLoading && <p role="alert" className="text-sm">Selection is currently unavailable. Cancel and review the latest BOM and order information.</p>}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={binding.isLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={!canSubmit || !reviewIsCurrent} onClick={(event) => { event.preventDefault(); void confirmBinding(); }}>
+            <AlertDialogAction disabled={!canSubmit || !reviewIsCurrent || !familyReviewIsCurrent} onClick={(event) => { event.preventDefault(); void confirmBinding(); }}>
               {binding.isLoading ? "Saving…" : "Confirm future-output BOM"}
             </AlertDialogAction>
           </AlertDialogFooter>

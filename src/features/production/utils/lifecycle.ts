@@ -48,11 +48,13 @@ export function buildPinnedMaterialRequirements(
   order?: ProductionOrder,
 ): MaterialRequirement[] {
   if (!bom || !order || !order.bomId || bom.id !== order.bomId ||
-      order.bomBindingStatus === "LEGACY_UNRESOLVED") return [];
+      order.bomBindingStatus === "LEGACY_UNRESOLVED" || order.batch?.nodeType === "SUMMARY") return [];
+  const pending = order.quantityModel === "FLOW_V1" ? order.quantities?.pendingQuantity : order.remainingQuantity;
+  if (pending == null || !Number.isFinite(pending) || pending < 0) return [];
 
   return bom.items.map((item) => {
     const inventory = inventoryItems.find((candidate) => candidate.id === item.inventoryItemId);
-    const estimatedRequiredQuantity = Math.max(order.remainingQuantity, 0) *
+    const estimatedRequiredQuantity = pending *
       item.quantityPerUnit * (1 + (item.wastePercentage ?? 0) / 100);
     const availableQuantity = inventory?.currentStock;
     return {
