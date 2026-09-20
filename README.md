@@ -54,7 +54,7 @@ FLOW records good only; ordinary recording does not advance, and ordinary advanc
 
 Children retain exact pinned BOM/workflow versions, including archived definitions. Coherent legacy orders can explicitly adopt quantity flow; their target is labeled as captured at adoption. Ambiguous history stays visible with remediation, not invented balanced quantities or retrospective BOM attribution. Rollout and permitted actions come from backend capabilities. Employee My Orders remains read-only for FLOW batches requiring a production lead; no family/material-preview, split, closure, public or customer permissions are added. The separate legacy `/products` production flow is unchanged.
 
-The backend rollout switch `factory1.production.quantity-flow.enabled` defaults to false and controls new FLOW roots and explicit legacy adoption. Disabling it later does not remove guards from persisted FLOW orders.
+For production testing, enable the matching backend's `factory1.production.quantity-flow.enabled` switch with `PRODUCTION_QUANTITY_FLOW_ENABLED=true`; an explicit `false` opts out of new FLOW roots and legacy adoption. Disabling it later does not remove guards from persisted FLOW orders. The frontend does not set backend flags: verify the deployed backend's effective configuration before treating quantity flow as live, rather than inferring activation from a merged PR.
 
 Additional bounded checks:
 
