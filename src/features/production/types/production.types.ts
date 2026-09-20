@@ -1,3 +1,5 @@
+import type { MaterialCoverage, ProductionFlowMetadata, ProductionOrderGuard } from "./productionFlow.types";
+
 export type ApiResponse<T> = {
   success: boolean;
   message: string;
@@ -179,6 +181,11 @@ export type OrderStep = {
   rejectedQuantity?: number;
   holdQuantity?: number;
   remainingQuantity?: number;
+  inputQuantity?: number;
+  goodQuantity?: number;
+  scrapQuantity?: number;
+  cancelledQuantity?: number;
+  legacyUnclassifiedQuantity?: number;
   stationId?: string | null;
   stationName?: string | null;
   workstationId?: string | null;
@@ -189,7 +196,7 @@ export type OrderStep = {
 
 export type BomBindingStatus = "PINNED" | "LEGACY_UNRESOLVED" | "LEGACY_SELECTED";
 
-export type ProductionOrder = Omit<ProductionOrderRequest, "bomId"> & {
+export type ProductionOrder = Omit<ProductionOrderRequest, "bomId"> & ProductionFlowMetadata & {
   id: string;
   bomId: string | null;
   bomVersionNumber: number | null;
@@ -217,6 +224,10 @@ export type StepActionRequest = {
   notes?: string;
   expectedOrderVersion?: number;
   expectedStepVersion?: number;
+  expectedFamilyVersion?: number;
+  requestId?: string;
+  previewToken?: string;
+  materialCoverage?: MaterialCoverage[];
 };
 
 export type TimelineEvent = {
@@ -264,7 +275,7 @@ export type ProductionDashboard = {
   materialShortages: number;
 };
 
-export type ProductionBoardItem = {
+export type ProductionBoardItem = ProductionFlowMetadata & {
   orderId: string;
   orderNumber: string;
   productId: string;
@@ -297,12 +308,13 @@ export type ProductionBoardQuery = {
   status?: OrderStatus;
   page?: number;
   size?: number;
+  scope?: "LEAVES";
 };
 
 // Flat card shape returned by GET /api/production/kanban (PageResponse<KanbanCard>).
 // The backend does not group cards into columns, so the frontend groups them
 // client-side and enriches them with data already loaded from the orders API.
-export type KanbanCard = {
+export type KanbanCard = ProductionFlowMetadata & {
   orderId: string;
   orderNumber: string;
   status: OrderStatus;
@@ -311,6 +323,18 @@ export type KanbanCard = {
   rejectedQuantity: number;
   currentStepId?: string;
   updatedAt?: string;
+  productId?: string;
+  productCode?: string;
+  productName?: string;
+  priority?: OrderPriority;
+  dueDate?: string;
+  currentStepName?: string;
+  remainingQuantity?: number;
+  stationId?: string | null;
+  stationName?: string | null;
+  workstationId?: string | null;
+  workstationName?: string | null;
+  hasActiveAssignment?: boolean;
 };
 
 export type MaterialRequirement = {
@@ -346,7 +370,7 @@ export type WorkstationRequest = Omit<Workstation, "id">;
 
 export type AssignmentRole = "USER" | "OPERATOR" | "SUPERVISOR";
 
-export type OrderAssignmentRequest = {
+export type OrderAssignmentRequest = ProductionOrderGuard & {
   productionOrderId: string;
   orderStepSnapshotId?: string;
   assignmentRole: AssignmentRole;
@@ -368,6 +392,11 @@ export type ExecutionBatchRequest = {
   rejectedQuantity: number;
   notes?: string;
   expectedVersion?: number;
+  expectedStepVersion?: number;
+  expectedFamilyVersion?: number;
+  requestId?: string;
+  previewToken?: string;
+  materialCoverage?: MaterialCoverage[];
 };
 
 export type ExecutionBatch = ExecutionBatchRequest & {
@@ -402,7 +431,7 @@ export type QualityTemplate = Omit<QualityTemplateRequest, "checks"> & {
   checks: QualityTemplateCheck[];
 };
 
-export type QualityResultRequest = {
+export type QualityResultRequest = ProductionOrderGuard & {
   orderStepSnapshotId: string;
   templateId: string;
   definitionId: string;
@@ -417,7 +446,7 @@ export type QualityResult = QualityResultRequest & {
   createdAt?: string;
 };
 
-export type MaterialConsumptionRequest = {
+export type MaterialConsumptionRequest = ProductionOrderGuard & {
   productionOrderId: string;
   orderStepSnapshotId?: string;
   inventoryItemId: string;
@@ -468,7 +497,7 @@ export type ProductionOrderProgressFilters = {
   orderNumber?: string; customerId?: string; productId?: string;
 };
 
-export type ProductionOrderProgress = {
+export type ProductionOrderProgress = ProductionFlowMetadata & {
   orderId: string; orderNumber: string; customerId?: string; customerName?: string; productId: string;
   productName?: string; plannedQuantity: number; completedQuantity: number; rejectedQuantity: number;
   remainingQuantity: number; status: OrderStatus; dueDate?: string; delayed?: boolean;
@@ -501,7 +530,7 @@ export type AuditLogResponse = {
   details?: string;
 };
 
-export type MyAssignmentResponse = {
+export type MyAssignmentResponse = ProductionFlowMetadata & {
   assignmentId: string;
   orderId: string;
   orderNumber: string;

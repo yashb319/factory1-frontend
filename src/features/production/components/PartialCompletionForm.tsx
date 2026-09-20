@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRecordStepProductionMutation } from "../api/productionApi";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { hasExecutionVersions, matchesProductionAction, productionActionBody, reviewProductionAction, type ProductionActionSnapshot } from "../utils/productionAction";
+import { parseProductionQuantity } from "../utils/productionQuantity";
 
 type Props = {
   orderId: string;
@@ -15,6 +16,8 @@ type Props = {
   remainingQuantity: number;
   expectedOrderVersion?: number;
   expectedStepVersion?: number;
+  expectedFamilyVersion?: number;
+  quantityModel?: "LEGACY" | "FLOW_V1";
   onDone?: () => void;
   onCancel?: () => void;
   onRefresh?: () => void;
@@ -32,11 +35,14 @@ export function PartialCompletionForm({
   remainingQuantity,
   expectedOrderVersion,
   expectedStepVersion,
+  expectedFamilyVersion,
+  quantityModel,
   onDone,
   onCancel,
   onRefresh,
   disabled = false,
 }: Props) {
+  const id = useId();
   const [completedQuantity, setCompletedQuantity] = useState("");
   const [rejectedQuantity, setRejectedQuantity] = useState("");
   const [notes, setNotes] = useState("");
@@ -44,14 +50,14 @@ export function PartialCompletionForm({
   const [review, setReview] = useState<ProductionActionSnapshot | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const savingRef = useRef(false);
-  const context = { orderId, stepId, remainingQuantity, expectedOrderVersion, expectedStepVersion };
+  const context = { orderId, stepId, remainingQuantity, expectedOrderVersion, expectedStepVersion, expectedFamilyVersion, quantityModel };
   const versionsAvailable = hasExecutionVersions(context);
   const staleReview = Boolean(review && !matchesProductionAction(review, context));
 
   const requestReview = () => {
     try {
       setErrorMessage("");
-      setReview(reviewProductionAction(context, "record", Number(completedQuantity), Number(rejectedQuantity), notes));
+      setReview(reviewProductionAction(context, "record", parseProductionQuantity(completedQuantity || "0"), quantityModel === "FLOW_V1" ? 0 : parseProductionQuantity(rejectedQuantity || "0"), notes));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Review the output quantities.";
       setErrorMessage(message);
@@ -94,8 +100,9 @@ export function PartialCompletionForm({
     <div className="space-y-2 rounded-md border bg-muted/20 p-2" onClick={(event) => event.stopPropagation()}>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-[11px] text-muted-foreground">Completed</label>
+          <label htmlFor={`${id}-good`} className="text-[11px] text-muted-foreground">{quantityModel === "FLOW_V1" ? "Good at this step" : "Completed"}</label>
           <Input
+            id={`${id}-good`}
             type="number"
             min="0"
             step="0.001"
@@ -105,9 +112,10 @@ export function PartialCompletionForm({
             placeholder={`of ${remainingQuantity}`}
           />
         </div>
-        <div>
-          <label className="text-[11px] text-muted-foreground">Rejected</label>
+        {quantityModel !== "FLOW_V1" ? <div>
+          <label htmlFor={`${id}-rejected`} className="text-[11px] text-muted-foreground">Rejected</label>
           <Input
+            id={`${id}-rejected`}
             type="number"
             min="0"
             step="0.001"
@@ -115,9 +123,11 @@ export function PartialCompletionForm({
             disabled={recordProductionState.isLoading}
             onChange={(event) => setRejectedQuantity(event.target.value)}
           />
-        </div>
+        </div> : null}
       </div>
+      {quantityModel === "FLOW_V1" ? <p className="text-xs text-muted-foreground">Record good output only. A production lead reviews scrap and never-produced cancellation separately.</p> : null}
       <Textarea
+        aria-label="Production notes"
         value={notes}
         disabled={recordProductionState.isLoading}
         onChange={(event) => setNotes(event.target.value)}

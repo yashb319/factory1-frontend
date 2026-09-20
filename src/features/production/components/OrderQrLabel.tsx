@@ -11,8 +11,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { productionOrderPath, productionOrderUrl } from "@/lib/productionOrderLink";
+import { formatProductionQuantity } from "../utils/productionQuantity";
 
-type LabelProps = { orderId: string; orderNumber: string };
+type LabelProps = {
+  orderId: string;
+  orderNumber: string;
+  rootOrderId?: string;
+  batchLabel?: string;
+  nodeType?: "LEAF" | "SUMMARY";
+  allocatedQuantity?: number;
+  rootOrderNumber?: string;
+};
 type Qr = { url: string; uuid: string; size: number; path: string; deploymentWarning: boolean };
 
 const PRINT_CSS = `
@@ -25,7 +34,15 @@ const PRINT_CSS = `
   @media print { main { break-inside: avoid; } }
 `;
 
-function LabelContent({ orderId, orderNumber }: LabelProps) {
+function LabelContent({
+  orderId,
+  orderNumber,
+  rootOrderId,
+  batchLabel,
+  nodeType,
+  allocatedQuantity,
+  rootOrderNumber,
+}: LabelProps) {
   const [qr, setQr] = useState<Qr | null>(null);
   const [error, setError] = useState("");
   const [printing, setPrinting] = useState(false);
@@ -147,6 +164,19 @@ function LabelContent({ orderId, orderNumber }: LabelProps) {
         <>
           <div ref={label} className="rounded-lg bg-white p-5 text-center text-black">
             <h3 className="break-words text-xl font-semibold">Order {orderNumber}</h3>
+            {nodeType === "SUMMARY" && <p className="mt-2 font-semibold">Family overview</p>}
+            {batchLabel && <p className="mt-2 break-words">Batch: {batchLabel}</p>}
+            {(rootOrderNumber || rootOrderId) && (
+              <p className="mt-2 break-words">
+                Root order: {rootOrderNumber || rootOrderId}
+                {rootOrderNumber && rootOrderId && (
+                  <span className="block break-all font-mono text-xs">{rootOrderId}</span>
+                )}
+              </p>
+            )}
+            {allocatedQuantity !== undefined && (
+              <p className="mt-2">Allocated target: {formatProductionQuantity(allocatedQuantity)}</p>
+            )}
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox={`0 0 ${qr.size} ${qr.size}`}
@@ -178,12 +208,12 @@ function LabelContent({ orderId, orderNumber }: LabelProps) {
   );
 }
 
-export function OrderQrLabel({ orderId, orderNumber }: LabelProps) {
+export function OrderQrLabel(props: LabelProps) {
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button type="button" variant="outline">QR label</Button></DialogTrigger>
-      {open && <LabelContent key={orderId} orderId={orderId} orderNumber={orderNumber} />}
+      {open && <LabelContent key={props.orderId} {...props} />}
     </Dialog>
   );
 }

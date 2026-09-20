@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { BellRing, Clock3, Gauge, Save, TimerReset, TriangleAlert, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -12,11 +13,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { productionOrderPath } from "@/lib/productionOrderLink";
 import {
   useGetAnalyticsQuery, useGetNotificationPreferencesQuery, useGetOrderProgressQuery,
   useUpdateNotificationPreferencesMutation,
 } from "../api/productionApi";
-import type { ProductionAnalytics as ProductionAnalyticsData, ProductionAnalyticsFilters, ProductionNotificationEvent } from "../types/production.types";
+import type { ProductionAnalytics as ProductionAnalyticsData, ProductionAnalyticsFilters, ProductionNotificationEvent, ProductionOrderProgress } from "../types/production.types";
+import { productionTargetBasisLabel } from "../utils/productionBoard";
+import { formatProductionQuantity } from "../utils/productionQuantity";
 
 const notificationEvents: { event: ProductionNotificationEvent; label: string }[] = [
   { event: "ORDER_CREATED", label: "Order created" },
@@ -101,7 +105,67 @@ function OrderProgress({ filters }: { filters: ProductionAnalyticsFilters }) {
   const [customerId, setCustomerId] = useState("");
   const progress = useGetOrderProgressQuery({ orderNumber: filters.orderNumber, productId: filters.productId, customerId: customerId || undefined });
   const rows = progress.data ?? [];
-  return <Card><CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><CardTitle>Customer and order progress</CardTitle><select aria-label="Customer" className="h-9 rounded-md border bg-background px-3 text-sm" value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">All customers</option>{customers?.map((customer) => <option key={customer.id} value={customer.id}>{customer.customerCode} - {customer.name}</option>)}</select></CardHeader><CardContent>{progress.isLoading ? <AnalyticsLoading /> : progress.isError ? <AnalyticsError onRetry={() => void progress.refetch()} /> : !rows.length ? <Empty text="No order progress for these filters." /> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-2">Order</th><th className="p-2">Customer</th><th className="p-2">Progress</th><th className="p-2">Due</th><th className="p-2">Status</th></tr></thead><tbody>{rows.map((order) => <tr className="border-b" key={order.orderId}><td className="p-2 font-medium">{order.orderNumber}</td><td className="p-2">{order.customerName ?? order.customerId ?? "-"}</td><td className="p-2">{number(order.completedQuantity)} / {number(order.plannedQuantity)} <span className="text-muted-foreground">({number(order.remainingQuantity)} remaining)</span></td><td className="p-2">{order.dueDate ?? "-"}</td><td className="p-2"><StatusBadge tone={order.delayed ? "error" : statusTone(order.status)}>{order.delayed ? "DELAYED" : order.status.replaceAll("_", " ")}</StatusBadge></td></tr>)}</tbody></table></div>}</CardContent></Card>;
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle>Customer and order progress</CardTitle>
+        <select aria-label="Customer" className="h-9 rounded-md border bg-background px-3 text-sm" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+          <option value="">All customers</option>
+          {customers?.map((customer) => <option key={customer.id} value={customer.id}>{customer.customerCode} - {customer.name}</option>)}
+        </select>
+      </CardHeader>
+      <CardContent>
+        {progress.isLoading ? <AnalyticsLoading /> : progress.isError ? <AnalyticsError onRetry={() => void progress.refetch()} /> : !rows.length ? <Empty text="No order progress for these filters." /> : (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Original-request progress reported by the server. Current-step output is not final good; child batches are not added to root totals.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b text-left"><th className="p-2">Order / family</th><th className="p-2">Customer</th><th className="p-2">Target and progress</th><th className="p-2">Due</th><th className="p-2">Status</th></tr></thead>
+                <tbody>
+                  {rows.map((order) => (
+                    <tr className="border-b align-top" key={order.orderId}>
+                      <td className="p-2 font-medium">
+                        <Link className="text-primary underline" href={productionOrderPath(order.batch?.rootOrderId ?? order.orderId)}>{order.orderNumber}</Link>
+                        {order.batch && <div className="text-xs text-muted-foreground">{order.batch.batchLabel} · Original order / family</div>}
+                      </td>
+                      <td className="p-2">{order.customerName ?? order.customerId ?? "-"}</td>
+                      <td className="p-2"><OrderProgressQuantities order={order} /></td>
+                      <td className="p-2">{order.dueDate ?? "-"}</td>
+                      <td className="p-2">
+                        <StatusBadge tone={order.delayed ? "error" : statusTone(order.status)}>{order.delayed ? "DELAYED" : order.status.replaceAll("_", " ")}</StatusBadge>
+                        {order.batch && <div className="mt-1 text-xs text-muted-foreground">{order.batch.isTerminal ? "Closed" : "Open"}{order.batch.closureOutcome !== "NONE" ? ` · ${order.batch.closureOutcome}` : ""}</div>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function OrderProgressQuantities({ order }: { order: ProductionOrderProgress }) {
+  const quantities = order.quantities;
+  const legacy = !quantities && order.quantityModel !== "FLOW_V1";
+  return (
+    <div className="space-y-1 text-xs">
+      <div className="font-medium">
+        {legacy ? "Legacy current target" : productionTargetBasisLabel(quantities?.targetBasis)}: {formatProductionQuantity(legacy ? order.plannedQuantity : quantities?.originalPlannedQuantity)}
+      </div>
+      {legacy && <div className="text-muted-foreground">Legacy reported completed: {formatProductionQuantity(order.completedQuantity)} · Remaining: {formatProductionQuantity(order.remainingQuantity)}. Original target provenance and reconciled family quantities are unavailable.</div>}
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+        <dt>Final good</dt><dd>{formatProductionQuantity(quantities?.finalGoodQuantity)}</dd>
+        <dt>Scrap</dt><dd>{formatProductionQuantity(quantities?.scrapQuantity)}</dd>
+        <dt>Cancelled</dt><dd>{formatProductionQuantity(quantities?.cancelledQuantity)}</dd>
+        <dt>Pending</dt><dd>{formatProductionQuantity(quantities?.pendingQuantity)}</dd>
+        <dt>Unclassified legacy</dt><dd>{formatProductionQuantity(quantities?.legacyUnclassifiedQuantity)}</dd>
+      </dl>
+      {quantities?.reconciliationComplete !== true && <p className="text-amber-700">Quantity reconciliation incomplete or unavailable; missing quantities do not mean zero.</p>}
+    </div>
+  );
 }
 
 function NotificationPreferences() {

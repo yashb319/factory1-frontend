@@ -80,6 +80,14 @@ import { OrderBomBinding } from "./OrderBomBinding";
 import { CatalogPagination } from "./CatalogPagination";
 import { OrderQrLabel } from "./OrderQrLabel";
 import { OrderQrScanner } from "./OrderQrScanner";
+import { ProductionQuantitySummary } from "./ProductionQuantitySummary";
+import { ProductionFamilyOverview } from "./ProductionFamilyOverview";
+import { ProductionSplit } from "./ProductionSplit";
+import { ProductionFinalGoodForm } from "./ProductionFinalGoodForm";
+import { ProductionShortClose } from "./ProductionShortClose";
+import { canProductionAction, matchesProductionOrderGuard, productionActionBlock, productionIsTerminal, productionOrderGuard } from "../utils/productionFlow";
+import type { ProductionOrderGuard } from "../types/productionFlow.types";
+import { parseProductionQuantity } from "../utils/productionQuantity";
 import { productionOrderPath, safeProductionReturnPath } from "@/lib/productionOrderLink";
 import { hasExecutionVersions, matchesProductionAction, productionActionBody, reviewProductionAction, type ProductionActionSnapshot } from "../utils/productionAction";
 import { bomRevision, buildPinnedMaterialRequirements, isSelectableBom, validBomRequest, workflowRevision } from "../utils/lifecycle";
@@ -194,6 +202,11 @@ type QualityCheckDraft = {
   value: string;
   notes: string;
 };
+type AuxiliaryReview = { orderId: string; guard: ProductionOrderGuard; description: string } & (
+  | { kind: "ASSIGN"; body: OrderAssignmentRequest }
+  | { kind: "UNASSIGN"; assignmentId: string }
+  | { kind: "QUALITY"; body: QualityResultRequest }
+);
 
 const opsRoles = ["OWNER", "ADMIN", "MANAGEMENT"];
 const orderStatuses: OrderStatus[] = [
@@ -368,14 +381,17 @@ function Orders({
   const [stationFilter, setStationFilter] = useState("ALL");
   const [viewMode, setViewMode] = useState<OrdersViewMode>("board");
   const [groupByWorkflowStep, setGroupByWorkflowStep] = useState(false);
+  const [orderPage, setOrderPage] = useState(0);
+  const [boardPage, setBoardPage] = useState(0);
 
-  const ordersQuery = useGetOrdersQuery({ page: 0, size: 100 });
+  const ordersQuery = useGetOrdersQuery({ page: orderPage, size: 50, scope: "ROOTS" });
   const { data: productsPage } = useGetProductsQuery({ page: 0, size: 300 });
   const dashboardQuery = useGetProductionDashboardQuery();
   const workstationsQuery = useGetWorkstationsQuery({ page: 0, size: 200 });
   const boardQuery = useGetProductionKanbanQuery({
-    page: 0,
-    size: 100,
+    page: boardPage,
+    size: 50,
+    scope: "LEAVES",
     status: statusFilter === "ALL" ? undefined : statusFilter,
   });
 
@@ -449,48 +465,10 @@ function Orders({
   };
 
   const requestAdvance = (orderId: string) => {
-    const order = ordersById.get(orderId);
-    const currentStep = order ? getCurrentOrderStep(order) : undefined;
-    if (!order || !currentStep) {
-      toast.error("The current workflow step is unavailable. Refresh and try again.");
-      return;
-    }
-
-    const recordedQuantity =
-      (currentStep.completedQuantity ?? 0) + (currentStep.rejectedQuantity ?? 0);
-    const remainingQuantity =
-      currentStep.remainingQuantity ??
-      Math.max(order.plannedQuantity - recordedQuantity, 0);
-    if (remainingQuantity > 0) {
-      onSelect(orderId);
-      toast.info(
-        `Record the remaining ${formatNumber(remainingQuantity)} units before advancing.`
-      );
-      return;
-    }
-
     onSelect(orderId);
-    toast.info("Review the current step and confirm advancement in the order details.");
+    toast.info("Review the current step in batch details. Split recorded ready pieces to advance independently, or confirm ordinary advancement when the step is resolved.");
   };
 
-
-  const statusCounts = useMemo(() => {
-    return orders.reduce<Record<OrderStatus, number>>(
-      (summary, order) => {
-        summary[order.status] += 1;
-        return summary;
-      },
-      {
-        PLANNED: 0,
-        RELEASED: 0,
-        IN_PROGRESS: 0,
-        ON_HOLD: 0,
-        PARTIALLY_COMPLETED: 0,
-        COMPLETED: 0,
-        CANCELLED: 0,
-      }
-    );
-  }, [orders]);
 
   return (
     <div className="space-y-5">
@@ -622,21 +600,21 @@ function Orders({
                 <Button
                   type="button"
                   variant={statusFilter === "ALL" ? "default" : "outline"}
-                  onClick={() => setStatusFilter("ALL")}
+                  onClick={() => { setStatusFilter("ALL"); setBoardPage(0); setOrderPage(0); }}
                   aria-pressed={statusFilter === "ALL"}
                 >
                   <Filter className="mr-2 h-4 w-4" />
-                  All ({orders.length})
+                  All
                 </Button>
                 {orderStatuses.map((status) => (
                   <Button
                     key={status}
                     type="button"
                     variant={statusFilter === status ? "default" : "outline"}
-                    onClick={() => setStatusFilter(status)}
+                    onClick={() => { setStatusFilter(status); setBoardPage(0); setOrderPage(0); }}
                     aria-pressed={statusFilter === status}
                   >
-                    {humanize(status)} ({statusCounts[status]})
+                    {humanize(status)}
                   </Button>
                 ))}
               </div>
@@ -657,19 +635,20 @@ function Orders({
               <CardDescription>
                 {viewMode === "board"
                   ? "Track queued, running, blocked, and completed work by order status."
-                  : "Review quantities, due dates, stations, and execution indicators in one table."}
+                  : "Original requests only. Open an order for its linked child batches and consolidated quantities."}
+                {" Search and station filters apply to the current page."}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {ordersQuery.isLoading ? (
+              {(viewMode === "board" ? boardQuery.isFetching : ordersQuery.isFetching) ? (
                 <Loading text="Loading production orders..." />
-              ) : ordersQuery.isError && !orders.length ? (
+              ) : (viewMode === "board" ? boardQuery.isError : ordersQuery.isError) ? (
                 <ErrorState
                   title="Production orders could not be loaded"
                   message="Order APIs are unavailable right now."
-                  onRetry={() => void ordersQuery.refetch()}
+                  onRetry={() => viewMode === "board" ? void boardQuery.refetch() : void ordersQuery.refetch()}
                 />
-              ) : !filteredOrders.length ? (
+              ) : !(viewMode === "board" ? boardItems.length : filteredOrders.length) ? (
                 <EmptyState
                   icon={Factory}
                   title="No orders match these filters"
@@ -697,6 +676,12 @@ function Orders({
                   onSelect={onSelect}
                 />
               )}
+              <CatalogPagination
+                page={viewMode === "board" ? boardPage : orderPage}
+                totalPages={(viewMode === "board" ? boardQuery.data : ordersQuery.data)?.totalPages ?? 0}
+                loading={viewMode === "board" ? boardQuery.isFetching : ordersQuery.isFetching}
+                onChange={viewMode === "board" ? setBoardPage : setOrderPage}
+              />
             </CardContent>
           </Card>
       </div>
@@ -707,6 +692,7 @@ function Orders({
           key={selectedOrderId}
           orderId={selectedOrderId}
           onClose={() => onSelect(undefined)}
+          onSelect={onSelect}
         />
       ) : null}
     </div>
@@ -774,7 +760,7 @@ function OrderListView({
               </TableCell>
               <TableCell>{order.productName || order.productCode || order.productId}</TableCell>
               <TableCell>
-                {formatNumber(order.completedQuantity)} / {formatNumber(order.plannedQuantity)}
+                {order.quantities ? <ProductionQuantitySummary quantities={order.quantities} compact /> : <>{formatNumber(order.completedQuantity)} / {formatNumber(order.plannedQuantity)}</>}
               </TableCell>
               <TableCell>{currentStep?.name || "Awaiting workflow step"}</TableCell>
               <TableCell>
@@ -1266,9 +1252,11 @@ function WorkstationManager({
 function OrderDetail({
   orderId,
   onClose,
+  onSelect,
 }: {
   orderId: string;
   onClose: () => void;
+  onSelect: (id?: string) => void;
 }) {
   const orderQuery = useGetOrderQuery(orderId);
   const timelineQuery = useGetTimelineQuery(orderId);
@@ -1292,6 +1280,8 @@ function OrderDetail({
   const [stepAction, stepActionState] = useStepActionMutation();
   const [pendingAdvance, setPendingAdvance] = useState<(ProductionActionSnapshot & { stepName: string; completesOrder: boolean }) | null>(null);
   const advancingRef = useRef(false);
+  const [auxiliaryReview, setAuxiliaryReview] = useState<AuxiliaryReview>();
+  const auxiliarySaving = useRef(false);
   const [createQualityResult, createQualityResultState] = useCreateQualityResultMutation();
   const [createQualityTemplate, createQualityTemplateState] = useCreateQualityCheckTemplateMutation();
 
@@ -1365,7 +1355,7 @@ function OrderDetail({
   const qualityTemplatesQuery = useGetQualityCheckTemplatesQuery({ page: 0, size: 100 });
   const qualityResultsQuery = useGetQualityResultsQuery(
     { orderId, stepId: currentStep?.id },
-    { skip: !currentStep }
+    { skip: !order }
   );
   const qualityTemplates = useMemo(() => {
     const all = qualityTemplatesQuery.data?.content ?? [];
@@ -1475,7 +1465,7 @@ function OrderDetail({
     (currentStep?.completedQuantity ?? 0) + (currentStep?.rejectedQuantity ?? 0);
   const currentStepRemainingQuantity =
     currentStep?.remainingQuantity ??
-    Math.max(order.plannedQuantity - currentStepRecordedQuantity, 0);
+    (order.quantityModel === "FLOW_V1" ? NaN : Math.max(order.plannedQuantity - currentStepRecordedQuantity, 0));
   const hasNextStep = Boolean(
     currentStep &&
       orderSteps.some((step) => step.sequenceNumber > currentStep.sequenceNumber && step.active)
@@ -1486,20 +1476,27 @@ function OrderDetail({
     remainingQuantity: currentStepRemainingQuantity,
     expectedOrderVersion: order.executionVersion,
     expectedStepVersion: currentStep?.expectedVersion,
+    expectedFamilyVersion: order.batch?.familyVersion,
+    quantityModel: order.quantityModel,
   };
   const executionBlocked = orderQuery.isFetching || orderQuery.isError ||
-    ["COMPLETED", "PARTIALLY_COMPLETED", "CANCELLED"].includes(order.status) ||
+    productionIsTerminal(order) || order.batch?.nodeType === "SUMMARY" ||
     !currentStep?.active || currentStep.id !== order.currentStepId;
+  const canAssign = !executionBlocked && canProductionAction(order, "ASSIGN");
+  const canQuality = !executionBlocked && canProductionAction(order, "RECORD_QUALITY");
+  const canConsume = !executionBlocked && canProductionAction(order, "CONSUME_MATERIAL");
   const staleAdvance = Boolean(pendingAdvance && !matchesProductionAction(pendingAdvance, actionContext));
+  const staleAuxiliary = Boolean(auxiliaryReview && (auxiliaryReview.orderId !== order.id || !matchesProductionOrderGuard(auxiliaryReview.guard, order)));
 
   const refreshDetail = () => {
     void orderQuery.refetch();
     void timelineQuery.refetch();
-    if (currentStep) void qualityResultsQuery.refetch();
+    void qualityResultsQuery.refetch();
     void qualityTemplatesQuery.refetch();
     void assignmentsQuery.refetch();
     void executionBatchesQuery.refetch();
     void materialConsumptionsQuery.refetch();
+    void auditLogQuery.refetch();
   };
 
   const submitOrderAssignment = async (event: FormEvent<HTMLFormElement>) => {
@@ -1525,6 +1522,12 @@ function OrderDetail({
     };
 
     try {
+      if (order.quantityModel === "FLOW_V1") {
+        const guard = productionOrderGuard(order);
+        setAuxiliaryReview({ kind: "ASSIGN", orderId, guard, body: { ...body, ...guard },
+          description: `Assign ${body.assigneeUserId ? assigneeName(body.assigneeUserId) : vendorName(body.vendorId ?? "")} as ${body.assignmentRole} to this batch${body.deadline ? ` until ${body.deadline}` : ""}.` });
+        return;
+      }
       await createOrderAssignment({ orderId, body }).unwrap();
       toast.success("Order assigned");
       setOrderAssignment(emptyAssignment());
@@ -1562,6 +1565,12 @@ function OrderDetail({
     };
 
     try {
+      if (order.quantityModel === "FLOW_V1") {
+        const guard = productionOrderGuard(order);
+        setAuxiliaryReview({ kind: "ASSIGN", orderId, guard, body: { ...body, ...guard },
+          description: `Assign ${body.assigneeUserId ? assigneeName(body.assigneeUserId) : vendorName(body.vendorId ?? "")} as ${body.assignmentRole} to ${assignmentStep.name}${body.deadline ? ` until ${body.deadline}` : ""}.` });
+        return;
+      }
       await createOrderAssignment({ orderId, body }).unwrap();
       toast.success(`${assignmentStep.name} assigned`);
       setStepAssignment(emptyAssignment());
@@ -1573,6 +1582,11 @@ function OrderDetail({
 
   const removeAssignment = async (id: string) => {
     try {
+      if (order.quantityModel === "FLOW_V1") {
+        setAuxiliaryReview({ kind: "UNASSIGN", orderId, guard: productionOrderGuard(order), assignmentId: id,
+          description: `Remove assignment ${id} from this batch. This does not reassign another child or workflow step.` });
+        return;
+      }
       await deleteAssignment(id).unwrap();
       toast.success("Assignment removed");
       refreshDetail();
@@ -1581,7 +1595,7 @@ function OrderDetail({
     }
   };
 
-  const submitQualityResults = async () => {
+  const submitQualityResults = async (definitionId?: string) => {
     if (!currentStep || !selectedTemplate) return;
     const checks = selectedTemplate.checks;
     if (!checks.length) {
@@ -1590,6 +1604,17 @@ function OrderDetail({
     }
 
     try {
+      if (order.quantityModel === "FLOW_V1") {
+        const check = checks.find((candidate) => candidate.id === definitionId);
+        if (!check) throw new Error("Review one quality check at a time; each result changes the family version.");
+        const draft = qualityChecks[check.id] ?? { passed: true, value: "", notes: "" };
+        const guard = productionOrderGuard(order);
+        setAuxiliaryReview({ kind: "QUALITY", orderId, guard,
+          description: `Record ${draft.passed ? "PASS" : "FAIL"} for ${check.name} at ${currentStep.name}. Value: ${draft.value.trim() || "(none)"}. Notes: ${draft.notes.trim() || "(none)"}.`,
+          body: { ...guard, orderStepSnapshotId: currentStep.id, templateId: selectedTemplate.id,
+            definitionId: check.id, passed: draft.passed, value: draft.value.trim() || undefined, notes: draft.notes.trim() || undefined } });
+        return;
+      }
       await Promise.all(
         checks.map((check) => {
           const draft = qualityChecks[check.id] ?? { passed: true, value: "", notes: "" };
@@ -1601,6 +1626,7 @@ function OrderDetail({
             value: draft.value.trim() || undefined,
             notes: draft.notes.trim() || undefined,
           };
+
           return createQualityResult({ orderId, body }).unwrap();
         })
       );
@@ -1609,6 +1635,33 @@ function OrderDetail({
     } catch (error) {
       toast.error(apiErrorMessage(error) ?? "Could not record quality results");
     }
+  };
+
+  const confirmAuxiliary = async () => {
+    if (!auxiliaryReview || auxiliarySaving.current) return;
+    const action = auxiliaryReview.kind === "QUALITY" ? "RECORD_QUALITY" : "ASSIGN";
+    if (staleAuxiliary || executionBlocked || !canProductionAction(order, action)) {
+      toast.error("The batch changed or this action is unavailable. Refresh and review again.");
+      return;
+    }
+    auxiliarySaving.current = true;
+    try {
+      if (auxiliaryReview.kind === "ASSIGN") {
+        await createOrderAssignment({ orderId: auxiliaryReview.orderId, body: auxiliaryReview.body }).unwrap();
+        setOrderAssignment(emptyAssignment()); setStepAssignment(emptyAssignment());
+      } else if (auxiliaryReview.kind === "UNASSIGN") {
+        await deleteAssignment({ id: auxiliaryReview.assignmentId, ...auxiliaryReview.guard }).unwrap();
+      } else {
+        await createQualityResult({ orderId: auxiliaryReview.orderId, body: auxiliaryReview.body }).unwrap();
+      }
+      toast.success("Reviewed batch change saved");
+      setAuxiliaryReview(undefined);
+      refreshDetail();
+    } catch (error) {
+      setAuxiliaryReview(undefined);
+      toast.error(apiErrorMessage(error) ?? "Outcome not confirmed. Refresh and inspect the batch before another reviewed action. No automatic retry was made.");
+      refreshDetail();
+    } finally { auxiliarySaving.current = false; }
   };
 
   const saveQualityTemplate = async (body: QualityTemplateRequest) => {
@@ -1623,7 +1676,7 @@ function OrderDetail({
   };
 
   const advanceCurrentStep = async () => {
-    if (!pendingAdvance || advancingRef.current || staleAdvance || executionBlocked) return;
+    if (!pendingAdvance || advancingRef.current || staleAdvance || executionBlocked || !canProductionAction(order, "ADVANCE")) return;
     advancingRef.current = true;
 
     try {
@@ -1660,6 +1713,11 @@ function OrderDetail({
   };
 
   const handleCancelOrder = async () => {
+    if (order.quantityModel === "FLOW_V1" || productionIsTerminal(order) || !canProductionAction(order, "CANCEL")) {
+      toast.error("This order cannot use legacy cancellation. Open an executable batch and review reasoned short closure.");
+      setConfirmCancelOpen(false);
+      return;
+    }
     try {
       await cancelOrder(orderId).unwrap();
       toast.success("Order cancelled");
@@ -1675,13 +1733,22 @@ function OrderDetail({
       <Dialog open onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="w-full max-w-[calc(100%-2rem)] sm:max-w-6xl">
           <DialogHeader className="pr-10">
-            <DialogTitle>{order.orderNumber}</DialogTitle>
+            <DialogTitle>{order.batch?.batchLabel ?? order.orderNumber}</DialogTitle>
             <DialogDescription>
-              {product?.name || product?.productCode || order.productId} · workflow v{order.workflowVersionNumber} · {formatNumber(order.completedQuantity)} complete · {formatNumber(order.rejectedQuantity)} rejected
+              {product?.name || product?.productCode || order.productId} · workflow v{order.workflowVersionNumber}
+              {order.quantityModel !== "FLOW_V1" ? <> · {formatNumber(order.completedQuantity)} complete · {formatNumber(order.rejectedQuantity)} legacy rejected</> : " · Final output and current-step good are shown separately."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
-          <OrderQrLabel orderId={order.id} orderNumber={order.orderNumber} />
+          <OrderQrLabel orderId={order.id} orderNumber={order.orderNumber} rootOrderId={order.batch?.rootOrderId} batchLabel={order.batch?.batchLabel} nodeType={order.batch?.nodeType} allocatedQuantity={order.quantities?.allocatedQuantity} />
+          {order.batch ? <div className="flex flex-wrap items-center gap-2 text-sm">
+            <Badge variant="outline">{order.batch.nodeType === "SUMMARY" ? "Family overview - read only" : order.batch.parentOrderId ? `Child ${order.batch.childSequence}` : "Original request"}</Badge>
+            {order.batch.rootOrderId !== order.id ? <Button size="sm" variant="link" onClick={() => onSelect(order.batch?.rootOrderId)}>Open original request</Button> : null}
+            {order.batch.parentOrderId && order.batch.parentOrderId !== order.batch.rootOrderId ? <Button size="sm" variant="link" onClick={() => onSelect(order.batch?.parentOrderId ?? undefined)}>Open parent batch</Button> : null}
+          </div> : null}
+          {order.quantities ? <ProductionQuantitySummary quantities={order.quantities} /> : null}
+          {order.batch?.parentOrderId ? <p className="text-sm text-muted-foreground">Child progress can include inherited opening balances. Original executions, quality evidence and material issues remain on their source parent; this batch&apos;s recorded-output history lists its own new records, not replayed production.</p> : null}
+          <ProductionFamilyOverview key={`${order.id}:${order.batch?.familyVersion}`} order={order} onSelect={onSelect} onRefresh={refreshDetail} />
           {orderQuery.isError ? <ErrorState title="Order refresh failed" message="Displayed information may be stale. Production actions are disabled until a successful refresh." onRetry={() => void orderQuery.refetch()} /> : null}
           <OrderBomBinding key={order.id} order={order} />
           <div className="flex flex-wrap items-center gap-2">
@@ -1692,7 +1759,7 @@ function OrderDetail({
             <span className="text-xs text-muted-foreground">
               Due {formatDate(order.dueDate)}
             </span>
-            {order.status !== "CANCELLED" && order.status !== "COMPLETED" ? (
+            {!productionIsTerminal(order) && order.quantityModel !== "FLOW_V1" && canProductionAction(order, "CANCEL") ? (
               <Button size="sm" variant="outline" onClick={() => setConfirmCancelOpen(true)}>
                 <Ban className="mr-2 h-3.5 w-3.5" />
                 Cancel order
@@ -1707,10 +1774,10 @@ function OrderDetail({
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <MiniStat label="Completed" value={formatNumber(order.completedQuantity)} />
-            <MiniStat label="Rejected" value={formatNumber(order.rejectedQuantity)} />
-            <MiniStat label="Active step" value={currentStep?.name || "Awaiting workflow step"} />
-            <MiniStat label="Shortages" value={String(shortageCount)} />
+            <MiniStat label={order.quantityModel === "FLOW_V1" ? "Final good" : "Completed"} value={order.quantityModel === "FLOW_V1" ? order.quantities ? formatNumber(order.quantities.finalGoodQuantity) : "Unavailable" : formatNumber(order.completedQuantity)} />
+            <MiniStat label={order.quantityModel === "FLOW_V1" ? "Scrap pieces" : "Legacy rejected"} value={order.quantityModel === "FLOW_V1" ? order.quantities ? formatNumber(order.quantities.scrapQuantity) : "Unavailable" : formatNumber(order.rejectedQuantity)} />
+            <MiniStat label="Active step" value={order.batch?.nodeType === "SUMMARY" ? "See child batches" : currentStep?.name || "Awaiting workflow step"} />
+            <MiniStat label="Shortages" value={order.batch?.nodeType === "SUMMARY" ? "See child batches" : String(shortageCount)} />
           </div>
 
           <IndicatorRow indicators={[...orderIndicators, ...deriveOrderRiskIndicators(order, latestQualityResult, shortageCount)]} />
@@ -1802,7 +1869,7 @@ function OrderDetail({
                         className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 p-2 text-sm"
                       >
                         {renderAssigneeLabel(assignment)}
-                        <Button
+                        {canAssign ? <Button
                           variant="ghost"
                           size="sm"
                           disabled={deleteAssignmentState.isLoading}
@@ -1810,7 +1877,7 @@ function OrderDetail({
                         >
                           <Ban className="mr-2 h-3.5 w-3.5" />
                           Remove
-                        </Button>
+                        </Button> : null}
                       </div>
                     ))}
                   </div>
@@ -1818,7 +1885,7 @@ function OrderDetail({
                   <Empty text="No one is assigned to this order yet." />
                 )}
 
-                <form className="space-y-3" onSubmit={submitOrderAssignment}>
+                {canAssign ? <form className="space-y-3" onSubmit={submitOrderAssignment}>
                   {userAccountsQuery.isError ? (
                     <InlineNotice tone="warning" title="Users unavailable">
                       Organization users could not be loaded. You can still try again shortly.
@@ -1948,7 +2015,7 @@ function OrderDetail({
                       {createOrderAssignmentState.isLoading ? "Saving..." : "Assign order"}
                     </Button>
                   </div>
-                </form>
+                </form> : null}
               </CardContent>
             </Card>
 
@@ -1996,7 +2063,7 @@ function OrderDetail({
                             className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 p-2 text-sm"
                           >
                             {renderAssigneeLabel(assignment)}
-                            <Button
+                            {canAssign ? <Button
                               variant="ghost"
                               size="sm"
                               disabled={deleteAssignmentState.isLoading}
@@ -2004,7 +2071,7 @@ function OrderDetail({
                             >
                               <Ban className="mr-2 h-3.5 w-3.5" />
                               Remove
-                            </Button>
+                            </Button> : null}
                           </div>
                         ))}
                       </div>
@@ -2012,7 +2079,7 @@ function OrderDetail({
                       <Empty text={`No one is assigned to ${assignmentStep?.name ?? "this step"} yet.`} />
                     )}
 
-                    <form className="space-y-3" onSubmit={submitStepAssignment}>
+                    {canAssign ? <form className="space-y-3" onSubmit={submitStepAssignment}>
                       {userAccountsQuery.isError ? (
                         <InlineNotice tone="warning" title="Users unavailable">
                           Organization users could not be loaded. You can still try again shortly.
@@ -2146,7 +2213,7 @@ function OrderDetail({
                             : `Assign ${assignmentStep?.name ?? "step"}`}
                         </Button>
                       </div>
-                    </form>
+                    </form> : null}
                   </div>
                 )}
               </CardContent>
@@ -2164,7 +2231,7 @@ function OrderDetail({
                     Use quality-check templates to record PASS/FAIL outcomes per check, with an optional value and notes.
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
+                {canQuality ? <div className="flex gap-2">
                   <Button
                     variant="outline"
                     onClick={() => setTemplateCreateOpen(true)}
@@ -2173,7 +2240,7 @@ function OrderDetail({
                     <Plus className="mr-2 h-4 w-4" />
                     Template
                   </Button>
-                </div>
+                </div> : null}
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -2183,7 +2250,7 @@ function OrderDetail({
                 </InlineNotice>
               ) : null}
 
-              {currentStep ? (
+              {currentStep && canQuality ? (
                 <>
                   <Field label="Template">
                     <select
@@ -2255,6 +2322,7 @@ function OrderDetail({
                                 </Field>
                               </div>
                             </div>
+                            {order.quantityModel === "FLOW_V1" ? <Button type="button" className="mt-3" size="sm" variant="outline" disabled={!canQuality || createQualityResultState.isLoading} onClick={() => void submitQualityResults(check.id)}>Review this quality result</Button> : null}
                           </div>
                         );
                       })}
@@ -2263,14 +2331,14 @@ function OrderDetail({
                     <Empty text="Select or create a quality template for this step." />
                   )}
 
-                  <div className="flex justify-end">
+                  {order.quantityModel !== "FLOW_V1" ? <div className="flex justify-end">
                     <Button
                       onClick={() => void submitQualityResults()}
                       disabled={createQualityResultState.isLoading || !selectedTemplate}
                     >
                       {createQualityResultState.isLoading ? "Saving..." : "Record quality results"}
                     </Button>
-                  </div>
+                  </div> : <p className="text-xs text-muted-foreground">Confirm each check separately. Every result changes the family version; a template is not silently replayed with new versions.</p>}
                 </>
               ) : (
                 <Empty text="Quality controls become available when the order has an active step." />
@@ -2320,7 +2388,9 @@ function OrderDetail({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {pinnedBomQuery.isFetching ? (
+              {order.batch?.nodeType === "SUMMARY" ? (
+                <p className="text-sm text-muted-foreground">This overview retains historical material evidence. Review an executable child for its remaining requirements; inherited consumption is not charged again.</p>
+              ) : pinnedBomQuery.isFetching ? (
                 <Loading text="Loading the order's saved BOM version..." />
               ) : pinnedBomQuery.isError ? (
                 <ErrorState title="Saved BOM unavailable" message="Material estimates cannot be shown until the saved BOM is loaded." onRetry={() => void pinnedBomQuery.refetch()} />
@@ -2353,7 +2423,8 @@ function OrderDetail({
                         <StatusBadge tone="success">Stock available</StatusBadge>
                       )}
                     </div>
-                    <MaterialConsumptionForm
+                    {canConsume ? <MaterialConsumptionForm
+                      order={order}
                       orderId={orderId}
                       stepId={currentStep?.id}
                       requirement={requirement}
@@ -2371,7 +2442,8 @@ function OrderDetail({
                         }));
                         void materialConsumptionsQuery.refetch();
                       }}
-                    />
+                      onRefresh={refreshDetail}
+                    /> : null}
                   </div>
                 ))}
                 </>
@@ -2394,11 +2466,11 @@ function OrderDetail({
             <CardHeader>
               <CardTitle>Step execution</CardTitle>
               <CardDescription>
-                Record completed and rejected quantities, then advance after the full planned quantity is accounted for.
+                Record output for the current step. Ready pieces can split and advance independently; reasoned losses reduce downstream work, never the original target.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {!currentStep ? (
+              {!currentStep || order.batch?.nodeType === "SUMMARY" ? (
                 <Empty text="Execution controls will appear once an active step is available." />
               ) : (
                 <>
@@ -2412,12 +2484,19 @@ function OrderDetail({
                         : ""}
                     </div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2 text-xs text-muted-foreground">
-                      <span>Completed: {formatNumber(currentStep.completedQuantity ?? 0)}</span>
+                      <span>Good at this step: {formatNumber(currentStep.goodQuantity ?? currentStep.completedQuantity ?? 0)}</span>
                       <span>Rejected: {formatNumber(currentStep.rejectedQuantity ?? 0)}</span>
                     </div>
                   </div>
 
-                  {currentStepRemainingQuantity > 0 ? (
+                  {!Number.isFinite(currentStepRemainingQuantity) ? (
+                    <InlineNotice tone="warning" title="Step quantities unavailable">Refresh the batch before recording or advancing. Original planned quantity cannot substitute for missing step input.</InlineNotice>
+                  ) : currentStepRemainingQuantity > 0 ? (
+                    order.quantityModel === "FLOW_V1" && !hasNextStep ? <ProductionFinalGoodForm
+                      order={order} step={currentStep}
+                      disabled={executionBlocked || order.bomBindingStatus === "LEGACY_UNRESOLVED" || !canProductionAction(order, "RECORD_GOOD")}
+                      onDone={refreshDetail} onRefresh={refreshDetail}
+                    /> :
                     <PartialCompletionForm
                       key={currentStep.id}
                       orderId={orderId}
@@ -2425,13 +2504,15 @@ function OrderDetail({
                       remainingQuantity={currentStepRemainingQuantity}
                       expectedOrderVersion={order.executionVersion}
                       expectedStepVersion={currentStep.expectedVersion}
+                      expectedFamilyVersion={order.batch?.familyVersion}
+                      quantityModel={order.quantityModel}
                       onDone={refreshDetail}
                       onRefresh={refreshDetail}
-                      disabled={executionBlocked || order.bomBindingStatus === "LEGACY_UNRESOLVED"}
+                      disabled={executionBlocked || order.bomBindingStatus === "LEGACY_UNRESOLVED" || !canProductionAction(order, "RECORD_GOOD")}
                     />
                   ) : (
                     <InlineNotice tone="info" title="Current step production recorded">
-                      The full planned quantity is accounted for. Move this order forward when the
+                      The current step input is accounted for. Move this batch forward when the
                       next step is ready.
                     </InlineNotice>
                   )}
@@ -2446,7 +2527,7 @@ function OrderDetail({
                     >
                       <Button
                         type="button"
-                        disabled={stepActionState.isLoading || currentStepRemainingQuantity > 0 || executionBlocked || !hasExecutionVersions(actionContext)}
+                        disabled={stepActionState.isLoading || currentStepRemainingQuantity !== 0 || executionBlocked || !hasExecutionVersions(actionContext) || !canProductionAction(order, "ADVANCE")}
                         onClick={() => {
                           try {
                             setPendingAdvance({ ...reviewProductionAction(actionContext, "complete", 0, 0), stepName: currentStep.name, completesOrder: !hasNextStep });
@@ -2467,6 +2548,15 @@ function OrderDetail({
                     ) : null}
                   </div>
                   {!hasExecutionVersions(actionContext) ? <InlineNotice tone="warning" title="Refresh required">Order and step concurrency versions must be available before saving output or advancing.</InlineNotice> : null}
+                  {productionActionBlock(order, "ADVANCE") ? <p role="status" className="text-sm text-muted-foreground">{productionActionBlock(order, "ADVANCE")}</p> : null}
+                  {order.capabilities && !productionIsTerminal(order) ? <ProductionSplit order={order} step={currentStep} disabled={executionBlocked} onSelect={onSelect} onRefresh={refreshDetail} /> : null}
+                  {order.capabilities && !productionIsTerminal(order) ? <ProductionShortClose
+                    order={order} step={currentStep} disabled={executionBlocked} onDone={refreshDetail} onRefresh={refreshDetail}
+                    rejectionSources={[
+                      ...(timelineQuery.data ?? []).filter((event) => event.stepId === currentStep.id && event.rejectedQuantity > 0).map((event) => ({ sourceType: "STEP_EXECUTION" as const, sourceId: event.id, quantity: event.rejectedQuantity })),
+                      ...executionBatches.filter((batch) => batch.orderStepSnapshotId === currentStep.id && batch.rejectedQuantity > 0).map((batch) => ({ sourceType: "EXECUTION_BATCH" as const, sourceId: batch.id, quantity: batch.rejectedQuantity })),
+                    ]}
+                  /> : null}
                 </>
               )}
             </CardContent>
@@ -2474,7 +2564,7 @@ function OrderDetail({
 
           <Card className="border-dashed">
             <CardHeader>
-              <CardTitle>Execution batches</CardTitle>
+              <CardTitle>Recorded output history</CardTitle>
               <CardDescription>
                 History of recorded output batches for this order.
               </CardDescription>
@@ -2495,13 +2585,14 @@ function OrderDetail({
                   {executionBatches.map((batch) => (
                     <div key={batch.id} className="rounded-md border p-3 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">Batch {batch.batchNumber}</span>
+                        <span className="font-medium">Output record {batch.batchNumber}</span>
                         <span className="text-xs text-muted-foreground">{formatDateTime(batch.createdAt)}</span>
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
                         Completed {formatNumber(batch.completedQuantity)} · Rejected {formatNumber(batch.rejectedQuantity)}
                       </div>
                       {batch.notes ? <p className="mt-1 text-xs text-muted-foreground">{batch.notes}</p> : null}
+                      <p className="mt-1 break-all text-xs text-muted-foreground">Rejection evidence source: EXECUTION_BATCH / {batch.id}</p>
                     </div>
                   ))}
                 </div>
@@ -2604,6 +2695,16 @@ function OrderDetail({
       </Dialog>
 
       <ConfirmDialog
+        open={Boolean(auxiliaryReview)}
+        onOpenChange={(open) => { if (!open && !auxiliarySaving.current) setAuxiliaryReview(undefined); }}
+        title="Confirm batch change"
+        description={staleAuxiliary ? "The order or family changed after review. Cancel, refresh and review again." : auxiliaryReview?.description ?? ""}
+        confirmLabel="Confirm reviewed change"
+        loading={createOrderAssignmentState.isLoading || deleteAssignmentState.isLoading || createQualityResultState.isLoading}
+        disabled={staleAuxiliary || executionBlocked || Boolean(auxiliaryReview && !canProductionAction(order, auxiliaryReview.kind === "QUALITY" ? "RECORD_QUALITY" : "ASSIGN"))}
+        onConfirm={() => void confirmAuxiliary()}
+      />
+      <ConfirmDialog
         open={Boolean(pendingAdvance)}
         onOpenChange={(open) => { if (!open && !advancingRef.current) setPendingAdvance(null); }}
         title={pendingAdvance?.completesOrder ? "Complete this production order?" : "Move to the next workflow step?"}
@@ -2621,6 +2722,7 @@ function OrderDetail({
         title="Cancel this production order?"
         description="This preserves immutable history but prevents further execution on the order."
         confirmLabel={cancelState.isLoading ? "Cancelling..." : "Cancel order"}
+        disabled={order.quantityModel === "FLOW_V1" || productionIsTerminal(order) || !canProductionAction(order, "CANCEL") || orderQuery.isFetching || orderQuery.isError}
         destructive
         loading={cancelState.isLoading}
         onConfirm={() => void handleCancelOrder()}
@@ -3728,51 +3830,63 @@ function QualityTemplateDialog({
 }
 
 function MaterialConsumptionForm({
+  order,
   orderId,
   stepId,
   requirement,
   draft,
   onDraftChange,
   onRecorded,
+  onRefresh,
 }: {
+  order: ProductionOrder;
   orderId: string;
   stepId?: string;
   requirement: MaterialRequirement;
   draft?: MaterialConsumptionDraft;
   onDraftChange: (value: MaterialConsumptionDraft) => void;
   onRecorded: () => void;
+  onRefresh: () => void;
 }) {
   const [createMaterialConsumption, createMaterialConsumptionState] = useCreateMaterialConsumptionMutation();
+  const [review, setReview] = useState<MaterialConsumptionRequest>();
+  const saving = useRef(false);
   const lotNumber = draft?.lotNumber || "";
   const quantity = draft?.quantity || "";
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
+  const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const parsedQuantity = parseNullableNumber(quantity);
-    if (!lotNumber.trim() || !parsedQuantity) {
-      toast.error("Enter a lot number and quantity before recording consumption.");
-      return;
-    }
-
-    const body: MaterialConsumptionRequest = {
-      productionOrderId: orderId,
-      orderStepSnapshotId: stepId,
-      inventoryItemId: requirement.inventoryItemId,
-      lotNumber: lotNumber.trim(),
-      quantity: parsedQuantity,
-      unit: requirement.unit,
-    };
-
     try {
-      await createMaterialConsumption(body).unwrap();
-      toast.success("Material consumption recorded");
-      onRecorded();
+      if (!lotNumber.trim()) throw new Error("Enter a lot number before recording consumption.");
+      setReview({
+        productionOrderId: orderId, orderStepSnapshotId: stepId,
+        inventoryItemId: requirement.inventoryItemId, lotNumber: lotNumber.trim(),
+        quantity: parseProductionQuantity(quantity, { positive: true }), unit: requirement.unit,
+        ...productionOrderGuard(order),
+      });
     } catch (error) {
-      toast.error(apiErrorMessage(error) ?? "Could not record material consumption");
+      toast.error(error instanceof Error ? error.message : "Review the material quantity and batch versions.");
     }
+  };
+  const stale = Boolean(review && (review.productionOrderId !== order.id || !matchesProductionOrderGuard(review, order)));
+  const confirm = async () => {
+    if (!review || saving.current || stale || !canProductionAction(order, "CONSUME_MATERIAL")) return;
+    saving.current = true;
+    try {
+      await createMaterialConsumption(review).unwrap();
+      toast.success("Material consumption recorded");
+      setReview(undefined);
+      onRecorded();
+      onRefresh();
+    } catch (error) {
+      setReview(undefined);
+      toast.error(apiErrorMessage(error) ?? "Consumption outcome not confirmed. Refresh and inspect material history before recording again. No automatic retry was made.");
+      onRefresh();
+    } finally { saving.current = false; }
   };
 
   return (
+    <>
     <form className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px_auto]" onSubmit={submit}>
       <Field label="Lot number">
         <Input
@@ -3792,10 +3906,18 @@ function MaterialConsumptionForm({
       </Field>
       <div className="flex items-end">
         <Button type="submit" disabled={createMaterialConsumptionState.isLoading}>
-          {createMaterialConsumptionState.isLoading ? "Recording..." : "Record"}
+          {createMaterialConsumptionState.isLoading ? "Recording..." : "Review consumption"}
         </Button>
       </div>
     </form>
+    <ConfirmDialog
+      open={Boolean(review)} onOpenChange={(open) => { if (!open && !saving.current) setReview(undefined); }}
+      title="Confirm actual material consumption"
+      description={stale ? "The batch or family changed. Cancel, refresh and review again." : `Consume ${review?.quantity ?? ""} ${review?.unit ?? ""} of ${requirement.itemName ?? requirement.inventoryItemId} from lot ${review?.lotNumber ?? ""}? This deducts new stock. Already-consumed issues must not be recorded again for scrap or final-good coverage.`}
+      confirmLabel="Confirm stock deduction" loading={createMaterialConsumptionState.isLoading}
+      disabled={stale || !canProductionAction(order, "CONSUME_MATERIAL")} onConfirm={() => void confirm()}
+    />
+    </>
   );
 }
 
@@ -3810,6 +3932,7 @@ function TimelineEventRow({ event }: { event: TimelineEvent }) {
         Completed {formatNumber(event.completedQuantity)} · Rejected {formatNumber(event.rejectedQuantity)}
         {event.notes ? ` · ${event.notes}` : ""}
       </p>
+      {event.rejectedQuantity > 0 ? <p className="mt-1 break-all text-xs text-muted-foreground">Rejection evidence source: STEP_EXECUTION / {event.id}</p> : null}
     </div>
   );
 }
@@ -4065,10 +4188,7 @@ function filterOrders({
   });
 }
 
-// Backend GET /api/production/kanban returns a flat PageResponse<KanbanCard>
-// rather than pre-grouped columns. Group cards into the standard status lanes
-// and enrich each card with fields (productId, priority, dueDate, current step,
-// station) sourced from the already-loaded orders list.
+// New leaf cards are self-contained; root-page enrichment is legacy-only.
 function buildBoardColumns(
   cards: KanbanCard[],
   orders: DisplayOrder[],
@@ -4083,37 +4203,41 @@ function buildBoardColumns(
     const currentStepId = card.currentStepId ?? order?.currentStepId;
     const step = order?.steps.find((candidate) => candidate.id === currentStepId);
     const remainingQuantity =
-      order?.remainingQuantity ??
+      card.remainingQuantity ?? card.quantities?.pendingQuantity ?? order?.remainingQuantity ??
       Math.max(card.plannedQuantity - card.completedQuantity - card.rejectedQuantity, 0);
 
     return {
       orderId: card.orderId,
       orderNumber: card.orderNumber,
-      productId: order?.productId ?? "",
-      productCode: order?.productCode,
-      productName: order?.productName,
-      priority: order?.priority ?? "NORMAL",
+      productId: card.productId ?? order?.productId ?? "",
+      productCode: card.productCode ?? order?.productCode,
+      productName: card.productName ?? order?.productName,
+      priority: card.priority ?? order?.priority ?? "NORMAL",
       status: card.status,
-      dueDate: order?.dueDate,
+      dueDate: card.dueDate ?? order?.dueDate,
       plannedQuantity: card.plannedQuantity,
       completedQuantity: card.completedQuantity,
       rejectedQuantity: card.rejectedQuantity,
       remainingQuantity,
       currentStepId,
-      currentStepName: step?.name,
-      stationId: order?.assignedStationId ?? step?.stationId ?? null,
-      stationName: order?.assignedStationName ?? step?.stationName ?? null,
-      workstationId: order?.assignedWorkstationId ?? step?.workstationId ?? null,
-      workstationName: order?.assignedWorkstationName ?? step?.workstationName ?? null,
-      hasActiveAssignment: order?.hasActiveAssignment,
+      currentStepName: card.currentStepName ?? step?.name,
+      stationId: card.stationId ?? order?.assignedStationId ?? step?.stationId ?? null,
+      stationName: card.stationName ?? order?.assignedStationName ?? step?.stationName ?? null,
+      workstationId: card.workstationId ?? order?.assignedWorkstationId ?? step?.workstationId ?? null,
+      workstationName: card.workstationName ?? order?.assignedWorkstationName ?? step?.workstationName ?? null,
+      hasActiveAssignment: card.hasActiveAssignment ?? order?.hasActiveAssignment,
       indicators: order?.indicators,
+      quantityModel: card.quantityModel,
+      batch: card.batch,
+      quantities: card.quantities,
+      capabilities: card.capabilities,
     };
   });
 
   const filtered = items.filter((item) => {
     const matchesSearch =
       !needle ||
-      [item.orderNumber, item.productName, item.productCode, item.productId, item.currentStepName]
+      [item.orderNumber, item.batch?.batchLabel, item.batch?.rootOrderId, item.productName, item.productCode, item.productId, item.currentStepName]
         .filter(Boolean)
         .some((value) => value?.toLowerCase().includes(needle));
 
@@ -4202,8 +4326,9 @@ function deriveOrderRiskIndicators(
 }
 
 function getCurrentOrderStep(order: ProductionOrder) {
+  if (order.batch?.nodeType === "SUMMARY") return undefined;
   const current = order.steps.find((step) => step.id === order.currentStepId);
-  if (current || order.status === "COMPLETED" || order.status === "CANCELLED") {
+  if (current || productionIsTerminal(order) || order.quantityModel === "FLOW_V1") {
     return current;
   }
   return order.steps.find((step) => step.active);
@@ -4246,12 +4371,6 @@ function getErrorStatus(error: unknown) {
   if (!error || typeof error !== "object") return null;
   const maybeError = error as { status?: unknown };
   return typeof maybeError.status === "number" ? maybeError.status : null;
-}
-
-function parseNullableNumber(value?: string) {
-  if (!value) return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 const humanize = humanizeEnum;

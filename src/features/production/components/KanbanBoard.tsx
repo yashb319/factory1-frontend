@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -18,40 +19,25 @@ import { AlertTriangle, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { cn } from "@/lib/utils";
+import { productionOrderPath } from "@/lib/productionOrderLink";
 import { useGetOrderAssignmentsQuery } from "../api/productionApi";
 import { useGetActiveVendorsQuery } from "@/features/vendors/api/vendorApi";
 import type { Vendor } from "@/features/vendors/types/vendor.types";
 import type { ProductionBoardItem, ProductionOrder } from "../types/production.types";
+import {
+  buildStepColumns, canDragProductionItem, fixedColumnForStatus, productionBoardLeaves,
+  productionDropTarget, type BoardColumn, type FixedColumnKey,
+} from "../utils/productionBoard";
+import { formatProductionQuantity } from "../utils/productionQuantity";
 
 export type KanbanViewMode = "fixed" | "step";
 
 const FIXED_COLUMN_KEYS = ["TODO", "IN_PROGRESS", "DONE"] as const;
-type FixedColumnKey = (typeof FIXED_COLUMN_KEYS)[number];
 
 const FIXED_COLUMN_LABELS: Record<FixedColumnKey, string> = {
   TODO: "To Do",
   IN_PROGRESS: "In Progress",
   DONE: "Done",
-};
-
-function fixedColumnForStatus(item: ProductionBoardItem): FixedColumnKey {
-  switch (item.status) {
-    case "PLANNED":
-    case "RELEASED":
-      return item.hasActiveAssignment ? "IN_PROGRESS" : "TODO";
-    case "COMPLETED":
-    case "CANCELLED":
-      return "DONE";
-    default:
-      // IN_PROGRESS, ON_HOLD, PARTIALLY_COMPLETED
-      return "IN_PROGRESS";
-  }
-}
-
-type BoardColumn = {
-  key: string;
-  label: string;
-  items: ProductionBoardItem[];
 };
 
 function buildFixedColumns(items: ProductionBoardItem[]): BoardColumn[] {
@@ -60,42 +46,6 @@ function buildFixedColumns(items: ProductionBoardItem[]): BoardColumn[] {
     label: FIXED_COLUMN_LABELS[key],
     items: items.filter((item) => fixedColumnForStatus(item) === key),
   }));
-}
-
-function buildStepColumns(
-  items: ProductionBoardItem[],
-  ordersById: Map<string, ProductionOrder>
-): BoardColumn[] {
-  const columnsByLabel = new Map<string, { items: ProductionBoardItem[]; minSequence: number }>();
-
-  for (const item of items) {
-    const label = item.currentStepName || "Unassigned step";
-    const order = ordersById.get(item.orderId);
-    const step = order?.steps.find((candidate) => candidate.id === item.currentStepId);
-    const sequence = step?.sequenceNumber ?? 999;
-
-    const existing = columnsByLabel.get(label);
-    if (existing) {
-      existing.items.push(item);
-      existing.minSequence = Math.min(existing.minSequence, sequence);
-    } else {
-      columnsByLabel.set(label, { items: [item], minSequence: sequence });
-    }
-  }
-
-  return Array.from(columnsByLabel.entries())
-    .sort((a, b) => a[1].minSequence - b[1].minSequence)
-    .map(([label, value]) => ({ key: label, label, items: value.items }));
-}
-
-function findStep(order: ProductionOrder | undefined, stepId: string | undefined) {
-  if (!order || !stepId) return undefined;
-  return order.steps.find((step) => step.id === stepId);
-}
-
-function findStepByName(order: ProductionOrder | undefined, name: string) {
-  if (!order) return undefined;
-  return order.steps.find((step) => step.name === name);
 }
 
 export function KanbanBoard({
@@ -119,45 +69,48 @@ export function KanbanBoard({
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
+  const leafItems = useMemo(() => productionBoardLeaves(items), [items]);
   const columns = useMemo(
-    () => (viewMode === "fixed" ? buildFixedColumns(items) : buildStepColumns(items, ordersById)),
-    [items, ordersById, viewMode]
+    () => (viewMode === "fixed" ? buildFixedColumns(leafItems) : buildStepColumns(leafItems)),
+    [leafItems, viewMode]
   );
 
-  const itemsById = useMemo(() => new Map(items.map((item) => [item.orderId, item])), [items]);
+  const itemsById = useMemo(() => new Map(leafItems.map((item) => [item.orderId, item])), [leafItems]);
   const activeItem = activeId ? itemsById.get(activeId) : undefined;
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
     if (!over) return;
 
     const item = itemsById.get(String(active.id));
-    if (!item) return;
+    if (!item || !canDragProductionItem(item)) return;
 
     const sourceColumnKey = String(active.data.current?.columnKey ?? "");
     const targetColumnKey = String(over.id);
     if (sourceColumnKey === targetColumnKey) return;
 
     if (viewMode === "fixed") {
-      await handleFixedDrop(item, sourceColumnKey as FixedColumnKey, targetColumnKey as FixedColumnKey);
+      handleFixedDrop(item, sourceColumnKey as FixedColumnKey, targetColumnKey as FixedColumnKey);
     } else {
-      await handleStepDrop(item, targetColumnKey);
+      const target = columns.find((column) => column.key === targetColumnKey);
+      if (!target) return;
+      onRequestAdvance(
+        item.orderId,
+        target.key === "DONE" ? undefined : productionDropTarget(ordersById.get(item.orderId), target.label)
+      );
     }
   };
 
-  const handleFixedDrop = async (
+  const handleFixedDrop = (
     item: ProductionBoardItem,
     from: FixedColumnKey,
     to: FixedColumnKey
   ) => {
-    const order = ordersById.get(item.orderId);
-    const step = findStep(order, item.currentStepId);
-
     if (from === "DONE") {
       toast.error("This order is already finished and can't be moved.");
       return;
@@ -166,16 +119,15 @@ export function KanbanBoard({
       toast.error("Work can't be moved back to To Do.");
       return;
     }
+    if (item.quantityModel === "FLOW_V1") {
+      onRequestAdvance(item.orderId);
+      return;
+    }
     if (from === "TODO" && to === "DONE") {
       onSelect(item.orderId);
       toast.error("Record production before completing this order.");
       return;
     }
-    if (!step) {
-      toast.error("This order's current step isn't loaded yet — refresh and try again.");
-      return;
-    }
-
     if (from === "TODO" && to === "IN_PROGRESS") {
       onSelect(item.orderId);
       toast.info("Assign this order or a workflow step to move it into active work.");
@@ -185,33 +137,8 @@ export function KanbanBoard({
     onRequestAdvance(item.orderId);
   };
 
-  const handleStepDrop = async (item: ProductionBoardItem, targetLabel: string) => {
-    const order = ordersById.get(item.orderId);
-    const sourceStep = findStep(order, item.currentStepId);
-    const targetStep = findStepByName(order, targetLabel);
-
-    if (!order || !sourceStep) {
-      toast.error("This order's steps aren't loaded yet — refresh and try again.");
-      return;
-    }
-    if (!targetStep) {
-      toast.error(`This order's workflow has no "${targetLabel}" step.`);
-      return;
-    }
-    if (targetStep.sequenceNumber <= sourceStep.sequenceNumber) {
-      toast.error("Can't move a step backward.");
-      return;
-    }
-    if (targetStep.sequenceNumber > sourceStep.sequenceNumber + 1) {
-      toast.error("Skipping steps isn't allowed — move one step at a time.");
-      return;
-    }
-
-    onRequestAdvance(item.orderId, targetStep.id);
-  };
-
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={(event) => void handleDragEnd(event)}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveId(null)}>
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
         {columns.map((column) => (
           <KanbanColumn
@@ -226,6 +153,7 @@ export function KanbanBoard({
         {activeItem ? (
           <div className="w-64 rounded-lg border bg-white p-3 shadow-lg">
             <div className="font-medium">{activeItem.orderNumber}</div>
+            {activeItem.batch && <div className="text-xs">{activeItem.batch.batchLabel}</div>}
           </div>
         ) : null}
       </DragOverlay>
@@ -290,9 +218,11 @@ function KanbanCard({
   selected: boolean;
   onSelect: (id?: string) => void;
 }) {
+  const draggable = canDragProductionItem(item);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: item.orderId,
     data: { columnKey },
+    disabled: !draggable,
   });
 
   const { data: assignments = [] } = useGetOrderAssignmentsQuery(item.orderId);
@@ -331,6 +261,7 @@ function KanbanCard({
           aria-pressed={selected}
         >
           <div className="font-medium">{item.orderNumber}</div>
+          {item.batch && <div className="text-xs font-medium">{item.batch.batchLabel}</div>}
           <div className="text-xs text-muted-foreground">
             {item.productName || item.productCode || item.productId}
           </div>
@@ -338,7 +269,8 @@ function KanbanCard({
         <button
           type="button"
           aria-label="Drag to move order"
-          className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-muted active:cursor-grabbing"
+          disabled={!draggable}
+          className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-muted active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
           {...attributes}
           {...listeners}
         >
@@ -353,11 +285,27 @@ function KanbanCard({
         </button>
       </div>
 
+      {item.batch && (
+        <Link className="mt-1 block text-xs text-primary underline" href={productionOrderPath(item.batch.rootOrderId)}>
+          Original order / family
+        </Link>
+      )}
       <div className="mt-2 grid gap-1 text-xs text-muted-foreground">
         <div>
-          Output {item.completedQuantity} / {item.plannedQuantity}
+          Current-step good: {formatProductionQuantity(item.completedQuantity)}
         </div>
         <div>Step: {item.currentStepName || "Awaiting workflow step"}</div>
+        {item.quantities || item.quantityModel === "FLOW_V1" ? (
+          <>
+            <div>Allocation: {formatProductionQuantity(item.quantities?.allocatedQuantity)}</div>
+            <div>Final good: {formatProductionQuantity(item.quantities?.finalGoodQuantity)}</div>
+            <div>Scrap: {formatProductionQuantity(item.quantities?.scrapQuantity)} · Cancelled: {formatProductionQuantity(item.quantities?.cancelledQuantity)}</div>
+            <div>Pending: {formatProductionQuantity(item.quantities?.pendingQuantity)}</div>
+            <div>Unclassified legacy: {formatProductionQuantity(item.quantities?.legacyUnclassifiedQuantity)}</div>
+            {item.quantities?.reconciliationComplete !== true && <div className="text-amber-700">Quantity reconciliation incomplete or unavailable.</div>}
+          </>
+        ) : <div>Legacy planned: {formatProductionQuantity(item.plannedQuantity)}</div>}
+        {item.batch?.closureOutcome && item.batch.closureOutcome !== "NONE" && <div>Closure: {item.batch.closureOutcome}</div>}
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">

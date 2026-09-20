@@ -481,54 +481,67 @@ export const helpGuides: HelpGuide[] = [
     route: "/production",
     module: "production",
     icon: Workflow,
-    summary: "Plan, run and complete production entries that turn raw materials into finished goods.",
+    summary: "Track original production requests, independently progressing child batches and reasoned shortfalls.",
     keywords: ["manufacturing", "batch", "work order", "consume", "output", "shop floor"],
     roles: operationsRoles,
     purpose:
-      "Tracks production work from plan to completion. A completed production entry consumes BOM raw materials and adds finished goods to inventory automatically.",
+      "Preserves each original target while executable child batches progress independently. Server-reviewed final-good output credits finished stock and deducts only uncovered requirements of the saved BOM; splitting never posts output again.",
     prerequisites: [
-      "The product and its BOM must be configured in Products.",
-      "Required raw-material quantities must be available in Inventory.",
+      "Choose published production workflow and BOM versions when creating an order.",
+      "Owners, admins and management need the enabled Production Tracking feature. Labels never grant access.",
     ],
     steps: [
       {
-        title: "Create a production entry",
-        detail: "Choose the product and planned quantity. The BOM expands into required raw materials.",
+        title: "Create the original request",
+        detail: "Choose product, original target and saved workflow/BOM. Later revisions or archives do not replace those definitions.",
       },
       {
-        title: "Start the work",
-        detail: "Move the entry to In Progress when the shop floor begins.",
+        title: "Record and independently advance ready pieces",
+        detail: "Recording good does not advance. With 6 already-recorded good and 4 pending out of 10, review Split ready pieces and advance: one confirmation creates ready and waiting children; only the ready child advances. Repeat on eligible leaves as needed.",
       },
       {
-        title: "Complete and post",
+        title: "Review final output and materials",
         detail:
-          "On completion, raw-material stock decreases and finished-goods stock increases in one step.",
+          "At the final step, review exact finished-good credit, prior manual-material coverage and uncovered new stock deductions. Already-consumed materials cannot be charged to multiple children. Ordinary advancement remains a separate zero-output confirmation.",
       },
       {
-        title: "Cancel when needed",
-        detail: "Cancel entries that will not run so plans and stock expectations stay clean.",
+        title: "Close a step short with reasons",
+        detail: "Keep the original target. Distinguish physical scrap from pieces never produced; proven upstream work is not never-produced cancellation. Declare actual wasted materials or explain no waste. Existing issues are allocated without another deduction; new waste lines explicitly deduct stock. Cancellation never returns issued material automatically.",
+      },
+      {
+        title: "Review the family and print labels",
+        detail: "Original and retired split-parent links open read-only overviews; child links open their own work or history. QR scanning only opens the authenticated page. The root closes only after all descendants resolve, and remains reconciled against its original target.",
       },
     ],
     keyFields: [
       { name: "Product", description: "Finished good being manufactured; drives the BOM expansion." },
-      { name: "Planned quantity", description: "Output units the entry is expected to produce." },
-      { name: "Consumed materials", description: "Raw materials deducted on completion." },
+      { name: "Original target", description: "Never reduced by short closure. Eligible legacy adoption labels the target captured at adoption rather than reconstructing older edits." },
+      { name: "Reconciliation", description: "Final good, scrap, never-produced cancellation, pending/WIP and explicitly unclassified historical quantities. Good at an intermediate step is not final good or shipped quantity." },
+      { name: "Actual wasted materials", description: "Independent of scrap piece counts. Specify new stock by item/lot/unit/quantity or reference available already-consumed material. No full-BOM scrap deduction is inferred." },
     ],
     statuses: [
-      { name: "DRAFT", description: "Created but not yet planned; no stock impact." },
       { name: "PLANNED", description: "Scheduled for production." },
       { name: "IN_PROGRESS", description: "Work has started on the shop floor." },
-      { name: "COMPLETED", description: "Stock moved: materials consumed, finished goods added." },
-      { name: "CANCELLED", description: "Abandoned entry; no stock impact." },
+      { name: "COMPLETED", description: "Fully resolved accepted output; advancing does not record it again." },
+      { name: "PARTIALLY_COMPLETED / SHORT", description: "Terminal batch closed with reasoned losses. An intermediate short closure stays active if surviving good has further steps." },
+      { name: "CANCELLED", description: "Resolved never-produced cancellation; no automatic stock return." },
     ],
     troubleshooting: [
       {
-        problem: "Cannot complete an entry.",
-        fix: "Check raw-material availability — completion consumes BOM quantity × planned output.",
+        problem: "A confirmation is stale or an action is unavailable.",
+        fix: "Read the eligibility reason, refresh and explicitly review again. Confirmations capture order, step and family versions; actions never silently retry using newer versions.",
       },
       {
-        problem: "Finished goods did not increase.",
-        fix: "Stock moves only when the entry reaches COMPLETED, not while planned or in progress.",
+        problem: "Historical rejection or material totals are uncertain.",
+        fix: "Do not treat unknown history as available work or zero consumption. Reference original rejection evidence when classifying losses. Legacy BOM selection covers future output only; ambiguous adoption requires manager reconciliation.",
+      },
+      {
+        problem: "Employee My Orders cannot record a FLOW batch.",
+        fix: "Ask a production lead to use the operations detail and required material review. Existing employee settings do not grant family evidence, split, closure or final-output preview access.",
+      },
+      {
+        problem: "A QR works on screen but not on another device.",
+        fix: "Print from the stable deployed HTTPS site, not localhost. Browser/helper checks do not prove camera permissions or physical print quality; test the intended camera and printer separately.",
       },
     ],
     relatedRoutes: [
@@ -537,8 +550,8 @@ export const helpGuides: HelpGuide[] = [
       { label: "Inventory", href: "/inventory" },
     ],
     contentOwner: "Production module owner",
-    contentVersion: "1.0.0",
-    lastUpdated: "2026-09-09",
+    contentVersion: "2.0.0",
+    lastUpdated: "2026-09-20",
     reviewBy: "2026-12-09",
   },
   {
