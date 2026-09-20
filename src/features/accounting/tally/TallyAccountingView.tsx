@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TallyAccountMasters } from "@/components/layout/TallyAccountMasters";
 import { TallyVoucherList } from "@/components/layout/TallyVoucherList";
@@ -18,7 +18,20 @@ export function TallyAccountingView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const screenParam = searchParams.get("screen");
-  const voucherParam = searchParams.get("voucher") as VoucherType | null;
+  const requestedVoucher = searchParams.get("voucher");
+  const billingVoucher =
+    requestedVoucher === "SALES" || requestedVoucher === "PURCHASE"
+      ? requestedVoucher
+      : null;
+  const voucherParam = isManualVoucherType(requestedVoucher)
+    ? requestedVoucher
+    : null;
+
+  useEffect(() => {
+    if (billingVoucher) {
+      router.replace(`/billing?type=${billingVoucher}`);
+    }
+  }, [billingVoucher, router]);
 
   const showMasters = screenParam === "masters" || !voucherParam;
   const activeVoucher: VoucherType | null = voucherParam ?? null;
@@ -37,13 +50,17 @@ export function TallyAccountingView() {
   const [updateGroup, updateGroupState] = useUpdateAccountGroupMutation();
   const [deleteGroup] = useDeleteAccountGroupMutation();
 
-  const filteredVouchers = useMemo(() => {
+  const filteredVouchers = (() => {
     if (!vouchers) return [];
     if (!activeVoucher) return vouchers;
     return vouchers.filter((v) => v.voucherType === activeVoucher);
-  }, [vouchers, activeVoucher]);
+  })();
 
   const onBack = () => router.push("/gateway?menu=accounting");
+
+  if (billingVoucher) {
+    return null;
+  }
 
   if (entry) {
     return (
@@ -54,6 +71,17 @@ export function TallyAccountingView() {
         onBack={() => setEntry(null)}
       />
     );
+  }
+
+  function isManualVoucherType(value: string | null): value is VoucherType {
+    return [
+      "PAYMENT",
+      "RECEIPT",
+      "CONTRA",
+      "JOURNAL",
+      "DEBIT_NOTE",
+      "CREDIT_NOTE",
+    ].includes(value ?? "");
   }
 
   if (showMasters) {

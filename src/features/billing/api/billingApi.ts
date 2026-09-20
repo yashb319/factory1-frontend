@@ -42,7 +42,7 @@ export const billingApi = baseApi.injectEndpoints({
         body,
       }),
       transformResponse: (response: ApiResponse<Bill>) => response.data,
-      invalidatesTags: ["Billing", "Inventory"],
+      invalidatesTags: ["Billing", "Inventory", "Accounting"],
     }),
 
     getBillNumberSuggestion: builder.query<BillNumberSuggestion, BillType>({
@@ -67,7 +67,7 @@ export const billingApi = baseApi.injectEndpoints({
         method: "PUT",
       }),
       transformResponse: (response: ApiResponse<Bill>) => response.data,
-      invalidatesTags: ["Billing", "Inventory"],
+      invalidatesTags: ["Billing", "Inventory", "Accounting"],
     }),
 
     postBill: builder.mutation<Bill, string>({
@@ -76,7 +76,7 @@ export const billingApi = baseApi.injectEndpoints({
         method: "PUT",
       }),
       transformResponse: (response: ApiResponse<Bill>) => response.data,
-      invalidatesTags: ["Billing", "Inventory"],
+      invalidatesTags: ["Billing", "Inventory", "Accounting"],
     }),
 
     recordBillPayment: builder.mutation<

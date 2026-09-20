@@ -332,23 +332,53 @@ export function AccountingPage() {
     emptyTaxSectionDraft()
   );
   const range = { fromDate, toDate };
-  const { data, isLoading, isFetching } = useGetLedgerReportQuery(range);
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isError: ledgerReportError,
+    refetch: refetchLedgerReport,
+  } = useGetLedgerReportQuery(range);
   const { data: organizationSettingsResponse } =
     useGetOrganizationSettingsQuery();
   const organizationSettings = organizationSettingsResponse?.data;
-  const { data: trialBalance, isFetching: trialBalanceFetching } =
-    useGetTrialBalanceQuery(range);
-  const { data: profitLoss, isFetching: profitLossFetching } =
-    useGetProfitLossQuery(range);
-  const { data: balanceSheet, isFetching: balanceSheetFetching } =
-    useGetBalanceSheetQuery(range);
-  const { data: gstSummary, isFetching: gstSummaryFetching } =
-    useGetAccountingGstSummaryQuery(range);
-  const { data: receivablesAging } = useGetAgingReportQuery({
+  const {
+    data: trialBalance,
+    isFetching: trialBalanceFetching,
+    isError: trialBalanceError,
+    refetch: refetchTrialBalance,
+  } = useGetTrialBalanceQuery(range);
+  const {
+    data: profitLoss,
+    isFetching: profitLossFetching,
+    isError: profitLossError,
+    refetch: refetchProfitLoss,
+  } = useGetProfitLossQuery(range);
+  const {
+    data: balanceSheet,
+    isFetching: balanceSheetFetching,
+    isError: balanceSheetError,
+    refetch: refetchBalanceSheet,
+  } = useGetBalanceSheetQuery(range);
+  const {
+    data: gstSummary,
+    isFetching: gstSummaryFetching,
+    isError: gstSummaryError,
+    refetch: refetchGstSummary,
+  } = useGetAccountingGstSummaryQuery(range);
+  const {
+    data: receivablesAging,
+    isError: receivablesAgingError,
+    refetch: refetchReceivablesAging,
+  } = useGetAgingReportQuery({
     type: "SALES",
     asOfDate: agingAsOfDate,
   });
-  const { data: payablesAging } = useGetAgingReportQuery({
+  const {
+    data: payablesAging,
+    isError: payablesAgingError,
+    refetch: refetchPayablesAging,
+  } = useGetAgingReportQuery({
     type: "PURCHASE",
     asOfDate: agingAsOfDate,
   });
@@ -426,6 +456,12 @@ export function AccountingPage() {
   const balanceDifference = balanceSheet?.difference ?? 0;
   const masterGroups = masters?.groups ?? [];
   const masterLedgers = masters?.ledgers ?? [];
+  const editingLedgerIds = new Set(
+    editingVoucher?.lines.map((line) => line.ledgerId) ?? []
+  );
+  const voucherEntryLedgers = masterLedgers.filter(
+    (ledger) => ledger.active || editingLedgerIds.has(ledger.id)
+  );
   const masterSearchTerm = masterSearch.trim().toLowerCase();
   const editableGroupCount = masterGroups.filter((group) => !group.systemGroup).length;
   const editableLedgerCount = masterLedgers.filter((ledger) => !ledger.systemLedger).length;
@@ -468,6 +504,30 @@ export function AccountingPage() {
       : "Accounting reports are disabled. Enable them from Accounting Settings.",
   };
   const vouchersDisabledReason = disabledWorkspaceReasons.VOUCHERS;
+  const reportsError =
+    trialBalanceError ||
+    profitLossError ||
+    balanceSheetError ||
+    receivablesAgingError ||
+    payablesAgingError;
+  const workspaceQueryError =
+    (workspace === "OVERVIEW" && ledgerReportError) ||
+    (workspace === "REPORTS" && reportsError) ||
+    (workspace === "TAXES" && gstSummaryError);
+
+  function retryWorkspaceQueries() {
+    if (workspace === "OVERVIEW") {
+      void refetchLedgerReport();
+    } else if (workspace === "REPORTS") {
+      void refetchTrialBalance();
+      void refetchProfitLoss();
+      void refetchBalanceSheet();
+      void refetchReceivablesAging();
+      void refetchPayablesAging();
+    } else if (workspace === "TAXES") {
+      void refetchGstSummary();
+    }
+  }
 
   function handleWorkspaceChange(nextWorkspace: AccountingWorkspace) {
     const disabledReason = disabledWorkspaceReasons[nextWorkspace];
@@ -1001,6 +1061,19 @@ export function AccountingPage() {
         description: line.description.trim() || null,
       }));
 
+    if (
+      !editingVoucher &&
+      lines.some(
+        (line) =>
+          !masterLedgers.some(
+            (ledger) => ledger.id === line.ledgerId && ledger.active
+          )
+      )
+    ) {
+      toast.error("New vouchers can only use active ledgers");
+      return;
+    }
+
     if (lines.length < 2) {
       toast.info("Add at least two voucher lines");
       return;
@@ -1059,6 +1132,25 @@ export function AccountingPage() {
   const copyVoucherToEntry = (voucher: AccountingVoucher) => {
     if (vouchersDisabledReason) {
       toast.info(vouchersDisabledReason);
+      return;
+    }
+
+    if (voucher.sourceType) {
+      toast.info(
+        "Source-generated vouchers cannot be copied. Adjust the source transaction instead."
+      );
+      return;
+    }
+
+    if (
+      voucher.lines.some(
+        (line) =>
+          !masterLedgers.some(
+            (ledger) => ledger.id === line.ledgerId && ledger.active
+          )
+      )
+    ) {
+      toast.info("Reactivate inactive ledgers before copying this voucher");
       return;
     }
 
@@ -1712,9 +1804,22 @@ export function AccountingPage() {
         disabledReasons={disabledWorkspaceReasons}
       />
 
+      {workspaceQueryError ? (
+        <AccountingQueryError
+          message={
+            workspace === "OVERVIEW"
+              ? "Accounting overview could not be loaded."
+              : workspace === "TAXES"
+                ? "GST reports could not be loaded."
+                : "One or more accounting reports could not be loaded."
+          }
+          onRetry={retryWorkspaceQueries}
+        />
+      ) : null}
+
       <div
         id="accounting-overview"
-        hidden={workspace !== "OVERVIEW"}
+        hidden={workspace !== "OVERVIEW" || ledgerReportError}
         className={
           detailsOpen
             ? "grid scroll-mt-24 gap-4 lg:grid-cols-[1.2fr_0.8fr]"
@@ -2361,9 +2466,9 @@ export function AccountingPage() {
                             <SelectValue placeholder="Select ledger" />
                           </SelectTrigger>
                           <SelectContent>
-                            {(masters?.ledgers ?? []).map((ledger) => (
+                            {voucherEntryLedgers.map((ledger) => (
                               <SelectItem key={ledger.id} value={ledger.id}>
-                                {ledger.name}
+                                {ledger.name}{ledger.active ? "" : " (inactive)"}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -2618,15 +2723,27 @@ export function AccountingPage() {
 		                    >
 	                      <Edit2 className="h-4 w-4" />
 	                    </Button>
-		                    <Button
-		                      size="sm"
-		                      variant="outline"
-                        disabled={Boolean(vouchersDisabledReason)}
-                        title="Copy to entry"
-		                      onClick={() => copyVoucherToEntry(voucher)}
-		                    >
-	                      <Copy className="h-4 w-4" />
-	                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={
+                        Boolean(vouchersDisabledReason) ||
+                        Boolean(voucher.sourceType)
+                      }
+                      title={
+                        voucher.sourceType
+                          ? "Source-generated vouchers cannot be copied. Adjust the source transaction instead."
+                          : "Copy to entry"
+                      }
+                      aria-label={
+                        voucher.sourceType
+                          ? "Copy unavailable. Adjust this voucher through its source workflow."
+                          : `Copy voucher ${voucher.voucherNumber} to entry`
+                      }
+                      onClick={() => copyVoucherToEntry(voucher)}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -2674,7 +2791,7 @@ export function AccountingPage() {
 
       <Card
         id="accounting-reports"
-        hidden={workspace !== "REPORTS"}
+        hidden={workspace !== "REPORTS" || reportsError}
         className="rounded-lg scroll-mt-24"
       >
         <CardHeader className="border-b">
@@ -2796,7 +2913,10 @@ export function AccountingPage() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-lg" hidden={workspace !== "REPORTS"}>
+      <Card
+        className="rounded-lg"
+        hidden={workspace !== "REPORTS" || reportsError}
+      >
         <CardHeader className="border-b">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div>
@@ -2877,7 +2997,10 @@ export function AccountingPage() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-lg" hidden={workspace !== "REPORTS"}>
+      <Card
+        className="rounded-lg"
+        hidden={workspace !== "REPORTS" || reportsError}
+      >
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <div>
             <CardTitle>Trial Balance</CardTitle>
@@ -2985,7 +3108,7 @@ export function AccountingPage() {
       </Card>
 
       <div
-        hidden={workspace !== "TAXES"}
+        hidden={workspace !== "TAXES" || gstSummaryError}
         className="grid gap-4 xl:grid-cols-2"
       >
         <Card className="rounded-lg xl:col-span-2">
@@ -3449,7 +3572,7 @@ export function AccountingPage() {
       </div>
 
       <div
-        hidden={workspace !== "REPORTS"}
+        hidden={workspace !== "REPORTS" || reportsError}
         className="grid gap-4 lg:grid-cols-2"
       >
         <Card className="rounded-lg">
@@ -4191,6 +4314,32 @@ export function AccountingPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function AccountingQueryError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-900 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div>
+        <div className="font-medium">{message}</div>
+        <p className="mt-1 text-xs text-red-700">
+          Check your connection and try again. Existing accounting data has not
+          been changed.
+        </p>
+      </div>
+      <Button size="sm" variant="outline" onClick={onRetry}>
+        Retry
+      </Button>
     </div>
   );
 }

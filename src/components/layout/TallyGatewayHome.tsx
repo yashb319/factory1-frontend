@@ -180,8 +180,8 @@ const accountingMenuItems: GatewayItem[] = [
   { key: "P", label: "F5: Payment", href: "/tally/accounting?voucher=PAYMENT", group: "Vouchers" },
   { key: "R", label: "F6: Receipt", href: "/tally/accounting?voucher=RECEIPT", group: "Vouchers" },
   { key: "J", label: "F7: Journal", href: "/tally/accounting?voucher=JOURNAL", group: "Vouchers" },
-  { key: "S", label: "F8: Sales", href: "/tally/accounting?voucher=SALES", group: "Vouchers" },
-  { key: "U", label: "F9: Purchase", href: "/tally/accounting?voucher=PURCHASE", group: "Vouchers" },
+  { key: "S", label: "F8: Sales", href: "/billing?type=SALES", group: "Vouchers" },
+  { key: "U", label: "F9: Purchase", href: "/billing?type=PURCHASE", group: "Vouchers" },
 ];
 
 const billingMenuItems: GatewayItem[] = [
