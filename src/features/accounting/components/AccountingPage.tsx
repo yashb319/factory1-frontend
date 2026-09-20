@@ -7,6 +7,7 @@ import {
   Download,
   Edit2,
   FileSpreadsheet,
+  History,
   Landmark,
   LockKeyhole,
   PanelRightClose,
@@ -14,6 +15,7 @@ import {
   Plus,
   Printer,
   ReceiptText,
+  RotateCcw,
   Search,
   Settings,
   Trash2,
@@ -74,8 +76,7 @@ import {
 } from "@/features/import-export/utils/localExportFiles";
 import { exportGstReportCsv } from "@/features/billing/utils/gstReportExport";
 import {
-  useCancelAccountingVoucherMutation,
-  useCreateAccountingVoucherMutation,
+  useCreateAccountingVoucherDraftMutation,
   useCreateAccountingTaxSectionMutation,
   useCreateAccountGroupMutation,
   useCreateAccountLedgerMutation,
@@ -84,6 +85,7 @@ import {
   useGetAccountingGstSummaryQuery,
   useGetAccountingTaxSectionCatalogQuery,
   useGetAccountingTaxSectionsQuery,
+  useGetAccountingPeriodsQuery,
   useGetAccountingVouchersQuery,
   useGetAgingReportQuery,
   useGetAccountMastersQuery,
@@ -94,6 +96,8 @@ import {
   useLazyGetAccountingGstSummaryQuery,
   useLazySuggestVoucherNumberQuery,
   useLazyCheckVoucherNumberQuery,
+  usePostAccountingVoucherMutation,
+  useReverseAccountingVoucherMutation,
   useUpdateAccountingVoucherMutation,
   useUpdateAccountingTaxSectionMutation,
   useUpdateAccountGroupMutation,
@@ -130,6 +134,12 @@ import {
   type AccountingWorkspace,
 } from "./AccountingWorkspaceNav";
 import { CashBankBook } from "./CashBankBook";
+import { AccountingPeriodsPanel } from "./AccountingPeriodsPanel";
+import {
+  VoucherHistoryDialog,
+  VoucherLifecycleBadge,
+  voucherStatus,
+} from "./VoucherLifecycle";
 import {
   LedgerDrilldownDialog,
   type LedgerDrilldownRow,
@@ -309,9 +319,13 @@ export function AccountingPage() {
     return () => clearTimeout(handle);
   }, [voucherNumber, editingVoucher, checkVoucherNumber]);
 
-  const [cancelVoucherTarget, setCancelVoucherTarget] =
+  const [reverseVoucherTarget, setReverseVoucherTarget] =
     useState<AccountingVoucher | null>(null);
-  const [cancelVoucherReason, setCancelVoucherReason] = useState("");
+  const [reverseVoucherReason, setReverseVoucherReason] = useState("");
+  const [reverseVoucherDate, setReverseVoucherDate] = useState(() => todayDate());
+  const [reverseVoucherError, setReverseVoucherError] = useState<string | null>(null);
+  const [historyVoucher, setHistoryVoucher] = useState<AccountingVoucher | null>(null);
+  const [voucherSubmitError, setVoucherSubmitError] = useState<string | null>(null);
   const [accountingSettingsOpen, setAccountingSettingsOpen] = useState(false);
   const [accountingSettingsDraft, setAccountingSettingsDraft] =
     useState<AccountingSettingsDraft>({
@@ -390,14 +404,17 @@ export function AccountingPage() {
     useGetAccountingTaxSectionsQuery();
   const { data: vouchers, isFetching: vouchersFetching } =
     useGetAccountingVouchersQuery(range);
+  const { data: accountingPeriods = [], isSuccess: accountingPeriodsLoaded } =
+    useGetAccountingPeriodsQuery();
   const [updateOrganizationSettings, updateOrganizationSettingsState] =
     useUpdateOrganizationSettingsMutation();
-  const [createVoucher, createVoucherState] =
-    useCreateAccountingVoucherMutation();
+  const [createVoucherDraft, createVoucherState] =
+    useCreateAccountingVoucherDraftMutation();
   const [updateVoucher, updateVoucherState] =
     useUpdateAccountingVoucherMutation();
-  const [cancelVoucher, cancelVoucherState] =
-    useCancelAccountingVoucherMutation();
+  const [postVoucher, postVoucherState] = usePostAccountingVoucherMutation();
+  const [reverseVoucher, reverseVoucherState] =
+    useReverseAccountingVoucherMutation();
   const [createGroup, createGroupState] = useCreateAccountGroupMutation();
   const [createLedger, createLedgerState] = useCreateAccountLedgerMutation();
   const [updateGroup, updateGroupState] = useUpdateAccountGroupMutation();
@@ -425,15 +442,23 @@ export function AccountingPage() {
   const filteredVouchers = (vouchers ?? []).filter((voucher) =>
     dayBookFilter === "ALL" ? true : voucher.voucherType === dayBookFilter
   );
-  const dayBookSummary = summarizeVouchers(filteredVouchers);
+  const accountingMovementVouchers = (vouchers ?? []).filter(
+    (voucher) => voucher.posted,
+  );
+  const dayBookSummary = summarizeVouchers(
+    filteredVouchers.filter((voucher) => voucher.posted),
+  );
   const ledgerDrilldownRows = selectedLedger
-    ? ledgerVoucherLines(vouchers ?? [], selectedLedger.id)
+    ? ledgerVoucherLines(accountingMovementVouchers, selectedLedger.id)
     : [];
   const ledgerDrilldownTotals = summarizeLedgerDrilldown(ledgerDrilldownRows);
-  const monthlySummary = summarizeMonthlyVouchers(vouchers ?? []);
-  const ledgerMonthlySummary = summarizeLedgerMonthly(vouchers ?? []);
+  const monthlySummary = summarizeMonthlyVouchers(accountingMovementVouchers);
+  const ledgerMonthlySummary = summarizeLedgerMonthly(accountingMovementVouchers);
   const groupSummary = summarizeTrialBalanceByGroup(trialBalance?.rows ?? []);
-  const taxLedgerSummary = summarizeTaxLedgers(vouchers ?? [], masters?.ledgers ?? []);
+  const taxLedgerSummary = summarizeTaxLedgers(
+    accountingMovementVouchers,
+    masters?.ledgers ?? [],
+  );
   const gstSalesRows = (gstSummary?.rows ?? []).filter((row) => row.type === "SALES");
   const outputGstTotal =
     (gstSummary?.salesCgstAmount ?? 0) +
@@ -462,6 +487,30 @@ export function AccountingPage() {
   const voucherEntryLedgers = masterLedgers.filter(
     (ledger) => ledger.active || editingLedgerIds.has(ledger.id)
   );
+  const voucherDatePeriod = accountingPeriods.find(
+    (period) =>
+      period.startDate <= voucherDate &&
+      period.endDate >= voucherDate,
+  );
+  const voucherDateWarning = accountingPeriodsLoaded
+    ? !voucherDatePeriod
+      ? "This date is outside every configured accounting period. Posting will be rejected."
+      : voucherDatePeriod.status === "CLOSED"
+        ? `${voucherDatePeriod.name} is closed. You can preserve this entry as a draft, but posting will be rejected.`
+        : null
+    : null;
+  const reversalDatePeriod = accountingPeriods.find(
+    (period) =>
+      period.startDate <= reverseVoucherDate &&
+      period.endDate >= reverseVoucherDate,
+  );
+  const reversalDateWarning = accountingPeriodsLoaded
+    ? !reversalDatePeriod
+      ? "This date is outside every configured accounting period."
+      : reversalDatePeriod.status === "CLOSED"
+        ? `${reversalDatePeriod.name} is closed. Choose a date in an open period.`
+        : null
+    : null;
   const masterSearchTerm = masterSearch.trim().toLowerCase();
   const editableGroupCount = masterGroups.filter((group) => !group.systemGroup).length;
   const editableLedgerCount = masterLedgers.filter((ledger) => !ledger.systemLedger).length;
@@ -1041,19 +1090,35 @@ export function AccountingPage() {
     }
   };
 
-  const submitVoucher = async () => {
+  const submitVoucher = async (intent: "draft" | "post") => {
     if (vouchersDisabledReason) {
       toast.info(vouchersDisabledReason);
       return;
     }
+
+    setVoucherSubmitError(null);
 
     if (voucherNumberTaken) {
       toast.error("This voucher number already exists");
       return;
     }
 
-    const lines = voucherLines
-      .filter((line) => line.ledgerId && Number(line.amount || 0) > 0)
+    const enteredLines = voucherLines.filter(
+      (line) =>
+        line.ledgerId ||
+        line.amount.trim() ||
+        line.description.trim(),
+    );
+    if (
+      enteredLines.some(
+        (line) => !line.ledgerId || !(Number(line.amount || 0) > 0),
+      )
+    ) {
+      toast.error("Complete or remove every started voucher line");
+      return;
+    }
+
+    const lines = enteredLines
       .map((line) => ({
         ledgerId: line.ledgerId,
         entryType: line.entryType,
@@ -1074,12 +1139,15 @@ export function AccountingPage() {
       return;
     }
 
-    if (lines.length < 2) {
-      toast.info("Add at least two voucher lines");
+    if (!lines.length) {
+      toast.info("Add at least one voucher line");
       return;
     }
 
-    if (Math.abs(voucherTotals.debit - voucherTotals.credit) > 0.009) {
+    if (
+      intent === "post" &&
+      Math.abs(voucherTotals.debit - voucherTotals.credit) > 0.009
+    ) {
       toast.error("Debit and credit totals must match");
       return;
     }
@@ -1092,21 +1160,36 @@ export function AccountingPage() {
       lines,
     };
 
+    let draft: AccountingVoucher | null = null;
     try {
       if (editingVoucher) {
-        await updateVoucher({
+        draft = (
+          await updateVoucher({
           id: editingVoucher.id,
           ...payload,
-        }).unwrap();
-        toast.success("Voucher updated");
+          }).unwrap()
+        ).data;
       } else {
-        await createVoucher(payload).unwrap();
+        draft = (await createVoucherDraft(payload).unwrap()).data;
+      }
+
+      if (intent === "post") {
+        await postVoucher(draft.id).unwrap();
         toast.success("Voucher posted");
         playUiSound("post");
+      } else {
+        toast.success(editingVoucher ? "Draft updated" : "Draft saved");
       }
       resetVoucherForm();
-    } catch {
-      toast.error(editingVoucher ? "Could not update voucher" : "Could not post voucher");
+    } catch (error) {
+      if (draft && intent === "post") {
+        setEditingVoucher(draft);
+      }
+      const message =
+        apiErrorMessage(error) ??
+        (intent === "post" ? "Could not post voucher" : "Could not save draft");
+      setVoucherSubmitError(message);
+      toast.error(message);
     }
   };
 
@@ -1117,6 +1200,7 @@ export function AccountingPage() {
     setVoucherDate(todayDate());
     setVoucherNarration("");
     setVoucherLines([newVoucherLine("DR"), newVoucherLine("CR")]);
+    setVoucherSubmitError(null);
     setVoucherView("list");
   };
 
@@ -1185,6 +1269,11 @@ export function AccountingPage() {
       return;
     }
 
+    if (voucherStatus(voucher) !== "DRAFT") {
+      toast.info("Only draft vouchers can be edited. Posted vouchers are immutable.");
+      return;
+    }
+
     setEditingVoucher(voucher);
     setWorkspace("VOUCHERS");
     setVoucherType(voucher.voucherType);
@@ -1202,8 +1291,8 @@ export function AccountingPage() {
     );
   };
 
-  const confirmCancelVoucher = async () => {
-    if (!cancelVoucherTarget) {
+  const confirmReverseVoucher = async () => {
+    if (!reverseVoucherTarget) {
       return;
     }
 
@@ -1212,16 +1301,25 @@ export function AccountingPage() {
       return;
     }
 
+    if (!reverseVoucherReason.trim() || !reverseVoucherDate) {
+      toast.error("Effective date and reason are required");
+      return;
+    }
+
+    setReverseVoucherError(null);
     try {
-      await cancelVoucher({
-        id: cancelVoucherTarget.id,
-        reason: cancelVoucherReason.trim() || null,
+      const reversal = await reverseVoucher({
+        id: reverseVoucherTarget.id,
+        effectiveDate: reverseVoucherDate,
+        reason: reverseVoucherReason.trim(),
       }).unwrap();
-      setCancelVoucherTarget(null);
-      setCancelVoucherReason("");
-      toast.success("Voucher cancelled");
-    } catch {
-      toast.error("Could not cancel voucher");
+      setReverseVoucherTarget(null);
+      setReverseVoucherReason("");
+      toast.success(`Reversal ${reversal.data.voucherNumber} posted`);
+    } catch (error) {
+      const message = apiErrorMessage(error) ?? "Could not reverse voucher";
+      setReverseVoucherError(message);
+      toast.error(message);
     }
   };
 
@@ -2339,8 +2437,8 @@ export function AccountingPage() {
 
             {editingVoucher ? (
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                You are editing a posted manual voucher. Changes are saved with
-                an audit trail.
+                You are editing draft {editingVoucher.voucherNumber}. Posted
+                vouchers are immutable.
               </div>
             ) : null}
 
@@ -2374,6 +2472,15 @@ export function AccountingPage() {
                   disabled={Boolean(vouchersDisabledReason)}
                   onChange={(event) => setVoucherDate(event.target.value)}
                 />
+                {voucherDateWarning ? (
+                  <p role="status" className="text-xs text-amber-700">
+                    {voucherDateWarning}
+                  </p>
+                ) : voucherDatePeriod ? (
+                  <p className="text-xs text-emerald-700">
+                    Open period: {voucherDatePeriod.name}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label>Narration</Label>
@@ -2566,6 +2673,11 @@ export function AccountingPage() {
                 </Badge>
               </div>
               <div className="mt-3 flex flex-col gap-2 border-t border-white/10 pt-3 sm:flex-row sm:justify-end">
+                {voucherSubmitError ? (
+                  <p role="alert" className="mr-auto self-center text-xs text-red-300">
+                    {voucherSubmitError} Your entered voucher has been preserved.
+                  </p>
+                ) : null}
                 <Button
                   disabled={Boolean(vouchersDisabledReason)}
                   onClick={autoBalanceVoucher}
@@ -2581,17 +2693,32 @@ export function AccountingPage() {
                   </Button>
                 ) : null}
                 <Button
-                  onClick={submitVoucher}
+                  variant="outline"
+                  onClick={() => void submitVoucher("draft")}
                   disabled={
-                      Boolean(vouchersDisabledReason) ||
+                    Boolean(vouchersDisabledReason) ||
                     createVoucherState.isLoading ||
                     updateVoucherState.isLoading ||
                     voucherNumberTaken ||
-                    checkingVoucherNumber ||
-                    Math.abs(voucherTotals.debit - voucherTotals.credit) > 0.009
+                    checkingVoucherNumber
                   }
                 >
-                  {editingVoucher ? "Save Voucher" : "Post Voucher"}
+                  {editingVoucher ? "Save Draft" : "Save Draft"}
+                </Button>
+                <Button
+                  onClick={() => void submitVoucher("post")}
+                  disabled={
+                    Boolean(vouchersDisabledReason) ||
+                    createVoucherState.isLoading ||
+                    updateVoucherState.isLoading ||
+                    postVoucherState.isLoading ||
+                    voucherNumberTaken ||
+                    checkingVoucherNumber ||
+                    Math.abs(voucherTotals.debit - voucherTotals.credit) > 0.009 ||
+                    Boolean(voucherDateWarning)
+                  }
+                >
+                  Post Voucher
                 </Button>
               </div>
             </div>
@@ -2659,6 +2786,7 @@ export function AccountingPage() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="font-medium">{voucher.voucherNumber}</div>
+                        <VoucherLifecycleBadge voucher={voucher} />
                         {voucher.sourceType ? (
                           <Badge variant="secondary">
                             {voucher.sourceType === "BILL"
@@ -2670,6 +2798,15 @@ export function AccountingPage() {
                       <div className="text-xs text-muted-foreground">
                         {labelCase(voucher.voucherType)} · {voucher.voucherDate}
                       </div>
+                      {voucher.reversalOfVoucherId ? (
+                        <div className="text-xs text-muted-foreground">
+                          Reversal of voucher {voucher.reversalOfVoucherId}
+                        </div>
+                      ) : voucherStatus(voucher) === "REVERSED" ? (
+                        <div className="text-xs text-muted-foreground">
+                          Reversed{voucher.reversalReason ? `: ${voucher.reversalReason}` : ""}
+                        </div>
+                      ) : null}
                     </div>
                     <Badge variant="secondary">
                       {formatCurrency(voucher.totalDebit)}
@@ -2716,9 +2853,14 @@ export function AccountingPage() {
 		                      variant="outline"
 	                      disabled={
                           Boolean(vouchersDisabledReason) ||
-                          Boolean(voucher.sourceType)
+                          Boolean(voucher.sourceType) ||
+                          voucherStatus(voucher) !== "DRAFT"
                         }
-                          title="Edit voucher"
+                          title={
+                            voucherStatus(voucher) === "DRAFT"
+                              ? "Edit draft voucher"
+                              : "Posted and reversed vouchers are immutable"
+                          }
 		                      onClick={() => editVoucherInEntry(voucher)}
 		                    >
 	                      <Edit2 className="h-4 w-4" />
@@ -2747,26 +2889,46 @@ export function AccountingPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      title="View lifecycle history"
+                      aria-label={`View history for voucher ${voucher.voucherNumber}`}
+                      onClick={() => setHistoryVoucher(voucher)}
+                    >
+                      <History className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       title="Print voucher"
                       onClick={() => printVoucher(voucher)}
                     >
                       <Printer className="h-4 w-4" />
                     </Button>
-		                    <Button
-		                      size="sm"
-	                      variant="outline"
-	                      disabled={
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={
                           Boolean(vouchersDisabledReason) ||
-                          Boolean(voucher.sourceType)
+                          Boolean(voucher.sourceType) ||
+                          voucherStatus(voucher) !== "POSTED" ||
+                          Boolean(voucher.reversalOfVoucherId)
                         }
-                          title="Cancel voucher"
-		                      onClick={() => {
-                        setCancelVoucherTarget(voucher);
-                        setCancelVoucherReason("");
+                      title={
+                        voucher.sourceType
+                          ? "Correct source-generated vouchers from their source workflow"
+                          : voucherStatus(voucher) !== "POSTED"
+                            ? "Only posted vouchers can be reversed"
+                            : "Create a linked reversal"
+                      }
+                      aria-label={`Reverse voucher ${voucher.voucherNumber}`}
+                      onClick={() => {
+                        setReverseVoucherTarget(voucher);
+                        setReverseVoucherDate(todayDate());
+                        setReverseVoucherReason("");
+                        setReverseVoucherError(null);
                       }}
                     >
-	                      <Trash2 className="h-4 w-4" />
-	                    </Button>
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -2784,7 +2946,7 @@ export function AccountingPage() {
 
       <div hidden={workspace !== "CASH_BANK"}>
         <CashBankBook
-          vouchers={vouchers ?? []}
+          vouchers={accountingMovementVouchers}
           ledgers={masters?.ledgers ?? []}
         />
       </div>
@@ -4143,6 +4305,8 @@ export function AccountingPage() {
               />
             </div>
 
+            <AccountingPeriodsPanel />
+
             <div className="rounded-lg border p-4">
               <h3 className="text-sm font-semibold">Tax ledgers</h3>
               <div className="mt-3 grid gap-2">
@@ -4279,41 +4443,77 @@ export function AccountingPage() {
       </AlertDialog>
 
       <AlertDialog
-        open={Boolean(cancelVoucherTarget)}
+        open={Boolean(reverseVoucherTarget)}
         onOpenChange={(open) => {
           if (!open) {
-            setCancelVoucherTarget(null);
-            setCancelVoucherReason("");
+            setReverseVoucherTarget(null);
+            setReverseVoucherReason("");
+            setReverseVoucherError(null);
           }
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel accounting voucher?</AlertDialogTitle>
+            <AlertDialogTitle>Reverse accounting voucher?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove {cancelVoucherTarget?.voucherNumber} from
-              accounting reports and keep an audit trail.
+              This creates a linked, immutable voucher with swapped debit and
+              credit entries. {reverseVoucherTarget?.voucherNumber} remains in
+              the audit trail and cannot be reversed twice.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2">
-            <Label>Reason</Label>
+            <Label htmlFor="reversal-effective-date">Effective date</Label>
             <Input
-              value={cancelVoucherReason}
-              onChange={(event) => setCancelVoucherReason(event.target.value)}
+              id="reversal-effective-date"
+              type="date"
+              value={reverseVoucherDate}
+              onChange={(event) => setReverseVoucherDate(event.target.value)}
+            />
+            {reversalDateWarning ? (
+              <p role="status" className="text-xs text-amber-800">
+                {reversalDateWarning}
+              </p>
+            ) : reversalDatePeriod ? (
+              <p className="text-xs text-emerald-700">
+                Open period: {reversalDatePeriod.name}
+              </p>
+            ) : null}
+            <Label htmlFor="reversal-reason">Reason</Label>
+            <Textarea
+              id="reversal-reason"
+              value={reverseVoucherReason}
+              onChange={(event) => setReverseVoucherReason(event.target.value)}
               placeholder="Example: Duplicate entry"
             />
+            {reverseVoucherError ? (
+              <p role="alert" className="text-sm text-red-700">
+                {reverseVoucherError} Your reversal details have been preserved.
+              </p>
+            ) : null}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Voucher</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmCancelVoucher}
-              disabled={cancelVoucherState.isLoading}
+            <Button
+              onClick={confirmReverseVoucher}
+              disabled={
+                reverseVoucherState.isLoading ||
+                !reverseVoucherDate ||
+                !reverseVoucherReason.trim() ||
+                Boolean(reversalDateWarning)
+              }
             >
-              Cancel Voucher
-            </AlertDialogAction>
+              Create Reversal
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <VoucherHistoryDialog
+        voucher={historyVoucher}
+        onOpenChange={(open) => {
+          if (!open) setHistoryVoucher(null);
+        }}
+      />
     </div>
   );
 }

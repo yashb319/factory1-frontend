@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useGetAccountMastersQuery } from "@/features/accounting/api/accountingApi";
 import {
-  useCreateAccountingVoucherMutation,
+  useCreateAccountingVoucherDraftMutation,
+  useGetAccountingPeriodsQuery,
+  useGetAccountMastersQuery,
+  usePostAccountingVoucherMutation,
   useUpdateAccountingVoucherMutation,
 } from "@/features/accounting/api/accountingApi";
 import type {
@@ -64,8 +66,12 @@ export function AccountingVoucherEntryView({
 }) {
   const { data: masters } = useGetAccountMastersQuery();
 
-  const [createVoucher, createState] = useCreateAccountingVoucherMutation();
+  const { data: periods = [], isSuccess: periodsLoaded } =
+    useGetAccountingPeriodsQuery();
+  const [createVoucherDraft, createState] =
+    useCreateAccountingVoucherDraftMutation();
   const [updateVoucher, updateState] = useUpdateAccountingVoucherMutation();
+  const [postVoucher, postState] = usePostAccountingVoucherMutation();
 
   const [voucherDate, setVoucherDate] = useState(
     voucher?.voucherDate ?? new Date().toISOString().slice(0, 10),
@@ -85,6 +91,8 @@ export function AccountingVoucherEntryView({
         ],
   );
   const [focusIndex, setFocusIndex] = useState(0);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [savedDraftId, setSavedDraftId] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const ledgers = masters?.ledgers ?? [];
@@ -121,6 +129,17 @@ export function AccountingVoucherEntryView({
     );
     return { debit, credit, difference: Math.abs(debit - credit) };
   }, [lines]);
+  const voucherPeriod = periods.find(
+    (period) =>
+      period.startDate <= voucherDate && period.endDate >= voucherDate,
+  );
+  const dateWarning = periodsLoaded
+    ? !voucherPeriod
+      ? "Date is outside every configured accounting period."
+      : voucherPeriod.status === "CLOSED"
+        ? `${voucherPeriod.name} is closed. Save as draft or choose an open date to post.`
+        : null
+    : null;
 
   useEffect(() => {
     const nodes = focusables(rootRef.current);
@@ -171,7 +190,7 @@ export function AccountingVoucherEntryView({
     };
   }
 
-  function validate(): boolean {
+  function validate(intent: "draft" | "post"): boolean {
     if (!lines.length) {
       toast.error("Add at least one entry");
       return false;
@@ -193,7 +212,7 @@ export function AccountingVoucherEntryView({
         return false;
       }
     }
-    if (totals.difference > 0.01) {
+    if (intent === "post" && totals.difference > 0.01) {
       toast.error(
         `Debits and credits must match. Difference: ₹${totals.difference.toFixed(2)}`,
       );
@@ -202,21 +221,35 @@ export function AccountingVoucherEntryView({
     return true;
   }
 
-  async function accept() {
-    if (!validate()) return;
+  async function accept(intent: "draft" | "post") {
+    if (!validate(intent)) return;
+    setSubmitError(null);
+    let draft: AccountingVoucher | null = null;
     try {
       const payload = buildPayload();
-      if (mode === "alter" && voucher) {
-        await updateVoucher({ id: voucher.id, ...payload }).unwrap();
-        toast.success("Voucher altered");
+      const draftId = voucher?.id ?? savedDraftId;
+      if (draftId) {
+        draft = (await updateVoucher({ id: draftId, ...payload }).unwrap()).data;
       } else {
-        await createVoucher(payload).unwrap();
-        toast.success("Voucher created");
+        draft = (await createVoucherDraft(payload).unwrap()).data;
+        setSavedDraftId(draft.id);
       }
-      playUiSound("post");
+      if (intent === "post") {
+        await postVoucher(draft.id).unwrap();
+        toast.success("Voucher posted");
+        playUiSound("post");
+      } else {
+        toast.success(mode === "alter" ? "Draft updated" : "Draft saved");
+      }
       onBack();
-    } catch {
-      toast.error("Could not save voucher");
+    } catch (error) {
+      if (draft && intent === "post") {
+        toast.info(`Draft ${draft.voucherNumber} was saved and remains editable`);
+      }
+      const message = apiErrorMessage(error) ??
+        (intent === "post" ? "Could not post voucher" : "Could not save draft");
+      setSubmitError(message);
+      toast.error(message);
     }
   }
 
@@ -230,6 +263,7 @@ export function AccountingVoucherEntryView({
       totalDebit: totals.debit,
       totalCredit: totals.credit,
       posted: voucher?.posted ?? false,
+      lifecycleStatus: voucher?.lifecycleStatus ?? "DRAFT",
       lines: lines.map((line, i) => ({
         id: `line-${i}`,
         ledgerId: line.ledgerId,
@@ -289,7 +323,7 @@ export function AccountingVoucherEntryView({
         !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
       if (unmodified && key === "a") {
         event.preventDefault();
-        void accept();
+        void accept("draft");
       } else if (unmodified && (key === "q" || key === "o")) {
         event.preventDefault();
         onBack();
@@ -325,7 +359,7 @@ export function AccountingVoucherEntryView({
     return () => root?.removeEventListener("keydown", onKeyDown, true);
   }, [lines, totals, narration, voucherDate, voucher, mode, voucherType, ledgerNames]);
 
-  const saving = createState.isLoading || updateState.isLoading;
+  const saving = createState.isLoading || updateState.isLoading || postState.isLoading;
 
   return (
     <div
@@ -350,6 +384,15 @@ export function AccountingVoucherEntryView({
             onChange={(e) => setVoucherDate(e.target.value)}
             className="h-6 border-0 border-b border-[#0F766E] bg-transparent px-1 outline-none focus:bg-[#FFF7C2]"
           />
+          {dateWarning ? (
+            <span role="status" className="col-span-2 text-[11px] text-amber-700">
+              {dateWarning}
+            </span>
+          ) : voucherPeriod ? (
+            <span className="col-span-2 text-[11px] text-emerald-700">
+              Open period: {voucherPeriod.name}
+            </span>
+          ) : null}
         </label>
         <label className="grid grid-cols-[100px_1fr] items-center gap-3">
           <span className="px-1 font-bold">Narration</span>
@@ -455,7 +498,12 @@ export function AccountingVoucherEntryView({
         </div>
       </div>
 
-      <div className="grid grid-cols-4 border-t border-[#0F766E] bg-[#BBF7D0] text-xs">
+      {submitError ? (
+        <div role="alert" className="border-t border-red-300 bg-red-50 px-3 py-1 text-xs text-red-800">
+          {submitError} Your entered voucher has been preserved.
+        </div>
+      ) : null}
+      <div className="grid grid-cols-5 border-t border-[#0F766E] bg-[#BBF7D0] text-xs">
         <button
           type="button"
           className="border-r border-[#0F766E] px-2 py-1 text-left hover:bg-[#6366F1] hover:text-white"
@@ -467,12 +515,17 @@ export function AccountingVoucherEntryView({
           type="button"
           className="border-r border-[#0F766E] px-2 py-1 text-left font-bold hover:bg-[#6366F1] hover:text-white disabled:opacity-60"
           disabled={saving}
-          onClick={() => {
-            playUiSound("post");
-            void accept();
-          }}
+          onClick={() => void accept("draft")}
         >
-          A: Accept
+          A: Save Draft
+        </button>
+        <button
+          type="button"
+          className="border-r border-[#0F766E] px-2 py-1 text-left font-bold hover:bg-[#6366F1] hover:text-white disabled:opacity-60"
+          disabled={saving || totals.difference > 0.01 || Boolean(dateWarning)}
+          onClick={() => void accept("post")}
+        >
+          Post
         </button>
         <button
           type="button"
@@ -504,4 +557,10 @@ export function AccountingVoucherEntryView({
       </div>
     </div>
   );
+}
+
+function apiErrorMessage(error: unknown) {
+  if (!error || typeof error !== "object") return null;
+  const data = (error as { data?: { message?: unknown } }).data;
+  return typeof data?.message === "string" ? data.message : null;
 }

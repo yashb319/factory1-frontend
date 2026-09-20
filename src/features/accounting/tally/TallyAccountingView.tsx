@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { TallyAccountMasters } from "@/components/layout/TallyAccountMasters";
 import { TallyVoucherList } from "@/components/layout/TallyVoucherList";
 import { AccountingVoucherEntryView } from "../components/AccountingVoucherEntryView";
@@ -13,6 +14,7 @@ import {
   useGetAccountingVouchersQuery,
 } from "@/features/accounting/api/accountingApi";
 import type { AccountingVoucher, VoucherType } from "@/features/accounting/types/accounting.types";
+import { voucherStatus } from "@/features/accounting/components/VoucherLifecycle";
 
 export function TallyAccountingView() {
   const router = useRouter();
@@ -103,7 +105,17 @@ export function TallyAccountingView() {
       voucherType={activeVoucher as VoucherType}
       vouchers={filteredVouchers}
       isFetching={mastersFetching || vouchersFetching}
-      onSelectVoucher={(voucher) => setEntry({ mode: "alter", voucher })}
+      onSelectVoucher={(voucher) => {
+        if (voucher.sourceType) {
+          toast.info("Source-generated vouchers are corrected from Billing");
+          return;
+        }
+        if (voucherStatus(voucher) !== "DRAFT") {
+          toast.info("Only draft vouchers can be altered. Posted vouchers are immutable.");
+          return;
+        }
+        setEntry({ mode: "alter", voucher });
+      }}
       onCreateNew={() => setEntry({ mode: "create" })}
       onBack={onBack}
     />
