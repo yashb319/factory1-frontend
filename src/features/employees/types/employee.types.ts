@@ -112,9 +112,13 @@ export interface CreateEmployeeRequest {
   bankIfscCode?: string;
   employmentBasis?: EmploymentBasis;
   reportingToEmployeeId?: string;
+  statutoryProfile?: EmployeeStatutoryProfileRequest;
 }
 
-export type UpdateEmployeeRequest = CreateEmployeeRequest;
+export type UpdateEmployeeRequest = Omit<
+  CreateEmployeeRequest,
+  "code" | "statutoryProfile"
+>;
 
 export interface PageResponse<T> {
   content: T[];
@@ -162,16 +166,16 @@ export interface EmployeeImportRowInput {
   panNumber?: string | null;
   uan?: string | null;
   taxRegime?: string | null;
-}
-
-export interface BulkEmployeeImportRequest {
-  rows: EmployeeImportRowInput[];
+  existingCodeResolution?: "SKIP" | "UPDATE";
 }
 
 export interface EmployeeImportRow {
   rowNumber: number;
   employeeCode?: string | null;
+  resolvedEmployeeCode?: string | null;
+  existingCodeOutcome: "CONFLICT" | "SKIP" | "UPDATE" | "NEW";
   employee?: Partial<Employee> | null;
+  statutoryProfile?: EmployeeStatutoryProfileRequest | null;
   errors: string[];
 }
 
@@ -186,6 +190,7 @@ export interface EmployeeImportResult {
   createdRows: number;
   updatedRows: number;
   skippedRows: number;
+  rows: EmployeeImportRow[];
   errors: EmployeeImportRow[];
 }
 

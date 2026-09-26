@@ -21,6 +21,12 @@ export type TallyMasterField = {
   autoFocus?: boolean;
   placeholder?: string;
   createOnly?: boolean;
+  readOnly?: boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  maxLength?: number;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 };
 
 export type TallyMasterListProps<T extends { id: string }> = {
@@ -40,6 +46,10 @@ export type TallyMasterListProps<T extends { id: string }> = {
   getItemName?: (item: T) => string;
   initialScreen?: "list" | "create" | "alter";
   suggestedCode?: string;
+  validateDraft?: (
+    data: Record<string, unknown>,
+    screen: "create" | "alter"
+  ) => string | undefined;
 };
 
 export function TallyMasterList<T extends { id: string }>({
@@ -59,6 +69,7 @@ export function TallyMasterList<T extends { id: string }>({
   getItemName,
   initialScreen = "list",
   suggestedCode,
+  validateDraft,
 }: TallyMasterListProps<T>) {
   const [screen, setScreen] = useState<"list" | "create" | "alter">(initialScreen);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -112,6 +123,11 @@ export function TallyMasterList<T extends { id: string }>({
         toast.error(`${f.label} is required`);
         return;
       }
+      const validationError = validateDraft?.(formDraft, "create");
+      if (validationError) {
+        toast.error(validationError);
+        return;
+      }
     }
     try {
       await onCreateItem({
@@ -134,6 +150,11 @@ export function TallyMasterList<T extends { id: string }>({
     for (const f of formFields) {
       if (f.required && !formDraft[f.key] && formDraft[f.key] !== false) {
         toast.error(`${f.label} is required`);
+        return;
+      }
+      const validationError = validateDraft?.(formDraft, "alter");
+      if (validationError) {
+        toast.error(validationError);
         return;
       }
     }
@@ -360,7 +381,6 @@ export function TallyMasterList<T extends { id: string }>({
                     onChange={(e) =>
                       setFormDraft((c) => ({ ...c, [field.key]: e.target.value }))
                     }
-                    onFocus={(e) => e.currentTarget.select()}
                     className="h-20 w-full border-0 border-b border-[#0F766E] bg-transparent px-1 outline-none focus:bg-[#FFF7C2]"
                     placeholder={field.placeholder}
                   />
@@ -368,12 +388,23 @@ export function TallyMasterList<T extends { id: string }>({
                   <input
                     autoFocus={field.autoFocus}
                     type={field.type ?? "text"}
-                    value={(formDraft[field.key] as string) ?? ""}
+                    readOnly={field.readOnly}
+                    min={field.min}
+                    max={field.max}
+                    step={field.step}
+                    maxLength={field.maxLength}
+                    inputMode={field.inputMode}
+                    value={
+                      field.key === "code" &&
+                      field.readOnly &&
+                      !formDraft[field.key]
+                        ? suggestedCode ?? ""
+                        : (formDraft[field.key] as string) ?? ""
+                    }
                     onChange={(e) =>
                       setFormDraft((c) => ({ ...c, [field.key]: e.target.value }))
                     }
-                    onFocus={(e) => e.currentTarget.select()}
-                    className="h-6 border-0 border-b border-[#0F766E] bg-transparent px-1 outline-none focus:bg-[#FFF7C2]"
+                    className="h-6 border-0 border-b border-[#0F766E] bg-transparent px-1 outline-none focus:bg-[#FFF7C2] read-only:bg-slate-100"
                     placeholder={field.placeholder}
                   />
                 )}

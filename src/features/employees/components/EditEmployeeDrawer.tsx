@@ -118,12 +118,15 @@ export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
 
   async function onSubmit(values: EmployeeFormValues) {
     if (!employee) return;
+    const { code, statutoryProfile, ...employeeValues } = values;
+    void code;
+    void statutoryProfile;
 
     try {
       await updateEmployee({
         id: employee.id,
         body: {
-          ...values,
+          ...employeeValues,
           phone: values.phone || undefined,
           email: values.email || undefined,
           photoDataUrl: values.photoDataUrl || undefined,

@@ -23,7 +23,10 @@ import {
   useGetNextEmployeeCodeQuery,
 } from "../api/employeeApi";
 import { EmployeeForm } from "./EmployeeForm";
-import { isCodeConflict } from "@/lib/apiError";
+import {
+  createDefaultStatutoryProfile,
+  normalizeStatutoryProfile,
+} from "../utils/employeeStatutory";
 
 interface Props {
   open: boolean;
@@ -56,6 +59,7 @@ const defaultValues: EmployeeFormValues = {
   bankIfscCode: "",
   employmentBasis: undefined,
   reportingToEmployeeId: "",
+  statutoryProfile: createDefaultStatutoryProfile(),
 };
 
 export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
@@ -94,10 +98,12 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
   }, [form, nextCode, open]);
 
   async function onSubmit(values: EmployeeFormValues) {
+    const { statutoryProfile, code, ...employeeValues } = values;
+    void code;
+
     try {
       await createEmployee({
-        ...values,
-        code: values.code?.trim().toUpperCase() || undefined,
+        ...employeeValues,
         phone: values.phone || undefined,
         email: values.email || undefined,
         photoDataUrl: values.photoDataUrl || undefined,
@@ -118,18 +124,18 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
         bankIfscCode: values.bankIfscCode || undefined,
         employmentBasis: values.employmentBasis || undefined,
         reportingToEmployeeId: values.reportingToEmployeeId || undefined,
+        statutoryProfile: normalizeStatutoryProfile(
+          statutoryProfile ?? createDefaultStatutoryProfile()
+        ),
       }).unwrap();
-
-      toast.success("Employee added successfully");
-      form.reset(defaultValues);
-      onOpenChange(false);
-    } catch (error) {
-      if (isCodeConflict(error)) {
-        form.setError("code", { message: "This code is already in use, try another" });
-        return;
-      }
+    } catch {
       toast.error("Failed to add employee");
+      return;
     }
+
+    toast.success("Employee and statutory details added successfully");
+    form.reset(defaultValues);
+    onOpenChange(false);
   }
 
   function handleOpenChange(nextOpen: boolean) {
