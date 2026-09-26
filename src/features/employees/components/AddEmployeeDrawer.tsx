@@ -6,11 +6,11 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import {
   EmployeeFormValues,
@@ -147,11 +147,14 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
   }
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent className="w-full overflow-y-auto px-6 sm:max-w-2xl lg:max-w-3xl">
-        <SheetHeader>
-          <SheetTitle>Add Employee</SheetTitle>
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="flex h-[calc(100dvh-1rem)] max-h-[900px] w-[calc(100%-1rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0 sm:h-[calc(100dvh-3rem)]"
+        onEscapeKeyDown={() => handleOpenChange(false)}
+      >
+        <DialogHeader className="shrink-0 border-b px-4 py-4 sm:px-6">
+          <DialogTitle>Add Employee</DialogTitle>
+        </DialogHeader>
 
         <EmployeeForm
           form={form}
@@ -162,7 +165,7 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
           onCancel={() => handleOpenChange(false)}
           onSubmit={onSubmit}
         />
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

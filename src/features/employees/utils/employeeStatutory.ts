@@ -1,4 +1,4 @@
-import { EmployeeStatutoryProfileRequest } from "../types/employee.types";
+import type { EmployeeStatutoryProfileRequest } from "../types/employee.types";
 
 export function createDefaultStatutoryProfile(): EmployeeStatutoryProfileRequest {
   return {
