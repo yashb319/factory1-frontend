@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { saveFile } from "@/features/import-export/utils/localExportFiles";
@@ -41,7 +41,10 @@ import {
   useImportEmployeesMutation,
   usePreviewEmployeeImportMutation,
 } from "../api/employeeApi";
-import { EmployeeImportRowInput } from "../types/employee.types";
+import {
+  EmployeeImportPreviewResponse,
+  EmployeeImportRowInput,
+} from "../types/employee.types";
 
 interface Props {
   open: boolean;
@@ -300,17 +303,8 @@ function toEmployeeImportRowInput(
 
 function validateRows(
   mappedRows: ImportRow[],
-  reportingToResolved: boolean[] = [],
-  existingEmployeeCodes: Set<string> = new Set()
+  reportingToResolved: boolean[] = []
 ): ValidationRow[] {
-  const employeeCodeCount = new Map<string, number>();
-
-  mappedRows.forEach((row) => {
-    const code = value(row.employeeCode).toUpperCase();
-    if (!code) return;
-    employeeCodeCount.set(code, (employeeCodeCount.get(code) ?? 0) + 1);
-  });
-
   return mappedRows.map((row, index) => {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -333,10 +327,6 @@ function validateRows(
     if (!name) errors.push("Name is required");
     if (!salaryRate) errors.push("Salary Rate is required");
     if (!salaryType) errors.push("Salary Type is required");
-
-    if (employeeCode && employeeCodeCount.get(employeeCode)! > 1) {
-      errors.push("Duplicate Employee Code in uploaded file");
-    }
 
     if (salaryRate && Number.isNaN(Number(salaryRate))) {
       errors.push("Salary Rate must be a number");
@@ -385,15 +375,6 @@ function validateRows(
 
     if (dateOfBirth && joiningDate && dateOfBirth >= joiningDate) {
       errors.push("Date of Birth must be before Joining Date");
-    }
-
-    if (
-      employeeCode &&
-      existingEmployeeCodes.has(employeeCode.toUpperCase())
-    ) {
-      warnings.push(
-        "Employee Code already exists; choose whether to update or skip this employee"
-      );
     }
 
     if (!row.phone) warnings.push("Phone missing");
@@ -460,13 +441,13 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   const [rawRows, setRawRows] = useState<ImportRow[]>([]);
   const [mapping, setMapping] = useState<ColumnMappingValue>({});
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [existingCodeResolution, setExistingCodeResolution] =
-    useState<ExistingCodeResolution | "">("");
-  const [backendPreview, setBackendPreview] = useState<{
-    validRows?: number;
-    invalidRows?: number;
-  } | null>(null);
-  const [previewEmployeeImport] = usePreviewEmployeeImportMutation();
+  const [rowResolutions, setRowResolutions] = useState<
+    Record<number, ExistingCodeResolution>
+  >({});
+  const [backendPreview, setBackendPreview] =
+    useState<EmployeeImportPreviewResponse | null>(null);
+  const [previewEmployeeImport, previewState] =
+    usePreviewEmployeeImportMutation();
   const [importEmployees, importState] = useImportEmployeesMutation();
   const { data: orgEmployeesPage } = useGetEmployeesQuery(
     { size: 1000 },
@@ -487,16 +468,6 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
 
     return { codeSet, nameToCode };
   }, [orgEmployeesPage]);
-
-  const existingEmployeeCodes = useMemo(
-    () =>
-      new Set(
-        (orgEmployeesPage?.content ?? []).map((employee) =>
-          employee.employeeCode.trim().toUpperCase()
-        )
-      ),
-    [orgEmployeesPage]
-  );
 
   const sourceColumns = useMemo(() => {
     if (!rawRows.length) return [];
@@ -541,32 +512,81 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     return { resolvedRows: rows, reportingToResolved: resolvedFlags };
   }, [mappedRows, managerLookup]);
 
-  const validationRows = useMemo(() => {
-    return validateRows(
-      resolvedRows,
-      reportingToResolved,
-      existingEmployeeCodes
-    );
-  }, [existingEmployeeCodes, resolvedRows, reportingToResolved]);
-
-  const conflictingRowNumbers = useMemo(
+  const previewInputs = useMemo(
     () =>
-      new Set(
-        validationRows
-          .filter(
-            (row) =>
-              row.status !== "ERROR" &&
-              existingEmployeeCodes.has(
-                value(row.data.employeeCode).toUpperCase()
-              )
-          )
-          .map((row) => row.rowNumber)
+      resolvedRows.map((row, index) =>
+        toEmployeeImportRowInput(row, index + 2)
       ),
-    [existingEmployeeCodes, validationRows]
+    [resolvedRows]
   );
 
-  const conflictRows = validationRows.filter((row) =>
-    conflictingRowNumbers.has(row.rowNumber)
+  useEffect(() => {
+    if (!previewInputs.length) return;
+
+    let active = true;
+    const request = previewEmployeeImport(previewInputs);
+
+    void request
+      .unwrap()
+      .then((preview) => {
+        if (!active) return;
+        setBackendPreview(preview);
+        setRowResolutions({});
+      })
+      .catch((error: { name?: string }) => {
+        if (!active || error?.name === "AbortError") return;
+        setBackendPreview(null);
+        toast.error("Server validation preview failed. Review the mapping and try again.");
+      });
+
+    return () => {
+      active = false;
+      request.abort();
+    };
+  }, [previewEmployeeImport, previewInputs]);
+
+  const previewRowsByNumber = useMemo(
+    () =>
+      new Map(
+        (backendPreview?.rows ?? []).map((row) => [row.rowNumber, row])
+      ),
+    [backendPreview]
+  );
+
+  const validationRows = useMemo(
+    () =>
+      validateRows(resolvedRows, reportingToResolved).map((row) => {
+        const previewRow = previewRowsByNumber.get(row.rowNumber);
+        const serverErrors = previewRow?.errors ?? [];
+        const conflictMessage =
+          previewRow?.existingCodeOutcome === "CONFLICT"
+            ? "Employee Code already exists; unresolved conflicts will be skipped"
+            : undefined;
+        const messages = Array.from(
+          new Set([
+            ...row.messages,
+            ...serverErrors,
+            ...(conflictMessage ? [conflictMessage] : []),
+          ])
+        );
+        const status: ValidationRow["status"] =
+          row.status === "ERROR" || serverErrors.length > 0
+            ? "ERROR"
+            : row.status === "WARNING" || conflictMessage
+              ? "WARNING"
+              : "VALID";
+
+        return { ...row, messages, status };
+      }),
+    [previewRowsByNumber, reportingToResolved, resolvedRows]
+  );
+
+  const conflictRows = useMemo(
+    () =>
+      (backendPreview?.rows ?? []).filter(
+        (row) => row.existingCodeOutcome === "CONFLICT"
+      ),
+    [backendPreview]
   );
 
   const validation = useMemo(() => {
@@ -596,14 +616,21 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
 
     try {
       const rows: EmployeeImportRowInput[] = importableRows.map((row) =>
-        toEmployeeImportRowInput(row.data, row.rowNumber)
+        ({
+          ...toEmployeeImportRowInput(row.data, row.rowNumber),
+          existingCodeResolution: rowResolutions[row.rowNumber],
+        })
       );
-      const result = await importEmployees({
-        rows,
-        existingCodeResolution: existingCodeResolution || "SKIP",
-      }).unwrap();
+      const result = await importEmployees(rows).unwrap();
+      const outcomeCounts = result.rows.reduce(
+        (counts, row) => {
+          counts[row.existingCodeOutcome] += 1;
+          return counts;
+        },
+        { CONFLICT: 0, SKIP: 0, UPDATE: 0, NEW: 0 }
+      );
       toast.success(
-        `Import complete: ${result.createdRows} created, ${result.updatedRows} updated${result.skippedRows ? `, ${result.skippedRows} skipped` : ""}.`
+        `Import complete: ${outcomeCounts.NEW} created, ${outcomeCounts.UPDATE} updated${outcomeCounts.SKIP ? `, ${outcomeCounts.SKIP} skipped` : ""}.`
       );
     } catch {
       toast.error("Employee import failed. Review the file and try again.");
@@ -663,18 +690,9 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       setRawRows(parsedRows);
       setMapping(initialMapping);
 
-      const mappedRows = mapRowsToEmployeeFields(parsedRows, initialMapping);
-      const rows: EmployeeImportRowInput[] = mappedRows.map((row, index) =>
-        toEmployeeImportRowInput(row, index + 2)
-      );
-
-      const preview = await previewEmployeeImport(rows).unwrap();
-      setBackendPreview({
-        validRows: preview.validRows,
-        invalidRows: preview.invalidRows,
-      });
-
-      toast.success("File parsed successfully");
+      setBackendPreview(null);
+      setRowResolutions({});
+      toast.success("File parsed. Running server validation.");
     } catch {
       toast.error("Failed to parse file");
       setRawRows([]);
@@ -682,7 +700,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       setMapping({});
       setSelectedFile(null);
       setBackendPreview(null);
-      setExistingCodeResolution("");
+      setRowResolutions({});
     }
   }
 
@@ -692,7 +710,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     setMapping({});
     setSelectedFile(null);
     setBackendPreview(null);
-    setExistingCodeResolution("");
+    setRowResolutions({});
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -701,10 +719,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   }
 
   const importableRows = validationRows.filter(
-    (row) =>
-      (row.status === "VALID" || row.status === "WARNING") &&
-      (!conflictingRowNumbers.has(row.rowNumber) ||
-        existingCodeResolution === "UPDATE")
+    (row) => row.status === "VALID" || row.status === "WARNING"
   );
 
   return (
@@ -771,7 +786,8 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                   value={mapping}
                   onChange={(nextMapping) => {
                     setMapping(nextMapping);
-                    setExistingCodeResolution("");
+                    setBackendPreview(null);
+                    setRowResolutions({});
                   }}
                 />
 
@@ -785,26 +801,30 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                   <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
                     <div>
                       <p className="font-medium">
-                        {conflictRows.length} existing employee code
+                        {conflictRows.length} employee code conflict
                         {conflictRows.length === 1 ? "" : "s"} found
                       </p>
                       <p className="mt-1 text-sm">
-                        Factory1 can update matching employees with the imported
-                        values, or skip those rows. Choose explicitly before
-                        importing; existing employees are never overwritten
-                        automatically.
+                        Choose update or skip for each row. Any unresolved
+                        conflict is sent without a resolution and safely skipped
+                        by the server.
                       </p>
                     </div>
                     <Select
-                      value={existingCodeResolution}
+                      value=""
                       onValueChange={(nextValue) =>
-                        setExistingCodeResolution(
-                          nextValue as ExistingCodeResolution
+                        setRowResolutions(
+                          Object.fromEntries(
+                            conflictRows.map((row) => [
+                              row.rowNumber,
+                              nextValue as ExistingCodeResolution,
+                            ])
+                          )
                         )
                       }
                     >
                       <SelectTrigger className="w-full bg-background sm:max-w-sm">
-                        <SelectValue placeholder="Choose conflict resolution" />
+                        <SelectValue placeholder="Apply a choice to all conflicts" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="SKIP">
@@ -816,27 +836,52 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                       </SelectContent>
                     </Select>
                     <div className="max-h-36 overflow-y-auto rounded-md border border-amber-200 bg-background">
-                      {conflictRows.slice(0, 20).map((row) => (
-                        <div
-                          key={row.rowNumber}
-                          className="flex items-center justify-between gap-3 border-b px-3 py-2 text-sm last:border-b-0"
-                        >
-                          <span>
-                            Row {row.rowNumber}:{" "}
-                            <strong>{value(row.data.employeeCode)}</strong>
-                            {value(row.data.name)
-                              ? ` — ${value(row.data.name)}`
-                              : ""}
-                          </span>
-                          <span className="font-medium">
-                            {existingCodeResolution === "UPDATE"
-                              ? "Will update"
-                              : existingCodeResolution === "SKIP"
-                                ? "Will skip"
-                                : "Decision required"}
-                          </span>
-                        </div>
-                      ))}
+                      {conflictRows.slice(0, 50).map((row) => {
+                        const clientRow = validationRows.find(
+                          (candidate) => candidate.rowNumber === row.rowNumber
+                        );
+                        const employeeCode =
+                          row.resolvedEmployeeCode ||
+                          row.employeeCode ||
+                          value(clientRow?.data.employeeCode);
+                        const employeeName =
+                          row.employee?.name || value(clientRow?.data.name);
+
+                        return (
+                          <div
+                            key={row.rowNumber}
+                            className="grid gap-2 border-b px-3 py-2 text-sm last:border-b-0 sm:grid-cols-[1fr_220px] sm:items-center"
+                          >
+                            <span>
+                              Row {row.rowNumber}:{" "}
+                              <strong>{employeeCode}</strong>
+                              {employeeName ? ` — ${employeeName}` : ""}
+                            </span>
+                            <Select
+                              value={rowResolutions[row.rowNumber] ?? ""}
+                              onValueChange={(nextValue) =>
+                                setRowResolutions((current) => ({
+                                  ...current,
+                                  [row.rowNumber]:
+                                    nextValue as ExistingCodeResolution,
+                                }))
+                              }
+                            >
+                              <SelectTrigger className="h-8 bg-background">
+                                <SelectValue placeholder="Unresolved — will skip" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="SKIP">
+                                  Skip this employee
+                                </SelectItem>
+                                <SelectItem value="UPDATE">
+                                  Update this employee
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -911,7 +956,8 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                     disabled={
                       importableRows.length === 0 ||
                       validation.missingRequiredMappings.length > 0 ||
-                      (conflictRows.length > 0 && !existingCodeResolution)
+                      previewState.isLoading ||
+                      !backendPreview
                     }
                     onClick={handleStartImport}
                   >

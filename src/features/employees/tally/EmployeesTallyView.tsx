@@ -5,15 +5,11 @@ import { useRouter } from "next/navigation";
 import {
   useGetEmployeesQuery,
   useCreateEmployeeMutation,
-  useCreateEmployeeStatutoryProfileMutation,
   useUpdateEmployeeMutation,
   useDeleteEmployeeMutation,
   useGetNextEmployeeCodeQuery,
 } from "../api/employeeApi";
-import {
-  TallyMasterList,
-  TallyPartialCreateError,
-} from "@/components/layout/TallyMasterList";
+import { TallyMasterList } from "@/components/layout/TallyMasterList";
 import type {
   CreateEmployeeRequest,
   EmployeeStatutoryProfileRequest,
@@ -59,8 +55,6 @@ export function EmployeesTallyView({
   });
 
   const [createEmployee, createEmployeeState] = useCreateEmployeeMutation();
-  const [createStatutoryProfile, statutoryState] =
-    useCreateEmployeeStatutoryProfileMutation();
   const [updateEmployee, updateEmployeeState] = useUpdateEmployeeMutation();
   const [deleteEmployee] = useDeleteEmployeeMutation();
   const { data: suggestedCode } = useGetNextEmployeeCodeQuery(undefined, {
@@ -294,26 +288,14 @@ export function EmployeesTallyView({
           delete employeeData[key];
         });
 
-        const created = await createEmployee(
-          employeeData as unknown as CreateEmployeeRequest
-        ).unwrap();
-
-        try {
-          await createStatutoryProfile({
-            employeeId: created.id,
-            body: normalizeStatutoryProfile(statutoryProfile),
-          }).unwrap();
-        } catch {
-          throw new TallyPartialCreateError(
-            "Employee was created, but statutory details could not be saved. Open the employee and retry."
-          );
-        }
-
-        return created;
+        return createEmployee({
+          ...(employeeData as unknown as CreateEmployeeRequest),
+          statutoryProfile: normalizeStatutoryProfile(statutoryProfile),
+        }).unwrap();
       }}
       onUpdateItem={(id, data) => updateEmployee({ id, body: data as unknown as UpdateEmployeeRequest }).unwrap()}
       onDeleteItem={(id) => deleteEmployee(id).unwrap()}
-      isCreating={createEmployeeState.isLoading || statutoryState.isLoading}
+      isCreating={createEmployeeState.isLoading}
       isUpdating={updateEmployeeState.isLoading}
       suggestedCode={suggestedCode}
       onBack={() => router.push("/gateway?menu=employees")}

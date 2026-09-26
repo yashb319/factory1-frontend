@@ -52,8 +52,6 @@ export type TallyMasterListProps<T extends { id: string }> = {
   ) => string | undefined;
 };
 
-export class TallyPartialCreateError extends Error {}
-
 export function TallyMasterList<T extends { id: string }>({
   title,
   subtitle,
@@ -139,11 +137,6 @@ export function TallyMasterList<T extends { id: string }>({
       toast.success(`${title.replace(/s$/, "")} created`);
       setScreen("list");
     } catch (error) {
-      if (error instanceof TallyPartialCreateError) {
-        toast.error(error.message);
-        setScreen("list");
-        return;
-      }
       if (isCodeConflict(error)) {
         setCodeError("This code is already in use, try another");
         return;

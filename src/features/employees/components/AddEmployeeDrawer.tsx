@@ -18,7 +18,6 @@ import {
 } from "../schemas/employee.schema";
 import {
   useCreateEmployeeMutation,
-  useCreateEmployeeStatutoryProfileMutation,
   useGetEmployeeDesignationsQuery,
   useGetEmployeesQuery,
   useGetNextEmployeeCodeQuery,
@@ -65,8 +64,6 @@ const defaultValues: EmployeeFormValues = {
 
 export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
   const [createEmployee, { isLoading }] = useCreateEmployeeMutation();
-  const [createStatutoryProfile, statutoryState] =
-    useCreateEmployeeStatutoryProfileMutation();
   const { data: designations } = useGetEmployeeDesignationsQuery(undefined, {
     skip: !open,
   });
@@ -103,10 +100,9 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
   async function onSubmit(values: EmployeeFormValues) {
     const { statutoryProfile, code, ...employeeValues } = values;
     void code;
-    let employee;
 
     try {
-      employee = await createEmployee({
+      await createEmployee({
         ...employeeValues,
         phone: values.phone || undefined,
         email: values.email || undefined,
@@ -128,25 +124,12 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
         bankIfscCode: values.bankIfscCode || undefined,
         employmentBasis: values.employmentBasis || undefined,
         reportingToEmployeeId: values.reportingToEmployeeId || undefined,
-      }).unwrap();
-    } catch {
-      toast.error("Failed to add employee");
-      return;
-    }
-
-    try {
-      await createStatutoryProfile({
-        employeeId: employee.id,
-        body: normalizeStatutoryProfile(
+        statutoryProfile: normalizeStatutoryProfile(
           statutoryProfile ?? createDefaultStatutoryProfile()
         ),
       }).unwrap();
     } catch {
-      toast.error(
-        "Employee was created, but statutory details could not be saved. Open the employee and retry."
-      );
-      form.reset(defaultValues);
-      onOpenChange(false);
+      toast.error("Failed to add employee");
       return;
     }
 
@@ -173,7 +156,7 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
         <EmployeeForm
           form={form}
           mode="create"
-          loading={isLoading || statutoryState.isLoading}
+          loading={isLoading}
           designationOptions={designations ?? []}
           reportingToOptions={reportingToOptions}
           onCancel={() => handleOpenChange(false)}
