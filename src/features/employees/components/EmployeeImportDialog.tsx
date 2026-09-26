@@ -264,6 +264,18 @@ function value(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function isExistingCodeConflictError(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("existingcoderesolution") ||
+    ((normalized.includes("employee code") ||
+      normalized.includes("employee_code")) &&
+      (normalized.includes("already exist") ||
+        normalized.includes("duplicate") ||
+        normalized.includes("conflict")))
+  );
+}
+
 function toEmployeeImportRowInput(
   row: ImportRow,
   rowNumber: number
@@ -558,9 +570,15 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       validateRows(resolvedRows, reportingToResolved).map((row) => {
         const previewRow = previewRowsByNumber.get(row.rowNumber);
         const serverErrors = previewRow?.errors ?? [];
+        const blockingServerErrors =
+          previewRow?.existingCodeOutcome === "CONFLICT"
+            ? serverErrors.filter(
+                (message) => !isExistingCodeConflictError(message)
+              )
+            : serverErrors;
         const conflictMessage =
           previewRow?.existingCodeOutcome === "CONFLICT"
-            ? "Employee Code already exists; unresolved conflicts will be skipped"
+            ? "Employee Code already exists; choose Skip or Update before importing"
             : undefined;
         const messages = Array.from(
           new Set([
@@ -570,7 +588,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
           ])
         );
         const status: ValidationRow["status"] =
-          row.status === "ERROR" || serverErrors.length > 0
+          row.status === "ERROR" || blockingServerErrors.length > 0
             ? "ERROR"
             : row.status === "WARNING" || conflictMessage
               ? "WARNING"
@@ -588,6 +606,9 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       ),
     [backendPreview]
   );
+  const unresolvedConflictCount = conflictRows.filter(
+    (row) => !rowResolutions[row.rowNumber]
+  ).length;
 
   const validation = useMemo(() => {
     const mappedTargetFields = Object.values(mapping).filter(
@@ -613,6 +634,10 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
 
   async function handleStartImport() {
     if (!selectedFile) return;
+    if (unresolvedConflictCount > 0) {
+      toast.error("Choose Skip or Update for every employee code conflict.");
+      return;
+    }
 
     try {
       const rows: EmployeeImportRowInput[] = importableRows.map((row) =>
@@ -805,9 +830,8 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                         {conflictRows.length === 1 ? "" : "s"} found
                       </p>
                       <p className="mt-1 text-sm">
-                        Choose update or skip for each row. Any unresolved
-                        conflict is sent without a resolution and safely skipped
-                        by the server.
+                        Choose update or skip for every row. Import remains
+                        disabled until all conflicts have an explicit decision.
                       </p>
                     </div>
                     <Select
@@ -868,7 +892,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                               }
                             >
                               <SelectTrigger className="h-8 bg-background">
-                                <SelectValue placeholder="Unresolved — will skip" />
+                                <SelectValue placeholder="Decision required" />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="SKIP">
@@ -957,7 +981,8 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                       importableRows.length === 0 ||
                       validation.missingRequiredMappings.length > 0 ||
                       previewState.isLoading ||
-                      !backendPreview
+                      !backendPreview ||
+                      unresolvedConflictCount > 0
                     }
                     onClick={handleStartImport}
                   >
