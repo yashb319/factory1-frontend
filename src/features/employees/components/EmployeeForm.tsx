@@ -46,28 +46,63 @@ export function EmployeeForm({
   const statutoryProfile =
     form.watch("statutoryProfile") ?? createDefaultStatutoryProfile();
   const photoInputRef = React.useRef<HTMLInputElement>(null);
+  const photoReaderRef = React.useRef<FileReader | null>(null);
   const [photoFileName, setPhotoFileName] = React.useState("");
+
+  React.useEffect(
+    () => () => {
+      photoReaderRef.current?.abort();
+    },
+    []
+  );
 
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      event.target.value = "";
+      setPhotoFileName("");
+      form.setError("photoDataUrl", {
+        message: "Choose a JPEG, PNG or WebP image",
+      });
+      return;
+    }
+    form.clearErrors("photoDataUrl");
     setPhotoFileName(file.name);
 
+    photoReaderRef.current?.abort();
     const reader = new FileReader();
+    photoReaderRef.current = reader;
     reader.onload = () => {
+      if (photoReaderRef.current !== reader) return;
+      photoReaderRef.current = null;
       form.setValue("photoDataUrl", String(reader.result || ""), {
         shouldDirty: true,
         shouldValidate: true,
+      });
+    };
+    reader.onerror = () => {
+      if (photoReaderRef.current !== reader) return;
+      photoReaderRef.current = null;
+      if (photoInputRef.current) {
+        photoInputRef.current.value = "";
+      }
+      setPhotoFileName("");
+      form.setError("photoDataUrl", {
+        message: "The selected photo could not be read",
       });
     };
     reader.readAsDataURL(file);
   }
 
   function removePhoto() {
+    photoReaderRef.current?.abort();
+    photoReaderRef.current = null;
     if (photoInputRef.current) {
       photoInputRef.current.value = "";
     }
     setPhotoFileName("");
+    form.clearErrors("photoDataUrl");
     form.setValue("photoDataUrl", "", {
       shouldDirty: true,
       shouldValidate: true,
@@ -77,7 +112,11 @@ export function EmployeeForm({
   const mobileRegistration = form.register("mobile");
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-6 pb-6">
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      className="flex min-h-0 flex-1 flex-col"
+    >
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-5 sm:px-6">
       <div className="grid gap-4 sm:grid-cols-2">
         {mode === "create" && (
           <div className="space-y-2">
@@ -144,7 +183,7 @@ export function EmployeeForm({
             <input
               ref={photoInputRef}
               className="sr-only"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               type="file"
               onChange={handlePhotoChange}
             />
@@ -165,6 +204,11 @@ export function EmployeeForm({
             <p className="text-xs text-slate-500">
               Used by the Factory1 capture station for prototype photo matching.
             </p>
+            {errors.photoDataUrl && (
+              <p className="text-xs text-destructive">
+                {errors.photoDataUrl.message}
+              </p>
+            )}
           </div>
 
           {photoDataUrl ? (
@@ -476,12 +520,11 @@ export function EmployeeForm({
         </p>
       </div>
 
-      {mode === "create" && (
         <section className="space-y-4 border-t pt-5">
           <div>
             <h3 className="text-sm font-semibold">Statutory Details</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              These details will be saved with the new employee.
+              These details will be saved with the employee.
             </p>
           </div>
           <EmployeeStatutoryFields
@@ -497,9 +540,9 @@ export function EmployeeForm({
             }
           />
         </section>
-      )}
+      </div>
 
-      <div className="flex justify-end gap-2 border-t pt-5">
+      <div className="flex shrink-0 flex-col-reverse gap-2 border-t bg-background px-4 py-4 sm:flex-row sm:justify-end sm:px-6">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>

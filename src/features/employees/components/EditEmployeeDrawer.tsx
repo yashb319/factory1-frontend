@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import { Employee } from "../types/employee.types";
 import {
@@ -19,11 +20,18 @@ import {
 } from "../schemas/employee.schema";
 import {
   useGetEmployeeDesignationsQuery,
+  useGetEmployeeStatutoryProfileQuery,
   useGetEmployeesQuery,
+  useCreateEmployeeStatutoryProfileMutation,
   useUpdateEmployeeMutation,
+  useUpdateEmployeeStatutoryProfileMutation,
 } from "../api/employeeApi";
 import { EmployeeForm } from "./EmployeeForm";
-import { EmployeeStatutoryForm } from "./EmployeeStatutoryForm";
+import { createDefaultStatutoryProfile } from "../utils/employeeStatutory";
+import {
+  EmployeeStatutorySaveError,
+  saveEmployeeEdit,
+} from "../utils/employeeFormPayload";
 
 interface Props {
   employee: Employee | null;
@@ -56,10 +64,22 @@ const defaultValues: EmployeeFormValues = {
   bankIfscCode: "",
   employmentBasis: undefined,
   reportingToEmployeeId: "",
+  statutoryProfile: createDefaultStatutoryProfile(),
 };
+
+function isNotFound(error: unknown) {
+  return (error as FetchBaseQueryError | undefined)?.status === 404;
+}
 
 export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
   const [updateEmployee, { isLoading }] = useUpdateEmployeeMutation();
+  const [createStatutoryProfile, createStatutoryState] =
+    useCreateEmployeeStatutoryProfileMutation();
+  const [updateStatutoryProfile, updateStatutoryState] =
+    useUpdateEmployeeStatutoryProfileMutation();
+  const profileQuery = useGetEmployeeStatutoryProfileQuery(employee?.id ?? "", {
+    skip: !open || !employee,
+  });
   const { data: designations } = useGetEmployeeDesignationsQuery(undefined, {
     skip: !open,
   });
@@ -84,10 +104,12 @@ export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
     resolver: zodResolver(employeeFormSchema),
     defaultValues,
   });
+  const loadedEmployeeId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!employee) return;
+    if (!open || !employee || loadedEmployeeId.current === employee.id) return;
 
+    loadedEmployeeId.current = employee.id;
     form.reset({
       name: employee.name,
       phone: employee.phone ?? "",
@@ -113,52 +135,56 @@ export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
       bankIfscCode: employee.bankIfscCode ?? "",
       employmentBasis: employee.employmentBasis,
       reportingToEmployeeId: employee.reportingToEmployeeId ?? "",
+      statutoryProfile: createDefaultStatutoryProfile(),
     });
-  }, [employee, form]);
+  }, [employee, form, open]);
+
+  useEffect(() => {
+    if (
+      !open ||
+      !employee ||
+      !profileQuery.data ||
+      form.getFieldState("statutoryProfile").isDirty
+    ) {
+      return;
+    }
+    form.setValue("statutoryProfile", profileQuery.data);
+  }, [employee, form, open, profileQuery.data]);
 
   async function onSubmit(values: EmployeeFormValues) {
     if (!employee) return;
-    const { code, statutoryProfile, ...employeeValues } = values;
-    void code;
-    void statutoryProfile;
 
     try {
-      await updateEmployee({
-        id: employee.id,
-        body: {
-          ...employeeValues,
-          phone: values.phone || undefined,
-          email: values.email || undefined,
-          photoDataUrl: values.photoDataUrl || undefined,
-          designation: values.designation || undefined,
-          department: values.department || undefined,
-          joiningDate: values.joiningDate || undefined,
-          location: values.location || undefined,
-          dateOfBirth: values.dateOfBirth || undefined,
-          gender: values.gender || undefined,
-          address: values.address || undefined,
-          mobile: values.mobile || undefined,
-          permanentAddress: values.permanentAddress || undefined,
-          maritalStatus: values.maritalStatus || undefined,
-          aadhaarNumber: values.aadhaarNumber || undefined,
-          bankAccountNumber: values.bankAccountNumber || undefined,
-          bankName: values.bankName || undefined,
-          bankBranchName: values.bankBranchName || undefined,
-          bankIfscCode: values.bankIfscCode || undefined,
-          employmentBasis: values.employmentBasis || undefined,
-          reportingToEmployeeId: values.reportingToEmployeeId || undefined,
+      await saveEmployeeEdit({
+        employeeId: employee.id,
+        hasStatutoryProfile: Boolean(profileQuery.data),
+        values,
+        updateEmployee: async (employeeId, body) => {
+          await updateEmployee({ id: employeeId, body }).unwrap();
         },
-      }).unwrap();
-
+        createStatutoryProfile: async (employeeId, body) => {
+          await createStatutoryProfile({ employeeId, body }).unwrap();
+        },
+        updateStatutoryProfile: async (employeeId, body) => {
+          await updateStatutoryProfile({ employeeId, body }).unwrap();
+        },
+      });
       toast.success("Employee updated successfully");
       onOpenChange(false);
-    } catch {
+    } catch (error) {
+      if (error instanceof EmployeeStatutorySaveError) {
+        toast.error(
+          "Employee fields were saved, but statutory details could not be saved. Review and try Save Changes again."
+        );
+        return;
+      }
       toast.error("Failed to update employee");
     }
   }
 
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
+      loadedEmployeeId.current = null;
       form.reset(defaultValues);
     }
 
@@ -166,23 +192,40 @@ export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
   }
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent className="w-full overflow-y-auto px-6 sm:max-w-2xl lg:max-w-3xl">
-        <SheetHeader>
-          <SheetTitle>Edit Employee</SheetTitle>
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="flex h-[calc(100dvh-1rem)] max-h-[900px] w-[calc(100%-1rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0 sm:h-[calc(100dvh-3rem)]"
+        onEscapeKeyDown={() => handleOpenChange(false)}
+      >
+        <DialogHeader className="shrink-0 border-b px-4 py-4 sm:px-6">
+          <DialogTitle>Edit Employee</DialogTitle>
+        </DialogHeader>
 
+        {profileQuery.isError && !isNotFound(profileQuery.error) ? (
+          <p
+            role="alert"
+            className="mx-4 mt-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive sm:mx-6"
+          >
+            Statutory details could not be loaded. Close and retry before
+            editing this employee.
+          </p>
+        ) : null}
         <EmployeeForm
           form={form}
           mode="edit"
-          loading={isLoading}
+          loading={
+            isLoading ||
+            createStatutoryState.isLoading ||
+            updateStatutoryState.isLoading ||
+            profileQuery.isLoading ||
+            (profileQuery.isError && !isNotFound(profileQuery.error))
+          }
           designationOptions={designations ?? []}
           reportingToOptions={reportingToOptions}
           onCancel={() => handleOpenChange(false)}
           onSubmit={onSubmit}
         />
-        {employee && <EmployeeStatutoryForm employeeId={employee.id} />}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
