@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Camera, Loader2, X } from "lucide-react";
+import Image from "next/image";
+import { Loader2, X } from "lucide-react";
 import { UseFormReturn } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ import {
 import { Combobox, ComboboxOption } from "@/components/ui/combobox";
 
 import { EmployeeFormValues } from "../schemas/employee.schema";
+import { createDefaultStatutoryProfile } from "../utils/employeeStatutory";
+import { EmployeeStatutoryFields } from "./EmployeeStatutoryFields";
 
 interface Props {
   form: UseFormReturn<EmployeeFormValues>;
@@ -38,10 +41,17 @@ export function EmployeeForm({
 }: Props) {
   const errors = form.formState.errors;
   const photoDataUrl = form.watch("photoDataUrl");
+  const dateOfBirth = form.watch("dateOfBirth");
+  const joiningDate = form.watch("joiningDate");
+  const statutoryProfile =
+    form.watch("statutoryProfile") ?? createDefaultStatutoryProfile();
+  const photoInputRef = React.useRef<HTMLInputElement>(null);
+  const [photoFileName, setPhotoFileName] = React.useState("");
 
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    setPhotoFileName(file.name);
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -53,18 +63,34 @@ export function EmployeeForm({
     reader.readAsDataURL(file);
   }
 
+  function removePhoto() {
+    if (photoInputRef.current) {
+      photoInputRef.current.value = "";
+    }
+    setPhotoFileName("");
+    form.setValue("photoDataUrl", "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }
+
+  const mobileRegistration = form.register("mobile");
+
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-6 pb-6">
       <div className="grid gap-4 sm:grid-cols-2">
         {mode === "create" && (
           <div className="space-y-2">
             <label className="text-sm font-medium">Employee Code</label>
-            <Input
-              placeholder="EMP0001"
-              {...form.register("code", {
-                setValueAs: (value) => value.trim().toUpperCase(),
-              })}
-            />
+            <output
+              aria-live="polite"
+              className="flex h-8 items-center rounded-md border bg-muted px-2.5 text-sm font-medium"
+            >
+              {form.watch("code") || "Generating code…"}
+            </output>
+            <p className="text-xs text-muted-foreground">
+              Assigned automatically by Factory1.
+            </p>
             {errors.code && (
               <p className="text-xs text-destructive">{errors.code.message}</p>
             )}
@@ -98,19 +124,44 @@ export function EmployeeForm({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-white">
             {photoDataUrl ? (
-              <img
+              <Image
                 src={photoDataUrl}
                 alt="Employee"
+                width={96}
+                height={96}
+                unoptimized
                 className="h-full w-full object-cover"
               />
             ) : (
-              <Camera className="h-8 w-8 text-slate-400" />
+              <span className="px-2 text-center text-xs text-muted-foreground">
+                No photo selected
+              </span>
             )}
           </div>
 
           <div className="min-w-0 flex-1 space-y-2">
             <label className="text-sm font-medium">Attendance Photo</label>
-            <Input accept="image/*" type="file" onChange={handlePhotoChange} />
+            <input
+              ref={photoInputRef}
+              className="sr-only"
+              accept="image/*"
+              type="file"
+              onChange={handlePhotoChange}
+            />
+            <div className="flex min-w-0 items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => photoInputRef.current?.click()}
+              >
+                Choose Photo
+              </Button>
+              {photoDataUrl && photoFileName ? (
+                <span className="truncate text-sm text-muted-foreground">
+                  {photoFileName}
+                </span>
+              ) : null}
+            </div>
             <p className="text-xs text-slate-500">
               Used by the Factory1 capture station for prototype photo matching.
             </p>
@@ -121,12 +172,8 @@ export function EmployeeForm({
               type="button"
               variant="outline"
               size="icon"
-              onClick={() =>
-                form.setValue("photoDataUrl", "", {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
+              aria-label="Remove selected photo"
+              onClick={removePhoto}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -231,6 +278,8 @@ export function EmployeeForm({
           <label className="text-sm font-medium">Salary Rate *</label>
           <Input
             type="number"
+            min={0}
+            step="0.01"
             placeholder="700"
             {...form.register("salaryRate", {
               valueAsNumber: true,
@@ -269,7 +318,15 @@ export function EmployeeForm({
 
       <div className="space-y-2">
         <label className="text-sm font-medium">Joining Date</label>
-        <Input type="date" {...form.register("joiningDate")} />
+        <Input
+          type="date"
+          min={dateOfBirth || undefined}
+          aria-invalid={Boolean(errors.joiningDate)}
+          {...form.register("joiningDate")}
+        />
+        {errors.joiningDate && (
+          <p className="text-xs text-destructive">{errors.joiningDate.message}</p>
+        )}
       </div>
 
       <div className="space-y-4 border-t pt-5">
@@ -278,7 +335,15 @@ export function EmployeeForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm font-medium">Date of Birth</label>
-            <Input type="date" {...form.register("dateOfBirth")} />
+            <Input
+              type="date"
+              max={joiningDate || undefined}
+              aria-invalid={Boolean(errors.dateOfBirth)}
+              {...form.register("dateOfBirth")}
+            />
+            {errors.dateOfBirth && (
+              <p className="text-xs text-destructive">{errors.dateOfBirth.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -337,7 +402,25 @@ export function EmployeeForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm font-medium">Mobile</label>
-            <Input placeholder="9876543210" {...form.register("mobile")} />
+            <Input
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              maxLength={10}
+              pattern="[0-9]{10}"
+              placeholder="9876543210"
+              aria-invalid={Boolean(errors.mobile)}
+              {...mobileRegistration}
+              onChange={(event) => {
+                event.currentTarget.value = event.currentTarget.value
+                  .replace(/\D/g, "")
+                  .slice(0, 10);
+                void mobileRegistration.onChange(event);
+              }}
+            />
+            {errors.mobile && (
+              <p className="text-xs text-destructive">{errors.mobile.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -392,6 +475,29 @@ export function EmployeeForm({
           PAN, UAN and Tax Regime are managed in Statutory Details below.
         </p>
       </div>
+
+      {mode === "create" && (
+        <section className="space-y-4 border-t pt-5">
+          <div>
+            <h3 className="text-sm font-semibold">Statutory Details</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              These details will be saved with the new employee.
+            </p>
+          </div>
+          <EmployeeStatutoryFields
+            value={statutoryProfile}
+            onChange={(field, value) =>
+              form.setValue("statutoryProfile", {
+                ...statutoryProfile,
+                [field]: value,
+              }, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
+          />
+        </section>
+      )}
 
       <div className="flex justify-end gap-2 border-t pt-5">
         <Button type="button" variant="outline" onClick={onCancel}>

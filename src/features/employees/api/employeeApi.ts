@@ -9,6 +9,7 @@ import {
   EmployeeImportPreviewResponse,
   EmployeeImportResult,
   EmployeeImportRowInput,
+  BulkEmployeeImportRequest,
   EmployeeInvitationResult,
   EmployeeStatutoryProfileRequest,
   EmployeeStatutoryProfileResponse,
@@ -109,11 +110,11 @@ export const employeeApi = baseApi.injectEndpoints({
       }),
     }),
 
-    importEmployees: builder.mutation<EmployeeImportResult, EmployeeImportRowInput[]>({
-      query: (rows) => ({
+    importEmployees: builder.mutation<EmployeeImportResult, BulkEmployeeImportRequest>({
+      query: (body) => ({
         url: "/api/employees/import",
         method: "POST",
-        body: { rows },
+        body,
       }),
       transformResponse: (response: ApiResponse<EmployeeImportResult>) =>
         response.data,

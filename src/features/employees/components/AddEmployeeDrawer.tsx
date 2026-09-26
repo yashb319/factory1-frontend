@@ -18,12 +18,16 @@ import {
 } from "../schemas/employee.schema";
 import {
   useCreateEmployeeMutation,
+  useCreateEmployeeStatutoryProfileMutation,
   useGetEmployeeDesignationsQuery,
   useGetEmployeesQuery,
   useGetNextEmployeeCodeQuery,
 } from "../api/employeeApi";
 import { EmployeeForm } from "./EmployeeForm";
-import { isCodeConflict } from "@/lib/apiError";
+import {
+  createDefaultStatutoryProfile,
+  normalizeStatutoryProfile,
+} from "../utils/employeeStatutory";
 
 interface Props {
   open: boolean;
@@ -56,10 +60,13 @@ const defaultValues: EmployeeFormValues = {
   bankIfscCode: "",
   employmentBasis: undefined,
   reportingToEmployeeId: "",
+  statutoryProfile: createDefaultStatutoryProfile(),
 };
 
 export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
   const [createEmployee, { isLoading }] = useCreateEmployeeMutation();
+  const [createStatutoryProfile, statutoryState] =
+    useCreateEmployeeStatutoryProfileMutation();
   const { data: designations } = useGetEmployeeDesignationsQuery(undefined, {
     skip: !open,
   });
@@ -94,10 +101,13 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
   }, [form, nextCode, open]);
 
   async function onSubmit(values: EmployeeFormValues) {
+    const { statutoryProfile, code, ...employeeValues } = values;
+    void code;
+    let employee;
+
     try {
-      await createEmployee({
-        ...values,
-        code: values.code?.trim().toUpperCase() || undefined,
+      employee = await createEmployee({
+        ...employeeValues,
         phone: values.phone || undefined,
         email: values.email || undefined,
         photoDataUrl: values.photoDataUrl || undefined,
@@ -119,17 +129,30 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
         employmentBasis: values.employmentBasis || undefined,
         reportingToEmployeeId: values.reportingToEmployeeId || undefined,
       }).unwrap();
+    } catch {
+      toast.error("Failed to add employee");
+      return;
+    }
 
-      toast.success("Employee added successfully");
+    try {
+      await createStatutoryProfile({
+        employeeId: employee.id,
+        body: normalizeStatutoryProfile(
+          statutoryProfile ?? createDefaultStatutoryProfile()
+        ),
+      }).unwrap();
+    } catch {
+      toast.error(
+        "Employee was created, but statutory details could not be saved. Open the employee and retry."
+      );
       form.reset(defaultValues);
       onOpenChange(false);
-    } catch (error) {
-      if (isCodeConflict(error)) {
-        form.setError("code", { message: "This code is already in use, try another" });
-        return;
-      }
-      toast.error("Failed to add employee");
+      return;
     }
+
+    toast.success("Employee and statutory details added successfully");
+    form.reset(defaultValues);
+    onOpenChange(false);
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -150,7 +173,7 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
         <EmployeeForm
           form={form}
           mode="create"
-          loading={isLoading}
+          loading={isLoading || statutoryState.isLoading}
           designationOptions={designations ?? []}
           reportingToOptions={reportingToOptions}
           onCancel={() => handleOpenChange(false)}

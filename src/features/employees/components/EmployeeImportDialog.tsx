@@ -14,6 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { FileDropzone } from "@/components/file-upload/FileDropzone";
 import { FileValidationSummary } from "@/components/file-upload/FileValidationSummary";
@@ -42,6 +49,7 @@ interface Props {
 }
 
 type ImportRow = Record<string, unknown>;
+type ExistingCodeResolution = "SKIP" | "UPDATE";
 
 const EMPLOYEE_TARGET_FIELDS: TargetField[] = [
   { label: "Employee Code", value: "employeeCode", required: true },
@@ -292,12 +300,13 @@ function toEmployeeImportRowInput(
 
 function validateRows(
   mappedRows: ImportRow[],
-  reportingToResolved: boolean[] = []
+  reportingToResolved: boolean[] = [],
+  existingEmployeeCodes: Set<string> = new Set()
 ): ValidationRow[] {
   const employeeCodeCount = new Map<string, number>();
 
   mappedRows.forEach((row) => {
-    const code = value(row.employeeCode);
+    const code = value(row.employeeCode).toUpperCase();
     if (!code) return;
     employeeCodeCount.set(code, (employeeCodeCount.get(code) ?? 0) + 1);
   });
@@ -316,6 +325,9 @@ function validateRows(
     const employmentBasis = value(row.employmentBasis);
     const taxRegime = value(row.taxRegime);
     const reportingTo = value(row.reportingTo);
+    const mobile = value(row.mobile);
+    const dateOfBirth = value(row.dateOfBirth);
+    const joiningDate = value(row.joiningDate);
 
     if (!employeeCode) errors.push("Employee Code is required");
     if (!name) errors.push("Name is required");
@@ -328,6 +340,8 @@ function validateRows(
 
     if (salaryRate && Number.isNaN(Number(salaryRate))) {
       errors.push("Salary Rate must be a number");
+    } else if (salaryRate && Number(salaryRate) < 0) {
+      errors.push("Salary Rate cannot be negative");
     }
 
     if (salaryType && !VALID_SALARY_TYPES.includes(salaryType)) {
@@ -358,8 +372,28 @@ function validateRows(
       errors.push("Invalid Tax Regime (use OLD or NEW)");
     }
 
-    if (reportingTo && reportingTo === employeeCode) {
+    if (
+      reportingTo &&
+      reportingTo.toUpperCase() === employeeCode.toUpperCase()
+    ) {
       errors.push("Reporting To cannot be the employee's own code");
+    }
+
+    if (mobile && !/^\d{10}$/.test(mobile)) {
+      errors.push("Mobile must contain exactly 10 digits");
+    }
+
+    if (dateOfBirth && joiningDate && dateOfBirth >= joiningDate) {
+      errors.push("Date of Birth must be before Joining Date");
+    }
+
+    if (
+      employeeCode &&
+      existingEmployeeCodes.has(employeeCode.toUpperCase())
+    ) {
+      warnings.push(
+        "Employee Code already exists; choose whether to update or skip this employee"
+      );
     }
 
     if (!row.phone) warnings.push("Phone missing");
@@ -426,6 +460,8 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   const [rawRows, setRawRows] = useState<ImportRow[]>([]);
   const [mapping, setMapping] = useState<ColumnMappingValue>({});
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [existingCodeResolution, setExistingCodeResolution] =
+    useState<ExistingCodeResolution | "">("");
   const [backendPreview, setBackendPreview] = useState<{
     validRows?: number;
     invalidRows?: number;
@@ -451,6 +487,16 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
 
     return { codeSet, nameToCode };
   }, [orgEmployeesPage]);
+
+  const existingEmployeeCodes = useMemo(
+    () =>
+      new Set(
+        (orgEmployeesPage?.content ?? []).map((employee) =>
+          employee.employeeCode.trim().toUpperCase()
+        )
+      ),
+    [orgEmployeesPage]
+  );
 
   const sourceColumns = useMemo(() => {
     if (!rawRows.length) return [];
@@ -496,8 +542,32 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   }, [mappedRows, managerLookup]);
 
   const validationRows = useMemo(() => {
-    return validateRows(resolvedRows, reportingToResolved);
-  }, [resolvedRows, reportingToResolved]);
+    return validateRows(
+      resolvedRows,
+      reportingToResolved,
+      existingEmployeeCodes
+    );
+  }, [existingEmployeeCodes, resolvedRows, reportingToResolved]);
+
+  const conflictingRowNumbers = useMemo(
+    () =>
+      new Set(
+        validationRows
+          .filter(
+            (row) =>
+              row.status !== "ERROR" &&
+              existingEmployeeCodes.has(
+                value(row.data.employeeCode).toUpperCase()
+              )
+          )
+          .map((row) => row.rowNumber)
+      ),
+    [existingEmployeeCodes, validationRows]
+  );
+
+  const conflictRows = validationRows.filter((row) =>
+    conflictingRowNumbers.has(row.rowNumber)
+  );
 
   const validation = useMemo(() => {
     const mappedTargetFields = Object.values(mapping).filter(
@@ -528,7 +598,10 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       const rows: EmployeeImportRowInput[] = importableRows.map((row) =>
         toEmployeeImportRowInput(row.data, row.rowNumber)
       );
-      const result = await importEmployees(rows).unwrap();
+      const result = await importEmployees({
+        rows,
+        existingCodeResolution: existingCodeResolution || "SKIP",
+      }).unwrap();
       toast.success(
         `Import complete: ${result.createdRows} created, ${result.updatedRows} updated${result.skippedRows ? `, ${result.skippedRows} skipped` : ""}.`
       );
@@ -609,6 +682,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       setMapping({});
       setSelectedFile(null);
       setBackendPreview(null);
+      setExistingCodeResolution("");
     }
   }
 
@@ -618,6 +692,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     setMapping({});
     setSelectedFile(null);
     setBackendPreview(null);
+    setExistingCodeResolution("");
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -626,7 +701,10 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   }
 
   const importableRows = validationRows.filter(
-    (row) => row.status === "VALID" || row.status === "WARNING"
+    (row) =>
+      (row.status === "VALID" || row.status === "WARNING") &&
+      (!conflictingRowNumbers.has(row.rowNumber) ||
+        existingCodeResolution === "UPDATE")
   );
 
   return (
@@ -691,7 +769,10 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                   sourceColumns={sourceColumns}
                   targetFields={EMPLOYEE_TARGET_FIELDS}
                   value={mapping}
-                  onChange={setMapping}
+                  onChange={(nextMapping) => {
+                    setMapping(nextMapping);
+                    setExistingCodeResolution("");
+                  }}
                 />
 
                 <FileValidationSummary
@@ -699,6 +780,66 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                   warning={validation.warning}
                   invalid={validation.invalid}
                 />
+
+                {conflictRows.length > 0 && (
+                  <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+                    <div>
+                      <p className="font-medium">
+                        {conflictRows.length} existing employee code
+                        {conflictRows.length === 1 ? "" : "s"} found
+                      </p>
+                      <p className="mt-1 text-sm">
+                        Factory1 can update matching employees with the imported
+                        values, or skip those rows. Choose explicitly before
+                        importing; existing employees are never overwritten
+                        automatically.
+                      </p>
+                    </div>
+                    <Select
+                      value={existingCodeResolution}
+                      onValueChange={(nextValue) =>
+                        setExistingCodeResolution(
+                          nextValue as ExistingCodeResolution
+                        )
+                      }
+                    >
+                      <SelectTrigger className="w-full bg-background sm:max-w-sm">
+                        <SelectValue placeholder="Choose conflict resolution" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="SKIP">
+                          Skip existing employees
+                        </SelectItem>
+                        <SelectItem value="UPDATE">
+                          Update existing employees from this file
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="max-h-36 overflow-y-auto rounded-md border border-amber-200 bg-background">
+                      {conflictRows.slice(0, 20).map((row) => (
+                        <div
+                          key={row.rowNumber}
+                          className="flex items-center justify-between gap-3 border-b px-3 py-2 text-sm last:border-b-0"
+                        >
+                          <span>
+                            Row {row.rowNumber}:{" "}
+                            <strong>{value(row.data.employeeCode)}</strong>
+                            {value(row.data.name)
+                              ? ` — ${value(row.data.name)}`
+                              : ""}
+                          </span>
+                          <span className="font-medium">
+                            {existingCodeResolution === "UPDATE"
+                              ? "Will update"
+                              : existingCodeResolution === "SKIP"
+                                ? "Will skip"
+                                : "Decision required"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {validation.missingRequiredMappings.length > 0 && (
                   <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
@@ -769,7 +910,8 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                   <Button
                     disabled={
                       importableRows.length === 0 ||
-                      validation.missingRequiredMappings.length > 0
+                      validation.missingRequiredMappings.length > 0 ||
+                      (conflictRows.length > 0 && !existingCodeResolution)
                     }
                     onClick={handleStartImport}
                   >

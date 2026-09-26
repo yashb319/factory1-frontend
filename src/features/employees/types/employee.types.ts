@@ -114,7 +114,7 @@ export interface CreateEmployeeRequest {
   reportingToEmployeeId?: string;
 }
 
-export type UpdateEmployeeRequest = CreateEmployeeRequest;
+export type UpdateEmployeeRequest = Omit<CreateEmployeeRequest, "code">;
 
 export interface PageResponse<T> {
   content: T[];
@@ -166,6 +166,7 @@ export interface EmployeeImportRowInput {
 
 export interface BulkEmployeeImportRequest {
   rows: EmployeeImportRowInput[];
+  existingCodeResolution: "SKIP" | "UPDATE";
 }
 
 export interface EmployeeImportRow {
