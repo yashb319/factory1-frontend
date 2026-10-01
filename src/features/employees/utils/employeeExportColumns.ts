@@ -1,0 +1,148 @@
+import type {
+  ExportColumn,
+  ExportColumnGroup,
+} from "@/components/export/export.types";
+
+import type { Employee } from "../types/employee.types";
+
+type EmployeeExportColumn = ExportColumn & {
+  value: Extract<keyof Employee, string>;
+};
+
+export const EMPLOYEE_EXPORT_COLUMNS: EmployeeExportColumn[] = [
+  { label: "Employee Code", value: "employeeCode" },
+  { label: "Name", value: "name" },
+  { label: "Phone", value: "phone" },
+  { label: "Mobile", value: "mobile" },
+  { label: "Official Email ID", value: "email" },
+  { label: "Date of Birth", value: "dateOfBirth" },
+  { label: "Gender", value: "gender" },
+  { label: "Address", value: "address" },
+  { label: "Permanent Address", value: "permanentAddress" },
+  { label: "Marital Status", value: "maritalStatus" },
+  { label: "Department", value: "department" },
+  { label: "Designation", value: "designation" },
+  { label: "Salary Rate", value: "salaryRate" },
+  { label: "Salary Type", value: "salaryType" },
+  { label: "Joining Date", value: "joiningDate" },
+  { label: "Status", value: "status" },
+  { label: "Location", value: "location" },
+  { label: "Employment Basis", value: "employmentBasis" },
+  { label: "Reporting To", value: "reportingToEmployeeCode" },
+  { label: "Aadhaar Number", value: "aadhaarNumber" },
+  { label: "Account No", value: "bankAccountNumber" },
+  { label: "Bank Name", value: "bankName" },
+  { label: "Branch Name", value: "bankBranchName" },
+  { label: "IFSC Code", value: "bankIfscCode" },
+  { label: "PAN Number", value: "panNumber" },
+  { label: "UAN", value: "uan" },
+  { label: "Tax Regime", value: "taxRegime" },
+  { label: "Father's Name", value: "fatherName" },
+  { label: "Father's DOB", value: "fatherDateOfBirth" },
+  { label: "Father's Gender", value: "fatherGender" },
+  { label: "Mother's Name", value: "motherName" },
+  { label: "Mother's DOB", value: "motherDateOfBirth" },
+  { label: "Mother's Gender", value: "motherGender" },
+  { label: "Spouse Name", value: "spouseName" },
+  { label: "Spouse DOB", value: "spouseDateOfBirth" },
+  { label: "Spouse Gender", value: "spouseGender" },
+  { label: "Child 1 Name", value: "child1Name" },
+  { label: "Child 1 DOB", value: "child1DateOfBirth" },
+  { label: "Child 1 Gender", value: "child1Gender" },
+  { label: "Child 2 Name", value: "child2Name" },
+  { label: "Child 2 DOB", value: "child2DateOfBirth" },
+  { label: "Child 2 Gender", value: "child2Gender" },
+  { label: "Height (cm)", value: "heightCm" },
+  { label: "Weight (kg)", value: "weightKg" },
+  { label: "Smoker", value: "smoker" },
+  { label: "Occupation", value: "occupation" },
+  { label: "Organisation Name", value: "organizationName" },
+  { label: "Annual Income", value: "annualIncome" },
+  { label: "Education", value: "education" },
+  { label: "Nominee Name", value: "nomineeName" },
+  { label: "Nominee DOB", value: "nomineeDateOfBirth" },
+  { label: "Nominee Gender", value: "nomineeGender" },
+  { label: "Relationship with Employee", value: "nomineeRelationship" },
+];
+
+function valuesFor(
+  values: Array<EmployeeExportColumn["value"]>
+): Array<EmployeeExportColumn["value"]> {
+  return values;
+}
+
+export const EMPLOYEE_EXPORT_COLUMN_GROUPS: ExportColumnGroup[] = [
+  {
+    label: "Personal",
+    values: valuesFor([
+      "employeeCode",
+      "name",
+      "phone",
+      "mobile",
+      "email",
+      "dateOfBirth",
+      "gender",
+      "address",
+      "permanentAddress",
+      "maritalStatus",
+    ]),
+  },
+  {
+    label: "Company Details",
+    values: valuesFor([
+      "department",
+      "designation",
+      "salaryRate",
+      "salaryType",
+      "joiningDate",
+      "status",
+      "location",
+      "employmentBasis",
+      "reportingToEmployeeCode",
+    ]),
+  },
+  {
+    label: "Financial",
+    values: valuesFor([
+      "aadhaarNumber",
+      "bankAccountNumber",
+      "bankName",
+      "bankBranchName",
+      "bankIfscCode",
+      "panNumber",
+      "uan",
+      "taxRegime",
+    ]),
+  },
+  {
+    label: "Insurance",
+    values: valuesFor([
+      "fatherName",
+      "fatherDateOfBirth",
+      "fatherGender",
+      "motherName",
+      "motherDateOfBirth",
+      "motherGender",
+      "spouseName",
+      "spouseDateOfBirth",
+      "spouseGender",
+      "child1Name",
+      "child1DateOfBirth",
+      "child1Gender",
+      "child2Name",
+      "child2DateOfBirth",
+      "child2Gender",
+      "heightCm",
+      "weightKg",
+      "smoker",
+      "occupation",
+      "organizationName",
+      "annualIncome",
+      "education",
+      "nomineeName",
+      "nomineeDateOfBirth",
+      "nomineeGender",
+      "nomineeRelationship",
+    ]),
+  },
+];

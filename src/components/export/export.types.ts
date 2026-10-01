@@ -6,3 +6,8 @@ export interface ExportColumn {
   value: string;
   defaultSelected?: boolean;
 }
+
+export interface ExportColumnGroup {
+  label: string;
+  values: string[];
+}

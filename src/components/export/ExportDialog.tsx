@@ -16,6 +16,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 import type {
   ExportColumn,
+  ExportColumnGroup,
   ExportFormat,
   ExportScope,
 } from "./export.types";
@@ -26,6 +27,7 @@ interface Props {
   title: string;
   moduleName: string;
   columns: ExportColumn[];
+  columnGroups?: ExportColumnGroup[];
   loading?: boolean;
   onStartExport: (payload: {
     format: ExportFormat;
@@ -40,6 +42,7 @@ export function ExportDialog({
   title,
   moduleName,
   columns,
+  columnGroups = [],
   loading = false,
   onStartExport,
 }: Props) {
@@ -55,6 +58,20 @@ export function ExportDialog({
         ? prev.filter((item) => item !== column)
         : [...prev, column]
     );
+  }
+
+  function toggleColumnGroup(group: ExportColumnGroup) {
+    setSelectedColumns((previous) => {
+      const everyGroupColumnSelected = group.values.every((value) =>
+        previous.includes(value)
+      );
+
+      if (everyGroupColumnSelected) {
+        return previous.filter((value) => !group.values.includes(value));
+      }
+
+      return Array.from(new Set([...previous, ...group.values]));
+    });
   }
 
   function handleSubmit() {
@@ -137,6 +154,53 @@ export function ExportDialog({
                 Select columns to include in the export file.
               </p>
             </div>
+
+            {columnGroups.length > 0 && (
+              <div className="space-y-2 rounded-xl border bg-muted/30 p-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Quick selection by section
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {columnGroups.map((group) => {
+                    const selectedCount = group.values.filter((value) =>
+                      selectedColumns.includes(value)
+                    ).length;
+                    const allSelected = selectedCount === group.values.length;
+
+                    return (
+                      <Button
+                        key={group.label}
+                        type="button"
+                        size="sm"
+                        variant={allSelected ? "default" : "outline"}
+                        aria-pressed={allSelected}
+                        onClick={() => toggleColumnGroup(group)}
+                      >
+                        {group.label} ({selectedCount}/{group.values.length})
+                      </Button>
+                    );
+                  })}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setSelectedColumns(columns.map((column) => column.value))
+                    }
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedColumns([])}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {columns.map((column) => (

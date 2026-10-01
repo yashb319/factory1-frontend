@@ -6,6 +6,10 @@ import {
   saveEmployeeEdit,
 } from "../src/features/employees/utils/employeeFormPayload.ts";
 import type { EmployeeFormValues } from "../src/features/employees/schemas/employee.schema.ts";
+import {
+  EMPLOYEE_EXPORT_COLUMNS,
+  EMPLOYEE_EXPORT_COLUMN_GROUPS,
+} from "../src/features/employees/utils/employeeExportColumns.ts";
 
 const baseValues: EmployeeFormValues = {
   name: "Test Employee",
@@ -44,6 +48,19 @@ assert.equal(
 assert.equal(buildEmployeeUpdateRequest(baseValues).fatherName, "Test Father");
 assert.equal(buildEmployeeUpdateRequest(baseValues).nomineeName, "Test Nominee");
 assert.equal(buildEmployeeUpdateRequest(baseValues).annualIncome, 250000);
+assert.equal(EMPLOYEE_EXPORT_COLUMNS.length, 53);
+assert.equal(
+  EMPLOYEE_EXPORT_COLUMN_GROUPS.flatMap((group) => group.values).length,
+  EMPLOYEE_EXPORT_COLUMNS.length,
+  "section presets must cover every employee export column"
+);
+assert.equal(
+  new Set(
+    EMPLOYEE_EXPORT_COLUMN_GROUPS.flatMap((group) => group.values)
+  ).size,
+  EMPLOYEE_EXPORT_COLUMNS.length,
+  "employee export columns must belong to exactly one section preset"
+);
 
 const calls: string[] = [];
 await saveEmployeeEdit({

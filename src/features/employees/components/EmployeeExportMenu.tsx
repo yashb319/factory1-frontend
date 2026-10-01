@@ -7,8 +7,11 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ExportDialog } from "@/components/export/ExportDialog";
-import type { ExportColumn } from "@/components/export/export.types";
 import { Employee } from "../types/employee.types";
+import {
+  EMPLOYEE_EXPORT_COLUMNS,
+  EMPLOYEE_EXPORT_COLUMN_GROUPS,
+} from "../utils/employeeExportColumns";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 import { toCsv } from "@/features/import-export/utils/csv";
 import {
@@ -19,36 +22,6 @@ import {
 interface Props {
   employees: Employee[];
 }
-
-const EMPLOYEE_EXPORT_COLUMNS: ExportColumn[] = [
-  { label: "Employee Code", value: "employeeCode" },
-  { label: "Name", value: "name" },
-  { label: "Phone", value: "phone" },
-  { label: "Mobile", value: "mobile" },
-  { label: "Email", value: "email" },
-  { label: "Department", value: "department" },
-  { label: "Designation", value: "designation" },
-  { label: "Salary Rate", value: "salaryRate" },
-  { label: "Salary Type", value: "salaryType" },
-  { label: "Joining Date", value: "joiningDate" },
-  { label: "Status", value: "status" },
-  { label: "Location", value: "location" },
-  { label: "Date of Birth", value: "dateOfBirth" },
-  { label: "Gender", value: "gender" },
-  { label: "Employment Basis", value: "employmentBasis" },
-  { label: "Reporting To", value: "reportingToEmployeeCode" },
-  { label: "Address", value: "address" },
-  { label: "Permanent Address", value: "permanentAddress" },
-  { label: "Marital Status", value: "maritalStatus" },
-  { label: "Aadhaar Number", value: "aadhaarNumber" },
-  { label: "Account No", value: "bankAccountNumber" },
-  { label: "Bank Name", value: "bankName" },
-  { label: "Branch Name", value: "bankBranchName" },
-  { label: "IFSC Code", value: "bankIfscCode" },
-  { label: "PAN Number", value: "panNumber" },
-  { label: "UAN", value: "uan" },
-  { label: "Tax Regime", value: "taxRegime" },
-];
 
 export function EmployeeExportMenu({ employees }: Props) {
   const router = useRouter();
@@ -107,6 +80,7 @@ export function EmployeeExportMenu({ employees }: Props) {
         title="Export Employees"
         moduleName="Employees"
         columns={EMPLOYEE_EXPORT_COLUMNS}
+        columnGroups={EMPLOYEE_EXPORT_COLUMN_GROUPS}
         onStartExport={handleStartExport}
       />
     </>
