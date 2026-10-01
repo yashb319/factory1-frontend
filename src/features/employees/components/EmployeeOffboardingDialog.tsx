@@ -610,7 +610,7 @@ export function EmployeeOffboardingDialog({
                               type="number"
                               min={0.01}
                               max={settlement.maximumEncashableDays}
-                              step="0.5"
+                              step="0.01"
                               value={selection?.daysToEncash ?? ""}
                               onChange={(event) =>
                                 setLeaveDays(
