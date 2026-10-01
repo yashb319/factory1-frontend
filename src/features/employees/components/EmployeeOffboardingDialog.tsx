@@ -36,6 +36,7 @@ import {
 } from "../api/employeeApi";
 import type {
   Employee,
+  EmployeeOffboardingLeaveSelection,
   EmployeeOffboardingRequest,
   EmployeeOffboardingResponse,
 } from "../types/employee.types";
@@ -124,12 +125,13 @@ function OffboardingSummary({
             {data.leaveSettlements.map((leave) => (
               <div
                 key={leave.leaveTypeId}
-                className="grid grid-cols-2 gap-2 border-b p-3 text-sm last:border-b-0 sm:grid-cols-4"
+                className="grid grid-cols-2 gap-2 border-b p-3 text-sm last:border-b-0 sm:grid-cols-5"
               >
                 <span className="font-medium">
                   {leave.leaveTypeName} ({leave.leaveTypeCode})
                 </span>
                 <span>{leave.availableDays} available</span>
+                <span>{leave.maximumEncashableDays} maximum</span>
                 <span>
                   {leave.encashmentSupported
                     ? `${leave.encashableDays} encashable`
@@ -222,7 +224,9 @@ export function EmployeeOffboardingDialog({
   const [lastWorkingDate, setLastWorkingDate] = useState("");
   const [remarks, setRemarks] = useState("");
   const [includeLeaveEncashment, setIncludeLeaveEncashment] = useState(false);
-  const [leaveTypeIds, setLeaveTypeIds] = useState<string[]>([]);
+  const [leaveSelections, setLeaveSelections] = useState<
+    EmployeeOffboardingLeaveSelection[]
+  >([]);
   const [preview, setPreview] = useState<EmployeeOffboardingResponse | null>(
     null
   );
@@ -249,6 +253,16 @@ export function EmployeeOffboardingDialog({
   const failedOffboarding =
     persisted?.status === "PAYROLL_FAILED" ? persisted : null;
   const review = preview ?? failedOffboarding;
+  const previewMatchesSelections =
+    !preview ||
+    (preview.leaveSelections.length === leaveSelections.length &&
+      preview.leaveSelections.every((previewSelection) => {
+        const current = leaveSelections.find(
+          (selection) =>
+            selection.leaveTypeId === previewSelection.leaveTypeId
+        );
+        return current?.daysToEncash === previewSelection.daysToEncash;
+      }));
 
   const request = useMemo<EmployeeOffboardingRequest>(
     () =>
@@ -256,21 +270,18 @@ export function EmployeeOffboardingDialog({
         ? {
             lastWorkingDate: failedOffboarding.lastWorkingDate,
             remarks: failedOffboarding.remarks ?? undefined,
-            includeLeaveEncashment:
-              failedOffboarding.includeLeaveEncashment,
-            leaveTypeIds: failedOffboarding.leaveTypeIds,
+            leaveSelections: failedOffboarding.leaveSelections,
           }
         : {
             lastWorkingDate,
             remarks: remarks.trim() || undefined,
-            includeLeaveEncashment,
-            leaveTypeIds: includeLeaveEncashment ? leaveTypeIds : [],
+            leaveSelections: includeLeaveEncashment ? leaveSelections : [],
           },
     [
       failedOffboarding,
       includeLeaveEncashment,
       lastWorkingDate,
-      leaveTypeIds,
+      leaveSelections,
       preview,
       remarks,
     ]
@@ -280,7 +291,7 @@ export function EmployeeOffboardingDialog({
     setLastWorkingDate("");
     setRemarks("");
     setIncludeLeaveEncashment(false);
-    setLeaveTypeIds([]);
+    setLeaveSelections([]);
     setPreview(null);
     setCancellationReason("");
   }
@@ -295,12 +306,22 @@ export function EmployeeOffboardingDialog({
   }
 
   function toggleLeaveType(id: string) {
-    setLeaveTypeIds((current) =>
-      current.includes(id)
-        ? current.filter((value) => value !== id)
-        : [...current, id]
+    setLeaveSelections((current) =>
+      current.some((selection) => selection.leaveTypeId === id)
+        ? current.filter((selection) => selection.leaveTypeId !== id)
+        : [...current, { leaveTypeId: id, daysToEncash: null }]
     );
     invalidatePreview();
+  }
+
+  function setLeaveDays(leaveTypeId: string, daysToEncash: number) {
+    setLeaveSelections((current) =>
+      current.map((selection) =>
+        selection.leaveTypeId === leaveTypeId
+          ? { ...selection, daysToEncash }
+          : selection
+      )
+    );
   }
 
   async function handlePreview() {
@@ -308,18 +329,31 @@ export function EmployeeOffboardingDialog({
       toast.error("Enter a last working date and resignation remarks.");
       return;
     }
-    if (includeLeaveEncashment && leaveTypeIds.length === 0) {
+    if (includeLeaveEncashment && leaveSelections.length === 0) {
       toast.error("Choose at least one leave type for F&F encashment.");
       return;
     }
 
     try {
-      setPreview(
-        await previewOffboarding({
-          employeeId: employee.id,
-          body: request,
-        }).unwrap()
-      );
+      const result = await previewOffboarding({
+        employeeId: employee.id,
+        body: request,
+      }).unwrap();
+      setPreview(result);
+      if (
+        request.leaveSelections.some(
+          (selection) => selection.daysToEncash == null
+        )
+      ) {
+        setLeaveSelections(
+          result.leaveSettlements
+            .filter((settlement) => settlement.encashmentSupported)
+            .map((settlement) => ({
+              leaveTypeId: settlement.leaveTypeId,
+              daysToEncash: settlement.encashableDays,
+            }))
+        );
+      }
     } catch (error) {
       toast.error(
         getErrorMessage(error, "Could not calculate resignation impact.")
@@ -328,7 +362,16 @@ export function EmployeeOffboardingDialog({
   }
 
   async function handleConfirm() {
-    if (!employee || !review) return;
+    if (!employee || !review || !previewMatchesSelections) return;
+    if (
+      request.leaveSelections.some(
+        (selection) =>
+          selection.daysToEncash == null || selection.daysToEncash <= 0
+      )
+    ) {
+      toast.error("Enter valid leave days and recalculate F&F.");
+      return;
+    }
     try {
       await confirmOffboarding({
         employeeId: employee.id,
@@ -504,7 +547,10 @@ export function EmployeeOffboardingDialog({
                         className="flex cursor-pointer items-center gap-3 rounded-lg border p-3"
                       >
                         <Checkbox
-                          checked={leaveTypeIds.includes(leaveType.id)}
+                          checked={leaveSelections.some(
+                            (selection) =>
+                              selection.leaveTypeId === leaveType.id
+                          )}
                           onCheckedChange={() => toggleLeaveType(leaveType.id)}
                         />
                         <span>
@@ -524,6 +570,76 @@ export function EmployeeOffboardingDialog({
                   </div>
                 )}
               </section>
+
+              {preview?.leaveSettlements.some(
+                (settlement) => settlement.encashmentSupported
+              ) && (
+                <section className="space-y-3 rounded-xl border p-4">
+                  <div>
+                    <h3 className="text-sm font-semibold">
+                      Choose leave days for F&amp;F
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Enter any value up to the employee-specific maximum, then
+                      recalculate the preview.
+                    </p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {preview.leaveSettlements
+                      .filter((settlement) => settlement.encashmentSupported)
+                      .map((settlement) => {
+                        const selection = leaveSelections.find(
+                          (item) =>
+                            item.leaveTypeId === settlement.leaveTypeId
+                        );
+                        return (
+                          <div
+                            key={settlement.leaveTypeId}
+                            className="space-y-2 rounded-lg border p-3"
+                          >
+                            <Label htmlFor={`leave-days-${settlement.leaveTypeId}`}>
+                              {settlement.leaveTypeName}
+                            </Label>
+                            <Input
+                              id={`leave-days-${settlement.leaveTypeId}`}
+                              type="number"
+                              min={0.01}
+                              max={settlement.maximumEncashableDays}
+                              step="0.5"
+                              value={selection?.daysToEncash ?? ""}
+                              onChange={(event) =>
+                                setLeaveDays(
+                                  settlement.leaveTypeId,
+                                  Number(event.target.value)
+                                )
+                              }
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              {settlement.availableDays} available; up to{" "}
+                              {settlement.maximumEncashableDays} eligible.
+                            </p>
+                          </div>
+                        );
+                      })}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handlePreview}
+                    disabled={previewState.isLoading}
+                  >
+                    {previewState.isLoading && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    Recalculate F&amp;F
+                  </Button>
+                  {!previewMatchesSelections && (
+                    <p className="text-sm font-medium text-amber-700">
+                      Recalculate to update the settlement before confirming.
+                    </p>
+                  )}
+                </section>
+              )}
 
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/30 p-4">
                 <div className="flex items-center gap-3">
@@ -580,7 +696,11 @@ export function EmployeeOffboardingDialog({
             <Button
               type="button"
               variant="destructive"
-              disabled={!review.canConfirm || confirmState.isLoading}
+              disabled={
+                !review.canConfirm ||
+                !previewMatchesSelections ||
+                confirmState.isLoading
+              }
               onClick={handleConfirm}
             >
               {confirmState.isLoading ? (

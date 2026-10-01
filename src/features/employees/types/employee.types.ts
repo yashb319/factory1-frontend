@@ -267,8 +267,12 @@ export type EmployeeOffboardingStatus =
 export interface EmployeeOffboardingRequest {
   lastWorkingDate: string;
   remarks?: string;
-  includeLeaveEncashment: boolean;
-  leaveTypeIds: string[];
+  leaveSelections: EmployeeOffboardingLeaveSelection[];
+}
+
+export interface EmployeeOffboardingLeaveSelection {
+  leaveTypeId: string;
+  daysToEncash?: number | null;
 }
 
 export interface EmployeeOffboardingLeaveSettlement {
@@ -277,6 +281,7 @@ export interface EmployeeOffboardingLeaveSettlement {
   leaveTypeName: string;
   availableDays: number;
   encashmentSupported: boolean;
+  maximumEncashableDays: number;
   encashableDays: number;
   encashmentAmount: number;
 }
@@ -306,8 +311,7 @@ export interface EmployeeOffboardingResponse {
   status: EmployeeOffboardingStatus;
   lastWorkingDate: string;
   remarks?: string | null;
-  includeLeaveEncashment: boolean;
-  leaveTypeIds: string[];
+  leaveSelections: EmployeeOffboardingLeaveSelection[];
   leaveSettlements: EmployeeOffboardingLeaveSettlement[];
   pendingWorkWarnings: EmployeeOffboardingWorkWarning[];
   payrollEstimate: EmployeeOffboardingPayrollEstimate | null;
