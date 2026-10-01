@@ -55,6 +55,7 @@ export function EmployeeForm({
     form.watch("statutoryProfile") ?? createDefaultStatutoryProfile();
   const photoInputRef = React.useRef<HTMLInputElement>(null);
   const photoReaderRef = React.useRef<FileReader | null>(null);
+  const formContentRef = React.useRef<HTMLDivElement>(null);
   const [photoFileName, setPhotoFileName] = React.useState("");
   const [activeSection, setActiveSection] =
     React.useState<(typeof EMPLOYEE_FORM_SECTIONS)[number][0]>(
@@ -128,23 +129,31 @@ export function EmployeeForm({
       onSubmit={form.handleSubmit(onSubmit)}
       className="flex min-h-0 flex-1 flex-col"
     >
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-5 sm:px-6">
+      <div
+        ref={formContentRef}
+        className="min-h-0 flex-1 space-y-6 overflow-x-hidden overflow-y-auto px-4 py-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-6"
+      >
       <nav
         aria-label="Employee form sections"
-        className="sticky -top-5 z-10 -mx-4 overflow-x-auto border-b bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6"
+        role="tablist"
+        className="sticky -top-5 z-10 -mx-4 overflow-x-auto border-b bg-background/95 px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6"
       >
         <div className="flex min-w-max gap-2">
           {EMPLOYEE_FORM_SECTIONS.map(([id, label], index) => (
             <Button
               key={id}
+              id={`${id}-tab`}
               type="button"
+              role="tab"
+              aria-controls={id}
+              aria-selected={activeSection === id}
               variant={activeSection === id ? "default" : "outline"}
               size="sm"
               onClick={() => {
                 setActiveSection(id);
-                document.getElementById(id)?.scrollIntoView({
+                formContentRef.current?.scrollTo({
+                  top: 0,
                   behavior: "smooth",
-                  block: "start",
                 });
               }}
             >
@@ -155,7 +164,12 @@ export function EmployeeForm({
         </div>
       </nav>
 
-      <div id="employee-personal" className="scroll-mt-20">
+      <div
+        id="employee-personal"
+        role="tabpanel"
+        aria-labelledby="employee-personal-tab"
+        hidden={activeSection !== "employee-personal"}
+      >
         <h3 className="mb-4 text-sm font-semibold">Personal Details</h3>
       <div className="grid gap-4 sm:grid-cols-2">
         {mode === "create" && (
@@ -266,7 +280,13 @@ export function EmployeeForm({
       </div>
       </div>
 
-      <div id="employee-company" className="scroll-mt-20 space-y-4 border-t pt-5">
+      <div
+        id="employee-company"
+        role="tabpanel"
+        aria-labelledby="employee-company-tab"
+        hidden={activeSection !== "employee-company"}
+        className="space-y-4"
+      >
         <h3 className="text-sm font-semibold">Company Details</h3>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -417,7 +437,10 @@ export function EmployeeForm({
       </div>
       </div>
 
-      <div className="space-y-4 border-t pt-5">
+      <div
+        hidden={activeSection !== "employee-personal"}
+        className="space-y-4"
+      >
         <h3 className="text-sm font-semibold">Personal Profile</h3>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -484,7 +507,10 @@ export function EmployeeForm({
         </div>
       </div>
 
-      <div className="space-y-4 pt-2">
+      <div
+        hidden={activeSection !== "employee-personal"}
+        className="space-y-4"
+      >
         <h3 className="text-sm font-semibold">Contact &amp; Identity</h3>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -534,7 +560,13 @@ export function EmployeeForm({
         </div>
       </div>
 
-      <div id="employee-financial" className="scroll-mt-20 space-y-4 border-t pt-5">
+      <div
+        id="employee-financial"
+        role="tabpanel"
+        aria-labelledby="employee-financial-tab"
+        hidden={activeSection !== "employee-financial"}
+        className="space-y-4"
+      >
         <h3 className="text-sm font-semibold">Bank Details</h3>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -564,7 +596,13 @@ export function EmployeeForm({
         </p>
       </div>
 
-        <section id="employee-insurance" className="scroll-mt-20 space-y-4 border-t pt-5">
+        <section
+          id="employee-insurance"
+          role="tabpanel"
+          aria-labelledby="employee-insurance-tab"
+          hidden={activeSection !== "employee-insurance"}
+          className="space-y-4"
+        >
           <div>
             <h3 className="text-sm font-semibold">Insurance Details</h3>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -574,7 +612,10 @@ export function EmployeeForm({
           <EmployeeInsuranceFields form={form} />
         </section>
 
-        <section className="space-y-4 border-t pt-5">
+        <section
+          hidden={activeSection !== "employee-financial"}
+          className="space-y-4 border-t pt-5"
+        >
           <div>
             <h3 className="text-sm font-semibold">Statutory Details</h3>
             <p className="mt-1 text-sm text-muted-foreground">
