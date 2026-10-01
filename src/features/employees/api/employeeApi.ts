@@ -12,7 +12,15 @@ import {
   EmployeeInvitationResult,
   EmployeeStatutoryProfileRequest,
   EmployeeStatutoryProfileResponse,
+  EmployeeOffboardingRequest,
+  EmployeeOffboardingResponse,
 } from "../types/employee.types";
+
+function offboardingResponse(
+  response: ApiResponse<EmployeeOffboardingResponse> | EmployeeOffboardingResponse
+) {
+  return "data" in response ? response.data : response;
+}
 
 export const employeeApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -185,6 +193,62 @@ export const employeeApi = baseApi.injectEndpoints({
         { type: "Employee", id: `${employeeId}-statutory` },
       ],
     }),
+
+    getEmployeeOffboarding: builder.query<EmployeeOffboardingResponse, string>({
+      query: (employeeId) => `/api/employees/${employeeId}/offboarding`,
+      transformResponse: offboardingResponse,
+      providesTags: (_result, _error, employeeId) => [
+        { type: "Employee", id: `${employeeId}-offboarding` },
+      ],
+    }),
+
+    previewEmployeeOffboarding: builder.mutation<
+      EmployeeOffboardingResponse,
+      { employeeId: string; body: EmployeeOffboardingRequest }
+    >({
+      query: ({ employeeId, body }) => ({
+        url: `/api/employees/${employeeId}/offboarding/preview`,
+        method: "POST",
+        body,
+      }),
+      transformResponse: offboardingResponse,
+    }),
+
+    confirmEmployeeOffboarding: builder.mutation<
+      EmployeeOffboardingResponse,
+      { employeeId: string; body: EmployeeOffboardingRequest }
+    >({
+      query: ({ employeeId, body }) => ({
+        url: `/api/employees/${employeeId}/offboarding`,
+        method: "POST",
+        body,
+      }),
+      transformResponse: offboardingResponse,
+      invalidatesTags: (_result, _error, { employeeId }) => [
+        "Employee",
+        "Payroll",
+        "Leave",
+        { type: "Employee", id: `${employeeId}-offboarding` },
+      ],
+    }),
+
+    cancelEmployeeOffboarding: builder.mutation<
+      EmployeeOffboardingResponse,
+      { employeeId: string; reason?: string }
+    >({
+      query: ({ employeeId, reason }) => ({
+        url: `/api/employees/${employeeId}/offboarding/cancel`,
+        method: "POST",
+        body: { reason },
+      }),
+      transformResponse: offboardingResponse,
+      invalidatesTags: (_result, _error, { employeeId }) => [
+        "Employee",
+        "Payroll",
+        "Leave",
+        { type: "Employee", id: `${employeeId}-offboarding` },
+      ],
+    }),
   }),
 });
 
@@ -203,4 +267,8 @@ export const {
   useGetEmployeeStatutoryProfileQuery,
   useCreateEmployeeStatutoryProfileMutation,
   useUpdateEmployeeStatutoryProfileMutation,
+  useGetEmployeeOffboardingQuery,
+  usePreviewEmployeeOffboardingMutation,
+  useConfirmEmployeeOffboardingMutation,
+  useCancelEmployeeOffboardingMutation,
 } = employeeApi;

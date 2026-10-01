@@ -7,6 +7,7 @@ import {
   QrCode,
   Trash2,
   ArrowUpDown,
+  UserMinus,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ interface Props {
   onView: (employee: Employee) => void;
   onEdit: (employee: Employee) => void;
   onDelete: (employee: Employee) => void;
+  onOffboard: (employee: Employee) => void;
   onSort: (field: string) => void;
   selectedIds: string[];
   onToggleSelected: (id: string) => void;
@@ -52,6 +54,7 @@ export function EmployeeTable({
   onView,
   onEdit,
   onDelete,
+  onOffboard,
   onSort,
   selectedIds,
   onToggleSelected,
@@ -192,6 +195,14 @@ export function EmployeeTable({
                         <DropdownMenuItem onClick={() => setQrEmployee(employee)}>
                           <QrCode className="mr-2 h-4 w-4" />
                           Attendance QR
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem
+                          onClick={() => onOffboard(employee)}
+                          className="text-amber-700"
+                        >
+                          <UserMinus className="mr-2 h-4 w-4" />
+                          Resignation &amp; F&amp;F
                         </DropdownMenuItem>
 
                         <DropdownMenuItem

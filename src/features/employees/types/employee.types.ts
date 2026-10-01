@@ -255,3 +255,65 @@ export interface EmployeeInvitationResult {
   errors?: number;
   [key: string]: unknown;
 }
+
+export type EmployeeOffboardingStatus =
+  | "PREVIEW"
+  | "CONFIRMED"
+  | "PAYROLL_FAILED"
+  | "REVOCATION_SCHEDULED"
+  | "COMPLETED"
+  | "CANCELLED";
+
+export interface EmployeeOffboardingRequest {
+  lastWorkingDate: string;
+  remarks?: string;
+  includeLeaveEncashment: boolean;
+  leaveTypeIds: string[];
+}
+
+export interface EmployeeOffboardingLeaveSettlement {
+  leaveTypeId: string;
+  leaveTypeCode: string;
+  leaveTypeName: string;
+  availableDays: number;
+  encashmentSupported: boolean;
+  encashableDays: number;
+  encashmentAmount: number;
+}
+
+export interface EmployeeOffboardingWorkWarning {
+  type: string;
+  referenceId?: string | null;
+  referenceCode?: string | null;
+  description: string;
+}
+
+export interface EmployeeOffboardingPayrollEstimate {
+  periodStart: string;
+  periodEnd: string;
+  grossEarnings: number;
+  deductions: number;
+  leaveEncashment: number;
+  netPay: number;
+  currency: string;
+}
+
+export interface EmployeeOffboardingResponse {
+  id?: string | null;
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  status: EmployeeOffboardingStatus;
+  lastWorkingDate: string;
+  remarks?: string | null;
+  includeLeaveEncashment: boolean;
+  leaveTypeIds: string[];
+  leaveSettlements: EmployeeOffboardingLeaveSettlement[];
+  pendingWorkWarnings: EmployeeOffboardingWorkWarning[];
+  payrollEstimate: EmployeeOffboardingPayrollEstimate | null;
+  accessRevocationAt: string;
+  accessRevocationScheduled: boolean;
+  canConfirm: boolean;
+  canCancel: boolean;
+  validationMessages: string[];
+}
