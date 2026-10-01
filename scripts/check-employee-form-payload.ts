@@ -13,6 +13,9 @@ const baseValues: EmployeeFormValues = {
   salaryType: "DAILY",
   status: "ACTIVE",
   photoDataUrl: "https://cdn.example.com/existing.jpg",
+  fatherName: "Test Father",
+  nomineeName: "Test Nominee",
+  annualIncome: 250000,
   statutoryProfile: { taxRegime: "NEW" },
 };
 
@@ -38,6 +41,9 @@ assert.equal(
   "",
   "removed photos must be sent as an explicit blank value"
 );
+assert.equal(buildEmployeeUpdateRequest(baseValues).fatherName, "Test Father");
+assert.equal(buildEmployeeUpdateRequest(baseValues).nomineeName, "Test Nominee");
+assert.equal(buildEmployeeUpdateRequest(baseValues).annualIncome, 250000);
 
 const calls: string[] = [];
 await saveEmployeeEdit({

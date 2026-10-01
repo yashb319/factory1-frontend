@@ -4,7 +4,36 @@ export type Gender = "MALE" | "FEMALE" | "OTHER";
 export type MaritalStatus = "SINGLE" | "MARRIED" | "DIVORCED" | "WIDOWED" | "OTHER";
 export type EmploymentBasis = "FULL_TIME" | "PART_TIME" | "CONTRACT";
 
-export interface Employee {
+export interface EmployeeInsuranceDetails {
+  fatherName?: string;
+  fatherDateOfBirth?: string;
+  fatherGender?: Gender;
+  motherName?: string;
+  motherDateOfBirth?: string;
+  motherGender?: Gender;
+  spouseName?: string;
+  spouseDateOfBirth?: string;
+  spouseGender?: Gender;
+  child1Name?: string;
+  child1DateOfBirth?: string;
+  child1Gender?: Gender;
+  child2Name?: string;
+  child2DateOfBirth?: string;
+  child2Gender?: Gender;
+  heightCm?: number;
+  weightKg?: number;
+  smoker?: boolean;
+  occupation?: string;
+  organizationName?: string;
+  annualIncome?: number;
+  education?: string;
+  nomineeName?: string;
+  nomineeDateOfBirth?: string;
+  nomineeGender?: Gender;
+  nomineeRelationship?: string;
+}
+
+export interface Employee extends EmployeeInsuranceDetails {
   id: string;
   employeeCode: string;
   name: string;
@@ -85,7 +114,7 @@ export interface EmployeeListParams {
   salaryType?: SalaryType | "ALL";
 }
 
-export interface CreateEmployeeRequest {
+export interface CreateEmployeeRequest extends EmployeeInsuranceDetails {
   code?: string;
   name: string;
   phone?: string;
@@ -166,6 +195,32 @@ export interface EmployeeImportRowInput {
   panNumber?: string | null;
   uan?: string | null;
   taxRegime?: string | null;
+  fatherName?: string | null;
+  fatherDateOfBirth?: string | null;
+  fatherGender?: string | null;
+  motherName?: string | null;
+  motherDateOfBirth?: string | null;
+  motherGender?: string | null;
+  spouseName?: string | null;
+  spouseDateOfBirth?: string | null;
+  spouseGender?: string | null;
+  child1Name?: string | null;
+  child1DateOfBirth?: string | null;
+  child1Gender?: string | null;
+  child2Name?: string | null;
+  child2DateOfBirth?: string | null;
+  child2Gender?: string | null;
+  heightCm?: string | null;
+  weightKg?: string | null;
+  smoker?: string | null;
+  occupation?: string | null;
+  organizationName?: string | null;
+  annualIncome?: string | null;
+  education?: string | null;
+  nomineeName?: string | null;
+  nomineeDateOfBirth?: string | null;
+  nomineeGender?: string | null;
+  nomineeRelationship?: string | null;
   existingCodeResolution?: "SKIP" | "UPDATE";
 }
 

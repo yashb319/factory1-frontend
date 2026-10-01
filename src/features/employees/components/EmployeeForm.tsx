@@ -19,6 +19,7 @@ import { Combobox, ComboboxOption } from "@/components/ui/combobox";
 import { EmployeeFormValues } from "../schemas/employee.schema";
 import { createDefaultStatutoryProfile } from "../utils/employeeStatutory";
 import { EmployeeStatutoryFields } from "./EmployeeStatutoryFields";
+import { EmployeeInsuranceFields } from "./EmployeeInsuranceFields";
 
 interface Props {
   form: UseFormReturn<EmployeeFormValues>;
@@ -29,6 +30,13 @@ interface Props {
   onCancel: () => void;
   onSubmit: (values: EmployeeFormValues) => void;
 }
+
+const EMPLOYEE_FORM_SECTIONS = [
+  ["employee-personal", "Personal"],
+  ["employee-company", "Company Details"],
+  ["employee-financial", "Financial"],
+  ["employee-insurance", "Insurance"],
+] as const;
 
 export function EmployeeForm({
   form,
@@ -48,6 +56,10 @@ export function EmployeeForm({
   const photoInputRef = React.useRef<HTMLInputElement>(null);
   const photoReaderRef = React.useRef<FileReader | null>(null);
   const [photoFileName, setPhotoFileName] = React.useState("");
+  const [activeSection, setActiveSection] =
+    React.useState<(typeof EMPLOYEE_FORM_SECTIONS)[number][0]>(
+      "employee-personal"
+    );
 
   React.useEffect(
     () => () => {
@@ -117,6 +129,34 @@ export function EmployeeForm({
       className="flex min-h-0 flex-1 flex-col"
     >
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-5 sm:px-6">
+      <nav
+        aria-label="Employee form sections"
+        className="sticky -top-5 z-10 -mx-4 overflow-x-auto border-b bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6"
+      >
+        <div className="flex min-w-max gap-2">
+          {EMPLOYEE_FORM_SECTIONS.map(([id, label], index) => (
+            <Button
+              key={id}
+              type="button"
+              variant={activeSection === id ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setActiveSection(id);
+                document.getElementById(id)?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                });
+              }}
+            >
+              <span className="mr-1.5 text-xs opacity-70">{index + 1}</span>
+              {label}
+            </Button>
+          ))}
+        </div>
+      </nav>
+
+      <div id="employee-personal" className="scroll-mt-20">
+        <h3 className="mb-4 text-sm font-semibold">Personal Details</h3>
       <div className="grid gap-4 sm:grid-cols-2">
         {mode === "create" && (
           <div className="space-y-2">
@@ -144,14 +184,14 @@ export function EmployeeForm({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">Phone</label>
           <Input placeholder="9876543210" {...form.register("phone")} />
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">Email</label>
+          <label className="text-sm font-medium">Official Email ID</label>
           <Input placeholder="employee@example.com" {...form.register("email")} />
           {errors.email && (
             <p className="text-xs text-destructive">{errors.email.message}</p>
@@ -224,7 +264,10 @@ export function EmployeeForm({
           ) : null}
         </div>
       </div>
+      </div>
 
+      <div id="employee-company" className="scroll-mt-20 space-y-4 border-t pt-5">
+        <h3 className="text-sm font-semibold">Company Details</h3>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">Status *</label>
@@ -372,9 +415,10 @@ export function EmployeeForm({
           <p className="text-xs text-destructive">{errors.joiningDate.message}</p>
         )}
       </div>
+      </div>
 
       <div className="space-y-4 border-t pt-5">
-        <h3 className="text-sm font-semibold">Personal Details</h3>
+        <h3 className="text-sm font-semibold">Personal Profile</h3>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -440,7 +484,7 @@ export function EmployeeForm({
         </div>
       </div>
 
-      <div className="space-y-4 border-t pt-5">
+      <div className="space-y-4 pt-2">
         <h3 className="text-sm font-semibold">Contact &amp; Identity</h3>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -490,7 +534,7 @@ export function EmployeeForm({
         </div>
       </div>
 
-      <div className="space-y-4 border-t pt-5">
+      <div id="employee-financial" className="scroll-mt-20 space-y-4 border-t pt-5">
         <h3 className="text-sm font-semibold">Bank Details</h3>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -519,6 +563,16 @@ export function EmployeeForm({
           PAN, UAN and Tax Regime are managed in Statutory Details below.
         </p>
       </div>
+
+        <section id="employee-insurance" className="scroll-mt-20 space-y-4 border-t pt-5">
+          <div>
+            <h3 className="text-sm font-semibold">Insurance Details</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Family, health, occupation and nominee information.
+            </p>
+          </div>
+          <EmployeeInsuranceFields form={form} />
+        </section>
 
         <section className="space-y-4 border-t pt-5">
           <div>

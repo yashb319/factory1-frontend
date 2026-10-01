@@ -74,6 +74,32 @@ export const employeeFormSchema = z
     bankIfscCode: z.string().optional(),
     employmentBasis: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT"]).optional(),
     reportingToEmployeeId: z.string().optional(),
+    fatherName: z.string().optional(),
+    fatherDateOfBirth: z.string().optional(),
+    fatherGender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
+    motherName: z.string().optional(),
+    motherDateOfBirth: z.string().optional(),
+    motherGender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
+    spouseName: z.string().optional(),
+    spouseDateOfBirth: z.string().optional(),
+    spouseGender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
+    child1Name: z.string().optional(),
+    child1DateOfBirth: z.string().optional(),
+    child1Gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
+    child2Name: z.string().optional(),
+    child2DateOfBirth: z.string().optional(),
+    child2Gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
+    heightCm: z.number().positive("Height must be greater than 0").optional(),
+    weightKg: z.number().positive("Weight must be greater than 0").optional(),
+    smoker: z.boolean().optional(),
+    occupation: z.string().optional(),
+    organizationName: z.string().optional(),
+    annualIncome: z.number().min(0, "Annual income cannot be negative").optional(),
+    education: z.string().optional(),
+    nomineeName: z.string().optional(),
+    nomineeDateOfBirth: z.string().optional(),
+    nomineeGender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
+    nomineeRelationship: z.string().optional(),
     statutoryProfile: employeeStatutoryProfileSchema.optional(),
   })
   .superRefine((values, context) => {
@@ -93,6 +119,26 @@ export const employeeFormSchema = z
         message: "Joining date must be after the date of birth",
       });
     }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const familyDates = [
+      ["fatherDateOfBirth", "Father's date of birth"],
+      ["motherDateOfBirth", "Mother's date of birth"],
+      ["spouseDateOfBirth", "Spouse's date of birth"],
+      ["child1DateOfBirth", "Child 1's date of birth"],
+      ["child2DateOfBirth", "Child 2's date of birth"],
+      ["nomineeDateOfBirth", "Nominee's date of birth"],
+    ] as const;
+
+    familyDates.forEach(([field, label]) => {
+      if (values[field] && values[field] > today) {
+        context.addIssue({
+          code: "custom",
+          path: [field],
+          message: `${label} cannot be in the future`,
+        });
+      }
+    });
   });
 
 export type EmployeeFormValues = z.infer<typeof employeeFormSchema>;
