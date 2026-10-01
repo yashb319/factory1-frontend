@@ -20,6 +20,7 @@ import { EmployeeImportDialog } from "./EmployeeImportDialog";
 import { EmployeeDetailsDrawer } from "./EmployeeDetailsDrawer";
 import { EditEmployeeDrawer } from "./EditEmployeeDrawer";
 import { DeleteEmployeeDialog } from "./DeleteEmployeeDialog";
+import { EmployeeOffboardingDialog } from "./EmployeeOffboardingDialog";
 import { OrgIntelligenceHierarchyView } from "@/features/org-intelligence/components/OrgIntelligenceHierarchyView";
 
 export function EmployeesPage() {
@@ -41,6 +42,9 @@ export function EmployeesPage() {
   const [detailsEmployee, setDetailsEmployee] = useState<Employee | null>(null);
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
+  const [offboardingTarget, setOffboardingTarget] = useState<Employee | null>(
+    null
+  );
   const [selectedInvitationIds, setSelectedInvitationIds] = useState<string[]>([]);
 
   function toggleInvitation(id: string) {
@@ -133,6 +137,7 @@ export function EmployeesPage() {
             onView={setDetailsEmployee}
             onEdit={setEditEmployee}
             onDelete={setDeleteTarget}
+            onOffboard={setOffboardingTarget}
             onSort={(sortBy) =>
               updateFilters({
                 sortBy,
@@ -179,6 +184,12 @@ export function EmployeesPage() {
         employee={deleteTarget}
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
+      />
+
+      <EmployeeOffboardingDialog
+        employee={offboardingTarget}
+        open={!!offboardingTarget}
+        onOpenChange={(open) => !open && setOffboardingTarget(null)}
       />
     </div>
   );
