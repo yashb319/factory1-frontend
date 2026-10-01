@@ -325,6 +325,17 @@ function value(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function smokerValue(value: unknown) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (["smoker", "yes", "y", "true", "1"].includes(normalized)) return "true";
+  if (
+    ["non-smoker", "non smoker", "no", "n", "false", "0"].includes(normalized)
+  ) {
+    return "false";
+  }
+  return normalized;
+}
+
 function isExistingCodeConflictError(message: string) {
   const normalized = message.toLowerCase();
   return (
@@ -388,7 +399,7 @@ function toEmployeeImportRowInput(
     child2Gender: value(row.child2Gender),
     heightCm: value(row.heightCm),
     weightKg: value(row.weightKg),
-    smoker: value(row.smoker),
+    smoker: smokerValue(row.smoker),
     occupation: value(row.occupation),
     organizationName: value(row.organizationName),
     annualIncome: value(row.annualIncome),

@@ -89,8 +89,8 @@ export const employeeFormSchema = z
     child2Name: z.string().optional(),
     child2DateOfBirth: z.string().optional(),
     child2Gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
-    heightCm: z.number().min(0, "Height cannot be negative").optional(),
-    weightKg: z.number().min(0, "Weight cannot be negative").optional(),
+    heightCm: z.number().positive("Height must be greater than 0").optional(),
+    weightKg: z.number().positive("Weight must be greater than 0").optional(),
     smoker: z.boolean().optional(),
     occupation: z.string().optional(),
     organizationName: z.string().optional(),
@@ -119,6 +119,26 @@ export const employeeFormSchema = z
         message: "Joining date must be after the date of birth",
       });
     }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const familyDates = [
+      ["fatherDateOfBirth", "Father's date of birth"],
+      ["motherDateOfBirth", "Mother's date of birth"],
+      ["spouseDateOfBirth", "Spouse's date of birth"],
+      ["child1DateOfBirth", "Child 1's date of birth"],
+      ["child2DateOfBirth", "Child 2's date of birth"],
+      ["nomineeDateOfBirth", "Nominee's date of birth"],
+    ] as const;
+
+    familyDates.forEach(([field, label]) => {
+      if (values[field] && values[field] > today) {
+        context.addIssue({
+          code: "custom",
+          path: [field],
+          message: `${label} cannot be in the future`,
+        });
+      }
+    });
   });
 
 export type EmployeeFormValues = z.infer<typeof employeeFormSchema>;

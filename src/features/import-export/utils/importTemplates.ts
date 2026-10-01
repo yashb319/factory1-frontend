@@ -240,7 +240,7 @@ export function getImportTemplateCsv(module: string): TemplateResult | null {
             "",
             "172",
             "70",
-            "NO",
+            "false",
             "Tailor",
             "ABC Textiles",
             "540000",

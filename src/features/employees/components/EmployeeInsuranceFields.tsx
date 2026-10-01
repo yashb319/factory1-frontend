@@ -32,6 +32,8 @@ const genderOptions = [
 ] as const;
 
 export function EmployeeInsuranceFields({ form }: Props) {
+  const today = new Date().toISOString().slice(0, 10);
+
   return (
     <div className="space-y-6">
       <div>
@@ -69,7 +71,17 @@ export function EmployeeInsuranceFields({ form }: Props) {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Date of Birth</label>
-                    <Input type="date" {...form.register(dateField)} />
+                    <Input
+                      type="date"
+                      max={today}
+                      aria-invalid={Boolean(form.formState.errors[dateField])}
+                      {...form.register(dateField)}
+                    />
+                    {form.formState.errors[dateField] && (
+                      <p className="text-xs text-destructive">
+                        {form.formState.errors[dateField]?.message}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Gender</label>
@@ -115,6 +127,11 @@ export function EmployeeInsuranceFields({ form }: Props) {
                 setValueAs: (value) => value === "" ? undefined : Number(value),
               })}
             />
+            {form.formState.errors.heightCm && (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.heightCm.message}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Weight (kg)</label>
@@ -126,6 +143,11 @@ export function EmployeeInsuranceFields({ form }: Props) {
                 setValueAs: (value) => value === "" ? undefined : Number(value),
               })}
             />
+            {form.formState.errors.weightKg && (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.weightKg.message}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Smoking Status</label>
@@ -188,7 +210,17 @@ export function EmployeeInsuranceFields({ form }: Props) {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Date of Birth</label>
-            <Input type="date" {...form.register("nomineeDateOfBirth")} />
+            <Input
+              type="date"
+              max={today}
+              aria-invalid={Boolean(form.formState.errors.nomineeDateOfBirth)}
+              {...form.register("nomineeDateOfBirth")}
+            />
+            {form.formState.errors.nomineeDateOfBirth && (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.nomineeDateOfBirth.message}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Gender</label>
