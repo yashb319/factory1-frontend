@@ -120,9 +120,9 @@ function OffboardingSummary({
             Only explicitly selected leave types are included in F&amp;F.
           </p>
         </div>
-        {data.leaveSettlements.length ? (
+        {data.leaveSelections.length ? (
           <div className="overflow-hidden rounded-lg border">
-            {data.leaveSettlements.map((leave) => (
+            {data.leaveSelections.map((leave) => (
               <div
                 key={leave.leaveTypeId}
                 className="grid grid-cols-2 gap-2 border-b p-3 text-sm last:border-b-0 sm:grid-cols-5"
@@ -261,7 +261,7 @@ export function EmployeeOffboardingDialog({
           (selection) =>
             selection.leaveTypeId === previewSelection.leaveTypeId
         );
-        return current?.daysToEncash === previewSelection.daysToEncash;
+        return current?.daysToEncash === previewSelection.encashableDays;
       }));
 
   const request = useMemo<EmployeeOffboardingRequest>(
@@ -270,7 +270,12 @@ export function EmployeeOffboardingDialog({
         ? {
             lastWorkingDate: failedOffboarding.lastWorkingDate,
             remarks: failedOffboarding.remarks ?? undefined,
-            leaveSelections: failedOffboarding.leaveSelections,
+            leaveSelections: failedOffboarding.leaveSelections.map(
+              (selection) => ({
+                leaveTypeId: selection.leaveTypeId,
+                daysToEncash: selection.encashableDays,
+              })
+            ),
           }
         : {
             lastWorkingDate,
@@ -346,7 +351,7 @@ export function EmployeeOffboardingDialog({
         )
       ) {
         setLeaveSelections(
-          result.leaveSettlements
+          result.leaveSelections
             .filter((settlement) => settlement.encashmentSupported)
             .map((settlement) => ({
               leaveTypeId: settlement.leaveTypeId,
@@ -571,7 +576,7 @@ export function EmployeeOffboardingDialog({
                 )}
               </section>
 
-              {preview?.leaveSettlements.some(
+              {preview?.leaveSelections.some(
                 (settlement) => settlement.encashmentSupported
               ) && (
                 <section className="space-y-3 rounded-xl border p-4">
@@ -585,7 +590,7 @@ export function EmployeeOffboardingDialog({
                     </p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {preview.leaveSettlements
+                    {preview.leaveSelections
                       .filter((settlement) => settlement.encashmentSupported)
                       .map((settlement) => {
                         const selection = leaveSelections.find(

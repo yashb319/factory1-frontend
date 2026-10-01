@@ -311,8 +311,7 @@ export interface EmployeeOffboardingResponse {
   status: EmployeeOffboardingStatus;
   lastWorkingDate: string;
   remarks?: string | null;
-  leaveSelections: EmployeeOffboardingLeaveSelection[];
-  leaveSettlements: EmployeeOffboardingLeaveSettlement[];
+  leaveSelections: EmployeeOffboardingLeaveSettlement[];
   pendingWorkWarnings: EmployeeOffboardingWorkWarning[];
   payrollEstimate: EmployeeOffboardingPayrollEstimate | null;
   accessRevocationAt: string;
