@@ -65,6 +65,8 @@ function OffboardingSummary({
   data: EmployeeOffboardingResponse;
   persisted?: boolean;
 }) {
+  const currency = data.payrollEstimate?.currency ?? "INR";
+
   return (
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-3">
@@ -136,7 +138,7 @@ function OffboardingSummary({
                 <span className="text-right font-medium">
                   {money(
                     leave.encashmentAmount,
-                    data.payrollEstimate.currency
+                    currency
                   )}
                 </span>
               </div>
@@ -149,7 +151,8 @@ function OffboardingSummary({
         )}
       </section>
 
-      <section className="space-y-3">
+      {data.payrollEstimate ? (
+        <section className="space-y-3">
         <div className="flex items-center gap-2">
           <IndianRupee className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold">Final salary estimate</h3>
@@ -187,7 +190,18 @@ function OffboardingSummary({
             </p>
           </div>
         </div>
-      </section>
+        </section>
+      ) : (
+        <section className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+          <h3 className="text-sm font-semibold text-destructive">
+            Final salary estimate unavailable
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Payroll calculation did not produce a trustworthy estimate. Review
+            the failure details below and retry F&amp;F generation.
+          </p>
+        </section>
+      )}
 
       {data.validationMessages.length > 0 && (
         <ul className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">

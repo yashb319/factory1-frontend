@@ -310,7 +310,7 @@ export interface EmployeeOffboardingResponse {
   leaveTypeIds: string[];
   leaveSettlements: EmployeeOffboardingLeaveSettlement[];
   pendingWorkWarnings: EmployeeOffboardingWorkWarning[];
-  payrollEstimate: EmployeeOffboardingPayrollEstimate;
+  payrollEstimate: EmployeeOffboardingPayrollEstimate | null;
   accessRevocationAt: string;
   accessRevocationScheduled: boolean;
   canConfirm: boolean;
