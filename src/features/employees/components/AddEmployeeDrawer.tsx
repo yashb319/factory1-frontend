@@ -149,7 +149,7 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="flex h-[calc(100dvh-1rem)] max-h-[960px] w-[calc(100%-1rem)] max-w-7xl flex-col gap-0 overflow-hidden p-0 sm:h-[calc(100dvh-2rem)]"
+        className="flex h-[calc(100dvh-1rem)] max-h-[960px] w-[95vw] max-w-[95vw] min-w-5xl flex-col gap-0 overflow-hidden p-0 sm:h-[calc(100dvh-2rem)]"
         onEscapeKeyDown={() => handleOpenChange(false)}
       >
         <DialogHeader className="shrink-0 border-b px-4 py-4 sm:px-6">
