@@ -10,22 +10,26 @@ import { logout } from "@/features/auth/authSlice";
 import type { RootState } from "@/lib/store";
 import { productionLoginPath } from "@/lib/productionOrderLink";
 
+const publicEndpoints = new Set([
+  "login",
+  "signupOrganization",
+  "sandboxSignup",
+  "sendSignupOtp",
+  "sendLoginOtp",
+  "sendForgotPasswordOtp",
+  "resetPassword",
+  "activateEmployee",
+  "submitEarlyRegistrationQuestionnaire",
+  "accessPublicPayslip",
+  "submitHealthCheck",
+  "getHealthCheckResult",
+]);
+
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
 
   prepareHeaders: (headers, { endpoint, getState }) => {
-    if (
-      endpoint === "login" ||
-      endpoint === "signupOrganization" ||
-      endpoint === "sandboxSignup" ||
-      endpoint === "sendSignupOtp" ||
-      endpoint === "sendLoginOtp" ||
-      endpoint === "sendForgotPasswordOtp" ||
-      endpoint === "resetPassword" ||
-      endpoint === "activateEmployee" ||
-      endpoint === "submitEarlyRegistrationQuestionnaire" ||
-      endpoint === "accessPublicPayslip"
-    ) {
+    if (publicEndpoints.has(endpoint)) {
       headers.delete("Authorization");
       return headers;
     }
@@ -47,7 +51,7 @@ const baseQueryWithAuthRedirect: BaseQueryFn<
 > = async (args, api, extraOptions) => {
   const result = await rawBaseQuery(args, api, extraOptions);
 
-  if (result.error?.status === 401) {
+  if (result.error?.status === 401 && !publicEndpoints.has(api.endpoint)) {
     api.dispatch(logout());
 
     if (typeof window !== "undefined") {
@@ -131,6 +135,7 @@ export const baseApi = createApi({
     "PayslipTemplate",
     "Payslip",
     "OrgIntelligence",
+    "HealthCheckLead",
   ],
 
   endpoints: () => ({}),

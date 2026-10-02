@@ -6,9 +6,8 @@ export type ApiResponse<T> = {
 
 export type PageResponse<T> = {
   content: T[];
-  pageNumber: number;
-  pageSize: number;
+  page: number;
+  size: number;
   totalElements: number;
   totalPages: number;
-  last: boolean;
 };

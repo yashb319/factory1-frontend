@@ -39,6 +39,8 @@ import { Button } from "@/components/ui/button";
 import { useBranding } from "@/features/whitelabel/components/BrandingProvider";
 import { PublicPricingCards } from "@/features/public-pricing/components/PublicPricingCards";
 import { SandboxTrialDialog } from "@/features/auth/components/SandboxTrialDialog";
+import { HealthCheckWelcome } from "@/features/health-check/components/HealthCheckWelcome";
+import { HealthCheckLandingCta } from "@/features/health-check/components/HealthCheckLandingCta";
 
 const contactEmail = "official.factory.one@gmail.com";
 const macDownloadUrl =
@@ -295,7 +297,9 @@ export default function LandingPage() {
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button size="lg" asChild>
+            <HealthCheckLandingCta />
+
+            <Button size="lg" variant="outline" asChild>
               <Link href="/signup">Create your organization</Link>
             </Button>
 
@@ -307,9 +311,6 @@ export default function LandingPage() {
               Try it free — no signup approval needed
             </Button>
 
-            <Button size="lg" variant="outline" asChild>
-              <Link href="/login">Login</Link>
-            </Button>
           </div>
 
           <div className="mt-8 grid gap-3 text-sm text-slate-600 sm:grid-cols-3">
@@ -513,6 +514,7 @@ export default function LandingPage() {
         open={sandboxDialogOpen}
         onOpenChange={setSandboxDialogOpen}
       />
+      <HealthCheckWelcome />
 
       <section className="mx-auto max-w-7xl px-6 py-16">
         <div className="rounded-3xl bg-slate-950 px-8 py-12 text-white md:px-12">
