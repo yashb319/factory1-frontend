@@ -24,6 +24,7 @@ import {
   LifeBuoy,
   SlidersHorizontal,
   Paintbrush,
+  ClipboardCheck,
 } from "lucide-react";
 import type { ComponentType, CSSProperties } from "react";
 import type { AuthUser, UserRole } from "@/features/auth/types";
@@ -97,6 +98,14 @@ export const navigationItems: NavigationItem[] = [
     title: "SaaS Insights",
     href: "/saas-admin/insights",
     icon: BarChart3,
+    roles: ["SAAS_OWNER"],
+    module: "reports",
+    platformAdminOnly: true,
+  },
+  {
+    title: "Health Check Leads",
+    href: "/saas-admin/health-check-leads",
+    icon: ClipboardCheck,
     roles: ["SAAS_OWNER"],
     module: "reports",
     platformAdminOnly: true,
