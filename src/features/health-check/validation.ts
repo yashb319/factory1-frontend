@@ -1,27 +1,24 @@
 import { z } from "zod";
 import { HEALTH_CHECK_STEPS } from "./config";
-import type { HealthCheckAnswerValue, HealthCheckContact, FollowUpPreference } from "./types";
+import type { HealthCheckContact, FollowUpPreference } from "./types";
 
 export const contactSchema = z.object({
-  name: z.string().trim().min(2, "Enter your name"),
-  email: z.email("Enter a valid email address"),
-  phone: z.string().trim().min(7, "Enter a valid phone number").max(20, "Enter a valid phone number"),
-  companyName: z.string().trim().min(2, "Enter your factory or company name"),
-  city: z.string().trim().min(2, "Enter your city or location"),
+  name: z.string().trim().min(2, "Enter your name").max(120),
+  email: z.email("Enter a valid email address").max(254),
+  phone: z.string().trim().min(7, "Enter a valid phone number").max(32, "Enter a valid phone number"),
+  companyName: z.string().trim().min(2, "Enter your factory or company name").max(160),
+  location: z.string().trim().max(160),
 });
 
-export function validateQuestionStep(step: number, answers: Record<string, HealthCheckAnswerValue>) {
+export function validateQuestionStep(step: number, answers: Record<string, string>) {
   const errors: Record<string, string> = {};
   const config = HEALTH_CHECK_STEPS[step];
   if (!config) return errors;
 
   for (const question of config.questions) {
     const value = answers[question.id];
-    if (question.required && (!value || (Array.isArray(value) && value.length === 0))) {
+    if (!value || !question.options.some((option) => option.value === value)) {
       errors[question.id] = "Select an answer to continue";
-    }
-    if (question.id === "improvement_goals" && Array.isArray(value) && value.length > 3) {
-      errors[question.id] = "Choose no more than three priorities";
     }
   }
   return errors;
@@ -40,11 +37,11 @@ export function validateContactStep(
       if (!errors[key]) errors[key] = issue.message;
     }
   }
-  if (consent && followUpPreference === "NONE") {
-    errors.followUpPreference = "Choose how you would prefer us to contact you";
+  if (!consent) {
+    errors.consentToContact = "Consent is required to submit the health check";
   }
-  if (!consent && followUpPreference !== "NONE") {
-    errors.followUpPreference = "Consent is required for follow-up";
+  if (consent && followUpPreference === "NO_FOLLOW_UP") {
+    return errors;
   }
   return errors;
 }

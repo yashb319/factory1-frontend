@@ -5,20 +5,20 @@ describe("health check validation", () => {
   it("blocks unanswered question steps and excess multi-select choices", () => {
     expect(validateQuestionStep(0, {})).toMatchObject({
       factory_size: expect.any(String),
-      production_model: expect.any(String),
-      locations: expect.any(String),
+      software_usage: expect.any(String),
+      implementation_timeline: expect.any(String),
     });
-    expect(validateQuestionStep(5, { improvement_goals: ["EMPLOYEE", "PRODUCTION", "INVENTORY", "FINANCE"] })).toMatchObject({
-      improvement_goals: "Choose no more than three priorities",
+    expect(validateQuestionStep(5, { reporting_frequency: "INVALID" })).toMatchObject({
+      reporting_frequency: "Select an answer to continue",
     });
   });
 
   it("requires valid contact details and consent for a follow-up channel", () => {
-    expect(contactSchema.safeParse({ name: "", email: "bad", phone: "1", companyName: "", city: "" }).success).toBe(false);
+    expect(contactSchema.safeParse({ name: "", email: "bad", phone: "1", companyName: "", location: "" }).success).toBe(false);
     expect(validateContactStep(
-      { name: "Asha Rao", email: "asha@example.com", phone: "9876543210", companyName: "Asha Works", city: "Pune" },
+      { name: "Asha Rao", email: "asha@example.com", phone: "9876543210", companyName: "Asha Works", location: "Pune" },
       false,
       "EMAIL"
-    )).toHaveProperty("followUpPreference");
+    )).toHaveProperty("consentToContact");
   });
 });

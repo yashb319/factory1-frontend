@@ -12,35 +12,34 @@ export type HealthCheckPriority =
   | "EARLY_STAGE"
   | "NO_FOLLOW_UP";
 
-export type FollowUpPreference = "EMAIL" | "PHONE" | "WHATSAPP" | "NONE";
-export type HealthCheckAnswerValue = string | string[];
+export type FollowUpPreference = "EMAIL" | "PHONE" | "WHATSAPP" | "NO_FOLLOW_UP";
+export type HealthCheckAnswerValue = string;
 
 export type HealthCheckContact = {
   name: string;
   email: string;
   phone: string;
   companyName: string;
-  city: string;
+  location: string;
 };
 
 export type HealthCheckAnswer = {
   questionId: string;
-  value: HealthCheckAnswerValue;
+  value: string;
 };
 
 export type HealthCheckSubmission = {
-  schemaVersion: number;
+  schemaVersion: "2026-10-01";
   contact: HealthCheckContact;
   answers: HealthCheckAnswer[];
   consentToContact: boolean;
   followUpPreference: FollowUpPreference;
   idempotencyKey: string;
-  website?: string;
-  startedAt?: string;
+  website: "";
+  formStartedAtEpochMs: number;
 };
 
 export type HealthCheckResult = {
-  resultToken: string;
   primaryArea: HealthCheckArea;
   priority: HealthCheckPriority;
   recommendedModules: string[];
@@ -49,56 +48,81 @@ export type HealthCheckResult = {
   explanation: string;
 };
 
+export type HealthCheckSubmissionResult = HealthCheckResult & {
+  resultToken: string;
+};
+
 export type HealthCheckDraft = {
   version: number;
   step: number;
-  answers: Record<string, HealthCheckAnswerValue>;
+  answers: Record<string, string>;
   contact: HealthCheckContact;
   consentToContact: boolean;
   followUpPreference: FollowUpPreference;
   idempotencyKey: string;
-  startedAt: string;
+  formStartedAtEpochMs: number;
 };
 
 export type HealthCheckLeadStatus =
   | "NEW"
   | "CONTACTED"
   | "QUALIFIED"
-  | "CLOSED"
-  | "DO_NOT_CONTACT";
+  | "NOT_INTERESTED"
+  | "CONVERTED";
 
 export type HealthCheckLeadSummary = {
   id: string;
   createdAt: string;
-  contact: HealthCheckContact;
+  name: string;
+  email: string;
+  phone: string;
+  companyName: string;
+  location: string | null;
   consentToContact: boolean;
   followUpPreference: FollowUpPreference;
   primaryArea: HealthCheckArea;
   priority: HealthCheckPriority;
   status: HealthCheckLeadStatus;
-  nextFollowUpAt?: string | null;
+  assignedTo?: string | null;
+  followUpAt?: string | null;
 };
 
-export type HealthCheckLeadDetail = HealthCheckLeadSummary & {
-  answers: HealthCheckAnswer[];
-  result: HealthCheckResult;
-  notes?: string | null;
+export type HealthCheckLeadDetail = {
+  id: string;
+  createdAt: string;
   updatedAt: string;
+  schemaVersion: string;
+  contact: Omit<HealthCheckContact, "location"> & { location: string | null };
+  consentToContact: boolean;
+  followUpPreference: FollowUpPreference;
+  answers: HealthCheckAnswer[];
+  engineVersion: string;
+  primaryArea: HealthCheckArea;
+  priority: HealthCheckPriority;
+  result: HealthCheckResult;
+  status: HealthCheckLeadStatus;
+  notes?: string | null;
+  assignedTo?: string | null;
+  followUpAt?: string | null;
 };
 
 export type HealthCheckLeadFilters = {
   page: number;
   size: number;
-  search?: string;
+  sortBy: string;
+  sortDirection: "ASC" | "DESC";
+  query?: string;
   priority?: HealthCheckPriority;
-  area?: HealthCheckArea;
+  primaryArea?: HealthCheckArea;
   status?: HealthCheckLeadStatus;
-  from?: string;
-  to?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  consent?: boolean;
 };
 
 export type UpdateHealthCheckLead = {
   status: HealthCheckLeadStatus;
   notes?: string;
-  nextFollowUpAt?: string | null;
+  assignedTo?: string;
+  followUpAt?: string | null;
 };

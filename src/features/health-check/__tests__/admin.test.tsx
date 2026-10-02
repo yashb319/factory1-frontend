@@ -33,11 +33,11 @@ describe("HealthCheckLeadsPage", () => {
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
-      data: { data: { content: [], pageNumber: 0, pageSize: 20, totalElements: 0, totalPages: 0, last: true } },
+      data: { data: { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 } },
     });
     render(<HealthCheckLeadsPage />);
     expect(getLeads).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 0, size: 20 }),
+      expect.objectContaining({ page: 0, size: 20, sortBy: "createdAt", sortDirection: "DESC" }),
       { skip: false }
     );
     expect(screen.getByText("No health check leads match these filters.")).toBeInTheDocument();

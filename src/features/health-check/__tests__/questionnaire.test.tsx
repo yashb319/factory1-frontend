@@ -22,10 +22,11 @@ function reviewDraft() {
   draft.step = HEALTH_CHECK_STEPS.length;
   draft.answers = Object.fromEntries(
     HEALTH_CHECK_STEPS.flatMap((step) =>
-      step.questions.map((question) => [question.id, question.type === "checkbox" ? [question.options[0].value] : question.options[0].value])
+      step.questions.map((question) => [question.id, question.options[0].value])
     )
   );
-  draft.contact = { name: "Asha Rao", email: "asha@example.com", phone: "9876543210", companyName: "Asha Works", city: "Pune" };
+  draft.contact = { name: "Asha Rao", email: "asha@example.com", phone: "9876543210", companyName: "Asha Works", location: "Pune" };
+  draft.consentToContact = true;
   return draft;
 }
 
@@ -43,9 +44,9 @@ describe("HealthCheckPage", () => {
     await user.click(screen.getByRole("button", { name: /continue/i }));
     expect(screen.getAllByRole("alert")).toHaveLength(3);
 
-    await user.click(screen.getByLabelText("1-20"));
-    await user.click(screen.getByLabelText("Made to order"));
-    await user.click(screen.getByLabelText("One"));
+    await user.click(screen.getByLabelText("Micro (1-20)"));
+    await user.click(screen.getByLabelText("No dedicated software"));
+    await user.click(screen.getByLabelText("Now"));
     await user.click(screen.getByRole("button", { name: /continue/i }));
     expect(await screen.findByRole("heading", { name: "People operations" })).toBeInTheDocument();
   });

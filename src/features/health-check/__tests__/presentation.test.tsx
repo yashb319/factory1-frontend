@@ -12,7 +12,6 @@ describe("health check presentation", () => {
   it("renders safe answer-derived result content without internal scores", () => {
     render(
       <HealthCheckResultView result={{
-        resultToken: "safe-token",
         primaryArea: "INVENTORY",
         priority: "HIGH_OPPORTUNITY",
         recommendedModules: ["Inventory", "Production"],

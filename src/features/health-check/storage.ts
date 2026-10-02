@@ -1,23 +1,23 @@
-import { EMPTY_CONTACT, HEALTH_CHECK_SCHEMA_VERSION } from "./config";
-import type { FollowUpPreference, HealthCheckAnswerValue, HealthCheckContact, HealthCheckDraft } from "./types";
+import { EMPTY_CONTACT, HEALTH_CHECK_DRAFT_VERSION } from "./config";
+import type { FollowUpPreference, HealthCheckContact, HealthCheckDraft } from "./types";
 
-export const HEALTH_CHECK_DRAFT_KEY = `factory1:health-check:draft:v${HEALTH_CHECK_SCHEMA_VERSION}`;
-export const HEALTH_CHECK_WELCOME_KEY = `factory1:health-check:welcome:v${HEALTH_CHECK_SCHEMA_VERSION}`;
-// A dismissal hides the welcome prompt for 14 days; completion hides it for this schema version.
+export const HEALTH_CHECK_DRAFT_KEY = `factory1:health-check:draft:v${HEALTH_CHECK_DRAFT_VERSION}`;
+export const HEALTH_CHECK_WELCOME_KEY = `factory1:health-check:welcome:v${HEALTH_CHECK_DRAFT_VERSION}`;
+// A dismissal hides the welcome prompt for 14 days; completion hides it for this questionnaire version.
 export const WELCOME_DISMISSAL_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
 type WelcomeState = { status: "dismissed"; at: number } | { status: "completed"; at: number };
 
 export function createHealthCheckDraft(): HealthCheckDraft {
   return {
-    version: HEALTH_CHECK_SCHEMA_VERSION,
+    version: HEALTH_CHECK_DRAFT_VERSION,
     step: 0,
     answers: {},
     contact: { ...EMPTY_CONTACT },
     consentToContact: false,
-    followUpPreference: "NONE",
+    followUpPreference: "NO_FOLLOW_UP",
     idempotencyKey: crypto.randomUUID(),
-    startedAt: new Date().toISOString(),
+    formStartedAtEpochMs: Date.now(),
   };
 }
 
@@ -27,7 +27,7 @@ export function loadHealthCheckDraft(storage: Storage = localStorage): HealthChe
     if (!raw) return null;
     const value = JSON.parse(raw) as Partial<HealthCheckDraft>;
     if (
-      value.version !== HEALTH_CHECK_SCHEMA_VERSION ||
+      value.version !== HEALTH_CHECK_DRAFT_VERSION ||
       typeof value.step !== "number" ||
       !Number.isInteger(value.step) ||
       value.step < 0 ||
@@ -36,38 +36,44 @@ export function loadHealthCheckDraft(storage: Storage = localStorage): HealthChe
       !isContact(value.contact) ||
       typeof value.consentToContact !== "boolean" ||
       !isFollowUpPreference(value.followUpPreference) ||
-      typeof value.idempotencyKey !== "string" ||
-      typeof value.startedAt !== "string"
+      !isUuid(value.idempotencyKey) ||
+      typeof value.formStartedAtEpochMs !== "number" ||
+      !Number.isFinite(value.formStartedAtEpochMs) ||
+      value.formStartedAtEpochMs <= 0
     ) {
       storage.removeItem(HEALTH_CHECK_DRAFT_KEY);
       return null;
-    }
-
-    function isAnswerRecord(value: unknown): value is Record<string, HealthCheckAnswerValue> {
-      if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-      return Object.values(value).every(
-        (answer) =>
-          typeof answer === "string" ||
-          (Array.isArray(answer) && answer.every((entry) => typeof entry === "string"))
-      );
-    }
-
-    function isContact(value: unknown): value is HealthCheckContact {
-      if (!value || typeof value !== "object") return false;
-      const contact = value as Record<string, unknown>;
-      return ["name", "email", "phone", "companyName", "city"].every(
-        (key) => typeof contact[key] === "string"
-      );
-    }
-
-    function isFollowUpPreference(value: unknown): value is FollowUpPreference {
-      return value === "EMAIL" || value === "PHONE" || value === "WHATSAPP" || value === "NONE";
     }
     return { ...createHealthCheckDraft(), ...value } as HealthCheckDraft;
   } catch {
     storage.removeItem(HEALTH_CHECK_DRAFT_KEY);
     return null;
   }
+}
+
+function isAnswerRecord(value: unknown): value is Record<string, string> {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.values(value).every((answer) => typeof answer === "string")
+  );
+}
+
+function isContact(value: unknown): value is HealthCheckContact {
+  if (!value || typeof value !== "object") return false;
+  const contact = value as Record<string, unknown>;
+  return ["name", "email", "phone", "companyName", "location"].every(
+    (key) => typeof contact[key] === "string"
+  );
+}
+
+function isFollowUpPreference(value: unknown): value is FollowUpPreference {
+  return value === "EMAIL" || value === "PHONE" || value === "WHATSAPP" || value === "NO_FOLLOW_UP";
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 export function saveHealthCheckDraft(draft: HealthCheckDraft, storage: Storage = localStorage) {

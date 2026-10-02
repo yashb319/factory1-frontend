@@ -6,21 +6,22 @@ import type {
   HealthCheckLeadSummary,
   HealthCheckResult,
   HealthCheckSubmission,
+  HealthCheckSubmissionResult,
   UpdateHealthCheckLead,
 } from "../types";
 
 export const healthCheckApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    submitHealthCheck: builder.mutation<ApiResponse<HealthCheckResult>, HealthCheckSubmission>({
+    submitHealthCheck: builder.mutation<ApiResponse<HealthCheckSubmissionResult>, HealthCheckSubmission>({
       query: (body) => ({ url: "/api/public/health-check", method: "POST", body }),
     }),
     getHealthCheckResult: builder.query<ApiResponse<HealthCheckResult>, string>({
       query: (token) => `/api/public/health-check/results/${encodeURIComponent(token)}`,
     }),
     getHealthCheckLeads: builder.query<ApiResponse<PageResponse<HealthCheckLeadSummary>>, HealthCheckLeadFilters>({
-      query: ({ page, size, ...filters }) => ({
+      query: (params) => ({
         url: "/api/saas-admin/health-check-leads",
-        params: { page, size, ...filters },
+        params,
       }),
       providesTags: ["HealthCheckLead"],
     }),

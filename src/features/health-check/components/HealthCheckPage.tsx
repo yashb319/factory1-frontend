@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getErrorMessage } from "@/lib/apiError";
-import { HEALTH_CHECK_SCHEMA_VERSION, HEALTH_CHECK_STEPS } from "../config";
+import { HEALTH_CHECK_STEPS } from "../config";
 import {
   clearHealthCheckDraft,
   completeWelcome,
@@ -22,6 +22,7 @@ import {
 import type { FollowUpPreference, HealthCheckAnswerValue, HealthCheckDraft } from "../types";
 import { validateContactStep, validateQuestionStep } from "../validation";
 import { useSubmitHealthCheckMutation } from "../api/healthCheckApi";
+import { buildHealthCheckSubmission } from "../submission";
 import { QuestionField } from "./QuestionField";
 
 const totalSteps = HEALTH_CHECK_STEPS.length + 1;
@@ -105,16 +106,7 @@ export function HealthCheckPage() {
     setSubmitError("");
     submitInFlight.current = true;
     try {
-      const response = await submitHealthCheck({
-        schemaVersion: HEALTH_CHECK_SCHEMA_VERSION,
-        contact: activeDraft.contact,
-        answers: Object.entries(activeDraft.answers).map(([questionId, value]) => ({ questionId, value })),
-        consentToContact: activeDraft.consentToContact,
-        followUpPreference: activeDraft.followUpPreference,
-        idempotencyKey: activeDraft.idempotencyKey,
-        startedAt: activeDraft.startedAt,
-        website: "",
-      }).unwrap();
+      const response = await submitHealthCheck(buildHealthCheckSubmission(activeDraft)).unwrap();
       clearHealthCheckDraft();
       completeWelcome();
       router.push(`/health-check/results/${encodeURIComponent(response.data.resultToken)}`);
@@ -170,14 +162,14 @@ export function HealthCheckPage() {
                   ["email", "Work email", "email"],
                   ["phone", "Phone number", "tel"],
                   ["companyName", "Factory or company", "text"],
-                  ["city", "City or location", "text"],
+                  ["location", "City or location", "text"],
                 ] as const).map(([key, label, type]) => (
-                  <div key={key} className={key === "city" ? "sm:col-span-2" : ""}>
+                  <div key={key} className={key === "location" ? "sm:col-span-2" : ""}>
                     <Label htmlFor={key}>{label}</Label>
                     <Input
                       id={key}
                       type={type}
-                      autoComplete={key === "companyName" ? "organization" : key === "city" ? "address-level2" : key}
+                      autoComplete={key === "companyName" ? "organization" : key === "location" ? "address-level2" : key}
                       className="mt-1.5 min-h-11"
                       value={activeDraft.contact[key]}
                       aria-invalid={Boolean(errors[key])}
@@ -194,12 +186,15 @@ export function HealthCheckPage() {
                   <Checkbox
                     id="consent"
                     checked={activeDraft.consentToContact}
-                    onCheckedChange={(checked) => setDraft({ ...activeDraft, consentToContact: checked === true, followUpPreference: checked ? activeDraft.followUpPreference : "NONE" })}
+                    aria-invalid={Boolean(errors.consentToContact)}
+                    aria-describedby={errors.consentToContact ? "consent-error" : undefined}
+                    onCheckedChange={(checked) => setDraft({ ...activeDraft, consentToContact: checked === true, followUpPreference: checked ? activeDraft.followUpPreference : "NO_FOLLOW_UP" })}
                   />
                   <Label htmlFor="consent" className="font-normal leading-5">
-                    I consent to Factory1 storing my submitted answers and contact details and contacting me about this health check. I can decline follow-up.
+                    I explicitly consent to Factory1 storing my submitted answers and contact details for this health check.
                   </Label>
                 </div>
+                {errors.consentToContact && <p id="consent-error" role="alert" className="mt-2 text-sm text-red-600">{errors.consentToContact}</p>}
                 <div className="mt-4 max-w-sm">
                   <Label htmlFor="follow-up">Preferred follow-up</Label>
                   <Select
@@ -210,7 +205,7 @@ export function HealthCheckPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="NONE">No follow-up</SelectItem>
+                      <SelectItem value="NO_FOLLOW_UP">No follow-up</SelectItem>
                       <SelectItem value="EMAIL">Email</SelectItem>
                       <SelectItem value="PHONE">Phone call</SelectItem>
                       <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
@@ -226,7 +221,7 @@ export function HealthCheckPage() {
                   {Object.entries(activeDraft.answers).map(([questionId, value]) => (
                     <div key={questionId} className="border-t pt-3 text-sm first:border-0 first:pt-0">
                       <dt className="font-medium text-slate-800">{questionLabels.get(questionId)}</dt>
-                      <dd className="mt-1 text-slate-600">{Array.isArray(value) ? value.join(", ") : value}</dd>
+                      <dd className="mt-1 text-slate-600">{value}</dd>
                     </div>
                   ))}
                 </dl>
