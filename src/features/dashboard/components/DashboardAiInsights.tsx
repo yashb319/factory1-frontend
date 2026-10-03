@@ -354,8 +354,9 @@ export function DashboardAiInsights({ summary, trends, range, benchmarkProfile }
     if (!summary) return;
     const built = buildPrompt(summary, trends, profile);
     void generate({
-      message: built,
-      history: [],
+      message: built.slice(0, 2000),
+      moduleContext: "GENERAL",
+      currentRoute: "/dashboard",
       businessInsight: true,
       benchmark: profile.key,
     });
