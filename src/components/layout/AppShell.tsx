@@ -49,7 +49,8 @@ export function AppShell({ children }: Props) {
   );
   const aiAssistantEnabled = shouldShowFloatingAssistant(
     Boolean(user?.platformAdmin),
-    organizationFeatures?.data?.enabledFeatures
+    organizationFeatures?.data?.enabledFeatures,
+    pathname
   );
 
   useEffect(() => {
@@ -328,9 +329,17 @@ export function AppShell({ children }: Props) {
 
 export function shouldShowFloatingAssistant(
   platformAdmin: boolean,
-  enabledFeatures: readonly string[] | undefined | null
+  enabledFeatures: readonly string[] | undefined | null,
+  pathname: string
 ) {
-  return !platformAdmin && isFeatureEnabled(enabledFeatures, "ai_assistant");
+  const isFullAssistantRoute =
+    pathname === "/ai" || pathname.startsWith("/ai/");
+
+  return (
+    !platformAdmin &&
+    !isFullAssistantRoute &&
+    isFeatureEnabled(enabledFeatures, "ai_assistant")
+  );
 }
 
 export function runShortcut(
