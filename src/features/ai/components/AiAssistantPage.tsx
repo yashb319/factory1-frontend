@@ -75,6 +75,7 @@ import { useAiExport } from "../hooks/useAiExport";
 import {
   moduleContextFromPathname,
   isConversationResponseCurrent,
+  isHistoricalAssistantMessage,
   rankAdaptiveQuestions,
   readCurrentConversationId,
   setCurrentConversationId,
@@ -115,6 +116,9 @@ export function AiAssistantPage() {
   const [deleteTarget, setDeleteTarget] =
     useState<AiConversationSummary | null>(null);
   const [localMessages, setLocalMessages] = useState<LocalMessage[]>([]);
+  const [liveAssistantMessageIds, setLiveAssistantMessageIds] = useState(
+    () => new Set<string>()
+  );
   const [sendAiMessage, sendState] = useSendAiMessageMutation();
   const [createConversation, createState] = useCreateAiConversationMutation();
   const [renameConversation, renameState] = useUpdateAiConversationMutation();
@@ -157,7 +161,10 @@ export function AiAssistantPage() {
       role: message.role,
       content: message.content,
       snapshot: message.snapshot,
-      historical: true,
+      historical: isHistoricalAssistantMessage(
+        message,
+        liveAssistantMessageIds
+      ),
     })),
     ...localMessages.filter((message) => !serverMessageIds.has(message.id)),
   ];
@@ -172,6 +179,7 @@ export function AiAssistantPage() {
 
   const selectConversation = (id: string) => {
     setLocalMessages([]);
+    setLiveAssistantMessageIds(new Set());
     setConversationId(id);
     setCurrentConversationId(id);
     setSidebarOpen(false);
@@ -226,6 +234,11 @@ export function AiAssistantPage() {
 
       setConversationId(response.conversationId);
       setCurrentConversationId(response.conversationId);
+      setLiveAssistantMessageIds((current) => {
+        const next = new Set(current);
+        next.add(response.assistantMessageId);
+        return next;
+      });
       setLocalMessages([
         { id: response.userMessageId, role: "USER", content: message },
         responseToLocalMessage(response),
@@ -293,6 +306,7 @@ export function AiAssistantPage() {
           setConversationId(undefined);
           setCurrentConversationId(undefined);
           setLocalMessages([]);
+          setLiveAssistantMessageIds(new Set());
         }
       }
     } catch {
@@ -308,6 +322,7 @@ export function AiAssistantPage() {
         setConversationId(undefined);
         setCurrentConversationId(undefined);
         setLocalMessages([]);
+        setLiveAssistantMessageIds(new Set());
       }
       setDeleteTarget(null);
       toast.success("Conversation permanently deleted");

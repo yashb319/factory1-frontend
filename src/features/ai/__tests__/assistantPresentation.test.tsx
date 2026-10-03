@@ -6,6 +6,7 @@ import {
   OWNER_BRIEFING_QUESTIONS,
 } from "../components/AiAssistantPage";
 import { AiMessageContent } from "../components/AiMessageContent";
+import { isHistoricalAssistantMessage } from "../lib/assistantContext";
 
 describe("owner-oriented assistant presentation", () => {
   it("promotes valuable daily briefing questions without unsupported gimmicks", async () => {
@@ -42,8 +43,15 @@ describe("owner-oriented assistant presentation", () => {
             { label: "Sales", value: "Up 14%", tone: "good" },
           ],
           suggestions: [],
+          chart: null,
+          actions: [],
+          records: [],
+          thinking: [],
+          followUp: null,
           provider: "provider",
           fallback: false,
+          intent: null,
+          entity: null,
           provenance: {
             module: "GENERAL",
             summary: "Live owner briefing",
@@ -70,9 +78,15 @@ describe("owner-oriented assistant presentation", () => {
         snapshot={{
           metrics: [],
           suggestions: [],
+          chart: null,
           provider: "provider",
           fallback: false,
           provenance: null,
+          records: [],
+          thinking: [],
+          followUp: null,
+          intent: null,
+          entity: null,
           actions: [
             {
               id: "a1",
@@ -92,5 +106,60 @@ describe("owner-oriented assistant presentation", () => {
     expect(screen.getByText(/cannot be replayed/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /update/i })).not.toBeInTheDocument();
     expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("keeps a freshly generated action executable after server history refetch", async () => {
+    const onApply = vi.fn();
+    const snapshot = {
+      metrics: [],
+      suggestions: [],
+      chart: null,
+      provider: "provider",
+      fallback: false,
+      provenance: null,
+      records: [],
+      thinking: [],
+      followUp: null,
+      intent: null,
+      entity: null,
+      actions: [
+        {
+          id: "a2",
+          module: "inventory",
+          recordId: "i2",
+          recordLabel: "Paint",
+          field: "",
+          currentValue: "",
+          newValue: "",
+          confirmationText: "Export the current inventory",
+          export: true,
+        },
+      ],
+    };
+    const refetchedMessage = {
+      id: "assistant-fresh",
+      role: "ASSISTANT" as const,
+    };
+
+    render(
+      <AiMessageContent
+        historical={isHistoricalAssistantMessage(
+          refetchedMessage,
+          new Set(["assistant-fresh"])
+        )}
+        onApplyAction={onApply}
+        snapshot={snapshot}
+      />
+    );
+
+    expect(screen.queryByText(/cannot be replayed/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /start export/i }));
+    expect(onApply).toHaveBeenCalledOnce();
+    expect(
+      isHistoricalAssistantMessage(
+        { id: "assistant-old", role: "ASSISTANT" },
+        new Set(["assistant-fresh"])
+      )
+    ).toBe(true);
   });
 });

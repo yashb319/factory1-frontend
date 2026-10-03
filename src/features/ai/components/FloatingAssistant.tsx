@@ -17,6 +17,7 @@ import { useAiExport } from "../hooks/useAiExport";
 import {
   AI_CONVERSATION_EVENT,
   isConversationResponseCurrent,
+  isHistoricalAssistantMessage,
   moduleContextFromPathname,
   rankAdaptiveQuestions,
   readCurrentConversationId,
@@ -51,6 +52,9 @@ export function FloatingAssistant() {
     readCurrentConversationId
   );
   const [localMessages, setLocalMessages] = useState<FloatingMessage[]>([]);
+  const [liveAssistantMessageIds, setLiveAssistantMessageIds] = useState(
+    () => new Set<string>()
+  );
   const [sendAiMessage, sendState] = useSendAiMessageMutation();
   const [executeAiAction, actionState] = useExecuteAiActionMutation();
   const exportModule = useAiExport();
@@ -79,6 +83,7 @@ export function FloatingAssistant() {
       const detail = (event as CustomEvent<{ conversationId?: string }>).detail;
       setConversationId(detail.conversationId);
       setLocalMessages([]);
+      setLiveAssistantMessageIds(new Set());
     };
     window.addEventListener(AI_CONVERSATION_EVENT, handleConversationChange);
     return () =>
@@ -126,6 +131,11 @@ export function FloatingAssistant() {
 
       setConversationId(response.conversationId);
       setCurrentConversationId(response.conversationId);
+      setLiveAssistantMessageIds((current) => {
+        const next = new Set(current);
+        next.add(response.assistantMessageId);
+        return next;
+      });
       setLocalMessages((current) => [
         ...current.filter((item) => item.id !== optimisticId),
         { id: response.userMessageId, role: "USER", content: message },
@@ -188,7 +198,10 @@ export function FloatingAssistant() {
       role: message.role,
       content: message.content,
       snapshot: message.snapshot,
-      historical: true,
+      historical: isHistoricalAssistantMessage(
+        message,
+        liveAssistantMessageIds
+      ),
     })),
     ...localMessages.filter((message) => !serverMessageIds.has(message.id)),
   ];

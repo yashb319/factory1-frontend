@@ -1,4 +1,5 @@
 import type {
+  AiChatMessage,
   AiModuleContext,
   AiQuickQuestion,
 } from "../types/ai.types";
@@ -69,4 +70,14 @@ export function isConversationResponseCurrent(
   currentConversationId: string | undefined
 ) {
   return requestConversationId === currentConversationId;
+}
+
+export function isHistoricalAssistantMessage(
+  message: Pick<AiChatMessage, "id" | "role">,
+  liveAssistantMessageIds: ReadonlySet<string>
+) {
+  return (
+    message.role === "ASSISTANT" &&
+    !liveAssistantMessageIds.has(message.id)
+  );
 }

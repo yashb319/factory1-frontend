@@ -14,10 +14,24 @@ export function unwrapAiData<T>(response: ApiResponse<T> | T): T {
     "data" in response &&
     "success" in response
   ) {
-    return (response as ApiResponse<T>).data;
+    const data = (response as ApiResponse<T>).data;
+    if (data === null) {
+      throw new Error("AI API returned null data for a required response");
+    }
+    return data;
+  }
+
+  if (response === null) {
+    throw new Error("AI API returned an unexpected null response");
   }
 
   return response as T;
+}
+
+export function unwrapAiNullData(response: ApiResponse<null>): void {
+  if (response.data !== null) {
+    throw new Error("AI delete response must contain null data");
+  }
 }
 
 export function serializeAiChatRequest(request: AiChatRequest): AiChatRequest {
@@ -36,14 +50,7 @@ export function serializeAiChatRequest(request: AiChatRequest): AiChatRequest {
 export function adaptChatResponse(
   response: ApiResponse<AiChatResponse> | AiChatResponse
 ): AiChatResponse {
-  const data = unwrapAiData(response);
-  return {
-    ...data,
-    metrics: data.metrics ?? [],
-    suggestions: data.suggestions ?? [],
-    provider: data.provider ?? "",
-    fallback: data.fallback ?? false,
-  };
+  return unwrapAiData(response);
 }
 
 export const adaptConversationList = (

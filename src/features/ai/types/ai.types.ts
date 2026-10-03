@@ -52,15 +52,15 @@ export type AiProvenance = {
 export type AiMessageSnapshot = {
   metrics: AiMetric[];
   suggestions: string[];
-  chart?: AiChart | null;
-  actions?: AiActionProposal[];
-  records?: AiRelevantRecord[];
-  thinking?: string[];
-  followUp?: string;
+  chart: AiChart | null;
+  actions: AiActionProposal[];
+  records: AiRelevantRecord[];
+  thinking: string[];
+  followUp: string | null;
   provider: string;
   fallback: boolean;
-  intent?: string;
-  entity?: string;
+  intent: string | null;
+  entity: string | null;
   provenance: AiProvenance | null;
 };
 
@@ -129,7 +129,7 @@ export type AiQuickQuestion = {
   id: string;
   text: string;
   module: AiModuleContext;
-  reason: string | null;
+  reason: string;
   category:
     | "RISK"
     | "OPERATIONS"
@@ -235,5 +235,5 @@ export type AiActionExecuteResponse = {
 export type ApiResponse<T> = {
   success: boolean;
   message: string;
-  data: T;
+  data: T | null;
 };

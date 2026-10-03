@@ -23,6 +23,7 @@ import {
   adaptQuickQuestions,
   serializeAiChatRequest,
   unwrapAiData,
+  unwrapAiNullData,
 } from "../lib/contractAdapters";
 
 export const aiApi = baseApi.injectEndpoints({
@@ -118,6 +119,8 @@ export const aiApi = baseApi.injectEndpoints({
         method: "DELETE",
       }),
       invalidatesTags: ["AiConversation", "AiQuickQuestion"],
+      transformResponse: (response: ApiResponse<null>) =>
+        unwrapAiNullData(response),
     }),
     getAiQuickQuestions: builder.query<
       AiQuickQuestionList,
@@ -159,7 +162,7 @@ export const aiApi = baseApi.injectEndpoints({
         "Dashboard",
       ],
       transformResponse: (response: ApiResponse<AiActionExecuteResponse>) =>
-        response.data,
+        unwrapAiData(response),
     }),
     getBusinessInsightDrilldown: builder.query<
       BusinessInsightDrilldown,
@@ -174,12 +177,12 @@ export const aiApi = baseApi.injectEndpoints({
         return `/api/ai/business-insight/drilldown?${search.toString()}`;
       },
       transformResponse: (response: ApiResponse<BusinessInsightDrilldown>) =>
-        response.data,
+        unwrapAiData(response),
     }),
     getBenchmarks: builder.query<BenchmarkProfile[], void>({
       query: () => "/api/ai/benchmarks",
       transformResponse: (response: ApiResponse<BenchmarkProfile[]>) =>
-        response.data,
+        unwrapAiData(response),
     }),
     searchListedCompanies: builder.query<
       ListedCompanyRef[],
@@ -192,7 +195,7 @@ export const aiApi = baseApi.injectEndpoints({
         return `/api/ai/benchmarks/listed/search?${search.toString()}`;
       },
       transformResponse: (response: ApiResponse<ListedCompanyRef[]>) =>
-        response.data,
+        unwrapAiData(response),
     }),
     getListedBenchmark: builder.query<
       BenchmarkProfile,
@@ -205,7 +208,7 @@ export const aiApi = baseApi.injectEndpoints({
         return `/api/ai/benchmarks/listed?${search.toString()}`;
       },
       transformResponse: (response: ApiResponse<BenchmarkProfile>) =>
-        response.data,
+        unwrapAiData(response),
     }),
   }),
 });
