@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { HealthCheckLandingCta } from "../components/HealthCheckLandingCta";
 import { HealthCheckResultView } from "../components/HealthCheckResultView";
+import { healthCheckResult, savingsProjection } from "./testData";
 
 describe("health check presentation", () => {
   it("keeps a permanent landing-page CTA", () => {
@@ -12,12 +13,8 @@ describe("health check presentation", () => {
   it("renders safe answer-derived result content without internal scores", () => {
     render(
       <HealthCheckResultView result={{
-        primaryArea: "INVENTORY",
-        priority: "HIGH_OPPORTUNITY",
-        recommendedModules: ["Inventory", "Production"],
-        secondaryAreas: ["PRODUCTION"],
-        keyFindings: ["Stock records are updated manually.", "Reordering starts after shortages.", "Production and stock are disconnected.", "Counts often differ.", "This fifth finding is not shown."],
-        explanation: "Connected stock movements can give your team earlier warning of shortages.",
+        ...healthCheckResult,
+        keyFindings: [...healthCheckResult.keyFindings, "This fifth finding is not shown."],
       }} />
     );
 
@@ -25,5 +22,45 @@ describe("health check presentation", () => {
     expect(screen.getByText("Stock records are updated manually.")).toBeInTheDocument();
     expect(screen.queryByText("This fifth finding is not shown.")).not.toBeInTheDocument();
     expect(screen.queryByText(/numeric score|admin status/i)).not.toBeInTheDocument();
+  });
+
+  it("renders accessible module ranges, overall arithmetic, assumptions, and the exact disclaimer", () => {
+    render(<HealthCheckResultView result={healthCheckResult} />);
+
+    expect(screen.getByLabelText("Inventory: 32–68 hours projected per month")).toBeInTheDocument();
+    expect(screen.getByText("44–96 hours")).toBeInTheDocument();
+    expect(screen.getByText("530–1,100 hours")).toBeInTheDocument();
+    expect(screen.getByText("₹11,000–₹24,000")).toBeInTheDocument();
+    expect(screen.getByText("₹1,33,000–₹2,87,000")).toBeInTheDocument();
+    expect(screen.getByText("Medium (51–200 people)")).toBeInTheDocument();
+    expect(screen.getByText("40–70%")).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes(savingsProjection.disclaimer))).toBeInTheDocument();
+    expect(screen.getAllByText(/productivity-cost equivalent/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/payback|roi/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a useful low-opportunity state instead of misleading bars", () => {
+    render(
+      <HealthCheckResultView
+        result={{
+          ...healthCheckResult,
+          savingsProjection: {
+            ...savingsProjection,
+            modules: savingsProjection.modules.map((module) => ({
+              ...module,
+              estimatedHoursSavedPerMonth: { min: 0, max: 0 },
+            })),
+          },
+        }}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: /lower manual-effort opportunity/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/projected monthly hours saved by module/i)).not.toBeInTheDocument();
+  });
+
+  it("handles historical results without a projection", () => {
+    render(<HealthCheckResultView result={{ ...healthCheckResult, savingsProjection: null }} />);
+    expect(screen.getByRole("heading", { name: /savings snapshot unavailable/i })).toBeInTheDocument();
   });
 });

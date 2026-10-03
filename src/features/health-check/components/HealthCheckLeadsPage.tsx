@@ -14,6 +14,7 @@ import { useAppSelector } from "@/lib/hook";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { areaLabels, HEALTH_CHECK_STEPS, priorityLabels } from "../config";
 import { buildHealthCheckLeadFilters } from "../adminFilters";
+import { SavingsProjectionView } from "./SavingsProjectionView";
 import {
   useGetHealthCheckLeadQuery,
   useGetHealthCheckLeadsQuery,
@@ -210,6 +211,11 @@ function HealthCheckLeadDetail({ id, onClose }: { id: string | null; onClose: ()
               <p className="mt-2 text-sm"><strong>{priorityLabels[lead.result.priority]}</strong> · {areaLabels[lead.result.primaryArea]}</p>
               <p className="mt-2 text-sm leading-6 text-slate-600">{lead.result.explanation}</p>
               <div className="mt-3 flex flex-wrap gap-2">{lead.result.recommendedModules.map((module) => <span className="rounded-full bg-white px-2.5 py-1 text-xs" key={module}>{module}</span>)}</div>
+            </section>
+
+            <section>
+              <h3 className="mb-3 font-semibold">Submitted savings projection</h3>
+              <SavingsProjectionView projection={lead.result.savingsProjection} compact />
             </section>
 
             <details className="rounded-xl border p-4">

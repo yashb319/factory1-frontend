@@ -97,7 +97,12 @@ export function HealthCheckPage() {
         return;
       }
     }
-    const nextErrors = validateContactStep(activeDraft.contact, activeDraft.consentToContact, activeDraft.followUpPreference);
+    const nextErrors = validateContactStep(
+      activeDraft.contact,
+      activeDraft.consentToContact,
+      activeDraft.followUpPreference,
+      activeDraft.projectionInputs
+    );
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
@@ -179,6 +184,51 @@ export function HealthCheckPage() {
                     {errors[key] && <p id={`${key}-error`} role="alert" className="mt-1 text-sm text-red-600">{errors[key]}</p>}
                   </div>
                 ))}
+              </div>
+
+              <div className="rounded-2xl border bg-white p-5">
+                <h2 className="font-semibold">Projection assumptions</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  These optional inputs make the estimate more relevant. Clear both fields to use Factory1 defaults.
+                </p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="workingDaysPerMonth">Working days per month</Label>
+                    <Input
+                      id="workingDaysPerMonth"
+                      type="number"
+                      inputMode="numeric"
+                      min={20}
+                      max={31}
+                      step={1}
+                      className="mt-1.5 min-h-11"
+                      value={activeDraft.projectionInputs.workingDaysPerMonth}
+                      aria-invalid={Boolean(errors.workingDaysPerMonth)}
+                      aria-describedby={errors.workingDaysPerMonth ? "workingDaysPerMonth-error" : "workingDaysPerMonth-help"}
+                      onChange={(event) => setDraft({ ...activeDraft, projectionInputs: { ...activeDraft.projectionInputs, workingDaysPerMonth: event.target.value } })}
+                    />
+                    <p id="workingDaysPerMonth-help" className="mt-1 text-xs text-slate-500">Usually 20–31 days. Default: 26.</p>
+                    {errors.workingDaysPerMonth && <p id="workingDaysPerMonth-error" role="alert" className="mt-1 text-sm text-red-600">{errors.workingDaysPerMonth}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="loadedHourlyLabourCostInr">Loaded hourly labour cost (₹)</Label>
+                    <Input
+                      id="loadedHourlyLabourCostInr"
+                      type="number"
+                      inputMode="decimal"
+                      min={100}
+                      max={10000}
+                      step="0.01"
+                      className="mt-1.5 min-h-11"
+                      value={activeDraft.projectionInputs.loadedHourlyLabourCostInr}
+                      aria-invalid={Boolean(errors.loadedHourlyLabourCostInr)}
+                      aria-describedby={errors.loadedHourlyLabourCostInr ? "loadedHourlyLabourCostInr-error" : "loadedHourlyLabourCostInr-help"}
+                      onChange={(event) => setDraft({ ...activeDraft, projectionInputs: { ...activeDraft.projectionInputs, loadedHourlyLabourCostInr: event.target.value } })}
+                    />
+                    <p id="loadedHourlyLabourCostInr-help" className="mt-1 text-xs text-slate-500">Wages plus employment overhead. Default: ₹250.</p>
+                    {errors.loadedHourlyLabourCostInr && <p id="loadedHourlyLabourCostInr-error" role="alert" className="mt-1 text-sm text-red-600">{errors.loadedHourlyLabourCostInr}</p>}
+                  </div>
+                </div>
               </div>
 
               <div className="rounded-2xl border bg-white p-5">

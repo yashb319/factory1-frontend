@@ -66,9 +66,31 @@ describe("finalized health check contract", () => {
       website: "",
       formStartedAtEpochMs: expect.any(Number),
       idempotencyKey: expect.any(String),
+      projectionInputs: {
+        workingDaysPerMonth: 26,
+        loadedHourlyLabourCostInr: 250,
+      },
     }));
     expect(payload).not.toHaveProperty("startedAt");
     expect(payload.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it("serializes custom projection inputs exactly and omits the whole optional object when blank", () => {
+    const draft = createHealthCheckDraft();
+    for (const step of HEALTH_CHECK_STEPS) {
+      for (const question of step.questions) draft.answers[question.id] = question.options[0].value;
+    }
+    draft.projectionInputs = { workingDaysPerMonth: "24", loadedHourlyLabourCostInr: "375.50" };
+    expect(buildHealthCheckSubmission(draft).projectionInputs).toEqual({
+      workingDaysPerMonth: 24,
+      loadedHourlyLabourCostInr: 375.5,
+    });
+
+    draft.projectionInputs = { workingDaysPerMonth: "", loadedHourlyLabourCostInr: "" };
+    expect(buildHealthCheckSubmission(draft)).not.toHaveProperty("projectionInputs");
+
+    draft.projectionInputs = { workingDaysPerMonth: "19", loadedHourlyLabourCostInr: "250" };
+    expect(() => buildHealthCheckSubmission(draft)).toThrow("projection inputs are invalid");
   });
 
   it("serializes finalized admin list query names and values", () => {

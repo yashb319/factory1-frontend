@@ -1,7 +1,11 @@
 import type { HealthCheckArea, HealthCheckAnswerValue } from "./types";
 
 export const HEALTH_CHECK_SCHEMA_VERSION = "2026-10-01" as const;
-export const HEALTH_CHECK_DRAFT_VERSION = 2;
+export const HEALTH_CHECK_DRAFT_VERSION = 3;
+export const DEFAULT_PROJECTION_INPUTS = {
+  workingDaysPerMonth: "26",
+  loadedHourlyLabourCostInr: "250",
+} as const;
 
 export type HealthCheckQuestion = {
   id: string;
