@@ -3,7 +3,12 @@
 import * as React from "react";
 import Image from "next/image";
 import { Loader2, X } from "lucide-react";
-import { UseFormReturn } from "react-hook-form";
+import {
+  FieldPath,
+  SubmitErrorHandler,
+  UseFormReturn,
+} from "react-hook-form";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +43,53 @@ const EMPLOYEE_FORM_SECTIONS = [
   ["employee-insurance", "Insurance"],
 ] as const;
 
+type EmployeeFormSection = (typeof EMPLOYEE_FORM_SECTIONS)[number][0];
+
+const FIELD_SECTIONS: Partial<
+  Record<keyof EmployeeFormValues, EmployeeFormSection>
+> = {
+  department: "employee-company",
+  designation: "employee-company",
+  employmentBasis: "employee-company",
+  joiningDate: "employee-company",
+  location: "employee-company",
+  reportingToEmployeeId: "employee-company",
+  salaryRate: "employee-company",
+  salaryType: "employee-company",
+  status: "employee-company",
+  bankAccountNumber: "employee-financial",
+  bankBranchName: "employee-financial",
+  bankIfscCode: "employee-financial",
+  bankName: "employee-financial",
+  statutoryProfile: "employee-financial",
+  annualIncome: "employee-insurance",
+  child1DateOfBirth: "employee-insurance",
+  child1Gender: "employee-insurance",
+  child1Name: "employee-insurance",
+  child2DateOfBirth: "employee-insurance",
+  child2Gender: "employee-insurance",
+  child2Name: "employee-insurance",
+  education: "employee-insurance",
+  fatherDateOfBirth: "employee-insurance",
+  fatherGender: "employee-insurance",
+  fatherName: "employee-insurance",
+  heightCm: "employee-insurance",
+  motherDateOfBirth: "employee-insurance",
+  motherGender: "employee-insurance",
+  motherName: "employee-insurance",
+  nomineeDateOfBirth: "employee-insurance",
+  nomineeGender: "employee-insurance",
+  nomineeName: "employee-insurance",
+  nomineeRelationship: "employee-insurance",
+  occupation: "employee-insurance",
+  organizationName: "employee-insurance",
+  smoker: "employee-insurance",
+  spouseDateOfBirth: "employee-insurance",
+  spouseGender: "employee-insurance",
+  spouseName: "employee-insurance",
+  weightKg: "employee-insurance",
+};
+
 export function EmployeeForm({
   form,
   mode,
@@ -58,9 +110,7 @@ export function EmployeeForm({
   const formContentRef = React.useRef<HTMLDivElement>(null);
   const [photoFileName, setPhotoFileName] = React.useState("");
   const [activeSection, setActiveSection] =
-    React.useState<(typeof EMPLOYEE_FORM_SECTIONS)[number][0]>(
-      "employee-personal"
-    );
+    React.useState<EmployeeFormSection>("employee-personal");
 
   React.useEffect(
     () => () => {
@@ -123,10 +173,33 @@ export function EmployeeForm({
   }
 
   const mobileRegistration = form.register("mobile");
+  const handleInvalid: SubmitErrorHandler<EmployeeFormValues> = (
+    invalidFields
+  ) => {
+    const firstField = Object.keys(invalidFields)[0] as
+      | keyof EmployeeFormValues
+      | undefined;
+    const invalidSection = firstField
+      ? FIELD_SECTIONS[firstField] ?? "employee-personal"
+      : "employee-personal";
+
+    setActiveSection(invalidSection);
+    toast.error("Please correct the highlighted employee details");
+
+    window.requestAnimationFrame(() => {
+      formContentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      if (firstField && firstField !== "statutoryProfile") {
+        form.setFocus(firstField as FieldPath<EmployeeFormValues>);
+      }
+    });
+  };
 
   return (
     <form
-      onSubmit={form.handleSubmit(onSubmit)}
+      noValidate
+      onSubmit={(event) => {
+        void form.handleSubmit(onSubmit, handleInvalid)(event);
+      }}
       className="flex min-h-0 flex-1 flex-col"
     >
       <div

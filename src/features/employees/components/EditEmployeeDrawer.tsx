@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { getErrorMessage } from "@/lib/apiError";
 
 import { Employee } from "../types/employee.types";
 import {
@@ -103,6 +104,7 @@ export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
     defaultValues,
+    shouldFocusError: false,
   });
   const loadedEmployeeId = useRef<string | null>(null);
 
@@ -123,43 +125,43 @@ export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
       status: employee.status,
       location: employee.location ?? "",
       dateOfBirth: employee.dateOfBirth ?? "",
-      gender: employee.gender,
+      gender: employee.gender ?? undefined,
       address: employee.address ?? "",
       mobile: employee.mobile ?? "",
       permanentAddress: employee.permanentAddress ?? "",
-      maritalStatus: employee.maritalStatus,
+      maritalStatus: employee.maritalStatus ?? undefined,
       aadhaarNumber: employee.aadhaarNumber ?? "",
       bankAccountNumber: employee.bankAccountNumber ?? "",
       bankName: employee.bankName ?? "",
       bankBranchName: employee.bankBranchName ?? "",
       bankIfscCode: employee.bankIfscCode ?? "",
-      employmentBasis: employee.employmentBasis,
+      employmentBasis: employee.employmentBasis ?? undefined,
       reportingToEmployeeId: employee.reportingToEmployeeId ?? "",
       fatherName: employee.fatherName ?? "",
       fatherDateOfBirth: employee.fatherDateOfBirth ?? "",
-      fatherGender: employee.fatherGender,
+      fatherGender: employee.fatherGender ?? undefined,
       motherName: employee.motherName ?? "",
       motherDateOfBirth: employee.motherDateOfBirth ?? "",
-      motherGender: employee.motherGender,
+      motherGender: employee.motherGender ?? undefined,
       spouseName: employee.spouseName ?? "",
       spouseDateOfBirth: employee.spouseDateOfBirth ?? "",
-      spouseGender: employee.spouseGender,
+      spouseGender: employee.spouseGender ?? undefined,
       child1Name: employee.child1Name ?? "",
       child1DateOfBirth: employee.child1DateOfBirth ?? "",
-      child1Gender: employee.child1Gender,
+      child1Gender: employee.child1Gender ?? undefined,
       child2Name: employee.child2Name ?? "",
       child2DateOfBirth: employee.child2DateOfBirth ?? "",
-      child2Gender: employee.child2Gender,
-      heightCm: employee.heightCm,
-      weightKg: employee.weightKg,
-      smoker: employee.smoker,
+      child2Gender: employee.child2Gender ?? undefined,
+      heightCm: employee.heightCm ?? undefined,
+      weightKg: employee.weightKg ?? undefined,
+      smoker: employee.smoker ?? undefined,
       occupation: employee.occupation ?? "",
       organizationName: employee.organizationName ?? "",
-      annualIncome: employee.annualIncome,
+      annualIncome: employee.annualIncome ?? undefined,
       education: employee.education ?? "",
       nomineeName: employee.nomineeName ?? "",
       nomineeDateOfBirth: employee.nomineeDateOfBirth ?? "",
-      nomineeGender: employee.nomineeGender,
+      nomineeGender: employee.nomineeGender ?? undefined,
       nomineeRelationship: employee.nomineeRelationship ?? "",
       statutoryProfile: createDefaultStatutoryProfile(),
     });
@@ -174,7 +176,29 @@ export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
     ) {
       return;
     }
-    form.setValue("statutoryProfile", profileQuery.data);
+    form.setValue("statutoryProfile", {
+      ...createDefaultStatutoryProfile(),
+      panNumber: profileQuery.data.panNumber ?? "",
+      uan: profileQuery.data.uan ?? "",
+      pfAccountNumber: profileQuery.data.pfAccountNumber ?? "",
+      pfEnabled: profileQuery.data.pfEnabled ?? false,
+      epsMember: profileQuery.data.epsMember ?? false,
+      pfCalculationType:
+        profileQuery.data.pfCalculationType ?? "STATUTORY_CEILING",
+      customPfWage: profileQuery.data.customPfWage ?? undefined,
+      voluntaryPfEnabled: profileQuery.data.voluntaryPfEnabled ?? false,
+      voluntaryPfPercent:
+        profileQuery.data.voluntaryPfPercent ?? undefined,
+      taxRegime: profileQuery.data.taxRegime ?? "NEW",
+      previousEmployerIncome:
+        profileQuery.data.previousEmployerIncome ?? undefined,
+      otherDeclaredIncome:
+        profileQuery.data.otherDeclaredIncome ?? undefined,
+      housePropertyIncome:
+        profileQuery.data.housePropertyIncome ?? undefined,
+      declaredDeductionsTotal:
+        profileQuery.data.declaredDeductionsTotal ?? undefined,
+    });
   }, [employee, form, open, profileQuery.data]);
 
   async function onSubmit(values: EmployeeFormValues) {
@@ -199,12 +223,15 @@ export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
       onOpenChange(false);
     } catch (error) {
       if (error instanceof EmployeeStatutorySaveError) {
+        const backendMessage = getErrorMessage(error.cause, "");
         toast.error(
-          "Employee fields were saved, but statutory details could not be saved. Review and try Save Changes again."
+          backendMessage
+            ? `Employee fields were saved, but statutory details could not be saved: ${backendMessage}`
+            : "Employee fields were saved, but statutory details could not be saved. Review and try Save Changes again."
         );
         return;
       }
-      toast.error("Failed to update employee");
+      toast.error(getErrorMessage(error, "Failed to update employee"));
     }
   }
 
