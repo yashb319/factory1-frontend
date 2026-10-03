@@ -758,7 +758,7 @@ function OrderListView({
                   {order.orderNumber}
                 </button>
               </TableCell>
-              <TableCell>{order.productName || order.productCode || order.productId}</TableCell>
+              <TableCell>{order.productName || order.productCode || "Product name unavailable"}</TableCell>
               <TableCell>
                 {order.quantities ? <ProductionQuantitySummary quantities={order.quantities} compact /> : <>{formatNumber(order.completedQuantity)} / {formatNumber(order.plannedQuantity)}</>}
               </TableCell>
@@ -978,7 +978,7 @@ function CreateOrderDialog({
                 onChange={(event) => update({ dueDate: event.target.value || undefined })}
               />
             </Field>
-            <Field label="Source order ID (optional)">
+            <Field label="Source order UUID (technical, optional)">
               <Input
                 value={form.sourceOrderId || ""}
                 onChange={(event) => update({ sourceOrderId: event.target.value || undefined })}
@@ -1735,7 +1735,7 @@ function OrderDetail({
           <DialogHeader className="pr-10">
             <DialogTitle>{order.batch?.batchLabel ?? order.orderNumber}</DialogTitle>
             <DialogDescription>
-              {product?.name || product?.productCode || order.productId} · workflow v{order.workflowVersionNumber}
+              {product?.name || product?.productCode || "Product name unavailable"} · workflow v{order.workflowVersionNumber}
               {order.quantityModel !== "FLOW_V1" ? <> · {formatNumber(order.completedQuantity)} complete · {formatNumber(order.rejectedQuantity)} legacy rejected</> : " · Final output and current-step good are shown separately."}
             </DialogDescription>
           </DialogHeader>
@@ -2406,7 +2406,7 @@ function OrderDetail({
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <div className="font-medium">
-                          {requirement.itemName || requirement.itemCode || requirement.inventoryItemId}
+                          {requirement.itemName || requirement.itemCode || "Material name unavailable"}
                           {requirement.itemName && requirement.itemCode ? ` · ${requirement.itemCode}` : ""}
                         </div>
                         <div className="text-xs text-muted-foreground">
@@ -2453,7 +2453,12 @@ function OrderDetail({
                 {materialConsumptionsQuery.isError ? (
                   <ErrorState title="Consumption history unavailable" message="Could not load recorded material consumption." onRetry={() => void materialConsumptionsQuery.refetch()} />
                 ) : materialConsumptionsQuery.isFetching ? <Loading text="Loading consumption history..." /> : materialConsumptions.length ? materialConsumptions.map((item) => (
-                  <p key={item.id} className="text-sm text-muted-foreground">{item.inventoryItemId} · Lot {item.lotNumber} · {formatNumber(item.quantity)} {item.unit}</p>
+                  <p key={item.id} className="text-sm text-muted-foreground">
+                    {materialRequirements.find((requirement) => requirement.inventoryItemId === item.inventoryItemId)?.itemName ??
+                      materialRequirements.find((requirement) => requirement.inventoryItemId === item.inventoryItemId)?.itemCode ??
+                      "Material name unavailable"}{" "}
+                    · Lot {item.lotNumber} · {formatNumber(item.quantity)} {item.unit}
+                  </p>
                 )) : <Empty text="No material consumption recorded." />}
               </div>
             </CardContent>
@@ -3344,7 +3349,7 @@ function Boms() {
                         }}
                       >
                         <option value="">Select raw material</option>
-                        {item.inventoryItemId && !inventoryItems.some((candidate) => candidate.id === item.inventoryItemId) ? <option value={item.inventoryItemId}>{sourceBom?.items.find((candidate) => candidate.inventoryItemId === item.inventoryItemId)?.itemName ?? item.inventoryItemId} (selected)</option> : null}
+                        {item.inventoryItemId && !inventoryItems.some((candidate) => candidate.id === item.inventoryItemId) ? <option value={item.inventoryItemId}>{sourceBom?.items.find((candidate) => candidate.inventoryItemId === item.inventoryItemId)?.itemName ?? sourceBom?.items.find((candidate) => candidate.inventoryItemId === item.inventoryItemId)?.itemCode ?? "Selected material (name unavailable)"}</option> : null}
                         {inventoryItems.map((inventoryItem) => (
                           <option key={inventoryItem.id} value={inventoryItem.id}>
                             {inventoryItem.itemCode} · {inventoryItem.name}
@@ -3483,7 +3488,7 @@ function Boms() {
                       </div>
                     </div>
                     <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-                      {bom.items.map((item) => <p key={item.id}>{item.itemName ?? item.itemCode ?? item.inventoryItemId} · {formatNumber(item.quantityPerUnit)} {item.unit} per unit · {formatNumber(item.wastePercentage ?? 0)}% waste</p>)}
+                      {bom.items.map((item) => <p key={item.id}>{item.itemName ?? item.itemCode ?? "Material name unavailable"} · {formatNumber(item.quantityPerUnit)} {item.unit} per unit · {formatNumber(item.wastePercentage ?? 0)}% waste</p>)}
                     </div>
                   </div>
                 ))}
@@ -3913,7 +3918,7 @@ function MaterialConsumptionForm({
     <ConfirmDialog
       open={Boolean(review)} onOpenChange={(open) => { if (!open && !saving.current) setReview(undefined); }}
       title="Confirm actual material consumption"
-      description={stale ? "The batch or family changed. Cancel, refresh and review again." : `Consume ${review?.quantity ?? ""} ${review?.unit ?? ""} of ${requirement.itemName ?? requirement.inventoryItemId} from lot ${review?.lotNumber ?? ""}? This deducts new stock. Already-consumed issues must not be recorded again for scrap or final-good coverage.`}
+      description={stale ? "The batch or family changed. Cancel, refresh and review again." : `Consume ${review?.quantity ?? ""} ${review?.unit ?? ""} of ${requirement.itemName ?? requirement.itemCode ?? "material name unavailable"} from lot ${review?.lotNumber ?? ""}? This deducts new stock. Already-consumed issues must not be recorded again for scrap or final-good coverage.`}
       confirmLabel="Confirm stock deduction" loading={createMaterialConsumptionState.isLoading}
       disabled={stale || !canProductionAction(order, "CONSUME_MATERIAL")} onConfirm={() => void confirm()}
     />

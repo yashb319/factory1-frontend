@@ -73,6 +73,10 @@ export function ProductTallyListView() {
       })),
     [inventoryPage]
   );
+  const finishedGoodLabels = useMemo(
+    () => new Map(finishedGoodOptions.map((option) => [option.value, option.label])),
+    [finishedGoodOptions]
+  );
 
   const [screen, setScreen] = useState<Screen>("list");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -462,7 +466,8 @@ export function ProductTallyListView() {
                     <td className="px-2 py-0.5">{item.productCode}</td>
                     <td className="px-2 py-0.5">{item.name}</td>
                     <td className="px-2 py-0.5">
-                      {item.finishedGoodInventoryItemId}
+                      {finishedGoodLabels.get(item.finishedGoodInventoryItemId) ??
+                        "Finished-good item name unavailable"}
                     </td>
                     <td className="px-2 py-0.5">{item.unit}</td>
                     <td className="px-2 py-0.5">

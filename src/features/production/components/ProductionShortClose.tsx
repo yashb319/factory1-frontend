@@ -296,10 +296,10 @@ function ManagerShortClose({ order, step, disabled, onDone, onRefresh, rejection
             <p className="break-all">{disposition.source.kind === "EXISTING_REJECTION"
               ? `Original rejection: ${disposition.source.sourceType} / ${disposition.source.sourceId}`
               : "Source: new unrecorded disposition"}</p>
-            {disposition.materialWaste?.map((waste, materialIndex) => <p className="break-all text-xs" key={materialIndex}>
-              Material {waste.inventoryItemId}: {formatProductionQuantity(waste.quantity)} {waste.unit}
+            {disposition.materialWaste?.map((waste, materialIndex) => <p className="text-xs" key={materialIndex}>
+              Material name unavailable: {formatProductionQuantity(waste.quantity)} {waste.unit}
               {waste.source === "EXISTING_CONSUMPTION"
-                ? ` — existing issue ${waste.consumptionId}, no second stock deduction`
+                ? " — existing material issue, no second stock deduction"
                 : ` — NEW_STOCK deduction, lot ${waste.lotNumber}`}
             </p>)}
             {disposition.noMaterialWasteReason ? <p>No material waste: {disposition.noMaterialWasteReason}</p> : null}
@@ -308,7 +308,7 @@ function ManagerShortClose({ order, step, disabled, onDone, onRefresh, rejection
         </section>
         <ProductionWasteEffects effects={preview.inventoryEffects} />
         {preview.inventoryEffects.map((effect, index) => <p className="text-xs" key={index}>
-          Material {effect.inventoryItemId}: stock {formatProductionQuantity(effect.stockBefore)} → {formatProductionQuantity(effect.stockAfter)};
+          Material name unavailable: stock {formatProductionQuantity(effect.stockBefore)} → {formatProductionQuantity(effect.stockAfter)};
           {" "}finished-good credit {formatProductionQuantity(effect.finishedGoodCredit)}; purpose {effect.purpose}.
         </p>)}
         {preview.materialIssueWarnings.map((warning, index) =>

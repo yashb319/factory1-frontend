@@ -237,7 +237,7 @@ export function TallyVoucherList({
               {sorted.map((voucher, index) => {
                 const isSelected = index === selectedIndex;
                 const particulars = voucher.lines
-                  .map((l) => l.ledgerName ?? l.ledgerId)
+                  .map((l) => l.ledgerName ?? "Ledger name unavailable")
                   .slice(0, 2)
                   .join(", ");
 

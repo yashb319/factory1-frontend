@@ -37,7 +37,7 @@ export function MaterialAllocationEditor({ drafts, onChange, sources, allowNewSt
             patch(draft.key, { consumptionId: source?.consumptionId ?? "", inventoryItemId: source?.inventoryItemId ?? "", itemLabel: source?.itemLabel ?? "", unit: source?.unit ?? "" });
           }}>
             <option value="">Select eligible issue</option>
-            {sources.filter((item) => item.remainingAllocatableQuantity > 0).map((source) => <option key={source.consumptionId} value={source.consumptionId}>{source.itemLabel} - {source.remainingAllocatableQuantity} {source.unit} available - issue {source.consumptionId}</option>)}
+            {sources.filter((item) => item.remainingAllocatableQuantity > 0).map((source) => <option key={source.consumptionId} value={source.consumptionId}>{source.itemLabel || "Material name unavailable"} - {source.remainingAllocatableQuantity} {source.unit} available</option>)}
           </select>
         </label> : <label className="block text-sm">Material
           <select className="mt-1 w-full rounded-md border p-2" value={draft.inventoryItemId} disabled={inventory.isFetching || inventory.isError} onChange={(event) => {
@@ -45,7 +45,7 @@ export function MaterialAllocationEditor({ drafts, onChange, sources, allowNewSt
             patch(draft.key, { inventoryItemId: item?.id ?? "", itemLabel: item?.name ?? "", unit: item?.unit ?? "" });
           }}>
             <option value="">Select material</option>
-            {draft.inventoryItemId && !inventory.currentData?.content.some((item) => item.id === draft.inventoryItemId) ? <option value={draft.inventoryItemId}>{draft.itemLabel}</option> : null}
+            {draft.inventoryItemId && !inventory.currentData?.content.some((item) => item.id === draft.inventoryItemId) ? <option value={draft.inventoryItemId}>{draft.itemLabel || "Selected material (name unavailable)"}</option> : null}
             {inventory.currentData?.content.map((item) => <option key={item.id} value={item.id}>{item.itemCode} - {item.name} ({item.unit})</option>)}
           </select>
         </label>}

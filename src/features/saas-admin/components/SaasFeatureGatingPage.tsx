@@ -104,9 +104,7 @@ export function SaasFeatureGatingPage() {
       if (planFilter !== "ALL" && org.plan !== planFilter) return false;
       if (!term) return true;
 
-      return `${org.name} ${org.organizationId}`
-        .toLowerCase()
-        .includes(term);
+      return org.name.toLowerCase().includes(term);
     });
   }, [organizations, search, planFilter]);
 
@@ -270,7 +268,7 @@ type OrganizationRowProps = {
   onSelect: () => void;
 };
 
-function OrganizationRow({
+export function OrganizationRow({
   organization,
   catalogByKey,
   onSelect,
@@ -285,9 +283,6 @@ function OrganizationRow({
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">
               {organization.name?.trim() || "Unnamed organization"}
-            </p>
-            <p className="truncate text-xs text-slate-500">
-              {organization.organizationId}
             </p>
           </div>
         </div>

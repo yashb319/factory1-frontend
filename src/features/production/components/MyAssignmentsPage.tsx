@@ -133,9 +133,9 @@ function MyAssignmentCard({
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="font-medium">{assignment.batch?.batchLabel ?? assignment.orderNumber}</div>
-          {assignment.batch?.parentOrderId ? <p className="break-all text-xs text-muted-foreground">Original request: {assignment.batch.rootOrderId}</p> : null}
+          {assignment.batch?.parentOrderId ? <p className="text-xs text-muted-foreground">Part of a split order family</p> : null}
           <div className="text-xs text-muted-foreground">
-            {product?.name || product?.productCode || assignment.productId}
+            {product?.name || product?.productCode || "Product name unavailable"}
           </div>
         </div>
         <StatusBadge tone={statusTone(assignment.orderStatus)}>{assignment.orderStatus}</StatusBadge>

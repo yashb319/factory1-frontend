@@ -16,12 +16,28 @@ import {
   useSaveBomMutation,
 } from "../api/productsApi";
 import type { BomComponent, Product } from "../types/product.types";
+import type { InventoryItem } from "@/features/inventory/types/inventory.types";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product: Product | null;
 };
+
+export function bomComponentLabel(
+  component: BomComponent,
+  inventoryItem?: InventoryItem
+) {
+  if (inventoryItem) {
+    return `${inventoryItem.itemCode} - ${inventoryItem.name} (${inventoryItem.itemType})`;
+  }
+
+  const label = [component.itemCode, component.itemName]
+    .filter(Boolean)
+    .join(" - ");
+
+  return label || "Selected material (name unavailable)";
+}
 
 export function BomDialog({ open, onOpenChange, product }: Props) {
   const { data: bom } = useGetBomQuery(product?.id || "", {
@@ -166,6 +182,9 @@ export function BomDialog({ open, onOpenChange, product }: Props) {
                   const selectedItem = inventoryItems.find(
                     (item) => item.id === component.inventoryItemId
                   );
+                  const selectedOptionLoaded = componentOptions.some(
+                    (item) => item.id === component.inventoryItemId
+                  );
 
                   return (
                     <tr key={index} className="border-t">
@@ -176,9 +195,14 @@ export function BomDialog({ open, onOpenChange, product }: Props) {
                           onChange={(e) => handleItemChange(index, e.target.value)}
                         >
                           <option value="">Select inventory item</option>
+                          {component.inventoryItemId && !selectedOptionLoaded ? (
+                            <option value={component.inventoryItemId}>
+                              {bomComponentLabel(component, selectedItem)}
+                            </option>
+                          ) : null}
                           {componentOptions.map((item) => (
                             <option key={item.id} value={item.id}>
-                              {item.itemCode} - {item.name} ({item.itemType})
+                              {bomComponentLabel(component, item)}
                             </option>
                           ))}
                         </select>

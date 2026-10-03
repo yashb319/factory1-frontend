@@ -49,9 +49,21 @@ export function MonthlyReportPanel() {
       {isFetching && !isLoading ? <p className="text-xs text-slate-500">Refreshing report...</p> : null}
       <div className="border-t pt-3">
         <h3 className="text-sm font-semibold text-slate-950">Check leave status for a day</h3>
-        <p className="mb-2 text-xs text-slate-500">Use an employee ID to resolve the status applied to attendance and payroll.</p>
+        <p className="mb-2 text-xs text-slate-500">Select an employee to resolve the status applied to attendance and payroll.</p>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Input value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} placeholder="Employee ID" />
+          <select
+            aria-label="Employee"
+            className="h-9 flex-1 rounded-md border bg-background px-3 text-sm"
+            value={employeeId}
+            onChange={(event) => setEmployeeId(event.target.value)}
+          >
+            <option value="">Select employee</option>
+            {data.map((employee) => (
+              <option key={employee.employeeId} value={employee.employeeId}>
+                {employee.employeeCode} - {employee.employeeName}
+              </option>
+            ))}
+          </select>
           <Input type="date" value={statusDate} onChange={(event) => setStatusDate(event.target.value)} />
           <Button className="shrink-0" disabled={!employeeId.trim() || !statusDate || statusLoading} onClick={() => setStatusLookup({ employeeId: employeeId.trim(), date: statusDate })}><Search className="mr-2 h-4 w-4" />Check</Button>
         </div>
