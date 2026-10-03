@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2, Layers3, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { areaLabels, priorityLabels } from "../config";
 import type { HealthCheckResult } from "../types";
+import { SavingsProjectionView } from "./SavingsProjectionView";
 
 export function HealthCheckResultView({ result }: { result: HealthCheckResult }) {
   const findings = result.keyFindings.slice(0, 4);
@@ -66,6 +67,8 @@ export function HealthCheckResultView({ result }: { result: HealthCheckResult })
             )}
           </section>
         </div>
+
+        <SavingsProjectionView projection={result.savingsProjection} />
 
         <section className="flex flex-col items-start justify-between gap-4 rounded-2xl border bg-white p-6 sm:flex-row sm:items-center">
           <div>

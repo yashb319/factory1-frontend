@@ -21,6 +21,10 @@ describe("health check storage", () => {
       version: draft.version,
       step: 3,
       answers: { inventory_tracking: "MANUAL" },
+      projectionInputs: {
+        workingDaysPerMonth: "26",
+        loadedHourlyLabourCostInr: "250",
+      },
     });
   });
 

@@ -28,6 +28,52 @@ export type HealthCheckAnswer = {
   value: string;
 };
 
+export type HealthCheckProjectionInputs = {
+  workingDaysPerMonth: number;
+  loadedHourlyLabourCostInr: number;
+};
+
+export type HealthCheckProjectionInputDraft = {
+  workingDaysPerMonth: string;
+  loadedHourlyLabourCostInr: string;
+};
+
+export type SavingsRange = {
+  min: number;
+  max: number;
+};
+
+export type HealthCheckSavingsModule = {
+  area: Exclude<HealthCheckArea, "FULL_FACTORY">;
+  moduleName: string;
+  reason: string;
+  evidence: string[];
+  baselineManualHoursPerMonth: SavingsRange;
+  estimatedHoursSavedPerMonth: SavingsRange;
+  estimatedMonthlyCostSavedInr: SavingsRange;
+  estimatedMonthlyWasteLeakageReductionInr: null;
+  confidence: "LOW" | "MEDIUM";
+  dataQuality: "DIRECTIONAL_SELF_REPORTED";
+};
+
+export type HealthCheckSavingsProjection = {
+  modelVersion: "1.0.0";
+  currency: "INR";
+  costBasis: "PRODUCTIVITY_COST_EQUIVALENT";
+  factorySizeBand: "MICRO" | "SMALL" | "MEDIUM" | "LARGE";
+  assumptions: HealthCheckProjectionInputs & {
+    realizationFactor: SavingsRange;
+  };
+  modules: HealthCheckSavingsModule[];
+  overall: {
+    estimatedHoursSavedMonthly: SavingsRange;
+    estimatedHoursSavedYearly: SavingsRange;
+    estimatedCostSavedMonthlyInr: SavingsRange;
+    estimatedCostSavedYearlyInr: SavingsRange;
+  };
+  disclaimer: string;
+};
+
 export type HealthCheckSubmission = {
   schemaVersion: "2026-10-01";
   contact: HealthCheckContact;
@@ -37,6 +83,7 @@ export type HealthCheckSubmission = {
   idempotencyKey: string;
   website: "";
   formStartedAtEpochMs: number;
+  projectionInputs?: HealthCheckProjectionInputs;
 };
 
 export type HealthCheckResult = {
@@ -46,6 +93,7 @@ export type HealthCheckResult = {
   secondaryAreas: HealthCheckArea[];
   keyFindings: string[];
   explanation: string;
+  savingsProjection: HealthCheckSavingsProjection | null;
 };
 
 export type HealthCheckSubmissionResult = HealthCheckResult & {
@@ -59,6 +107,7 @@ export type HealthCheckDraft = {
   contact: HealthCheckContact;
   consentToContact: boolean;
   followUpPreference: FollowUpPreference;
+  projectionInputs: HealthCheckProjectionInputDraft;
   idempotencyKey: string;
   formStartedAtEpochMs: number;
 };

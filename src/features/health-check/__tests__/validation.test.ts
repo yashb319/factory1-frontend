@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contactSchema, validateContactStep, validateQuestionStep } from "../validation";
+import { contactSchema, validateContactStep, validateProjectionInputs, validateQuestionStep } from "../validation";
 
 describe("health check validation", () => {
   it("blocks unanswered question steps and excess multi-select choices", () => {
@@ -8,9 +8,21 @@ describe("health check validation", () => {
       software_usage: expect.any(String),
       implementation_timeline: expect.any(String),
     });
+
     expect(validateQuestionStep(5, { reporting_frequency: "INVALID" })).toMatchObject({
       reporting_frequency: "Select an answer to continue",
     });
+  });
+
+  it("validates optional projection inputs against the backend boundaries", () => {
+    expect(validateProjectionInputs({ workingDaysPerMonth: "", loadedHourlyLabourCostInr: "" })).toEqual({});
+    expect(validateProjectionInputs({ workingDaysPerMonth: "20", loadedHourlyLabourCostInr: "100" })).toEqual({});
+    expect(validateProjectionInputs({ workingDaysPerMonth: "31", loadedHourlyLabourCostInr: "10000" })).toEqual({});
+    expect(validateProjectionInputs({ workingDaysPerMonth: "19", loadedHourlyLabourCostInr: "10001" })).toEqual({
+      workingDaysPerMonth: expect.any(String),
+      loadedHourlyLabourCostInr: expect.any(String),
+    });
+    expect(validateProjectionInputs({ workingDaysPerMonth: "26", loadedHourlyLabourCostInr: "" })).toHaveProperty("loadedHourlyLabourCostInr");
   });
 
   it("requires valid contact details and consent for a follow-up channel", () => {
