@@ -143,14 +143,14 @@ export function CashBankBook({ vouchers, ledgers }: Props) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr_0.8fr]">
-          <div className="rounded-lg border border-slate-900 bg-slate-950 p-4 text-white">
-            <div className="text-xs uppercase tracking-wide text-slate-300">
+          <div className="rounded-lg border border-[var(--factory1-primary)] bg-[var(--factory1-primary)] p-4 text-white">
+            <div className="text-xs uppercase tracking-wide text-white">
               Closing Balance
             </div>
             <div className="mt-1 text-2xl font-semibold">
               {formatCurrency(totals.closing)}
             </div>
-            <div className="mt-2 text-xs text-slate-300">
+            <div className="mt-2 text-xs text-white">
               {selectedLedger?.name ?? "No cash/bank ledger selected"}
             </div>
           </div>

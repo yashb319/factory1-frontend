@@ -1826,9 +1826,9 @@ export function AccountingPage() {
             : "grid scroll-mt-24 gap-4"
         }
       >
-        <Card className="rounded-lg border-slate-900 bg-slate-950 text-white">
+        <Card className="rounded-lg border-[var(--factory1-primary)] bg-[var(--factory1-primary)] text-white">
           <CardContent className="p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-300">
+            <div className="text-xs uppercase tracking-wide text-white">
               Net Receivable Position
             </div>
             <div className="mt-2 text-3xl font-semibold">
@@ -2547,7 +2547,7 @@ export function AccountingPage() {
               </div>
             </div>
 
-            <div className="rounded-lg border bg-slate-950 p-3 text-white">
+            <div className="rounded-lg border border-[var(--factory1-primary)] bg-[var(--factory1-primary)] p-3 text-white">
               <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-center">
                 <VoucherTotalTile label="Debit" value={formatCurrency(voucherTotals.debit)} />
                 <VoucherTotalTile label="Credit" value={formatCurrency(voucherTotals.credit)} />
@@ -3238,8 +3238,8 @@ export function AccountingPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg border bg-slate-950 p-4 text-white">
-              <div className="text-xs uppercase tracking-wide text-slate-300">
+            <div className="rounded-lg border border-[var(--factory1-primary)] bg-[var(--factory1-primary)] p-4 text-white">
+              <div className="text-xs uppercase tracking-wide text-white">
                 Net GST Payable
               </div>
               <div className="mt-1 text-2xl font-semibold">
@@ -3965,8 +3965,8 @@ export function AccountingPage() {
           </SheetHeader>
 
           <div className="space-y-4 px-4">
-            <div className="rounded-lg border bg-slate-950 p-4 text-white">
-              <div className="text-xs uppercase tracking-wide text-slate-300">
+            <div className="rounded-lg border border-[var(--factory1-primary)] bg-[var(--factory1-primary)] p-4 text-white">
+              <div className="text-xs uppercase tracking-wide text-white">
                 Active accounting period
               </div>
               <div className="mt-1 text-lg font-semibold">
@@ -3974,15 +3974,15 @@ export function AccountingPage() {
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
                 <div>
-                  <div className="text-slate-300">Groups</div>
+                  <div className="text-white">Groups</div>
                   <div className="font-semibold">{masters?.groups.length ?? 0}</div>
                 </div>
                 <div>
-                  <div className="text-slate-300">Ledgers</div>
+                  <div className="text-white">Ledgers</div>
                   <div className="font-semibold">{masters?.ledgers.length ?? 0}</div>
                 </div>
                 <div>
-                  <div className="text-slate-300">Vouchers</div>
+                  <div className="text-white">Vouchers</div>
                   <div className="font-semibold">{vouchers?.length ?? 0}</div>
                 </div>
               </div>
@@ -4396,7 +4396,7 @@ function VoucherTotalTile({
 }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wide text-slate-300">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-white">{label}</div>
       <div className="mt-1 text-xl font-semibold">{value}</div>
     </div>
   );
@@ -4437,14 +4437,14 @@ function TaxMetric({
       className={[
         "rounded-md border p-3",
         tone === "dark"
-          ? "border-slate-900 bg-slate-950 text-white"
+          ? "border-[var(--factory1-primary)] bg-[var(--factory1-primary)] text-white"
           : "bg-white",
       ].join(" ")}
     >
       <div
         className={[
           "text-xs font-medium uppercase tracking-wide",
-          tone === "dark" ? "text-slate-300" : "text-muted-foreground",
+          tone === "dark" ? "text-white" : "text-muted-foreground",
         ].join(" ")}
       >
         {label}
@@ -4453,7 +4453,7 @@ function TaxMetric({
       <div
         className={[
           "mt-1 line-clamp-2 text-xs",
-          tone === "dark" ? "text-slate-300" : "text-muted-foreground",
+          tone === "dark" ? "text-white" : "text-muted-foreground",
         ].join(" ")}
       >
         {helper}
