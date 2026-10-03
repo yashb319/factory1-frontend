@@ -1,16 +1,24 @@
 import type { ProductionMaterialPreview as MaterialPreview, InventoryEffect } from "../types/productionFlow.types";
 import { formatProductionQuantity } from "../utils/productionQuantity";
 
+export function productionMaterialLabel(item: {
+  itemCode?: string | null;
+  itemName?: string | null;
+}) {
+  return [item.itemCode, item.itemName].filter(Boolean).join(" - ") ||
+    "Material name unavailable";
+}
+
 export function ProductionMaterialPreview({ preview }: { preview: MaterialPreview }) {
   return <section className="space-y-3 text-sm" aria-label="Reviewed inventory effects">
     <p className="font-medium">Finished-good stock credit: {formatProductionQuantity(preview.finishedGoodCredit)}</p>
     <p>These quantities come from the server&apos;s reviewed pinned-BOM calculation, not a client estimate. Only uncovered materials are deducted from stock.</p>
     {preview.items.map((item) => <div key={item.inventoryItemId} className="rounded-md border p-3">
-      <p className="font-medium">Material name unavailable</p>
+      <p className="font-medium">{productionMaterialLabel(item)}</p>
       <p>Required: {formatProductionQuantity(item.requiredQuantity)} {item.unit}</p>
       <p>Already consumed coverage: {formatProductionQuantity(item.coveredQuantity)} {item.unit}</p>
       <p className="font-medium">New stock deduction: {formatProductionQuantity(item.newStockDebitQuantity)} {item.unit}</p>
-      {item.coverageSources.map((source) => <p className="text-xs text-muted-foreground" key={source.consumptionId}>Existing material issue: {formatProductionQuantity(source.quantity)} {source.unit}</p>)}
+      {item.coverageSources.map((source) => <p className="text-xs text-muted-foreground" key={source.consumptionId}>{productionMaterialLabel(source)} · existing issue: {formatProductionQuantity(source.quantity)} {source.unit}</p>)}
     </div>)}
     {preview.stockWarnings.map((warning, index) => <p role="alert" className="text-amber-700" key={`${index}:${warning}`}>{warning}</p>)}
     <p className="text-xs text-muted-foreground">Stock is not reserved by this preview. Availability is rechecked atomically at confirmation.</p>
@@ -21,7 +29,7 @@ export function ProductionWasteEffects({ effects }: { effects: InventoryEffect[]
   return <section className="space-y-2 text-sm" aria-label="Actual wasted material effects">
     <p className="font-medium">Actual wasted materials</p>
     {effects.length ? effects.map((effect, index) => <div className="rounded-md border p-3" key={`${effect.inventoryItemId}:${effect.consumptionId}:${index}`}>
-      <p>Material name unavailable{effect.lotNumber ? ` / lot ${effect.lotNumber}` : ""}</p>
+      <p>{productionMaterialLabel(effect)}{effect.lotNumber ? ` / lot ${effect.lotNumber}` : ""}</p>
       <p>Waste allocation: {formatProductionQuantity(effect.quantity)} {effect.unit}</p>
       <p className="font-medium">{effect.source === "EXISTING_CONSUMPTION" ? "Already consumed - no second deduction" : `New stock deduction: ${formatProductionQuantity(effect.newStockDebitQuantity)} ${effect.unit}`}</p>
       {effect.consumptionId ? <p className="text-xs">Source: existing material issue</p> : null}

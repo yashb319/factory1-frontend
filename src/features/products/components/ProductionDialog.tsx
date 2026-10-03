@@ -133,7 +133,7 @@ export function ProductionDialog({
                 <div className="font-medium">
                   {linkedFinishedGoodItem
                     ? `${linkedFinishedGoodItem.itemCode} - ${linkedFinishedGoodItem.name} (${linkedFinishedGoodItem.currentStock} ${linkedFinishedGoodItem.unit})`
-                    : selectedProduct.finishedGoodInventoryItemId}
+                    : "Finished-good item name unavailable"}
                 </div>
               </div>
             )}

@@ -21,7 +21,7 @@ import { formatProductionQuantity } from "../utils/productionQuantity";
 import { useMaterialSources } from "../utils/useMaterialSources";
 import { useProductionReview } from "../utils/useProductionReview";
 import { MaterialAllocationEditor } from "./MaterialAllocationEditor";
-import { ProductionWasteEffects } from "./ProductionMaterialPreview";
+import { ProductionWasteEffects, productionMaterialLabel } from "./ProductionMaterialPreview";
 import { ProductionPreviewBlockers } from "./ProductionPreviewBlockers";
 import { ProductionQuantitySummary } from "./ProductionQuantitySummary";
 import { ProductionReviewDialog } from "./ProductionReviewDialog";
@@ -297,7 +297,7 @@ function ManagerShortClose({ order, step, disabled, onDone, onRefresh, rejection
               ? `Original rejection: ${disposition.source.sourceType} / ${disposition.source.sourceId}`
               : "Source: new unrecorded disposition"}</p>
             {disposition.materialWaste?.map((waste, materialIndex) => <p className="text-xs" key={materialIndex}>
-              Material name unavailable: {formatProductionQuantity(waste.quantity)} {waste.unit}
+              {productionMaterialLabel(waste)}: {formatProductionQuantity(waste.quantity)} {waste.unit}
               {waste.source === "EXISTING_CONSUMPTION"
                 ? " — existing material issue, no second stock deduction"
                 : ` — NEW_STOCK deduction, lot ${waste.lotNumber}`}
@@ -308,7 +308,7 @@ function ManagerShortClose({ order, step, disabled, onDone, onRefresh, rejection
         </section>
         <ProductionWasteEffects effects={preview.inventoryEffects} />
         {preview.inventoryEffects.map((effect, index) => <p className="text-xs" key={index}>
-          Material name unavailable: stock {formatProductionQuantity(effect.stockBefore)} → {formatProductionQuantity(effect.stockAfter)};
+          {productionMaterialLabel(effect)}: stock {formatProductionQuantity(effect.stockBefore)} → {formatProductionQuantity(effect.stockAfter)};
           {" "}finished-good credit {formatProductionQuantity(effect.finishedGoodCredit)}; purpose {effect.purpose}.
         </p>)}
         {preview.materialIssueWarnings.map((warning, index) =>

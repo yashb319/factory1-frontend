@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { usePreviewProductionSplitMutation, useSplitProductionOrderMutation } from "../api/productionFlowApi";
 import type { OrderStep, ProductionOrder } from "../types/production.types";
-import type { ChildAllocation, SplitPreview, SplitPreviewRequest, SplitResult } from "../types/productionFlow.types";
+import type { AssignmentEffect, ChildAllocation, QualityEvidence, SplitPreview, SplitPreviewRequest, SplitResult } from "../types/productionFlow.types";
 import { canProductionAction, productionActionBlock, productionFailure, productionFlowVersions } from "../utils/productionFlow";
 import { formatProductionQuantity, parseProductionQuantity, productionQuantityUnits } from "../utils/productionQuantity";
 import { useProductionReview } from "../utils/useProductionReview";
@@ -87,15 +87,36 @@ export function ProductionSplit({ order, step, disabled, onSelect, onRefresh }: 
         {!result.blockingReasons.length && !completeProjection ? <p role="alert" className="text-destructive">The preview is missing allocation or inherited evidence. This action is blocked; refresh and request a complete preview.</p> : null}
         {result.ready && result.waiting ? <div className="grid gap-3 sm:grid-cols-2"><Allocation allocation={result.ready} label="Ready child" /><Allocation allocation={result.waiting} label="Waiting child" /></div> : null}
         <p className="font-medium">Original target: {formatProductionQuantity(order.quantities?.originalPlannedQuantity ?? order.plannedQuantity)}. New output / stock changes: none.</p>
-        {result.assignmentEffects ? <div><h4 className="font-medium">Assignment changes</h4>{result.assignmentEffects.length ? result.assignmentEffects.map((effect, index) => <p key={`${effect.assignmentId}:${index}`}>{effect.effect} / {effect.targetRole ?? "source history"}{effect.deadline ? ` / deadline ${effect.deadline}` : ""}</p>) : <p>No inherited current-step assignments.</p>}
+        {result.assignmentEffects ? <div><h4 className="font-medium">Assignment changes</h4>{result.assignmentEffects.length ? result.assignmentEffects.map((effect, index) => <p key={`${effect.assignmentId}:${index}`}>{assignmentEffectLabel(effect)}</p>) : <p>No inherited current-step assignments.</p>}
           <p className="text-xs text-muted-foreground">Ready next-step work requires explicit assignment. Order-wide and future assignments are not duplicated.</p>
         </div> : null}
-        {result.qualityEvidence ? <div><h4 className="font-medium">Inherited quality evidence</h4>{result.qualityEvidence.length ? result.qualityEvidence.map((evidence) => <p key={evidence.resultId}>{evidence.passed ? "PASS" : "FAIL"} / {evidence.scope}</p>) : <p>No inherited quality results reported.</p>}</div> : null}
+        {result.qualityEvidence ? <div><h4 className="font-medium">Inherited quality evidence</h4>{result.qualityEvidence.length ? result.qualityEvidence.map((evidence) => <p key={evidence.resultId}>{qualityEvidenceLabel(evidence)}</p>) : <p>No inherited quality results reported.</p>}</div> : null}
         {result.inventoryEffects.length ? <p role="alert" className="text-destructive">Unexpected stock effects in split preview. This action is blocked; refresh and contact a production lead.</p> : null}
         <label className="flex items-start gap-2"><input type="checkbox" checked={acknowledged} disabled={control.busy || !completeProjection || Boolean(result.blockingReasons.length)} onChange={(event) => setAcknowledged(event.target.checked)} /><span>I reviewed both allocations, retained definitions, assignment changes and the applicability of inherited quality evidence to the ready pieces.</span></label>
       </div> : null}
     </ProductionReviewDialog>
   </>;
+}
+
+export function assignmentEffectLabel(effect: AssignmentEffect) {
+  const actor = effect.assigneeName ?? effect.vendorName ?? "Assignee name unavailable";
+  const sourceStep = effect.sourceStepName
+    ? ` / source step ${effect.sourceStepName}`
+    : "";
+
+  return `${effect.effect} / ${effect.targetRole ?? "source history"} / ${actor}${sourceStep}${
+    effect.deadline ? ` / deadline ${effect.deadline}` : ""
+  }`;
+}
+
+export function qualityEvidenceLabel(evidence: QualityEvidence) {
+  const definition =
+    [evidence.definitionCode, evidence.definitionName].filter(Boolean).join(" - ") ||
+    "Quality definition unavailable";
+  const sourceOrder = evidence.sourceOrderNumber ?? "Source order number unavailable";
+  const sourceStep = evidence.sourceStepName ?? "Source step name unavailable";
+
+  return `${evidence.passed ? "PASS" : "FAIL"} / ${evidence.scope} / ${definition} / ${sourceOrder} / ${sourceStep}`;
 }
 
 function Allocation({ allocation, label }: { allocation: ChildAllocation; label: string }) {

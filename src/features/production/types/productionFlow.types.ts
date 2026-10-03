@@ -60,6 +60,8 @@ export type ProductionOrderGuard = {
 export type MaterialCoverage = {
   consumptionId: string;
   inventoryItemId: string;
+  itemCode?: string | null;
+  itemName?: string | null;
   quantity: number;
   unit: string;
 };
@@ -79,8 +81,8 @@ export type ProductionDisposition = {
 };
 
 export type MaterialWaste =
-  | { source: "NEW_STOCK"; inventoryItemId: string; quantity: number; unit: string; lotNumber: string }
-  | { source: "EXISTING_CONSUMPTION"; consumptionId: string; inventoryItemId: string; quantity: number; unit: string };
+  | { source: "NEW_STOCK"; inventoryItemId: string; itemCode?: string | null; itemName?: string | null; quantity: number; unit: string; lotNumber: string }
+  | { source: "EXISTING_CONSUMPTION"; consumptionId: string; inventoryItemId: string; itemCode?: string | null; itemName?: string | null; quantity: number; unit: string };
 
 export type SplitPreviewRequest = FlowVersions & {
   readyQuantity: number;
@@ -114,6 +116,8 @@ export type MaterialAvailabilityItem = {
   sourceOrderId: string;
   source: "MANUAL" | "AUTOMATIC";
   inventoryItemId: string;
+  itemCode?: string | null;
+  itemName?: string | null;
   lotNumber: string | null;
   unit: string;
   originalQuantity: number;
@@ -124,6 +128,8 @@ export type MaterialAvailabilityItem = {
 
 export type MaterialRequirementPreview = {
   inventoryItemId: string;
+  itemCode?: string | null;
+  itemName?: string | null;
   requiredQuantity: number;
   coveredQuantity: number;
   newStockDebitQuantity: number;
@@ -139,6 +145,8 @@ export type WasteInventoryEffect = {
   source: "NEW_STOCK" | "EXISTING_CONSUMPTION";
   consumptionId: string | null;
   inventoryItemId: string;
+  itemCode?: string | null;
+  itemName?: string | null;
   lotNumber: string | null;
   quantity: number;
   unit: string;
@@ -189,15 +197,22 @@ export type AssignmentEffect = {
   effect: string;
   targetRole: string | null;
   assigneeUserId: string | null;
+  assigneeName?: string | null;
   vendorId: string | null;
+  vendorName?: string | null;
   sourceStepId: string | null;
+  sourceStepName?: string | null;
   deadline: string | null;
 };
 export type QualityEvidence = {
   resultId: string;
   sourceOrderId: string;
+  sourceOrderNumber?: string | null;
   sourceStepId: string;
+  sourceStepName?: string | null;
   definitionId: string;
+  definitionCode?: string | null;
+  definitionName?: string | null;
   passed: boolean;
   scope: string;
 };
