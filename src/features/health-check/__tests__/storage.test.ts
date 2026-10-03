@@ -28,6 +28,23 @@ describe("health check storage", () => {
     });
   });
 
+  it("keeps safe legacy draft fields while removing obsolete consent state", () => {
+    const draft = createHealthCheckDraft();
+    localStorage.setItem(HEALTH_CHECK_DRAFT_KEY, JSON.stringify({
+        ...draft,
+        step: 2,
+        answers: { production_tracking: "PAPER" },
+        consentToContact: true,
+        followUpPreference: "EMAIL",
+    }));
+
+    expect(loadHealthCheckDraft()).toEqual({
+      ...draft,
+      step: 2,
+      answers: { production_tracking: "PAPER" },
+    });
+  });
+
   it("discards corrupt and obsolete drafts", () => {
     localStorage.setItem(HEALTH_CHECK_DRAFT_KEY, "{bad json");
     expect(loadHealthCheckDraft()).toBeNull();

@@ -64,8 +64,8 @@ describe("HealthCheckLeadsPage", () => {
             phone: "9876543210",
             companyName: "Asha Works",
             location: "Pune",
-            consentToContact: true,
-            followUpPreference: "EMAIL",
+            consentToContact: false,
+            followUpPreference: "NO_FOLLOW_UP",
             primaryArea: "INVENTORY",
             priority: "HIGH_OPPORTUNITY",
             status: "NEW",
@@ -92,8 +92,8 @@ describe("HealthCheckLeadsPage", () => {
             companyName: "Asha Works",
             location: "Pune",
           },
-          consentToContact: true,
-          followUpPreference: "EMAIL",
+          consentToContact: false,
+          followUpPreference: "NO_FOLLOW_UP",
           answers: [],
           engineVersion: "1",
           primaryArea: "INVENTORY",
@@ -108,6 +108,7 @@ describe("HealthCheckLeadsPage", () => {
     screen.getByRole("row", { name: /asha rao/i }).click();
 
     expect(await screen.findByRole("heading", { name: "Submitted savings projection" })).toBeInTheDocument();
+    expect(screen.getByText(/marketing or sales follow-up consent: not explicitly provided/i)).toBeInTheDocument();
     expect(screen.getByText("Medium (51–200 people)")).toBeInTheDocument();
     expect(screen.getByText("26")).toBeInTheDocument();
     expect(screen.getByText((content) => content.includes(healthCheckResult.savingsProjection?.disclaimer ?? "missing"))).toBeInTheDocument();

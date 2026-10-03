@@ -78,7 +78,6 @@ export type HealthCheckSubmission = {
   schemaVersion: "2026-10-01";
   contact: HealthCheckContact;
   answers: HealthCheckAnswer[];
-  consentToContact: boolean;
   followUpPreference: FollowUpPreference;
   idempotencyKey: string;
   website: "";
@@ -105,8 +104,6 @@ export type HealthCheckDraft = {
   step: number;
   answers: Record<string, string>;
   contact: HealthCheckContact;
-  consentToContact: boolean;
-  followUpPreference: FollowUpPreference;
   projectionInputs: HealthCheckProjectionInputDraft;
   idempotencyKey: string;
   formStartedAtEpochMs: number;

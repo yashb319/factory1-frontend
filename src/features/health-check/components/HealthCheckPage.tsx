@@ -5,11 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, Factory, LoaderCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getErrorMessage } from "@/lib/apiError";
 import { HEALTH_CHECK_STEPS } from "../config";
 import {
@@ -19,7 +17,7 @@ import {
   loadHealthCheckDraft,
   saveHealthCheckDraft,
 } from "../storage";
-import type { FollowUpPreference, HealthCheckAnswerValue, HealthCheckDraft } from "../types";
+import type { HealthCheckAnswerValue, HealthCheckDraft } from "../types";
 import { validateContactStep, validateQuestionStep } from "../validation";
 import { useSubmitHealthCheckMutation } from "../api/healthCheckApi";
 import { buildHealthCheckSubmission } from "../submission";
@@ -99,8 +97,6 @@ export function HealthCheckPage() {
     }
     const nextErrors = validateContactStep(
       activeDraft.contact,
-      activeDraft.consentToContact,
-      activeDraft.followUpPreference,
       activeDraft.projectionInputs
     );
     if (Object.keys(nextErrors).length > 0) {
@@ -145,7 +141,7 @@ export function HealthCheckPage() {
 
         <section aria-labelledby="health-check-step-title">
           <h1 id="health-check-step-title" ref={topRef} tabIndex={-1} className="text-2xl font-semibold tracking-tight text-slate-950 outline-none sm:text-3xl">
-            {isReview ? "Contact, consent, and review" : stepConfig.title}
+            {isReview ? "Contact and review" : stepConfig.title}
           </h1>
           <p className="mt-2 text-slate-600">
             {isReview ? "Review your details before sending your health check." : stepConfig.description}
@@ -231,40 +227,6 @@ export function HealthCheckPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border bg-white p-5">
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="consent"
-                    checked={activeDraft.consentToContact}
-                    aria-invalid={Boolean(errors.consentToContact)}
-                    aria-describedby={errors.consentToContact ? "consent-error" : undefined}
-                    onCheckedChange={(checked) => setDraft({ ...activeDraft, consentToContact: checked === true, followUpPreference: checked ? activeDraft.followUpPreference : "NO_FOLLOW_UP" })}
-                  />
-                  <Label htmlFor="consent" className="font-normal leading-5">
-                    I explicitly consent to Factory1 storing my submitted answers and contact details for this health check.
-                  </Label>
-                </div>
-                {errors.consentToContact && <p id="consent-error" role="alert" className="mt-2 text-sm text-red-600">{errors.consentToContact}</p>}
-                <div className="mt-4 max-w-sm">
-                  <Label htmlFor="follow-up">Preferred follow-up</Label>
-                  <Select
-                    value={activeDraft.followUpPreference}
-                    onValueChange={(value: FollowUpPreference) => setDraft({ ...activeDraft, followUpPreference: value })}
-                  >
-                    <SelectTrigger id="follow-up" className="mt-1.5 min-h-11" aria-invalid={Boolean(errors.followUpPreference)}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="NO_FOLLOW_UP">No follow-up</SelectItem>
-                      <SelectItem value="EMAIL">Email</SelectItem>
-                      <SelectItem value="PHONE">Phone call</SelectItem>
-                      <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.followUpPreference && <p role="alert" className="mt-1 text-sm text-red-600">{errors.followUpPreference}</p>}
-                </div>
-              </div>
-
               <details className="rounded-2xl border bg-white p-5">
                 <summary className="cursor-pointer font-semibold">Review all answers</summary>
                 <dl className="mt-4 space-y-3">
@@ -285,7 +247,7 @@ export function HealthCheckPage() {
             </div>
           )}
 
-          <div className="mt-7 flex items-center justify-between gap-3">
+          <div className="mt-7 flex flex-col items-stretch gap-3 sm:flex-row sm:items-end sm:justify-between">
             {activeDraft.step > 0 ? (
               <Button type="button" variant="outline" onClick={() => goToStep(activeDraft.step - 1)} disabled={submitState.isLoading}>
                 <ArrowLeft aria-hidden="true" /> Back
@@ -293,10 +255,19 @@ export function HealthCheckPage() {
             ) : <Button variant="ghost" asChild><Link href="/">Exit</Link></Button>}
 
             {isReview ? (
-              <Button type="button" onClick={submit} disabled={submitState.isLoading}>
-                {submitState.isLoading ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
-                {submitState.isLoading ? "Submitting…" : "Submit health check"}
-              </Button>
+              <div className="flex max-w-xl flex-col items-stretch gap-3 sm:items-end">
+                <p className="text-xs leading-5 text-slate-600 sm:text-right">
+                  By submitting, you request your health-check report at the email above. Factory1 will process your details and answers under the{" "}
+                  <Link href="/privacy-policy" className="font-medium text-blue-700 underline underline-offset-2">
+                    Privacy Policy
+                  </Link>
+                  . Factory1 may contact you to provide the requested report; this is not consent for marketing or sales follow-up.
+                </p>
+                <Button type="button" onClick={submit} disabled={submitState.isLoading}>
+                  {submitState.isLoading ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
+                  {submitState.isLoading ? "Submitting…" : "Submit health check"}
+                </Button>
+              </div>
             ) : (
               <Button type="button" onClick={continueStep}>
                 Continue <ArrowRight aria-hidden="true" />
