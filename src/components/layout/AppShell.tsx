@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { playUiSound } from "@/lib/uiSounds";
 import { toast } from "sonner";
 import { TALLY_UI_ENABLED } from "@/config/features";
+import { isFeatureEnabled } from "@/config/featureGating";
+import { useGetOrganizationFeaturesQuery } from "@/features/organization-features/api/organizationFeaturesApi";
 import {
   type FactoryUiMode,
   getFactoryUiMode,
@@ -41,6 +43,14 @@ export function AppShell({ children }: Props) {
   const [uiMode, setUiMode] = useState<FactoryUiMode>("modern");
   const [uiModePromptOpen, setUiModePromptOpen] = useState(false);
   const tallyMode = TALLY_UI_ENABLED && uiMode === "tally";
+  const { data: organizationFeatures } = useGetOrganizationFeaturesQuery(
+    undefined,
+    { skip: !user || Boolean(user.platformAdmin) }
+  );
+  const aiAssistantEnabled = shouldShowFloatingAssistant(
+    Boolean(user?.platformAdmin),
+    organizationFeatures?.data?.enabledFeatures
+  );
 
   useEffect(() => {
     // The mode follows persisted user preferences and can change when the
@@ -309,11 +319,18 @@ export function AppShell({ children }: Props) {
       {!user?.platformAdmin ? (
         <>
           <FactoryWalkthrough />
-          <FloatingAssistant />
+          {aiAssistantEnabled ? <FloatingAssistant /> : null}
         </>
       ) : null}
     </div>
   );
+}
+
+export function shouldShowFloatingAssistant(
+  platformAdmin: boolean,
+  enabledFeatures: readonly string[] | undefined | null
+) {
+  return !platformAdmin && isFeatureEnabled(enabledFeatures, "ai_assistant");
 }
 
 export function runShortcut(

@@ -5,6 +5,56 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@keyframes ai-ambient-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(18px, -14px, 0) scale(1.08); }
+}
+
+@keyframes ai-message-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ai-spark-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+.ai-ambient-orb {
+  animation: ai-ambient-float 12s ease-in-out infinite;
+}
+
+.ai-ambient-orb-delayed {
+  animation-delay: -5s;
+}
+
+.ai-message-enter {
+  animation: ai-message-enter 180ms ease-out both;
+}
+
+.ai-spark,
+.ai-thinking-dot {
+  animation: ai-spark-pulse 1.2s ease-in-out infinite;
+}
+
+.ai-thinking-dot-2 {
+  animation-delay: 120ms;
+}
+
+.ai-thinking-dot-3 {
+  animation-delay: 240ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-ambient-orb,
+  .ai-message-enter,
+  .ai-spark,
+  .ai-thinking-dot {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

@@ -136,6 +136,8 @@ export const baseApi = createApi({
     "Payslip",
     "OrgIntelligence",
     "HealthCheckLead",
+    "AiConversation",
+    "AiQuickQuestion",
   ],
 
   endpoints: () => ({}),

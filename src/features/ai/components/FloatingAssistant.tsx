@@ -1,214 +1,94 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Bot,
-  Send,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { Bot, ExternalLink, Send, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useExecuteAiActionMutation,
+  useGetAiConversationQuery,
+  useGetAiQuickQuestionsQuery,
   useSendAiMessageMutation,
 } from "../api/aiApi";
 import { useAiExport } from "../hooks/useAiExport";
+import {
+  AI_CONVERSATION_EVENT,
+  isConversationResponseCurrent,
+  moduleContextFromPathname,
+  rankAdaptiveQuestions,
+  readCurrentConversationId,
+  setCurrentConversationId,
+} from "../lib/assistantContext";
 import type {
   AiActionProposal,
-  AiChatMessage,
-  AiChatResponse,
-  AiMetric,
+  AiMessageSnapshot,
 } from "../types/ai.types";
-import { AiActionCard } from "./AiActionCard";
-import { AiChartView } from "./AiChartView";
-import { AiRecordsView } from "./AiRecordsView";
-import { AiThinkingView } from "./AiThinkingView";
-import { intentStyle } from "./intentStyles";
-
-type ThreadMessage = AiChatMessage & {
-  response?: AiChatResponse;
-};
-
-type ModuleConfig = {
-  moduleName: string;
-  description: string;
-  defaultQuestion: string;
-  starterQuestions: string[];
-};
+import { AiMessageContent } from "./AiMessageContent";
 
 const STORAGE_KEY = "factory1-floating-assistant-open";
 
-const moduleConfigs: Record<string, ModuleConfig> = {
-  "/dashboard": {
-    moduleName: "Dashboard",
-    description: "Cross-module factory overview and risk checks.",
-    defaultQuestion: "Summarize the factory dashboard and highlight the top risks today.",
-    starterQuestions: [
-      "Which factory risks need attention today?",
-      "Show inventory and billing health as a chart.",
-      "What should I check first today?",
-    ],
-  },
-  "/employees": {
-    moduleName: "Employees",
-    description: "Employee records, departments, contacts and workforce questions.",
-    defaultQuestion: "Summarize employee health, missing contact data and department risks.",
-    starterQuestions: [
-      "What is Rahul Kumar's mobile number?",
-      "Which employees have missing phone or email data?",
-      "Summarize active employees by department.",
-    ],
-  },
-  "/attendance": {
-    moduleName: "Attendance",
-    description: "Attendance, absence, leave and workforce capacity.",
-    defaultQuestion: "Summarize this month's attendance issues and any workforce risk.",
-    starterQuestions: [
-      "Summarize today's attendance.",
-      "Who is absent today?",
-      "Show this month's attendance issues.",
-    ],
-  },
-  "/inventory": {
-    moduleName: "Inventory",
-    description: "Stock levels, low-stock risk, inventory value and suppliers.",
-    defaultQuestion: "Summarize inventory risks and show a chart if inventory value breakdown helps.",
-    starterQuestions: [
-      "Which raw materials are low in stock?",
-      "Show inventory value as a chart.",
-      "Which items are out of stock?",
-    ],
-  },
-  "/products": {
-    moduleName: "Products",
-    description: "Products, BOM readiness, production and finished goods planning.",
-    defaultQuestion: "Summarize product and production readiness using current inventory.",
-    starterQuestions: [
-      "How is production looking this month?",
-      "Can we produce this product with current inventory?",
-      "Which products do not have BOM configured?",
-    ],
-  },
-  "/payroll": {
-    moduleName: "Payroll",
-    description: "Salary runs, payroll totals, overtime and deductions.",
-    defaultQuestion: "Summarize the latest payroll total, overtime and deduction risks.",
-    starterQuestions: [
-      "What is our latest payroll total?",
-      "Show payroll trend as a chart.",
-      "Which payroll runs are pending payment?",
-    ],
-  },
-  "/billing": {
-    moduleName: "Billing",
-    description: "Sales bills, supplier bills, GST totals and stock impact.",
-    defaultQuestion: "Summarize recent billing health, unpaid bills and GST amount risks.",
-    starterQuestions: [
-      "Find a bill by bill number or party name.",
-      "Summarize sales and purchase bills this month.",
-      "Which bills are unpaid?",
-    ],
-  },
-  "/customers": {
-    moduleName: "Customers",
-    description: "Customer contacts, GST details, billing parties and follow-ups.",
-    defaultQuestion: "Summarize customer risks, missing GST details and billing follow-ups.",
-    starterQuestions: [
-      "Show details for a customer by name.",
-      "Which customers are missing GST numbers?",
-      "Find recent sales bills by customer.",
-    ],
-  },
-  "/suppliers": {
-    moduleName: "Suppliers",
-    description: "Supplier contacts, GST details, purchasing and supply risk.",
-    defaultQuestion: "Summarize supplier risks, missing GST details and inventory dependency.",
-    starterQuestions: [
-      "Show details for a supplier by name.",
-      "Which suppliers are missing GST numbers?",
-      "Find recent purchase bills by supplier.",
-    ],
-  },
-  "/import-export": {
-    moduleName: "Import / Export",
-    description: "Import and export job history.",
-    defaultQuestion: "Summarize recent import and export activity.",
-    starterQuestions: [
-      "Which exports were completed recently?",
-      "Which import or export jobs failed?",
-      "Summarize data movement history.",
-    ],
-  },
-  "/organization-settings": {
-    moduleName: "Organization Settings",
-    description: "Organization setup, employee access and role management.",
-    defaultQuestion: "Explain what organization setup tasks I should complete next.",
-    starterQuestions: [
-      "How should I invite employees?",
-      "How do roles affect access?",
-      "What should I configure before going live?",
-    ],
-  },
-};
-
-const fallbackConfig: ModuleConfig = {
-  moduleName: "Factory1",
-  description: "Ask about your factory data and workflows.",
-  defaultQuestion: "Summarize the most important things I should review now.",
-  starterQuestions: [
-    "Which factory risks need attention today?",
-    "What should I check first?",
-    "Show useful charts from my data.",
-  ],
-};
-
-const toneClass: Record<AiMetric["tone"], string> = {
-  neutral: "border-border bg-muted/40 text-foreground",
-  good: "border-green-200 bg-green-50 text-green-800",
-  warning: "border-amber-200 bg-amber-50 text-amber-800",
-  danger: "border-red-200 bg-red-50 text-red-800",
+type FloatingMessage = {
+  id: string;
+  role: "USER" | "ASSISTANT";
+  content: string;
+  snapshot?: AiMessageSnapshot | null;
+  historical?: boolean;
 };
 
 export function FloatingAssistant() {
   const pathname = usePathname();
-  const config = moduleConfigs[pathname] ?? fallbackConfig;
-  const [open, setOpen] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    return saved === "true";
-  });
+  const moduleContext = moduleContextFromPathname(pathname);
+  const [open, setOpen] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.localStorage.getItem(STORAGE_KEY) === "true"
+  );
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ThreadMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string | undefined>(
+    readCurrentConversationId
+  );
+  const [localMessages, setLocalMessages] = useState<FloatingMessage[]>([]);
   const [sendAiMessage, sendState] = useSendAiMessageMutation();
   const [executeAiAction, actionState] = useExecuteAiActionMutation();
   const exportModule = useAiExport();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const localIdRef = useRef(0);
+
+  const conversationQuery = useGetAiConversationQuery(conversationId ?? "", {
+    skip: !conversationId,
+  });
+  const quickQuestionsQuery = useGetAiQuickQuestionsQuery({
+    moduleContext,
+    currentRoute: pathname,
+    limit: 6,
+  });
+  const quickQuestions = useMemo(
+    () =>
+      rankAdaptiveQuestions(
+        quickQuestionsQuery.data ?? [],
+        moduleContext
+      ),
+    [moduleContext, quickQuestionsQuery.data]
+  );
+
+  useEffect(() => {
+    const handleConversationChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ conversationId?: string }>).detail;
+      setConversationId(detail.conversationId);
+      setLocalMessages([]);
+    };
+    window.addEventListener(AI_CONVERSATION_EVENT, handleConversationChange);
+    return () =>
+      window.removeEventListener(AI_CONVERSATION_EVENT, handleConversationChange);
+  }, []);
 
   useEffect(() => {
     const node = scrollRef.current;
-    if (node) {
-      node.scrollTop = node.scrollHeight;
-    }
-  }, [messages, sendState.isLoading, actionState.isLoading]);
-
-  const history = useMemo(
-    () =>
-      messages
-        .filter((message) => message.content)
-        .slice(-6)
-        .map((message) => ({
-          role: message.role,
-          content: message.content,
-        })),
-    [messages]
-  );
+    node?.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
+  }, [localMessages, sendState.isLoading]);
 
   const setPanelOpen = (next: boolean) => {
     setOpen(next);
@@ -216,44 +96,102 @@ export function FloatingAssistant() {
   };
 
   const ask = async (question: string) => {
-    const trimmed = question.trim();
-
-    if (!trimmed) return;
-
+    const message = question.trim();
+    if (!message || sendState.isLoading) return;
+    const requestConversationId = conversationId;
+    localIdRef.current += 1;
+    const optimisticId = `floating-${localIdRef.current}`;
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
+    setLocalMessages((current) => [
+      ...current,
+      { id: optimisticId, role: "USER", content: message },
+    ]);
 
     try {
       const response = await sendAiMessage({
-        message: `[${config.moduleName} module] ${trimmed}`,
-        history,
+        message,
+        conversationId: requestConversationId,
+        moduleContext,
+        currentRoute: pathname,
       }).unwrap();
+      if (!response.conversationId) throw new Error("Missing conversation id");
+      if (
+        !isConversationResponseCurrent(
+          requestConversationId,
+          readCurrentConversationId()
+        )
+      ) {
+        return;
+      }
 
-      setMessages((prev) => [
-        ...prev,
+      setConversationId(response.conversationId);
+      setCurrentConversationId(response.conversationId);
+      setLocalMessages((current) => [
+        ...current.filter((item) => item.id !== optimisticId),
+        { id: response.userMessageId, role: "USER", content: message },
         {
-          role: "assistant",
+          id: response.assistantMessageId,
+          role: "ASSISTANT",
           content: response.answer,
-          response,
+          snapshot: {
+            metrics: response.metrics,
+            suggestions: response.suggestions,
+            chart: response.chart,
+            records: response.records,
+            actions: response.actions,
+            thinking: response.thinking,
+            followUp: response.followUp,
+            intent: response.intent,
+            entity: response.entity,
+            provider: response.provider,
+            fallback: response.fallback,
+            provenance: response.provenance,
+          },
+          historical: false,
         },
       ]);
-    } catch {
-      toast.error("AI could not answer right now");
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            "I could not reach the AI service right now. Please try again in a moment.",
-        },
-      ]);
+    } catch (error) {
+      const status =
+        error && typeof error === "object" && "status" in error
+          ? (error as { status?: number }).status
+          : undefined;
+      toast.error(
+        status === 409
+          ? "Restore this archived conversation before replying"
+          : "AI could not answer right now"
+      );
+      setLocalMessages((current) =>
+        current.filter((item) => item.id !== optimisticId)
+      );
     }
   };
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    void ask(input);
-  };
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setPanelOpen(true)}
+        data-tour="ai-assistant"
+        className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-xl shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-slate-800 motion-reduce:transform-none dark:bg-white dark:text-slate-950"
+        aria-label="Open Factory1 assistant"
+      >
+        <Sparkles className="h-6 w-6" />
+      </button>
+    );
+  }
+
+  const serverMessages = (conversationQuery.data?.messages ?? []).slice(-8);
+  const serverMessageIds = new Set(serverMessages.map((message) => message.id));
+  const messages: FloatingMessage[] = [
+    ...serverMessages.map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      snapshot: message.snapshot,
+      historical: true,
+    })),
+    ...localMessages.filter((message) => !serverMessageIds.has(message.id)),
+  ];
 
   const applyAction = async (
     action: AiActionProposal,
@@ -263,17 +201,9 @@ export function FloatingAssistant() {
       const done = await exportModule(
         (action.payload?.exportModule as string) ?? action.module
       );
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: done
-            ? "Export started. You can download the CSV from the Import / Export screen."
-            : "I couldn't export that module yet.",
-        },
-      ]);
-
+      toast[done ? "success" : "error"](
+        done ? "Export started" : "Could not start this export"
+      );
       return;
     }
 
@@ -294,214 +224,151 @@ export function FloatingAssistant() {
           fieldsOverride ??
           (action.newValues as Record<string, string> | undefined),
       }).unwrap();
-
       toast.success(result.message);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `${result.message}. I refreshed related module data.`,
-        },
-      ]);
     } catch {
-      toast.error("Could not apply this AI update");
+      toast.error("Could not apply this update");
     }
   };
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setPanelOpen(true)}
-        data-tour="ai-assistant"
-        className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg shadow-slate-950/20 transition hover:scale-105 hover:bg-slate-800"
-        aria-label="Open Factory1 assistant"
-      >
-        <Bot className="h-6 w-6" />
-      </button>
-    );
-  }
-
   return (
-    <div
+    <section
       data-tour="ai-assistant"
-      className="fixed inset-x-3 bottom-3 z-50 flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-y-auto rounded-lg border bg-white shadow-2xl shadow-slate-950/15 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[420px]"
+      aria-label="Factory1 AI assistant"
+      className="fixed inset-x-3 bottom-3 z-50 flex max-h-[min(720px,calc(100dvh-1.5rem))] flex-col overflow-hidden rounded-2xl border bg-background/95 shadow-2xl shadow-slate-950/20 backdrop-blur sm:inset-x-auto sm:bottom-5 sm:right-5 sm:h-[650px] sm:w-[430px]"
     >
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-950 text-white">
-                <Bot className="h-4 w-4" />
-              </div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold">
-                  Factory1 AI
-                </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {config.moduleName}
-                </div>
-              </div>
-            </div>
+      <header className="flex items-center justify-between border-b px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
+            <Bot className="h-4 w-4" />
           </div>
-
-          <button
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold">Factory1 AI</h2>
+            <p className="truncate text-xs text-muted-foreground">
+              {conversationQuery.data?.title ?? `${moduleContext} context`}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button asChild variant="ghost" size="icon" aria-label="Open full assistant">
+            <Link href="/ai">
+              <ExternalLink className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setPanelOpen(false)}
-            className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Close assistant"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
+      </header>
 
-        <div className="border-b bg-muted/30 px-4 py-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Sparkles className="h-4 w-4" />
-            Ask about {config.moduleName}
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {config.description}
-          </p>
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-            {config.starterQuestions.map((question) => (
-              <Button
-                key={question}
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 shrink-0"
-                disabled={sendState.isLoading}
-                onClick={() => void ask(question)}
-              >
-                {question}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col">
-            <div
-              ref={scrollRef}
-              className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3"
+      <div className="border-b px-4 py-3">
+        <p className="text-xs font-medium text-muted-foreground">
+          Suggested for this page
+        </p>
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+          {quickQuestions.map((question) => (
+            <Button
+              key={question.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-auto shrink-0 whitespace-normal py-2 text-left"
+              disabled={sendState.isLoading}
+              onClick={() => void ask(question.text)}
+              title={question.reason ?? undefined}
             >
-              {messages.length ? (
-                messages.map((message, index) => {
-                  const intent =
-                    message.role === "assistant"
-                      ? intentStyle(message.response?.intent)
-                      : null;
-
-                  return (
-                  <div
-                    key={`${message.role}-${index}`}
-                    className={
-                      message.role === "user"
-                        ? "ml-auto max-w-[88%] rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
-                        : `max-w-[94%] space-y-3 rounded-md border border-l-4 ${intent?.border ?? "border-l-slate-400"} bg-background px-3 py-2 text-sm`
-                    }
-                  >
-                    <div className="flex items-center gap-2 text-xs font-medium opacity-80">
-                      {message.role === "user" ? "You" : "Factory1 AI"}
-                      {intent ? (
-                        <Badge className={`h-5 rounded-md ${intent.badge}`}>
-                          {intent.label}
-                        </Badge>
-                      ) : null}
-                      {message.response?.fallback ? (
-                        <Badge variant="outline" className="h-5 rounded-md">
-                          Local summary
-                        </Badge>
-                      ) : null}
-                    </div>
-
-                    <p className="whitespace-pre-wrap leading-6">
-                      {message.content}
-                    </p>
-
-                    {message.response?.metrics?.length ? (
-                      <div className="grid gap-2">
-                        {message.response.metrics.map((metric) => (
-                          <div
-                            key={`${index}-${metric.label}`}
-                            className={`rounded-md border px-3 py-2 ${toneClass[metric.tone]}`}
-                          >
-                            <div className="text-xs opacity-80">{metric.label}</div>
-                            <div className="mt-1 font-semibold">{metric.value}</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    <AiChartView chart={message.response?.chart} />
-
-                    <AiRecordsView records={message.response?.records} />
-
-                    <AiThinkingView thinking={message.response?.thinking} />
-
-                    {message.response?.followUp ? (
-                      <div className="flex gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
-                        <span className="mt-0.5 text-primary">💡</span>
-                        <span>
-                          <span className="font-medium text-primary">
-                            One more thing —{" "}
-                          </span>
-                          {message.response.followUp}
-                        </span>
-                      </div>
-                    ) : null}
-
-                    {message.response?.actions?.length ? (
-                      <div className="space-y-2">
-                        {message.response.actions.map((action) => (
-                          <AiActionCard
-                            key={action.id}
-                            action={action}
-                            loading={actionState.isLoading}
-                            onApply={applyAction}
-                          />
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })) : (
-                <div className="rounded-md border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
-                  Ask about {config.moduleName.toLowerCase()} or choose a quick
-                  question above.
-                </div>
-              )}
-
-              {sendState.isLoading ? (
-                <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">
-                  Thinking through live Factory1 data...
-                </div>
-              ) : null}
-            </div>
-
-            <form onSubmit={handleSubmit} className="flex gap-2 border-t p-3">
-              <Textarea
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                placeholder={`Ask about ${config.moduleName.toLowerCase()}...`}
-                className="max-h-28 min-h-11 resize-none"
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void ask(input);
-                  }
-                }}
-              />
-              <Button
-                type="submit"
-                className="h-11 w-11 shrink-0 p-0"
-                disabled={sendState.isLoading || !input.trim()}
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </form>
-          </div>
+              {question.text}
+            </Button>
+          ))}
+        </div>
       </div>
-    </div>
+
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3"
+        aria-live="polite"
+        aria-busy={sendState.isLoading}
+      >
+        {messages.length ? (
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={
+                message.role === "USER"
+                  ? "ml-auto max-w-[88%] rounded-2xl rounded-br-md bg-primary px-3 py-2 text-sm text-primary-foreground"
+                  : "max-w-[94%] space-y-2 rounded-2xl rounded-tl-md border bg-card px-3 py-2 text-sm shadow-sm"
+              }
+            >
+              <p className="whitespace-pre-wrap leading-6">{message.content}</p>
+              <AiMessageContent
+                snapshot={message.snapshot}
+                historical={message.historical}
+                actionLoading={actionState.isLoading}
+                onApplyAction={applyAction}
+                onSuggestion={(suggestion) => void ask(suggestion)}
+              />
+            </div>
+          ))
+        ) : (
+          <div className="flex h-full min-h-48 items-center justify-center text-center">
+            <div>
+              <Sparkles className="mx-auto h-7 w-7 text-primary" />
+              <p className="mt-3 text-sm font-medium">
+                Ask about this part of your factory
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                This panel resumes the same conversation as the full assistant.
+              </p>
+            </div>
+          </div>
+        )}
+        {sendState.isLoading ? (
+          <div className="rounded-2xl border bg-card px-3 py-2 text-sm text-muted-foreground" role="status">
+            Checking relevant records...
+          </div>
+        ) : null}
+      </div>
+
+      <form
+        onSubmit={(event: FormEvent) => {
+          event.preventDefault();
+          void ask(input);
+        }}
+        className="flex items-end gap-2 border-t p-3"
+      >
+        <Textarea
+          value={input}
+          maxLength={2000}
+          onChange={(event) => setInput(event.target.value)}
+          placeholder={`Ask about ${moduleContext.toLowerCase()}...`}
+          className="max-h-28 min-h-11 resize-none"
+          disabled={conversationQuery.data?.archived}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              void ask(input);
+            }
+          }}
+        />
+        <Button
+          type="submit"
+          size="icon"
+          className="h-11 w-11 shrink-0 rounded-xl"
+          disabled={
+            sendState.isLoading ||
+            !input.trim() ||
+            conversationQuery.data?.archived
+          }
+          aria-label="Send message"
+        >
+          <Send className="h-4 w-4" />
+        </Button>
+      </form>
+    </section>
   );
 }

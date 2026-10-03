@@ -1,8 +1,28 @@
-export type AiChatRole = "user" | "assistant";
+export type AiChatRole = "USER" | "ASSISTANT";
+
+export const AI_MODULE_CONTEXTS = [
+  "GENERAL",
+  "INVENTORY",
+  "ATTENDANCE",
+  "PAYROLL",
+  "EMPLOYEES",
+  "PRODUCTION",
+  "PRODUCTS",
+  "BILLING",
+  "CUSTOMERS",
+  "SUPPLIERS",
+] as const;
+
+export type AiModuleContext = (typeof AI_MODULE_CONTEXTS)[number];
 
 export type AiChatMessage = {
+  id: string;
+  conversationId: string;
   role: AiChatRole;
   content: string;
+  module: AiModuleContext;
+  createdAt: string;
+  snapshot: AiMessageSnapshot | null;
 };
 
 export type AiMetric = {
@@ -22,8 +42,14 @@ export type AiChart = {
   data: AiChartPoint[];
 };
 
-export type AiChatResponse = {
-  answer: string;
+export type AiProvenance = {
+  module: AiModuleContext;
+  summary: string;
+  period: string | null;
+  recordCount: number;
+};
+
+export type AiMessageSnapshot = {
   metrics: AiMetric[];
   suggestions: string[];
   chart?: AiChart | null;
@@ -35,6 +61,17 @@ export type AiChatResponse = {
   fallback: boolean;
   intent?: string;
   entity?: string;
+  provenance: AiProvenance | null;
+};
+
+export type AiChatResponse = AiMessageSnapshot & {
+  answer: string;
+  conversationId: string;
+  userMessageId: string;
+  assistantMessageId: string;
+  title: string;
+  module: AiModuleContext;
+  provenance: AiProvenance | null;
 };
 
 export type AiRelevantRecord = {
@@ -45,10 +82,73 @@ export type AiRelevantRecord = {
 
 export type AiChatRequest = {
   message: string;
-  history: AiChatMessage[];
+  conversationId?: string;
+  moduleContext?: AiModuleContext;
+  currentRoute?: string;
   businessInsight?: boolean;
   benchmark?: string;
 };
+
+export type AiConversationSummary = {
+  id: string;
+  title: string;
+  currentModule: AiModuleContext;
+  dominantModule: AiModuleContext;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastMessageAt: string | null;
+  messageCount: number;
+  preview: string | null;
+};
+
+export type AiConversation = AiConversationSummary & {
+  messages: AiChatMessage[];
+};
+
+export type AiConversationList = {
+  content: AiConversationSummary[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+};
+
+export type AiConversationCreateRequest = {
+  title?: string;
+  moduleContext?: AiModuleContext;
+  currentRoute?: string;
+};
+
+export type AiConversationRenameRequest = {
+  conversationId: string;
+  title: string;
+};
+
+export type AiQuickQuestion = {
+  id: string;
+  text: string;
+  module: AiModuleContext;
+  reason: string | null;
+  category:
+    | "RISK"
+    | "OPERATIONS"
+    | "FINANCE"
+    | "WORKFORCE"
+    | "INVENTORY"
+    | "PRODUCTION"
+    | "SALES"
+    | "PURCHASES";
+  valueSignal:
+    | "LIVE_RISK"
+    | "HISTORY_INTEREST"
+    | "CURRENT_MODULE"
+    | "CROSS_FUNCTIONAL"
+    | "COLD_START";
+  rank: number;
+};
+
+export type AiQuickQuestionList = AiQuickQuestion[];
 
 export type BenchmarkProfile = {
   key: string;
