@@ -22,6 +22,7 @@ describe("health check presentation", () => {
     expect(screen.getByText("Stock records are updated manually.")).toBeInTheDocument();
     expect(screen.queryByText("This fifth finding is not shown.")).not.toBeInTheDocument();
     expect(screen.queryByText(/numeric score|admin status/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/report (?:was|has been) (?:sent|emailed)|email (?:was|has been) sent/i)).not.toBeInTheDocument();
   });
 
   it("renders accessible module ranges, overall arithmetic, assumptions, and the exact disclaimer", () => {

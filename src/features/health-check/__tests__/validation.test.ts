@@ -25,12 +25,10 @@ describe("health check validation", () => {
     expect(validateProjectionInputs({ workingDaysPerMonth: "26", loadedHourlyLabourCostInr: "" })).toHaveProperty("loadedHourlyLabourCostInr");
   });
 
-  it("requires valid contact details and consent for a follow-up channel", () => {
+  it("requires valid contact details without a consent blocker", () => {
     expect(contactSchema.safeParse({ name: "", email: "bad", phone: "1", companyName: "", location: "" }).success).toBe(false);
     expect(validateContactStep(
-      { name: "Asha Rao", email: "asha@example.com", phone: "9876543210", companyName: "Asha Works", location: "Pune" },
-      false,
-      "EMAIL"
-    )).toHaveProperty("consentToContact");
+      { name: "Asha Rao", email: "asha@example.com", phone: "9876543210", companyName: "Asha Works", location: "Pune" }
+    )).toEqual({});
   });
 });

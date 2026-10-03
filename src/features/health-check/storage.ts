@@ -5,7 +5,6 @@ import {
   HEALTH_CHECK_STEPS,
 } from "./config";
 import type {
-  FollowUpPreference,
   HealthCheckContact,
   HealthCheckDraft,
   HealthCheckProjectionInputDraft,
@@ -24,8 +23,6 @@ export function createHealthCheckDraft(): HealthCheckDraft {
     step: 0,
     answers: {},
     contact: { ...EMPTY_CONTACT },
-    consentToContact: false,
-    followUpPreference: "NO_FOLLOW_UP",
     projectionInputs: { ...DEFAULT_PROJECTION_INPUTS },
     idempotencyKey: crypto.randomUUID(),
     formStartedAtEpochMs: Date.now(),
@@ -45,8 +42,6 @@ export function loadHealthCheckDraft(storage: Storage = localStorage): HealthChe
       value.step > HEALTH_CHECK_STEPS.length ||
       !isAnswerRecord(value.answers) ||
       !isContact(value.contact) ||
-      typeof value.consentToContact !== "boolean" ||
-      !isFollowUpPreference(value.followUpPreference) ||
       !isProjectionInputDraft(value.projectionInputs) ||
       !isUuid(value.idempotencyKey) ||
       typeof value.formStartedAtEpochMs !== "number" ||
@@ -56,7 +51,15 @@ export function loadHealthCheckDraft(storage: Storage = localStorage): HealthChe
       storage.removeItem(HEALTH_CHECK_DRAFT_KEY);
       return null;
     }
-    return { ...createHealthCheckDraft(), ...value } as HealthCheckDraft;
+    return {
+      version: value.version,
+      step: value.step,
+      answers: value.answers,
+      contact: value.contact,
+      projectionInputs: value.projectionInputs,
+      idempotencyKey: value.idempotencyKey,
+      formStartedAtEpochMs: value.formStartedAtEpochMs,
+    };
   } catch {
     storage.removeItem(HEALTH_CHECK_DRAFT_KEY);
     return null;
@@ -87,10 +90,6 @@ function isContact(value: unknown): value is HealthCheckContact {
   return ["name", "email", "phone", "companyName", "location"].every(
     (key) => typeof contact[key] === "string"
   );
-}
-
-function isFollowUpPreference(value: unknown): value is FollowUpPreference {
-  return value === "EMAIL" || value === "PHONE" || value === "WHATSAPP" || value === "NO_FOLLOW_UP";
 }
 
 function isUuid(value: unknown): value is string {

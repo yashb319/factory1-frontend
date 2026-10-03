@@ -26,7 +26,6 @@ function reviewDraft() {
     )
   );
   draft.contact = { name: "Asha Rao", email: "asha@example.com", phone: "9876543210", companyName: "Asha Works", location: "Pune" };
-  draft.consentToContact = true;
   return draft;
 }
 
@@ -58,8 +57,12 @@ describe("HealthCheckPage", () => {
     submit.mockReturnValue({ unwrap: () => request });
     render(<HealthCheckPage />);
 
-    expect(await screen.findByRole("heading", { name: /contact, consent, and review/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /contact and review/i })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute("href", "/privacy-policy");
+    expect(screen.getByText(/not consent for marketing or sales follow-up/i)).toBeInTheDocument();
     const button = screen.getByRole("button", { name: /submit health check/i });
+    expect(button).toBeEnabled();
     fireEvent.click(button);
     fireEvent.click(button);
     expect(submit).toHaveBeenCalledTimes(1);
@@ -79,6 +82,7 @@ describe("HealthCheckPage", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /submit health check/i }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/health-check/results/safe-result-token"));
+    expect(submit).toHaveBeenCalledWith(expect.not.objectContaining({ consentToContact: expect.anything() }));
     expect(localStorage.getItem(HEALTH_CHECK_DRAFT_KEY)).toBeNull();
     expect(JSON.parse(localStorage.getItem(HEALTH_CHECK_WELCOME_KEY) ?? "{}").status).toBe("completed");
   });

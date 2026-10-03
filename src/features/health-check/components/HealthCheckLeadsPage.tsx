@@ -77,7 +77,7 @@ export function HealthCheckLeadsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Health Check Leads</h1>
-        <p className="mt-1 text-sm text-slate-500">Review submitted assessments and manage consent-aware follow-up.</p>
+        <p className="mt-1 text-sm text-slate-500">Review submitted assessments and manage follow-up only where explicit consent exists.</p>
       </div>
 
       <section className="rounded-xl border bg-white">
@@ -90,7 +90,7 @@ export function HealthCheckLeadsPage() {
           <FilterSelect label="Priority" value={priority} onChange={(value) => { setPriority(value); setPage(0); }} options={priorities.map((value) => ({ value, label: priorityLabels[value] }))} />
           <FilterSelect label="Area" value={area} onChange={(value) => { setArea(value); setPage(0); }} options={areas.map((value) => ({ value, label: areaLabels[value] }))} />
           <FilterSelect label="Status" value={status} onChange={(value) => { setStatus(value); setPage(0); }} options={statuses.map((value) => ({ value, label: readable(value) }))} />
-          <FilterSelect label="Consent" value={consent} onChange={(value) => { setConsent(value); setPage(0); }} options={[{ value: "YES", label: "Consent given" }, { value: "NO", label: "No consent" }]} />
+          <FilterSelect label="Consent" value={consent} onChange={(value) => { setConsent(value); setPage(0); }} options={[{ value: "YES", label: "Explicit consent given" }, { value: "NO", label: "Not explicitly provided" }]} />
           <div className="grid grid-cols-2 gap-2">
             <div><Label htmlFor="from" className="sr-only">From date</Label><Input id="from" type="date" value={from} onChange={(event) => { setFrom(event.target.value); setPage(0); }} /></div>
             <div><Label htmlFor="to" className="sr-only">To date</Label><Input id="to" type="date" value={to} onChange={(event) => { setTo(event.target.value); setPage(0); }} /></div>
@@ -202,7 +202,7 @@ function HealthCheckLeadDetail({ id, onClose }: { id: string | null; onClose: ()
                 <span>{lead.contact.companyName}{lead.contact.location ? ` · ${lead.contact.location}` : ""}</span>
                 <a className="text-blue-700 underline" href={`mailto:${lead.contact.email}`}>{lead.contact.email}</a>
                 <a className="text-blue-700 underline" href={`tel:${lead.contact.phone}`}>{lead.contact.phone}</a>
-                <span>Consent: {lead.consentToContact ? `Yes · ${readable(lead.followUpPreference)}` : "No follow-up consent"}</span>
+                <span>Marketing or sales follow-up consent: {lead.consentToContact ? `Explicitly given · ${readable(lead.followUpPreference)}` : "Not explicitly provided"}</span>
               </div>
             </section>
 

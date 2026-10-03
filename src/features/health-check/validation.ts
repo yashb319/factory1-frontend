@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { HEALTH_CHECK_STEPS } from "./config";
 import type {
-  FollowUpPreference,
   HealthCheckContact,
   HealthCheckProjectionInputDraft,
 } from "./types";
@@ -30,8 +29,6 @@ export function validateQuestionStep(step: number, answers: Record<string, strin
 
 export function validateContactStep(
   contact: HealthCheckContact,
-  consent: boolean,
-  _followUpPreference: FollowUpPreference,
   projectionInputs?: HealthCheckProjectionInputDraft
 ) {
   const parsed = contactSchema.safeParse(contact);
@@ -41,9 +38,6 @@ export function validateContactStep(
       const key = String(issue.path[0]);
       if (!errors[key]) errors[key] = issue.message;
     }
-  }
-  if (!consent) {
-    errors.consentToContact = "Consent is required to submit the health check";
   }
   return { ...errors, ...validateProjectionInputs(projectionInputs) };
 }

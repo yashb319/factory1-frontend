@@ -47,8 +47,6 @@ describe("finalized health check contract", () => {
       companyName: "Asha Works",
       location: "Pune",
     };
-    draft.consentToContact = true;
-    draft.followUpPreference = "NO_FOLLOW_UP";
     for (const step of HEALTH_CHECK_STEPS) {
       for (const question of step.questions) {
         draft.answers[question.id] = question.options[0].value;
@@ -61,7 +59,6 @@ describe("finalized health check contract", () => {
     expect(payload.contact).toHaveProperty("location", "Pune");
     expect(payload.contact).not.toHaveProperty("city");
     expect(payload).toEqual(expect.objectContaining({
-      consentToContact: true,
       followUpPreference: "NO_FOLLOW_UP",
       website: "",
       formStartedAtEpochMs: expect.any(Number),
@@ -71,6 +68,7 @@ describe("finalized health check contract", () => {
         loadedHourlyLabourCostInr: 250,
       },
     }));
+    expect(payload).not.toHaveProperty("consentToContact");
     expect(payload).not.toHaveProperty("startedAt");
     expect(payload.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/i);
   });
