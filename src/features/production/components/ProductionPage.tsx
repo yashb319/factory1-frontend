@@ -1297,11 +1297,11 @@ function OrderDetail({
     [assignments]
   );
   const assigneeName = (userId: string) =>
-    assignableUsers.find((user) => user.id === userId)?.name ?? userId;
+    assignableUsers.find((user) => user.id === userId)?.name ?? "Assignee name unavailable";
 
   const { data: activeVendors = [] } = useGetActiveVendorsQuery();
   const vendorName = (vendorId: string) =>
-    activeVendors.find((vendor: Vendor) => vendor.id === vendorId)?.name ?? vendorId;
+    activeVendors.find((vendor: Vendor) => vendor.id === vendorId)?.name ?? "Vendor name unavailable";
   const isDeadlineOverdue = (assignment: OrderAssignment) =>
     Boolean(
       assignment.deadlineBreachNotifiedAt ||
@@ -1313,9 +1313,9 @@ function OrderDetail({
     <span className="flex flex-wrap items-center gap-1.5">
       <StatusBadge tone="pending">{humanize(assignment.assignmentRole)}</StatusBadge>
       {assignment.vendorId ? (
-        <span>Vendor: {vendorName(assignment.vendorId)}</span>
+        <span>Vendor: {assignment.vendorName ?? vendorName(assignment.vendorId)}</span>
       ) : (
-        <span>{assigneeName(assignment.assigneeUserId ?? "")}</span>
+        <span>{assignment.assigneeName ?? assigneeName(assignment.assigneeUserId ?? "")}</span>
       )}
       {assignment.deadline ? (
         <Badge variant={isDeadlineOverdue(assignment) ? "destructive" : "outline"}>
@@ -1735,7 +1735,7 @@ function OrderDetail({
           <DialogHeader className="pr-10">
             <DialogTitle>{order.batch?.batchLabel ?? order.orderNumber}</DialogTitle>
             <DialogDescription>
-              {product?.name || product?.productCode || "Product name unavailable"} · workflow v{order.workflowVersionNumber}
+              {order.productName || order.productCode || product?.name || product?.productCode || "Product name unavailable"} · workflow v{order.workflowVersionNumber}
               {order.quantityModel !== "FLOW_V1" ? <> · {formatNumber(order.completedQuantity)} complete · {formatNumber(order.rejectedQuantity)} legacy rejected</> : " · Final output and current-step good are shown separately."}
             </DialogDescription>
           </DialogHeader>
@@ -1759,6 +1759,9 @@ function OrderDetail({
             <span className="text-xs text-muted-foreground">
               Due {formatDate(order.dueDate)}
             </span>
+            {order.customerName ? <span className="text-xs text-muted-foreground">Customer {order.customerName}</span> : null}
+            {order.sourceOrderNumber ? <span className="text-xs text-muted-foreground">Source order {order.sourceOrderNumber}</span> : null}
+            {order.responsibleUserName ? <span className="text-xs text-muted-foreground">Responsible {order.responsibleUserName}</span> : null}
             {!productionIsTerminal(order) && order.quantityModel !== "FLOW_V1" && canProductionAction(order, "CANCEL") ? (
               <Button size="sm" variant="outline" onClick={() => setConfirmCancelOpen(true)}>
                 <Ban className="mr-2 h-3.5 w-3.5" />
@@ -2368,6 +2371,15 @@ function OrderDetail({
                           {formatDateTime(result.createdAt)}
                         </span>
                       </div>
+                      <p className="mt-2 text-sm font-medium">
+                        {[result.definitionCode, result.definitionName].filter(Boolean).join(" - ") ||
+                          "Quality definition unavailable"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {[result.templateName, result.orderNumber, result.stepName, result.actorName]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
                       <p className="mt-2 text-xs text-muted-foreground">
                         {result.notes || "No quality notes recorded."}
                       </p>
@@ -2454,10 +2466,14 @@ function OrderDetail({
                   <ErrorState title="Consumption history unavailable" message="Could not load recorded material consumption." onRetry={() => void materialConsumptionsQuery.refetch()} />
                 ) : materialConsumptionsQuery.isFetching ? <Loading text="Loading consumption history..." /> : materialConsumptions.length ? materialConsumptions.map((item) => (
                   <p key={item.id} className="text-sm text-muted-foreground">
-                    {materialRequirements.find((requirement) => requirement.inventoryItemId === item.inventoryItemId)?.itemName ??
-                      materialRequirements.find((requirement) => requirement.inventoryItemId === item.inventoryItemId)?.itemCode ??
+                    {[item.itemCode, item.itemName].filter(Boolean).join(" - ") ||
+                      materialRequirements.find((requirement) => requirement.inventoryItemId === item.inventoryItemId)?.itemName ||
+                      materialRequirements.find((requirement) => requirement.inventoryItemId === item.inventoryItemId)?.itemCode ||
                       "Material name unavailable"}{" "}
                     · Lot {item.lotNumber} · {formatNumber(item.quantity)} {item.unit}
+                    {[item.orderNumber, item.stepName, item.actorName].filter(Boolean).length
+                      ? ` · ${[item.orderNumber, item.stepName, item.actorName].filter(Boolean).join(" · ")}`
+                      : ""}
                   </p>
                 )) : <Empty text="No material consumption recorded." />}
               </div>

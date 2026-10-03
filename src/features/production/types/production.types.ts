@@ -113,15 +113,15 @@ export type BomRequest = {
 
 export type BomItem = BomItemRequest & {
   id: string;
-  itemCode?: string;
-  itemName?: string;
+  itemCode?: string | null;
+  itemName?: string | null;
 };
 
 export type Bom = {
   id: string;
   productId: string;
-  productCode?: string;
-  productName?: string;
+  productCode?: string | null;
+  productName?: string | null;
   versionNumber: number;
   name: string;
   active: boolean;
@@ -209,6 +209,11 @@ export type ProductionOrder = Omit<ProductionOrderRequest, "bomId"> & Production
   workflowVersionNumber: number;
   currentStepId?: string;
   status: OrderStatus;
+  customerName?: string | null;
+  sourceOrderNumber?: string | null;
+  responsibleUserName?: string | null;
+  productName?: string | null;
+  productCode?: string | null;
   assignedStationId?: string | null;
   assignedStationName?: string | null;
   assignedWorkstationId?: string | null;
@@ -381,6 +386,11 @@ export type OrderAssignmentRequest = ProductionOrderGuard & {
 
 export type OrderAssignment = OrderAssignmentRequest & {
   id: string;
+  orderNumber?: string | null;
+  stepName?: string | null;
+  assigneeName?: string | null;
+  vendorName?: string | null;
+  assignedByName?: string | null;
   createdAt?: string;
   deadlineBreachNotifiedAt?: string;
 };
@@ -443,6 +453,12 @@ export type QualityResultRequest = ProductionOrderGuard & {
 export type QualityResult = QualityResultRequest & {
   id: string;
   productionOrderId: string;
+  orderNumber?: string | null;
+  stepName?: string | null;
+  templateName?: string | null;
+  definitionCode?: string | null;
+  definitionName?: string | null;
+  actorName?: string | null;
   createdAt?: string;
 };
 
@@ -457,6 +473,11 @@ export type MaterialConsumptionRequest = ProductionOrderGuard & {
 
 export type MaterialConsumption = MaterialConsumptionRequest & {
   id: string;
+  itemCode?: string | null;
+  itemName?: string | null;
+  orderNumber?: string | null;
+  stepName?: string | null;
+  actorName?: string | null;
   createdAt?: string;
 };
 
@@ -490,7 +511,7 @@ export type ProductionBottleneck = {
 };
 
 export type ProductionMaterialConsumption = {
-  inventoryItemId?: string; itemName?: string; quantity?: number; unit?: string; estimatedQuantity?: number;
+  inventoryItemId?: string; itemCode?: string | null; itemName?: string | null; quantity?: number; unit?: string; estimatedQuantity?: number;
 };
 
 export type ProductionOrderProgressFilters = {
