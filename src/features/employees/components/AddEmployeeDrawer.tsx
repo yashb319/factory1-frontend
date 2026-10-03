@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { getErrorMessage } from "@/lib/apiError";
 
 import {
   EmployeeFormValues,
@@ -89,6 +90,7 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
     defaultValues,
+    shouldFocusError: false,
   });
 
   useEffect(() => {
@@ -128,8 +130,8 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
           statutoryProfile ?? createDefaultStatutoryProfile()
         ),
       }).unwrap();
-    } catch {
-      toast.error("Failed to add employee");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to add employee"));
       return;
     }
 
