@@ -101,10 +101,12 @@ export function AuthGuard({ children }: AuthGuardProps) {
       return;
     }
 
-    if (
-      user?.platformAdmin &&
-      !pathname.startsWith("/saas-admin")
-    ) {
+    if (pathname.startsWith("/admin/load-testing") && !user?.platformAdmin) {
+      router.replace("/dashboard");
+      return;
+    }
+
+    if (user?.platformAdmin && !isPlatformAdminPath(pathname)) {
       router.replace("/saas-admin");
       return;
     }
@@ -209,4 +211,12 @@ export function AuthGuard({ children }: AuthGuardProps) {
   }
 
   return <>{children}</>;
+}
+
+export function isPlatformAdminPath(pathname: string) {
+  return (
+    pathname.startsWith("/saas-admin") ||
+    pathname === "/admin/load-testing" ||
+    pathname.startsWith("/admin/load-testing/")
+  );
 }

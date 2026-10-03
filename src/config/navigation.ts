@@ -25,6 +25,7 @@ import {
   SlidersHorizontal,
   Paintbrush,
   ClipboardCheck,
+  Gauge,
 } from "lucide-react";
 import type { ComponentType, CSSProperties } from "react";
 import type { AuthUser, UserRole } from "@/features/auth/types";
@@ -140,6 +141,14 @@ export const navigationItems: NavigationItem[] = [
     icon: Paintbrush,
     roles: ["SAAS_OWNER"],
     module: "settings",
+    platformAdminOnly: true,
+  },
+  {
+    title: "Load Testing",
+    href: "/admin/load-testing",
+    icon: Gauge,
+    roles: ["SAAS_OWNER"],
+    module: "reports",
     platformAdminOnly: true,
   },
   {

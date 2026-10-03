@@ -128,6 +128,7 @@ export const baseApi = createApi({
     "ImportExport",
     "Dashboard",
     "SaasAdmin",
+    "LoadTesting",
     "Production",
     "FeatureGating",
     "Whitelabel",
