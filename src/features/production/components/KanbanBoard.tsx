@@ -263,7 +263,7 @@ function KanbanCard({
           <div className="font-medium">{item.orderNumber}</div>
           {item.batch && <div className="text-xs font-medium">{item.batch.batchLabel}</div>}
           <div className="text-xs text-muted-foreground">
-            {item.productName || item.productCode || item.productId}
+            {item.productName || item.productCode || "Product name unavailable"}
           </div>
         </button>
         <button

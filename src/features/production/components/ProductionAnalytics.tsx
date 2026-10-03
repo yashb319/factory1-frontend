@@ -75,7 +75,7 @@ function AnalyticsResults({ analytics }: { analytics: ProductionAnalyticsData })
   const materialEstimatesComplete = analytics.estimatedMaterialConsumptionComplete === true
     && hasUnresolvedCount && unresolvedCount === 0;
   const stepData = useMemo(() => (analytics.stepDurations ?? []).map((step) => ({
-    name: step.stepName ?? step.stepId ?? "Unnamed step",
+    name: step.stepName ?? "Step name unavailable",
     hours: step.averageDurationHours ?? step.durationHours ?? 0,
   })), [analytics.stepDurations]);
   return <div className="space-y-5">
@@ -94,9 +94,9 @@ function AnalyticsResults({ analytics }: { analytics: ProductionAnalyticsData })
     </div>
     <div className="grid gap-5 xl:grid-cols-2">
       <Card><CardHeader><CardTitle>Step duration</CardTitle></CardHeader><CardContent>{stepData.length ? <div className="h-72"><ResponsiveContainer width="100%" height="100%"><BarChart data={stepData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(value) => [`${number(Number(value))} h`, "Duration"]} /><Bar dataKey="hours" fill="#2563eb" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div> : <Empty text="No step-duration data for these filters." />}</CardContent></Card>
-      <Card><CardHeader><CardTitle>Estimated material consumption</CardTitle></CardHeader><CardContent>{analytics.materialConsumption?.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-2">Material</th><th className="p-2 text-right">Estimated quantity</th></tr></thead><tbody>{analytics.materialConsumption.map((material, index) => <tr className="border-b" key={`${material.inventoryItemId ?? material.itemName}-${index}`}><td className="p-2">{material.itemName ?? material.inventoryItemId ?? "-"}</td><td className="p-2 text-right">{number(material.estimatedQuantity ?? material.quantity)} {material.unit ?? ""}</td></tr>)}</tbody></table></div> : <Empty text={materialEstimatesComplete ? "No estimated material consumption for these filters." : "Material estimates are unavailable or incomplete for these filters; this is not a zero-consumption total."} />}</CardContent></Card>
+      <Card><CardHeader><CardTitle>Estimated material consumption</CardTitle></CardHeader><CardContent>{analytics.materialConsumption?.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-2">Material</th><th className="p-2 text-right">Estimated quantity</th></tr></thead><tbody>{analytics.materialConsumption.map((material, index) => <tr className="border-b" key={`${material.inventoryItemId ?? material.itemName}-${index}`}><td className="p-2">{[material.itemCode, material.itemName].filter(Boolean).join(" - ") || "Material name unavailable"}</td><td className="p-2 text-right">{number(material.estimatedQuantity ?? material.quantity)} {material.unit ?? ""}</td></tr>)}</tbody></table></div> : <Empty text={materialEstimatesComplete ? "No estimated material consumption for these filters." : "Material estimates are unavailable or incomplete for these filters; this is not a zero-consumption total."} />}</CardContent></Card>
     </div>
-    <Card><CardHeader><CardTitle>Bottlenecks</CardTitle></CardHeader><CardContent>{analytics.bottlenecks?.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-2">Step</th><th className="p-2 text-right">Duration</th><th className="p-2 text-right">Delay</th></tr></thead><tbody>{analytics.bottlenecks.map((bottleneck, index) => <tr className="border-b" key={`${bottleneck.stepId ?? bottleneck.stepName}-${index}`}><td className="p-2">{bottleneck.stepName ?? bottleneck.stepId ?? "-"}</td><td className="p-2 text-right">{number(bottleneck.durationHours)} h</td><td className="p-2 text-right">{number(bottleneck.delayHours)} h</td></tr>)}</tbody></table></div> : <Empty text="No bottlenecks detected for these filters." />}</CardContent></Card>
+    <Card><CardHeader><CardTitle>Bottlenecks</CardTitle></CardHeader><CardContent>{analytics.bottlenecks?.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-2">Step</th><th className="p-2 text-right">Duration</th><th className="p-2 text-right">Delay</th></tr></thead><tbody>{analytics.bottlenecks.map((bottleneck, index) => <tr className="border-b" key={`${bottleneck.stepId ?? bottleneck.stepName}-${index}`}><td className="p-2">{bottleneck.stepName ?? "Step name unavailable"}</td><td className="p-2 text-right">{number(bottleneck.durationHours)} h</td><td className="p-2 text-right">{number(bottleneck.delayHours)} h</td></tr>)}</tbody></table></div> : <Empty text="No bottlenecks detected for these filters." />}</CardContent></Card>
   </div>;
 }
 
@@ -128,7 +128,7 @@ function OrderProgress({ filters }: { filters: ProductionAnalyticsFilters }) {
                         <Link className="text-primary underline" href={productionOrderPath(order.batch?.rootOrderId ?? order.orderId)}>{order.orderNumber}</Link>
                         {order.batch && <div className="text-xs text-muted-foreground">{order.batch.batchLabel} · Original order / family</div>}
                       </td>
-                      <td className="p-2">{order.customerName ?? order.customerId ?? "-"}</td>
+                      <td className="p-2">{order.customerName ?? "Customer name unavailable"}</td>
                       <td className="p-2"><OrderProgressQuantities order={order} /></td>
                       <td className="p-2">{order.dueDate ?? "-"}</td>
                       <td className="p-2">

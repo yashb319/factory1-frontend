@@ -91,7 +91,7 @@ export function ProductionFinalGoodForm({ order, step, disabled, onDone, onRefre
       onRetry={() => void control.confirm(true)} onRefresh={refresh}
     >
       {result ? <div className="space-y-3">
-        <p className="break-all text-sm">{order.batch?.batchLabel ?? order.orderNumber} / {step.name} / order {result.sourceOrderId}</p>
+        <p className="text-sm">{order.batch?.batchLabel ?? order.orderNumber} / {step.name}</p>
         {control.review?.body.notes ? <p className="text-sm">Notes: {control.review.body.notes}</p> : null}
         <ProductionMaterialPreview preview={result} />
         <ProductionPreviewBlockers blockers={result.blockingReasons} />

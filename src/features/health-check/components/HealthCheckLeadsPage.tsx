@@ -221,7 +221,7 @@ function HealthCheckLeadDetail({ id, onClose }: { id: string | null; onClose: ()
             <details className="rounded-xl border p-4">
               <summary className="cursor-pointer font-semibold">All submitted answers ({lead.answers.length})</summary>
               <dl className="mt-4 space-y-3">
-                {lead.answers.map((answer) => <div key={answer.questionId} className="border-t pt-3 text-sm first:border-0 first:pt-0"><dt className="font-medium">{questionLabels.get(answer.questionId) ?? answer.questionId}</dt><dd className="mt-1 text-slate-600">{answer.value}</dd></div>)}
+                {lead.answers.map((answer) => <div key={answer.questionId} className="border-t pt-3 text-sm first:border-0 first:pt-0"><dt className="font-medium">{questionLabels.get(answer.questionId) ?? "Question label unavailable"}</dt><dd className="mt-1 text-slate-600">{answer.value}</dd></div>)}
               </dl>
             </details>
 

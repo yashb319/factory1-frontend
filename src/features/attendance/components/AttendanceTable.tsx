@@ -60,7 +60,7 @@ export function AttendanceTable({ records, loading }: Props) {
                   <TableCell data-label="Employee">
                     <div>
                       <p className="font-medium">
-                        {record.employeeName || record.employeeCode || record.employeeId}
+                        {record.employeeName || record.employeeCode || "Employee name unavailable"}
                       </p>
                       {record.employeeCode && (
                         <p className="text-xs text-muted-foreground">

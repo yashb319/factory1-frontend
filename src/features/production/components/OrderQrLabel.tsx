@@ -168,10 +168,7 @@ function LabelContent({
             {batchLabel && <p className="mt-2 break-words">Batch: {batchLabel}</p>}
             {(rootOrderNumber || rootOrderId) && (
               <p className="mt-2 break-words">
-                Root order: {rootOrderNumber || rootOrderId}
-                {rootOrderNumber && rootOrderId && (
-                  <span className="block break-all font-mono text-xs">{rootOrderId}</span>
-                )}
+                Root order: {rootOrderNumber || "Order number unavailable"}
               </p>
             )}
             {allocatedQuantity !== undefined && (

@@ -14,7 +14,9 @@ export function useMaterialSources(order: ProductionOrder) {
       consumptionId: item.consumptionId,
       sourceOrderId: item.sourceOrderId,
       inventoryItemId: item.inventoryItemId,
-      itemLabel: item.inventoryItemId + (item.lotNumber ? ` / lot ${item.lotNumber}` : ""),
+      itemLabel:
+        [item.itemCode, item.itemName].filter(Boolean).join(" - ") ||
+        "Material name unavailable",
       unit: item.unit,
       remainingAllocatableQuantity: item.remainingAllocatableQuantity,
     }));

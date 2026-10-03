@@ -196,7 +196,7 @@ export function ProductsPage() {
                         <td className="p-3" data-label="Linked Item">
                           {inventoryItem
                             ? `${inventoryItem.itemCode} - ${inventoryItem.name}`
-                            : product.finishedGoodInventoryItemId}
+                            : "Finished-good item name unavailable"}
                         </td>
 
                         <td className="p-3" data-label="Unit">{product.unit || "-"}</td>

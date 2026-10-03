@@ -197,7 +197,7 @@ export function ProductTallyExportView() {
                         ? `${
                             inventoryById.get(item.finishedGoodInventoryItemId)!.itemCode
                           } - ${inventoryById.get(item.finishedGoodInventoryItemId)!.name}`
-                        : item.finishedGoodInventoryItemId}
+                        : "Finished-good item name unavailable"}
                     </td>
                     <td className="px-2 py-0.5">{item.unit}</td>
                     <td className="px-2 py-0.5">

@@ -507,9 +507,9 @@ export function SaasWhitelabelPage() {
                     <span className="font-mono text-sm font-semibold">{partner.code}</span>
                   </TableCell>
                   <TableCell data-label="Partner admin login">
-                    <p className="text-sm">{partner.userName || partner.userId}</p>
+                    <p className="text-sm">{partner.userName || "Admin name unavailable"}</p>
                     <p className="text-xs text-muted-foreground">
-                      {partner.userEmail || partner.userId}
+                      {partner.userEmail || partner.contactEmail || "Admin email unavailable"}
                     </p>
                   </TableCell>
                   <TableCell data-label="Status">
@@ -849,7 +849,7 @@ export function SaasWhitelabelPage() {
                   Partner admin login:{" "}
                   {createdPartner.userEmail ??
                     createdPartner.contactEmail ??
-                    createdPartner.userId}
+                    "Admin email unavailable"}
                 </p>
               </div>
             </div>

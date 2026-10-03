@@ -159,7 +159,6 @@ export function PartialCompletionForm({
               Record {review?.completedQuantity ?? 0} completed and {review?.rejectedQuantity ?? 0} rejected units for this step. This saves output only; it does not move to the next step.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <p className="break-all text-xs text-muted-foreground">Order ID: {review?.orderId}<br />Step ID: {review?.stepId}</p>
           {review?.notes ? <p className="text-sm">Notes: {review.notes}</p> : null}
           {staleReview ? <p role="alert" className="text-sm text-destructive">The order or step changed. Cancel and review the refreshed quantities before confirming again.</p> : null}
           <AlertDialogFooter>
