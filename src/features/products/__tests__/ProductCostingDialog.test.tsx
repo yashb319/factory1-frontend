@@ -21,8 +21,10 @@ const estimatedCosting: ProductCostingView = {
   totalCost: { currency: "INR", perUnit: 125, total: 1250 },
   sellingPrice: null,
   policyVersion: "3",
+  policyId: "policy-1",
+  bomId: "bom-1",
   bomVersion: "7",
-  snapshotVersion: null,
+  snapshotVersion: "2",
   engineVersion: "1.0",
   immutableSnapshotId: null,
   canFreeze: true,
@@ -68,6 +70,8 @@ describe("ProductCostingDialog", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("Not available").length).toBeGreaterThan(0);
     expect(screen.getByText("Published labour assumptions")).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "1 source" }));
     expect(screen.getByText("Steel sheet catalog price")).toBeInTheDocument();

@@ -20,6 +20,10 @@ describe("costing DTO adapters", () => {
       totalUnitCost: null,
       policyId: "policy-1",
       policyVersion: 1,
+      bomId: "bom-1",
+      bomVersion: 7,
+      snapshotId: "snapshot-1",
+      snapshotVersion: 3,
       engineVersion: "costing-v1",
       asOfDate: "2026-10-04",
       sellingPriceBasis: "NONE",
@@ -32,6 +36,10 @@ describe("costing DTO adapters", () => {
     expect(view.totalCost?.perUnit).toBeUndefined();
     expect(view.totalCost?.total).toBe(1200.5);
     expect(view.missingInputs).toEqual(["LABOUR allocation"]);
+    expect(view.bomId).toBe("bom-1");
+    expect(view.bomVersion).toBe("7");
+    expect(view.immutableSnapshotId).toBe("snapshot-1");
+    expect(view.snapshotVersion).toBe("3");
   });
 
   it("serializes policy form values without calculating allocated costs", () => {
