@@ -30,13 +30,13 @@ describe("health check presentation", () => {
 
     expect(screen.getByLabelText("Inventory: 32–68 hours projected per month")).toBeInTheDocument();
     expect(screen.getByText("44–96 hours")).toBeInTheDocument();
-    expect(screen.getByText("530–1,100 hours")).toBeInTheDocument();
     expect(screen.getByText("₹11,000–₹24,000")).toBeInTheDocument();
-    expect(screen.getByText("₹1,33,000–₹2,87,000")).toBeInTheDocument();
     expect(screen.getByText("Medium (51–200 people)")).toBeInTheDocument();
     expect(screen.getByText("40–70%")).toBeInTheDocument();
     expect(screen.getByText((content) => content.includes(savingsProjection.disclaimer))).toBeInTheDocument();
-    expect(screen.getAllByText(/productivity-cost equivalent/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/time-cost equivalent/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/not a forecast or guarantee/i)).toBeInTheDocument();
+    expect(screen.queryByText(/hours saved \/ year|equivalent \/ year/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/payback|roi/i)).not.toBeInTheDocument();
   });
 
@@ -56,7 +56,7 @@ describe("health check presentation", () => {
       />
     );
 
-    expect(screen.getByRole("heading", { name: /lower manual-effort opportunity/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /less obvious manual effort/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/projected monthly hours saved by module/i)).not.toBeInTheDocument();
   });
 

@@ -56,8 +56,8 @@ export function HealthCheckWelcome() {
           <div className="flex items-start gap-3 text-sm text-slate-600">
             <Clock3 className="mt-0.5 shrink-0 text-blue-600" size={18} aria-hidden="true" />
             <p>
-              About five minutes. Your answers and contact details are only
-              submitted if you finish and send the health check.
+              About three minutes. Your draft is saved when you continue, so
+              you can leave and return without starting again.
             </p>
           </div>
           <DialogFooter className="m-0 border-0 bg-transparent p-0 sm:justify-between">

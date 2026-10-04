@@ -74,15 +74,28 @@ export type HealthCheckSavingsProjection = {
   disclaimer: string;
 };
 
-export type HealthCheckSubmission = {
-  schemaVersion: "2026-10-01";
-  contact: HealthCheckContact;
-  answers: HealthCheckAnswer[];
+export type CreateHealthCheckDraftRequest = {
+  contact: Omit<HealthCheckContact, "location"> & { location?: string };
   followUpPreference: FollowUpPreference;
   idempotencyKey: string;
   website: "";
-  formStartedAtEpochMs: number;
+};
+
+export type UpdateHealthCheckDraftRequest = {
+  schemaVersion: "2026-10-04";
+  answers: HealthCheckAnswer[];
+  followUpPreference: FollowUpPreference;
+  expectedRevision: number;
   projectionInputs?: HealthCheckProjectionInputs;
+};
+
+export type HealthCheckRemoteDraft = {
+  draftId: string;
+  draftToken: string;
+  status: "DRAFT";
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type HealthCheckResult = {
@@ -95,8 +108,9 @@ export type HealthCheckResult = {
   savingsProjection: HealthCheckSavingsProjection | null;
 };
 
-export type HealthCheckSubmissionResult = HealthCheckResult & {
-  resultToken: string;
+export type FinalizeHealthCheckDraftResult = {
+  status: "FINALIZED";
+  result: HealthCheckResult & { resultToken: string };
 };
 
 export type HealthCheckDraft = {
@@ -107,6 +121,7 @@ export type HealthCheckDraft = {
   projectionInputs: HealthCheckProjectionInputDraft;
   idempotencyKey: string;
   formStartedAtEpochMs: number;
+  remoteDraft?: HealthCheckRemoteDraft;
 };
 
 export type HealthCheckLeadStatus =

@@ -1,19 +1,37 @@
 import { baseApi } from "@/services/baseApi";
 import type { ApiResponse, PageResponse } from "@/types/api";
 import type {
+  CreateHealthCheckDraftRequest,
+  FinalizeHealthCheckDraftResult,
   HealthCheckLeadDetail,
   HealthCheckLeadFilters,
   HealthCheckLeadSummary,
+  HealthCheckRemoteDraft,
   HealthCheckResult,
-  HealthCheckSubmission,
-  HealthCheckSubmissionResult,
+  UpdateHealthCheckDraftRequest,
   UpdateHealthCheckLead,
 } from "../types";
 
 export const healthCheckApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    submitHealthCheck: builder.mutation<ApiResponse<HealthCheckSubmissionResult>, HealthCheckSubmission>({
-      query: (body) => ({ url: "/api/public/health-check", method: "POST", body }),
+    createHealthCheckDraft: builder.mutation<ApiResponse<HealthCheckRemoteDraft>, CreateHealthCheckDraftRequest>({
+      query: (body) => ({ url: "/api/public/health-check/drafts", method: "POST", body }),
+    }),
+    updateHealthCheckDraft: builder.mutation<
+      ApiResponse<HealthCheckRemoteDraft>,
+      { draftToken: string; body: UpdateHealthCheckDraftRequest }
+    >({
+      query: ({ draftToken, body }) => ({
+        url: `/api/public/health-check/drafts/${encodeURIComponent(draftToken)}`,
+        method: "PATCH",
+        body,
+      }),
+    }),
+    finalizeHealthCheckDraft: builder.mutation<ApiResponse<FinalizeHealthCheckDraftResult>, string>({
+      query: (draftToken) => ({
+        url: `/api/public/health-check/drafts/${encodeURIComponent(draftToken)}/finalize`,
+        method: "POST",
+      }),
     }),
     getHealthCheckResult: builder.query<ApiResponse<HealthCheckResult>, string>({
       query: (token) => `/api/public/health-check/results/${encodeURIComponent(token)}`,
@@ -41,7 +59,9 @@ export const healthCheckApi = baseApi.injectEndpoints({
 });
 
 export const {
-  useSubmitHealthCheckMutation,
+  useCreateHealthCheckDraftMutation,
+  useUpdateHealthCheckDraftMutation,
+  useFinalizeHealthCheckDraftMutation,
   useGetHealthCheckResultQuery,
   useGetHealthCheckLeadsQuery,
   useGetHealthCheckLeadQuery,

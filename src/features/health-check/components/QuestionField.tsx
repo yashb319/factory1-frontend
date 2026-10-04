@@ -7,14 +7,17 @@ type Props = {
   question: HealthCheckQuestion;
   value?: HealthCheckAnswerValue;
   error?: string;
+  disabled?: boolean;
   onChange: (value: HealthCheckAnswerValue) => void;
 };
 
-export function QuestionField({ question, value, error, onChange }: Props) {
+export function QuestionField({ question, value, error, disabled = false, onChange }: Props) {
   const errorId = `${question.id}-error`;
 
   return (
     <fieldset
+      id={question.id}
+      tabIndex={error ? -1 : undefined}
       className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5"
       aria-describedby={error ? errorId : undefined}
       aria-invalid={Boolean(error)}
@@ -25,13 +28,14 @@ export function QuestionField({ question, value, error, onChange }: Props) {
       <RadioGroup
         value={value ?? ""}
         onValueChange={onChange}
+        disabled={disabled}
         className="mt-3 grid gap-2 sm:grid-cols-2"
       >
         {question.options.map((option) => (
           <Label
             key={option.value}
             htmlFor={`${question.id}-${option.value}`}
-            className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border p-3 font-normal transition-colors has-[[data-state=checked]]:border-blue-600 has-[[data-state=checked]]:bg-blue-50"
+            className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border p-3 font-normal transition-colors has-[[data-disabled]]:cursor-not-allowed has-[[data-disabled]]:opacity-60 has-[[data-state=checked]]:border-blue-600 has-[[data-state=checked]]:bg-blue-50"
           >
             <RadioGroupItem id={`${question.id}-${option.value}`} value={option.value} />
             {option.label}

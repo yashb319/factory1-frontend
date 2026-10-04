@@ -5,12 +5,11 @@ describe("health check validation", () => {
   it("blocks unanswered question steps and excess multi-select choices", () => {
     expect(validateQuestionStep(0, {})).toMatchObject({
       factory_size: expect.any(String),
-      software_usage: expect.any(String),
-      implementation_timeline: expect.any(String),
+      improvement_readiness: expect.any(String),
     });
 
-    expect(validateQuestionStep(5, { reporting_frequency: "INVALID" })).toMatchObject({
-      reporting_frequency: "Select an answer to continue",
+    expect(validateQuestionStep(2, { owner_reporting: "INVALID" })).toMatchObject({
+      owner_reporting: "Select an answer to continue",
     });
   });
 

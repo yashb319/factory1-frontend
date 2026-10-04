@@ -11,6 +11,8 @@ describe("HealthCheckWelcome", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent("Welcome to Factory1");
+    expect(dialog).toHaveTextContent(/about three minutes/i);
+    expect(dialog).toHaveTextContent(/draft is saved when you continue/i);
     expect(screen.getByRole("link", { name: /start health check/i })).toHaveAttribute("href", "/health-check");
     await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
 

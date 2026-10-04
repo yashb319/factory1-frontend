@@ -1,4 +1,4 @@
-import { BarChart3, CircleGauge, Clock3, IndianRupee, Info, Sparkles } from "lucide-react";
+import { BarChart3, CircleGauge, Clock3, IndianRupee, Info, Scale } from "lucide-react";
 import { areaLabels } from "../config";
 import { formatHoursRange, formatInr, formatInrRange, formatPercentRange } from "../savings";
 import type { HealthCheckSavingsProjection } from "../types";
@@ -22,7 +22,7 @@ export function SavingsProjectionView({
       <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6" aria-labelledby="savings-unavailable-title">
         <h2 id="savings-unavailable-title" className="text-lg font-semibold">Projected savings snapshot unavailable</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          This earlier health check does not include a persisted savings projection. Its operational recommendations remain available above.
+          This earlier health check does not include a planning estimate. Its practical recommendations remain available above.
         </p>
       </section>
     );
@@ -36,20 +36,18 @@ export function SavingsProjectionView({
     <div className={compact ? "space-y-4" : "space-y-6"}>
       <section className="overflow-hidden rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-950 via-slate-950 to-cyan-950 p-5 text-white shadow-xl print:bg-white print:text-slate-950 print:shadow-none sm:p-8" aria-labelledby="overall-impact-title">
         <div className="flex items-center gap-2 text-cyan-300">
-          <Sparkles size={19} aria-hidden="true" />
-          <p className="text-sm font-semibold uppercase tracking-widest">Projected operational impact</p>
+          <Scale size={19} aria-hidden="true" />
+          <p className="text-sm font-semibold uppercase tracking-widest">Rough planning range</p>
         </div>
         <h2 id="overall-impact-title" className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-          Reclaim time for higher-value factory work
+          Time that may be available for other work
         </h2>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-200 print:text-slate-700 sm:text-base">
-          Factory1 can connect the manual handoffs highlighted in your answers, helping teams spend less time reconciling records and more time acting on reliable operational information.
+          This estimate applies cautious realization factors to your self-reported answers. It is a starting point for checking one workflow with your team, not a forecast or guarantee.
         </p>
-        <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ImpactMetric icon={<Clock3 aria-hidden="true" />} label="Hours saved / month" value={formatHoursRange(overall.estimatedHoursSavedMonthly)} />
-          <ImpactMetric icon={<Clock3 aria-hidden="true" />} label="Hours saved / year" value={formatHoursRange(overall.estimatedHoursSavedYearly)} />
-          <ImpactMetric icon={<IndianRupee aria-hidden="true" />} label="Productivity-cost equivalent / month" value={formatInrRange(overall.estimatedCostSavedMonthlyInr)} />
-          <ImpactMetric icon={<IndianRupee aria-hidden="true" />} label="Productivity-cost equivalent / year" value={formatInrRange(overall.estimatedCostSavedYearlyInr)} />
+        <dl className="mt-6 grid gap-3 sm:grid-cols-2">
+          <ImpactMetric icon={<Clock3 aria-hidden="true" />} label="Possible time released / month" value={formatHoursRange(overall.estimatedHoursSavedMonthly)} />
+          <ImpactMetric icon={<IndianRupee aria-hidden="true" />} label="Time-cost equivalent / month" value={formatInrRange(overall.estimatedCostSavedMonthlyInr)} />
         </dl>
       </section>
 
@@ -59,8 +57,8 @@ export function SavingsProjectionView({
             <div className="flex items-start gap-3">
               <BarChart3 className="mt-0.5 shrink-0 text-blue-600" size={21} aria-hidden="true" />
               <div>
-                <h2 id="module-savings-chart-title" className="text-lg font-semibold">Projected monthly hours saved by module</h2>
-                <p className="mt-1 text-sm text-slate-600">Ranges reflect different levels of adoption and realization, not guaranteed outcomes.</p>
+                <h2 id="module-savings-chart-title" className="text-lg font-semibold">Possible monthly time released by module</h2>
+                <p className="mt-1 text-sm text-slate-600">Use these ranges to choose what to measure first. They are not guaranteed outcomes.</p>
               </div>
             </div>
             <div className="mt-6 space-y-5" role="list" aria-label="Projected monthly hours saved by module">
@@ -103,8 +101,8 @@ export function SavingsProjectionView({
                     </span>
                   </div>
                   <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div><dt className="text-xs text-slate-500">Estimated hours saved / month</dt><dd className="mt-1 font-semibold">{formatHoursRange(module.estimatedHoursSavedPerMonth)}</dd></div>
-                    <div><dt className="text-xs text-slate-500">Productivity-cost equivalent / month</dt><dd className="mt-1 font-semibold">{formatInrRange(module.estimatedMonthlyCostSavedInr)}</dd></div>
+                    <div><dt className="text-xs text-slate-500">Possible time released / month</dt><dd className="mt-1 font-semibold">{formatHoursRange(module.estimatedHoursSavedPerMonth)}</dd></div>
+                    <div><dt className="text-xs text-slate-500">Time-cost equivalent / month</dt><dd className="mt-1 font-semibold">{formatInrRange(module.estimatedMonthlyCostSavedInr)}</dd></div>
                   </dl>
                   <p className="mt-4 text-sm leading-6 text-slate-700">{module.reason}</p>
                   {module.evidence.length > 0 && (
@@ -119,9 +117,9 @@ export function SavingsProjectionView({
         </>
       ) : (
         <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:p-6" aria-labelledby="low-opportunity-title">
-          <h2 id="low-opportunity-title" className="text-lg font-semibold text-emerald-950">Your workflows show a lower manual-effort opportunity</h2>
+          <h2 id="low-opportunity-title" className="text-lg font-semibold text-emerald-950">Your answers show less obvious manual effort</h2>
           <p className="mt-2 text-sm leading-6 text-emerald-900">
-            Your answers indicate mature processes across the assessed modules, so we have not shown speculative savings bars. Factory1 may still help consolidate visibility, but a workflow review is the right next step before quantifying impact.
+            We have not shown speculative estimate bars. Review one real workflow with your team before putting a number on any possible benefit.
           </p>
         </section>
       )}
