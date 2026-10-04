@@ -24,7 +24,7 @@ import { helpGuides } from "./guides";
 export const HELP_REVIEW_CYCLE_MONTHS = 3;
 
 /** Global content revision for the Help Center as a whole. */
-export const HELP_CENTER_CONTENT_VERSION = "1.0.0";
+export const HELP_CENTER_CONTENT_VERSION = "1.1.0";
 
 export function getGuideById(id: string): HelpGuide | undefined {
   return helpGuides.find((guide) => guide.id === id);

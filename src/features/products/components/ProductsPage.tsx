@@ -7,6 +7,7 @@ import {
   BarChart3,
   Calculator,
   Download,
+  Lightbulb,
   MoreHorizontal,
   PackageCheck,
   Plus,
@@ -43,6 +44,7 @@ import { useAppSelector } from "@/lib/hook";
 import {
   canManageProductCosting,
   canManageProductOperations,
+  canRefreshProfitRecommendations,
   isProductCostingEnabled,
 } from "../utils/costingAccess";
 import { getErrorMessage } from "@/lib/apiError";
@@ -61,6 +63,7 @@ import { COSTING_POLICY_OPTIONS } from "../config/costingOptions";
 import type { CostingPolicyDraft } from "../types/costing.types";
 import { ProfitabilityWorkspace } from "./ProfitabilityWorkspace";
 import { canUseProfitAdvisor } from "@/features/ai/lib/profitAdvisor";
+import { ProfitCenterWorkspace } from "./ProfitCenterWorkspace";
 
 export function ProductsPage() {
   const pathname = usePathname();
@@ -69,6 +72,7 @@ export function ProductsPage() {
   const user = useAppSelector((state) => state.auth.user);
   const canManageOperations = canManageProductOperations(user);
   const canManageCosting = canManageProductCosting(user);
+  const canRefreshRecommendations = canRefreshProfitRecommendations(user);
   const { data: featuresData } = useGetOrganizationFeaturesQuery(undefined, {
     skip: !user || Boolean(user.platformAdmin),
   });
@@ -80,8 +84,15 @@ export function ProductsPage() {
     featuresData?.data?.enabledFeatures
   );
   const showCosting = canManageCosting && costingEnabled;
-  const profitabilityActive =
-    showCosting && searchParams.get("view") === "profitability";
+  const requestedView = searchParams.get("view");
+  const productView =
+    showCosting && requestedView === "profitability"
+      ? "profitability"
+      : showCosting && requestedView === "profit-center"
+        ? "profit-center"
+        : "catalog";
+  const profitabilityActive = productView === "profitability";
+  const profitCenterActive = productView === "profit-center";
   const {
     data,
     isLoading,
@@ -314,12 +325,15 @@ export function ProductsPage() {
     });
   }, [products, searchParams, showCosting]);
 
-  const setProductsView = (view: "catalog" | "profitability") => {
+  const setProductsView = (
+    view: "catalog" | "profitability" | "profit-center"
+  ) => {
     const next = new URLSearchParams(searchParams.toString());
-    if (view === "profitability") next.set("view", "profitability");
+    if (view !== "catalog") next.set("view", view);
     else {
       next.delete("view");
       next.delete("profitabilityProduct");
+      next.delete("recommendation");
     }
     router.replace(`${pathname}${next.size ? `?${next.toString()}` : ""}`, {
       scroll: false,
@@ -332,19 +346,25 @@ export function ProductsPage() {
         <CardHeader className="flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              {profitabilityActive ? (
+              {profitCenterActive ? (
+                <Lightbulb className="h-5 w-5" />
+              ) : profitabilityActive ? (
                 <BarChart3 className="h-5 w-5" />
               ) : (
                 <PackageCheck className="h-5 w-5" />
               )}
-              {profitabilityActive
+              {profitCenterActive
+                ? "Profit Center"
+                : profitabilityActive
                 ? "Product Profitability"
                 : canManageOperations
                 ? "Products / BOM / Production"
                 : "Products / Costing"}
             </CardTitle>
             <p className="mt-0.5 text-xs text-slate-500">
-              {profitabilityActive
+              {profitCenterActive
+                ? "Review server-reconciled contribution facts and proactive profit recommendations."
+                : profitabilityActive
                 ? "Review attributed sales, immutable cost evidence, gross profit, and historical trends."
                 : canManageOperations
                 ? "Manage finished goods, optional BOM and production entries."
@@ -362,7 +382,7 @@ export function ProductsPage() {
                 >
                   <Button
                     size="sm"
-                    variant={profitabilityActive ? "ghost" : "secondary"}
+                    variant={productView === "catalog" ? "secondary" : "ghost"}
                     onClick={() => setProductsView("catalog")}
                   >
                     Products
@@ -374,6 +394,13 @@ export function ProductsPage() {
                   >
                     Profitability
                   </Button>
+                  <Button
+                    size="sm"
+                    variant={profitCenterActive ? "secondary" : "ghost"}
+                    onClick={() => setProductsView("profit-center")}
+                  >
+                    Profit Center
+                  </Button>
                 </div>
                 <Button variant="outline" onClick={() => setPolicyOpen(true)}>
                   <Calculator className="mr-2 h-4 w-4" />
@@ -382,7 +409,7 @@ export function ProductsPage() {
               </>
             ) : null}
 
-            {!profitabilityActive ? (
+            {productView === "catalog" ? (
               <Button
                 variant="outline"
                 onClick={handleExport}
@@ -393,7 +420,7 @@ export function ProductsPage() {
               </Button>
             ) : null}
 
-            {canManageOperations && !profitabilityActive ? (
+            {canManageOperations && productView === "catalog" ? (
               <>
                 <Button
                   variant="outline"
@@ -425,6 +452,8 @@ export function ProductsPage() {
               onConfigureCosting={() => setPolicyOpen(true)}
               profitAdvisorEnabled={profitAdvisorEnabled}
             />
+          ) : profitCenterActive ? (
+            <ProfitCenterWorkspace canRefresh={canRefreshRecommendations} />
           ) : isLoading || isFetching ? (
             <p role="status" className="text-sm text-muted-foreground">
               Loading products...

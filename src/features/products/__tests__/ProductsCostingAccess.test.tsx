@@ -119,6 +119,9 @@ describe("Products costing access", () => {
       screen.getByRole("button", { name: "Profitability" })
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("button", { name: "Profit Center" })
+    ).toBeInTheDocument();
+    expect(
       screen.queryByRole("button", { name: "Add Product" })
     ).not.toBeInTheDocument();
     expect(
@@ -145,6 +148,9 @@ describe("Products costing access", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Profitability" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Profit Center" })
     ).not.toBeInTheDocument();
   });
 });

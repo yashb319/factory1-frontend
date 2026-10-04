@@ -1,6 +1,7 @@
 import {
   Bot,
   Building2,
+  Calculator,
   CalendarCheck,
   CalendarDays,
   FileText,
@@ -474,6 +475,111 @@ export const helpGuides: HelpGuide[] = [
     contentVersion: "1.0.0",
     lastUpdated: "2026-09-09",
     reviewBy: "2026-12-09",
+  },
+  {
+    id: "profit-center",
+    title: "Product Costing, Profitability & Profit Center",
+    route: "/products?view=profit-center",
+    module: "finance",
+    icon: Calculator,
+    summary:
+      "Review frozen product cost, attributed contribution facts and proactive profit recommendations.",
+    keywords: [
+      "costing",
+      "profitability",
+      "profit center",
+      "recommendations",
+      "contribution margin",
+      "market evidence",
+      "simulation",
+    ],
+    roles: ["OWNER", "ADMIN", "FINANCE", "MANAGEMENT"],
+    purpose:
+      "Uses server-attributed sales and immutable cost snapshots to present product contribution facts, data coverage and rule-versioned recommendations without presenting company net profit or deriving financial totals in the browser.",
+    prerequisites: [
+      "Product Costing must be enabled for the organization.",
+      "Publish a costing policy and freeze product costing so recommendations have immutable evidence.",
+      "Market-derived opportunities appear only when the Market Intelligence feature is enabled and enough fresh accepted comparable evidence exists.",
+    ],
+    steps: [
+      {
+        title: "Review profitability",
+        detail:
+          "Open Products, choose Profitability and inspect attributed revenue, frozen cost, contribution coverage and product evidence. Missing values remain unavailable rather than becoming zero.",
+      },
+      {
+        title: "Review the Profit Center dashboard",
+        detail:
+          "Choose Profit Center to review server-reconciled attributed revenue, frozen product cost, contribution profit and margin, composition, trends, unallocated revenue, freshness and product rankings.",
+      },
+      {
+        title: "Work the recommendation inbox",
+        detail:
+          "Filter server results by lifecycle, rule type, severity, product and freshness. Open a recommendation to review deterministic impact or its unavailable reason, evidence quality, confidence, rule version and allowlisted links.",
+      },
+      {
+        title: "Update lifecycle safely",
+        detail:
+          "Acknowledge, dismiss, restore or resolve only when the action is available. Each confirmed action checks the current version; a concurrent update is rejected and reloaded for review.",
+      },
+      {
+        title: "Generate and configure notifications",
+        detail:
+          "Authorized finance roles can queue a bounded backend generation job and follow its status. Notification channels and minimum severity change only after Save preferences is selected.",
+      },
+    ],
+    keyFields: [
+      {
+        name: "Contribution profit and margin",
+        description:
+          "Backend facts from attributed posted sales and effective frozen product cost; they are not company net profit.",
+      },
+      {
+        name: "Coverage and freshness",
+        description:
+          "Shows unallocated revenue, missing or stale cost evidence and snapshot coverage that affect interpretation.",
+      },
+      {
+        name: "Deterministic impact",
+        description:
+          "Shown only when returned by the backend. Otherwise the recommendation displays the explicit unavailable reason.",
+      },
+      {
+        name: "Market evidence",
+        description:
+          "Accepted source count, confidence, freshness, channel and currency for review; never an instruction to set a price.",
+      },
+    ],
+    statuses: [
+      { name: "OPEN", description: "Available for review and allowed lifecycle actions." },
+      { name: "ACKNOWLEDGED", description: "Reviewed but not yet resolved." },
+      { name: "DISMISSED", description: "Dismissed with optional reason; can be restored when the backend allows it." },
+      { name: "RESOLVED / EXPIRED", description: "Historical read-only recommendation." },
+      { name: "PENDING / RUNNING / SUCCEEDED / FAILED", description: "Bounded recommendation generation job states." },
+    ],
+    troubleshooting: [
+      {
+        problem: "Financial values or impact are unavailable.",
+        fix: "Review the displayed currency, coverage, snapshot and impact-unavailable reasons. Do not infer missing values; correct the underlying sales attribution or frozen cost evidence.",
+      },
+      {
+        problem: "A lifecycle action reports a version conflict.",
+        fix: "Review the automatically reloaded recommendation before confirming a new action. The app never silently overwrites another session.",
+      },
+      {
+        problem: "Market evidence is absent.",
+        fix: "Confirm Market Intelligence is enabled and review accepted same-channel, same-currency comparable evidence. Direct provider fetches are not started from recommendations.",
+      },
+    ],
+    relatedRoutes: [
+      { label: "Profit Center", href: "/products?view=profit-center" },
+      { label: "Product profitability", href: "/products?view=profitability" },
+      { label: "Products and costing", href: "/products" },
+    ],
+    contentOwner: "Finance product owner",
+    contentVersion: "1.0.0",
+    lastUpdated: "2026-10-05",
+    reviewBy: "2027-01-05",
   },
   {
     id: "production",
