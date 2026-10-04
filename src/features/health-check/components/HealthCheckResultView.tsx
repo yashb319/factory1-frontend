@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Layers3, Target } from "lucide-react";
+import { ArrowRight, CheckCircle2, Layers3, Sparkles, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { areaLabels, priorityLabels } from "../config";
 import type { HealthCheckResult } from "../types";
+import { getOperationalBenefits } from "../operationalBenefits";
 import { SavingsProjectionView } from "./SavingsProjectionView";
 
 export function HealthCheckResultView({ result }: { result: HealthCheckResult }) {
   const findings = result.keyFindings.slice(0, 4);
+  const operationalBenefits = getOperationalBenefits(result);
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 sm:py-14">
@@ -22,6 +24,28 @@ export function HealthCheckResultView({ result }: { result: HealthCheckResult })
             {result.explanation}
           </p>
         </div>
+
+        <section className="rounded-2xl border bg-white p-5 sm:p-6" aria-labelledby="operational-benefits-title">
+          <div className="flex items-start gap-3">
+            <Sparkles className="mt-0.5 shrink-0 text-blue-600" size={21} aria-hidden="true" />
+            <div>
+              <h2 id="operational-benefits-title" className="text-lg font-semibold">
+                What better daily operations can look like
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                These practical improvements follow from the areas highlighted by your answers.
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {operationalBenefits.map((benefit) => (
+              <article key={benefit.area} className="rounded-xl bg-slate-50 p-4">
+                <h3 className="font-semibold text-slate-950">{benefit.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{benefit.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
 
         <div className="grid gap-6 lg:grid-cols-5">
           <section className="rounded-2xl border bg-white p-5 lg:col-span-3 sm:p-6">

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   HEALTH_CHECK_DRAFT_KEY,
+  LEGACY_HEALTH_CHECK_DRAFT_KEY,
   WELCOME_DISMISSAL_COOLDOWN_MS,
   completeWelcome,
   createHealthCheckDraft,
@@ -35,17 +36,21 @@ describe("health check storage", () => {
       },
       projectionInputs: {
         workingDaysPerMonth: "26",
-        loadedHourlyLabourCostInr: "250",
       },
     });
   });
 
   it("keeps safe legacy draft fields while removing obsolete consent state", () => {
     const draft = createHealthCheckDraft();
-    localStorage.setItem(HEALTH_CHECK_DRAFT_KEY, JSON.stringify({
+    localStorage.setItem(LEGACY_HEALTH_CHECK_DRAFT_KEY, JSON.stringify({
         ...draft,
+        version: 5,
         step: 0,
         answers: { production_visibility: "BOARD_OR_PAPER" },
+        projectionInputs: {
+          workingDaysPerMonth: "24",
+          loadedHourlyLabourCostInr: "375",
+        },
         consentToContact: true,
         followUpPreference: "EMAIL",
     }));
@@ -54,7 +59,12 @@ describe("health check storage", () => {
       ...draft,
       step: 0,
       answers: { production_visibility: "BOARD_OR_PAPER" },
+      projectionInputs: { workingDaysPerMonth: "24" },
     });
+    expect(localStorage.getItem(LEGACY_HEALTH_CHECK_DRAFT_KEY)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(HEALTH_CHECK_DRAFT_KEY) ?? "{}")).not.toHaveProperty(
+      "projectionInputs.loadedHourlyLabourCostInr"
+    );
   });
 
   it("discards corrupt and obsolete drafts", () => {

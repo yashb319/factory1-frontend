@@ -89,7 +89,7 @@ export function HealthCheckPage() {
       ? "These details are already saved with this draft."
       : "We save these details with your draft when you continue, so you can come back without starting again."
     : isReview
-      ? "Check the short summary below. Your estimates are planning ranges, not promised savings."
+      ? "Check your answers below. The report focuses on practical operating improvements and cautious monthly-hour ranges."
       : stepConfig.description;
 
   function persistDraft(nextDraft: HealthCheckDraft) {
@@ -353,11 +353,11 @@ export function HealthCheckPage() {
               </details>
 
               <details className="rounded-2xl border bg-white p-5">
-                <summary className="cursor-pointer font-semibold">Adjust estimate assumptions (optional)</summary>
+                <summary className="cursor-pointer font-semibold">Adjust the monthly planning range (optional)</summary>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  These numbers only set a rough productivity-cost range. They are not a promise of cash savings.
+                  Working days help keep the cautious hours-per-month range relevant to your factory.
                 </p>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="mt-4 max-w-sm">
                   <div>
                     <Label htmlFor="workingDaysPerMonth">Working days per month</Label>
                     <Input
@@ -376,25 +376,6 @@ export function HealthCheckPage() {
                     />
                     <p id="workingDaysPerMonth-help" className="mt-1 text-xs text-slate-500">Default: 26</p>
                     {errors.workingDaysPerMonth && <p id="workingDaysPerMonth-error" role="alert" className="mt-1 text-sm text-red-600">{errors.workingDaysPerMonth}</p>}
-                  </div>
-                  <div>
-                    <Label htmlFor="loadedHourlyLabourCostInr">Hourly labour cost including overhead (₹)</Label>
-                    <Input
-                      id="loadedHourlyLabourCostInr"
-                      type="number"
-                      inputMode="decimal"
-                      min={100}
-                      max={10000}
-                      step="0.01"
-                      className="mt-1.5 min-h-11"
-                      disabled={remoteMutationIsLoading}
-                      value={activeDraft.projectionInputs.loadedHourlyLabourCostInr}
-                      aria-invalid={Boolean(errors.loadedHourlyLabourCostInr)}
-                      aria-describedby={errors.loadedHourlyLabourCostInr ? "loadedHourlyLabourCostInr-error" : "loadedHourlyLabourCostInr-help"}
-                      onChange={(event) => updateProjectionInput("loadedHourlyLabourCostInr", event.target.value)}
-                    />
-                    <p id="loadedHourlyLabourCostInr-help" className="mt-1 text-xs text-slate-500">Default: ₹250</p>
-                    {errors.loadedHourlyLabourCostInr && <p id="loadedHourlyLabourCostInr-error" role="alert" className="mt-1 text-sm text-red-600">{errors.loadedHourlyLabourCostInr}</p>}
                   </div>
                 </div>
               </details>

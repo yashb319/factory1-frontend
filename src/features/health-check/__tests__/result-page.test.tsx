@@ -10,7 +10,7 @@ vi.mock("../api/healthCheckApi", () => ({
 }));
 
 describe("HealthCheckResultPage", () => {
-  it("renders the persisted projection returned for the safe token on refresh", () => {
+  it("renders the persisted operational result returned for the safe token on refresh", () => {
     getResult.mockReturnValue({
       data: { data: healthCheckResult },
       isLoading: false,
@@ -20,7 +20,8 @@ describe("HealthCheckResultPage", () => {
 
     render(<HealthCheckResultPage token="persisted-safe-token" />);
     expect(getResult).toHaveBeenCalledWith("persisted-safe-token");
-    expect(screen.getByLabelText("Inventory: 32–68 hours projected per month")).toBeInTheDocument();
-    expect(screen.getByText((content) => content.includes(healthCheckResult.savingsProjection?.disclaimer ?? "missing"))).toBeInTheDocument();
+    expect(screen.getByLabelText("Inventory: 32–68 hours possible per month")).toBeInTheDocument();
+    expect(screen.getByText(/stock receipts and usage become easier to trace/i)).toBeInTheDocument();
+    expect(screen.queryByText(/₹|time-cost|labour cost/i)).not.toBeInTheDocument();
   });
 });
