@@ -5,9 +5,23 @@
  */
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === "object" && error !== null && "data" in error) {
-    const data = (error as { data?: { message?: string } }).data;
+    const data = (error as {
+      data?: { message?: string; error?: string; detail?: string };
+    }).data;
     if (data?.message) return data.message;
+    if (data?.error) return data.error;
+    if (data?.detail) return data.detail;
   }
+
+  if (typeof error === "object" && error !== null) {
+    if ("error" in error && typeof error.error === "string") {
+      return error.error;
+    }
+    if ("message" in error && typeof error.message === "string") {
+      return error.message;
+    }
+  }
+
   return fallback;
 }
 

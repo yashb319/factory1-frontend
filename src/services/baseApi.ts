@@ -123,6 +123,8 @@ export const baseApi = createApi({
     "Vendor",
     "Customer",
     "Products",
+    "ProductCostingPolicy",
+    "ProductCosting",
     "Billing",
     "Accounting",
     "ImportExport",
