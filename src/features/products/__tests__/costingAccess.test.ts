@@ -3,6 +3,7 @@ import type { AuthUser, UserRole } from "@/features/auth/types";
 import {
   canManageProductCosting,
   canManageProductOperations,
+  canRefreshProfitRecommendations,
   isProductCostingEnabled,
 } from "../utils/costingAccess";
 
@@ -32,6 +33,18 @@ describe("product costing access", () => {
 
   it("does not grant costing to employees", () => {
     expect(canManageProductCosting(user("EMPLOYEE"))).toBe(false);
+  });
+
+  it.each(["OWNER", "ADMIN", "FINANCE"] as const)(
+    "allows %s to refresh recommendations",
+    (role) => {
+      expect(canRefreshProfitRecommendations(user(role))).toBe(true);
+    }
+  );
+
+  it("keeps management recommendation access read-only", () => {
+    expect(canManageProductCosting(user("MANAGEMENT"))).toBe(true);
+    expect(canRefreshProfitRecommendations(user("MANAGEMENT"))).toBe(false);
   });
 
   it("fails open while features load and honors the costing entitlement once loaded", () => {
