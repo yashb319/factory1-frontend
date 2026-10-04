@@ -3,7 +3,7 @@ import { HealthCheckPage } from "@/features/health-check/components/HealthCheckP
 
 export const metadata: Metadata = {
   title: "Factory Operations Health Check | Factory1",
-  description: "A five-minute health check for factory operations, people, inventory, finance, and reporting.",
+  description: "A short, practical health check for factory operations, people, inventory, finance, and reporting.",
 };
 
 export default function Page() {

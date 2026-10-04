@@ -39,14 +39,16 @@ export function loadHealthCheckDraft(storage: Storage = localStorage): HealthChe
       typeof value.step !== "number" ||
       !Number.isInteger(value.step) ||
       value.step < 0 ||
-      value.step > HEALTH_CHECK_STEPS.length ||
+      value.step > HEALTH_CHECK_STEPS.length + 1 ||
       !isAnswerRecord(value.answers) ||
       !isContact(value.contact) ||
       !isProjectionInputDraft(value.projectionInputs) ||
       !isUuid(value.idempotencyKey) ||
       typeof value.formStartedAtEpochMs !== "number" ||
       !Number.isFinite(value.formStartedAtEpochMs) ||
-      value.formStartedAtEpochMs <= 0
+      value.formStartedAtEpochMs <= 0 ||
+      (value.remoteDraft !== undefined && !isRemoteDraft(value.remoteDraft)) ||
+      (value.step > 0 && !isRemoteDraft(value.remoteDraft))
     ) {
       storage.removeItem(HEALTH_CHECK_DRAFT_KEY);
       return null;
@@ -59,11 +61,28 @@ export function loadHealthCheckDraft(storage: Storage = localStorage): HealthChe
       projectionInputs: value.projectionInputs,
       idempotencyKey: value.idempotencyKey,
       formStartedAtEpochMs: value.formStartedAtEpochMs,
+      ...(value.remoteDraft ? { remoteDraft: value.remoteDraft } : {}),
     };
   } catch {
     storage.removeItem(HEALTH_CHECK_DRAFT_KEY);
     return null;
   }
+}
+
+function isRemoteDraft(value: unknown): value is NonNullable<HealthCheckDraft["remoteDraft"]> {
+  if (!value || typeof value !== "object") return false;
+  const draft = value as Record<string, unknown>;
+  return (
+    isUuid(draft.draftId) &&
+    typeof draft.draftToken === "string" &&
+    draft.draftToken.length > 0 &&
+    draft.status === "DRAFT" &&
+    typeof draft.revision === "number" &&
+    Number.isInteger(draft.revision) &&
+    draft.revision >= 0 &&
+    typeof draft.createdAt === "string" &&
+    typeof draft.updatedAt === "string"
+  );
 }
 
 function isProjectionInputDraft(value: unknown): value is HealthCheckProjectionInputDraft {

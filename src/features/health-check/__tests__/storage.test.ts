@@ -14,13 +14,25 @@ describe("health check storage", () => {
   it("round-trips the current draft version", () => {
     const draft = createHealthCheckDraft();
     draft.step = 3;
-    draft.answers.inventory_tracking = "MANUAL";
+    draft.answers.stock_control = "PAPER";
+    draft.remoteDraft = {
+      draftId: "11111111-1111-4111-8111-111111111111",
+      draftToken: "opaque-token",
+      status: "DRAFT",
+      revision: 2,
+      createdAt: "2026-10-04T00:00:00Z",
+      updatedAt: "2026-10-04T00:01:00Z",
+    };
     saveHealthCheckDraft(draft);
 
     expect(loadHealthCheckDraft()).toMatchObject({
       version: draft.version,
       step: 3,
-      answers: { inventory_tracking: "MANUAL" },
+      answers: { stock_control: "PAPER" },
+      remoteDraft: {
+        draftToken: "opaque-token",
+        revision: 2,
+      },
       projectionInputs: {
         workingDaysPerMonth: "26",
         loadedHourlyLabourCostInr: "250",
@@ -32,16 +44,16 @@ describe("health check storage", () => {
     const draft = createHealthCheckDraft();
     localStorage.setItem(HEALTH_CHECK_DRAFT_KEY, JSON.stringify({
         ...draft,
-        step: 2,
-        answers: { production_tracking: "PAPER" },
+        step: 0,
+        answers: { production_visibility: "BOARD_OR_PAPER" },
         consentToContact: true,
         followUpPreference: "EMAIL",
     }));
 
     expect(loadHealthCheckDraft()).toEqual({
       ...draft,
-      step: 2,
-      answers: { production_tracking: "PAPER" },
+      step: 0,
+      answers: { production_visibility: "BOARD_OR_PAPER" },
     });
   });
 

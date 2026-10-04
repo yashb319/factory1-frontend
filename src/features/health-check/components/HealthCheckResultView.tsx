@@ -16,7 +16,7 @@ export function HealthCheckResultView({ result }: { result: HealthCheckResult })
             {priorityLabels[result.priority]}
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Your primary improvement area is {areaLabels[result.primaryArea]}.
+            A practical place to start: {areaLabels[result.primaryArea]}
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-200">
             {result.explanation}
@@ -74,13 +74,13 @@ export function HealthCheckResultView({ result }: { result: HealthCheckResult })
           <div>
             <h2 className="text-lg font-semibold">Turn the findings into a practical rollout</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Explore Factory1 or create a workspace when you are ready.
+              Validate one workflow with your team before planning a wider change.
             </p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <Button variant="outline" asChild><Link href="/">Back to Factory1</Link></Button>
             <Button asChild>
-              <Link href="/signup">Start free <ArrowRight aria-hidden="true" /></Link>
+              <Link href="/signup">Explore Factory1 <ArrowRight aria-hidden="true" /></Link>
             </Button>
           </div>
         </section>
