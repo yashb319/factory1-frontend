@@ -8,6 +8,12 @@ import {
   type AiProfitAdvisorEntryRequest,
 } from "@/features/ai/lib/profitAdvisorEntry";
 
+vi.mock("../components/ConnectedMarketIntelligencePanel", () => ({
+  ConnectedMarketIntelligencePanel: () => (
+    <section aria-label="Market Intelligence">Market Intelligence</section>
+  ),
+}));
+
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
