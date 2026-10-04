@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
+  BarChart3,
   Calculator,
   Download,
   MoreHorizontal,
@@ -57,8 +59,12 @@ import { CostingPolicyDialog } from "./CostingPolicyDialog";
 import { ProductCostingDialog } from "./ProductCostingDialog";
 import { COSTING_POLICY_OPTIONS } from "../config/costingOptions";
 import type { CostingPolicyDraft } from "../types/costing.types";
+import { ProfitabilityWorkspace } from "./ProfitabilityWorkspace";
 
 export function ProductsPage() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const user = useAppSelector((state) => state.auth.user);
   const canManageOperations = canManageProductOperations(user);
   const canManageCosting = canManageProductCosting(user);
@@ -69,6 +75,8 @@ export function ProductsPage() {
     featuresData?.data?.enabledFeatures
   );
   const showCosting = canManageCosting && costingEnabled;
+  const profitabilityActive =
+    showCosting && searchParams.get("view") === "profitability";
   const {
     data,
     isLoading,
@@ -287,19 +295,39 @@ export function ProductsPage() {
     }
   }, [isLoading, products.length, handleExport]);
 
+  const setProductsView = (view: "catalog" | "profitability") => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (view === "profitability") next.set("view", "profitability");
+    else {
+      next.delete("view");
+      next.delete("profitabilityProduct");
+    }
+    router.replace(`${pathname}${next.size ? `?${next.toString()}` : ""}`, {
+      scroll: false,
+    });
+  };
+
   return (
     <div className="space-y-2 text-[12px]">
       <Card className="border-[var(--factory1-border)]">
         <CardHeader className="flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <PackageCheck className="h-5 w-5" />
-              {canManageOperations
+              {profitabilityActive ? (
+                <BarChart3 className="h-5 w-5" />
+              ) : (
+                <PackageCheck className="h-5 w-5" />
+              )}
+              {profitabilityActive
+                ? "Product Profitability"
+                : canManageOperations
                 ? "Products / BOM / Production"
                 : "Products / Costing"}
             </CardTitle>
             <p className="mt-0.5 text-xs text-slate-500">
-              {canManageOperations
+              {profitabilityActive
+                ? "Review attributed sales, immutable cost evidence, gross profit, and historical trends."
+                : canManageOperations
                 ? "Manage finished goods, optional BOM and production entries."
                 : "Review finished goods and their server-generated costing evidence."}
             </p>
@@ -307,22 +335,46 @@ export function ProductsPage() {
 
           <div className="flex flex-wrap gap-2">
             {showCosting ? (
-              <Button variant="outline" onClick={() => setPolicyOpen(true)}>
-                <Calculator className="mr-2 h-4 w-4" />
-                Costing policy
+              <>
+                <div
+                  className="inline-flex rounded-lg border p-0.5"
+                  aria-label="Product view"
+                  role="group"
+                >
+                  <Button
+                    size="sm"
+                    variant={profitabilityActive ? "ghost" : "secondary"}
+                    onClick={() => setProductsView("catalog")}
+                  >
+                    Products
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={profitabilityActive ? "secondary" : "ghost"}
+                    onClick={() => setProductsView("profitability")}
+                  >
+                    Profitability
+                  </Button>
+                </div>
+                <Button variant="outline" onClick={() => setPolicyOpen(true)}>
+                  <Calculator className="mr-2 h-4 w-4" />
+                  Costing policy
+                </Button>
+              </>
+            ) : null}
+
+            {!profitabilityActive ? (
+              <Button
+                variant="outline"
+                onClick={handleExport}
+                disabled={!products.length}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export
               </Button>
             ) : null}
 
-            <Button
-              variant="outline"
-              onClick={handleExport}
-              disabled={!products.length}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
-
-            {canManageOperations ? (
+            {canManageOperations && !profitabilityActive ? (
               <>
                 <Button
                   variant="outline"
@@ -349,7 +401,11 @@ export function ProductsPage() {
         </CardHeader>
 
         <CardContent>
-          {isLoading || isFetching ? (
+          {profitabilityActive ? (
+            <ProfitabilityWorkspace
+              onConfigureCosting={() => setPolicyOpen(true)}
+            />
+          ) : isLoading || isFetching ? (
             <p role="status" className="text-sm text-muted-foreground">
               Loading products...
             </p>

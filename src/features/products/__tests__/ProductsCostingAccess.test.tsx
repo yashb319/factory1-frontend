@@ -4,6 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProductsPage } from "../components/ProductsPage";
 
 let enabledFeatures = ["product_costing"];
+const replace = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/products",
+  useRouter: () => ({ replace }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 vi.mock("@/lib/hook", () => ({
   useAppSelector: vi.fn(() => ({
@@ -109,6 +116,9 @@ describe("Products costing access", () => {
       screen.getByRole("button", { name: "Costing policy" })
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("button", { name: "Profitability" })
+    ).toBeInTheDocument();
+    expect(
       screen.queryByRole("button", { name: "Add Product" })
     ).not.toBeInTheDocument();
     expect(
@@ -132,6 +142,9 @@ describe("Products costing access", () => {
 
     expect(
       screen.queryByRole("button", { name: "Costing policy" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Profitability" })
     ).not.toBeInTheDocument();
   });
 });

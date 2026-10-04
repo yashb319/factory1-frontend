@@ -111,6 +111,9 @@ export const costingApi = baseApi.injectEndpoints({
         toProductCostingView(unwrapCostingEnvelope(response)),
       invalidatesTags: (_result, _error, args) => [
         { type: "ProductCosting", id: args.productId },
+        { type: "ProductProfitability", id: "PORTFOLIO" },
+        { type: "ProductProfitability", id: args.productId },
+        { type: "ProductProfitability", id: `${args.productId}:TRENDS` },
       ],
     }),
     getCostingSnapshot: builder.query<ProductCostingView, string>({

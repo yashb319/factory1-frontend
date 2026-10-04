@@ -125,6 +125,7 @@ export const baseApi = createApi({
     "Products",
     "ProductCostingPolicy",
     "ProductCosting",
+    "ProductProfitability",
     "Billing",
     "Accounting",
     "ImportExport",
