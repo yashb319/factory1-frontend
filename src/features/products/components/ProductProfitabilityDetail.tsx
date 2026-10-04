@@ -28,6 +28,7 @@ import { ProfitabilityTrendChart } from "./ProfitabilityTrendChart";
 import { ProfitSimulatorWorkspace } from "./ProfitSimulatorWorkspace";
 import { Sparkles } from "lucide-react";
 import { requestProfitAdvisor } from "@/features/ai/lib/profitAdvisorEntry";
+import { ConnectedMarketIntelligencePanel } from "./ConnectedMarketIntelligencePanel";
 
 type Props = {
   open: boolean;
@@ -204,6 +205,20 @@ export function ProductProfitabilityDetailDialog({
                 initialSnapshotId={initialSimulatorSnapshotId}
               />
             ) : null}
+
+            <ConnectedMarketIntelligencePanel
+              productId={detail.productId}
+              productName={detail.productName}
+              currentRealizedPrice={detail.realizedUnitSellingPrice}
+              currentListPrice={
+                detail.metadata.frozenSellingPrice == null
+                  ? null
+                  : {
+                      currency: detail.realizedUnitSellingPrice.currency,
+                      value: detail.metadata.frozenSellingPrice,
+                    }
+              }
+            />
 
             {detail.warnings.length ? (
               <section
