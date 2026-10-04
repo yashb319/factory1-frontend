@@ -6,6 +6,7 @@ export const FEATURE_KEYS = [
   "accounting",
   "payroll",
   "ai_assistant",
+  "product_costing",
 ] as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
@@ -18,6 +19,7 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   accounting: "Accounting",
   payroll: "Payroll",
   ai_assistant: "AI Assistant",
+  product_costing: "Product Costing",
 };
 
 const FEATURE_PATH_PREFIXES: { featureKey: FeatureKey; prefix: string }[] = [

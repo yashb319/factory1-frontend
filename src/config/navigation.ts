@@ -26,6 +26,7 @@ import {
   Paintbrush,
   ClipboardCheck,
   Gauge,
+  Calculator,
 } from "lucide-react";
 import type { ComponentType, CSSProperties } from "react";
 import type { AuthUser, UserRole } from "@/features/auth/types";
@@ -60,6 +61,14 @@ export const navigationItems: NavigationItem[] = [
     icon: PackageCheck,
     roles: operationsRoles,
     module: "production",
+  },
+  {
+    title: "Product Costing",
+    href: "/products",
+    icon: Calculator,
+    roles: ["FINANCE"],
+    module: "finance",
+    featureKey: "product_costing",
   },
   { title: "Production", href: "/production", icon: Workflow, roles: operationsRoles, module: "production", featureKey: "production_tracking" },
   { title: "Billing", href: "/billing", icon: FileText, roles: financeRoles, module: "sales", featureKey: "billing" },
