@@ -3,6 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ProductProfitabilityDetailDialog } from "../components/ProductProfitabilityDetail";
 import type { ProductProfitabilityDetail } from "../types/profitability.types";
+import {
+  AI_PROFIT_ADVISOR_EVENT,
+  type AiProfitAdvisorEntryRequest,
+} from "@/features/ai/lib/profitAdvisorEntry";
 
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
@@ -134,5 +138,57 @@ describe("ProductProfitabilityDetailDialog", () => {
 
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("shows a gated contextual Ask Factory1 action with exact product and period context", async () => {
+    const user = userEvent.setup();
+    const request = vi.fn<(event: Event) => void>();
+    window.addEventListener(AI_PROFIT_ADVISOR_EVENT, request);
+
+    render(
+      <ProductProfitabilityDetailDialog
+        open
+        onOpenChange={vi.fn()}
+        detail={detail}
+        loading={false}
+        onRetry={vi.fn()}
+        onConfigureCosting={vi.fn()}
+        profitAdvisorEnabled
+        advisorPeriod={{ from: "2026-09-01", to: "2026-09-30" }}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Ask Factory1" }));
+    expect(request).toHaveBeenCalledOnce();
+    const event = request.mock.calls[0][0] as CustomEvent<AiProfitAdvisorEntryRequest>;
+    expect(event.detail.profit).toEqual({
+      focus: "GENERAL",
+      from: "2026-09-01",
+      to: "2026-09-30",
+      productId: "product-1",
+    });
+    expect(event.detail.question).toMatch(/contribution margin/i);
+    expect(event.detail.question).not.toMatch(/supplier quote|employee productivity/i);
+
+    window.removeEventListener(AI_PROFIT_ADVISOR_EVENT, request);
+  });
+
+  it("hides Ask Factory1 when profit advisor access is not permitted", () => {
+    render(
+      <ProductProfitabilityDetailDialog
+        open
+        onOpenChange={vi.fn()}
+        detail={detail}
+        loading={false}
+        onRetry={vi.fn()}
+        onConfigureCosting={vi.fn()}
+        profitAdvisorEnabled={false}
+        advisorPeriod={{ from: "2026-09-01", to: "2026-09-30" }}
+      />
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Ask Factory1" })
+    ).not.toBeInTheDocument();
   });
 });

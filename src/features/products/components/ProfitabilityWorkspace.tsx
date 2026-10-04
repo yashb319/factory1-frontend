@@ -19,8 +19,10 @@ import { ProfitabilityPortfolio } from "./ProfitabilityPortfolio";
 
 export function ProfitabilityWorkspace({
   onConfigureCosting,
+  profitAdvisorEnabled = false,
 }: {
   onConfigureCosting: () => void;
+  profitAdvisorEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -109,6 +111,7 @@ export function ProfitabilityWorkspace({
       />
 
       <ProductProfitabilityDetailDialog
+        key={`${selectedProductId ?? "none"}:${searchParams.get("profitSimulator") ?? "closed"}`}
         open={Boolean(selectedProductId)}
         onOpenChange={(open) => {
           if (!open) updateSearch({ profitabilityProduct: null });
@@ -134,6 +137,12 @@ export function ProfitabilityWorkspace({
         }}
         onConfigureCosting={onConfigureCosting}
         costingPolicy={costingPolicy}
+        profitAdvisorEnabled={profitAdvisorEnabled}
+        advisorPeriod={{ from: filters.from, to: filters.to }}
+        initialSimulatorOpen={
+          searchParams.get("profitSimulator") === "open"
+        }
+        initialSimulatorSnapshotId={searchParams.get("snapshotId")}
       />
     </>
   );

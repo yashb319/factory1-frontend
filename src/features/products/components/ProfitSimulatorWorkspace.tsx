@@ -21,6 +21,7 @@ import {
 
 type Props = {
   baselines: ProfitSimulatorBaseline[];
+  initialSnapshotId?: string | null;
   result?: ProfitSimulationResult | null;
   loading: boolean;
   error?: string | null;
@@ -36,6 +37,7 @@ type NumericBounds = {
 
 export function ProfitSimulatorWorkspace({
   baselines,
+  initialSnapshotId,
   result,
   loading,
   error,
@@ -43,7 +45,9 @@ export function ProfitSimulatorWorkspace({
   onRetry,
 }: Props) {
   const [selectedSnapshotId, setSelectedSnapshotId] = useState(
-    baselines[0]?.snapshot.id ?? ""
+    baselines.some((entry) => entry.snapshot.id === initialSnapshotId)
+      ? initialSnapshotId!
+      : baselines[0]?.snapshot.id ?? ""
   );
   const baseline =
     baselines.find((entry) => entry.snapshot.id === selectedSnapshotId) ??
