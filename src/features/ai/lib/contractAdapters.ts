@@ -5,6 +5,7 @@ import type {
   AiConversationList,
   AiQuickQuestionList,
   ApiResponse,
+  AiProfitRequest,
 } from "../types/ai.types";
 
 export function unwrapAiData<T>(response: ApiResponse<T> | T): T {
@@ -44,6 +45,25 @@ export function serializeAiChatRequest(request: AiChatRequest): AiChatRequest {
     ...(request.currentRoute ? { currentRoute: request.currentRoute } : {}),
     ...(request.businessInsight ? { businessInsight: true } : {}),
     ...(request.benchmark ? { benchmark: request.benchmark } : {}),
+    ...(request.profit ? { profit: serializeAiProfitRequest(request.profit) } : {}),
+  };
+}
+
+export function serializeAiProfitRequest(
+  request: AiProfitRequest
+): AiProfitRequest {
+  return {
+    focus: request.focus,
+    ...(request.from ? { from: request.from } : {}),
+    ...(request.to ? { to: request.to } : {}),
+    ...(request.productId ? { productId: request.productId } : {}),
+    ...(request.pricePercentChange !== undefined
+      ? { pricePercentChange: request.pricePercentChange }
+      : {}),
+    ...(request.targetMarginPercent !== undefined
+      ? { targetMarginPercent: request.targetMarginPercent }
+      : {}),
+    ...(request.simulation ? { simulation: request.simulation } : {}),
   };
 }
 

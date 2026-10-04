@@ -1,3 +1,13 @@
+import type {
+  AppliedOverrideDto,
+  ProfitSimulationRequestDto,
+  ProfitSimulationResponseDto,
+} from "@/features/products/types/profitSimulatorApi.types";
+import type {
+  PortfolioSummaryDto,
+  ProfitabilityMetricDto,
+} from "@/features/products/types/profitabilityApi.types";
+
 export type AiChatRole = "USER" | "ASSISTANT";
 
 export const AI_MODULE_CONTEXTS = [
@@ -11,6 +21,7 @@ export const AI_MODULE_CONTEXTS = [
   "BILLING",
   "CUSTOMERS",
   "SUPPLIERS",
+  "PROFIT",
 ] as const;
 
 export type AiModuleContext = (typeof AI_MODULE_CONTEXTS)[number];
@@ -47,6 +58,7 @@ export type AiProvenance = {
   summary: string;
   period: string | null;
   recordCount: number;
+  profit?: AiProfitProvenance | null;
 };
 
 export type AiMessageSnapshot = {
@@ -57,11 +69,12 @@ export type AiMessageSnapshot = {
   records: AiRelevantRecord[];
   thinking: string[];
   followUp: string | null;
-  provider: string;
-  fallback: boolean;
+  provider?: string;
+  fallback?: boolean;
   intent: string | null;
   entity: string | null;
   provenance: AiProvenance | null;
+  profit?: AiProfitContext | null;
 };
 
 export type AiChatResponse = AiMessageSnapshot & {
@@ -72,6 +85,8 @@ export type AiChatResponse = AiMessageSnapshot & {
   title: string;
   module: AiModuleContext;
   provenance: AiProvenance | null;
+  provider: string;
+  fallback: boolean;
 };
 
 export type AiRelevantRecord = {
@@ -87,6 +102,7 @@ export type AiChatRequest = {
   currentRoute?: string;
   businessInsight?: boolean;
   benchmark?: string;
+  profit?: AiProfitRequest;
 };
 
 export type AiConversationSummary = {
@@ -211,6 +227,110 @@ export type AiActionProposal = {
   restore?: boolean;
   approve?: boolean;
   export?: boolean;
+  actionType?: "NAVIGATE";
+  displayOnly?: boolean;
+  route?: string;
+};
+
+export const AI_PROFIT_FOCUSES = [
+  "HIGHEST_CONTRIBUTION_MARGIN",
+  "LOWEST_CONTRIBUTION_MARGIN",
+  "INCOMPLETE_DATA",
+  "PRICE_CHANGE_WHAT_IF",
+  "MATERIAL_COST_DRIVERS",
+  "CONTRIBUTION_PROFIT_LOSS",
+  "TARGET_IMPROVEMENT",
+  "GENERAL",
+] as const;
+
+export type AiProfitFocus = (typeof AI_PROFIT_FOCUSES)[number];
+
+export type AiProfitRequest = {
+  focus: AiProfitFocus;
+  from?: string;
+  to?: string;
+  productId?: string;
+  pricePercentChange?: number;
+  targetMarginPercent?: number;
+  simulation?: ProfitSimulationRequestDto;
+};
+
+export type AiProfitProductFact = {
+  productId: string;
+  productCode: string;
+  productName: string;
+  currency: string;
+  snapshotId?: string | null;
+  snapshotVersion?: number | string | null;
+  snapshotAsOfDate?: string | null;
+  completeness: "COMPLETE" | "ESTIMATED" | "INCOMPLETE";
+  attributionCoveragePercent?: ProfitabilityMetricDto;
+  costCoveragePercent?: ProfitabilityMetricDto;
+  realizedRevenue?: ProfitabilityMetricDto;
+  realizedProfit?: ProfitabilityMetricDto;
+  realizedMarginPercent?: ProfitabilityMetricDto;
+  unitContribution?: ProfitabilityMetricDto;
+  totalContribution?: ProfitabilityMetricDto;
+  contributionMarginPercent?: ProfitabilityMetricDto;
+};
+
+export type AiProfitMaterialDriver = {
+  evidenceId: string;
+  inventoryItemId?: string | null;
+  label: string;
+  quantity?: ProfitabilityMetricDto;
+  unit?: string | null;
+  rate?: ProfitabilityMetricDto;
+  currency?: string | null;
+  amount?: ProfitabilityMetricDto;
+  percentOfMaterialCost?: ProfitabilityMetricDto;
+  estimate: boolean;
+};
+
+export type AiProfitUnsupportedClaim =
+  | "MARKET_PRICING"
+  | "ALTERNATE_SUPPLIER_SAVINGS"
+  | "EMPLOYEE_TEAM_EFFICIENCY";
+
+export type AiProfitContext = {
+  focus: AiProfitFocus;
+  from: string;
+  to: string;
+  status: "COMPLETE" | "ESTIMATED" | "INCOMPLETE" | "BLOCKED";
+  summary: PortfolioSummaryDto;
+  products: AiProfitProductFact[];
+  materialDrivers: AiProfitMaterialDriver[];
+  simulation?: ProfitSimulationResponseDto | null;
+  warnings: string[];
+  unsupportedClaims: AiProfitUnsupportedClaim[];
+};
+
+export type AiProfitSnapshotReference = {
+  snapshotId: string;
+  snapshotVersion?: number | string | null;
+  policyId?: string | null;
+  policyVersion?: number | string | null;
+  bomId?: string | null;
+  bomVersion?: number | string | null;
+  costEngineVersion?: string | null;
+  asOfDate?: string | null;
+  frozenAt?: string | null;
+  completeness: "COMPLETE" | "ESTIMATED" | "INCOMPLETE";
+  costCoveragePercent?: ProfitabilityMetricDto;
+};
+
+export type AiProfitProvenance = {
+  snapshotReferences: AiProfitSnapshotReference[];
+  healthRuleVersion?: string | null;
+  revenueBasis?: string | null;
+  costBasis?: string | null;
+  from: string;
+  to: string;
+  attributionCoveragePercent?: ProfitabilityMetricDto;
+  costCoveragePercent?: ProfitabilityMetricDto;
+  simulationEngineVersion?: string | null;
+  simulationAssumptions: string[];
+  appliedOverrides: AppliedOverrideDto[];
 };
 
 export type AiActionExecuteRequest = {

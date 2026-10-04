@@ -80,6 +80,8 @@ import {
   readCurrentConversationId,
   setCurrentConversationId,
 } from "../lib/assistantContext";
+import { filterProfitQuickQuestions } from "../lib/profitAdvisor";
+import { useProfitAdvisorAccess } from "../hooks/useProfitAdvisorAccess";
 import type {
   AiActionProposal,
   AiChatMessage,
@@ -103,6 +105,7 @@ export const OWNER_BRIEFING_QUESTIONS = [
 export function AiAssistantPage() {
   const pathname = usePathname();
   const moduleContext = moduleContextFromPathname(pathname);
+  const profitAdvisorAccess = useProfitAdvisorAccess();
   const [conversationId, setConversationId] = useState<string | undefined>(
     readCurrentConversationId
   );
@@ -171,10 +174,13 @@ export function AiAssistantPage() {
   const quickQuestions = useMemo(
     () =>
       rankAdaptiveQuestions(
-        quickQuestionsQuery.data ?? [],
+        filterProfitQuickQuestions(
+          quickQuestionsQuery.data ?? [],
+          profitAdvisorAccess.enabled
+        ),
         moduleContext
       ),
-    [moduleContext, quickQuestionsQuery.data]
+    [moduleContext, profitAdvisorAccess.enabled, quickQuestionsQuery.data]
   );
 
   const selectConversation = (id: string) => {
@@ -947,6 +953,7 @@ function responseToLocalMessage(response: AiChatResponse): LocalMessage {
       provider: response.provider,
       fallback: response.fallback,
       provenance: response.provenance,
+      profit: response.profit,
     },
   };
 }

@@ -26,6 +26,8 @@ import {
 import { ProfitabilityHealthBadge } from "./ProfitabilityHealthBadge";
 import { ProfitabilityTrendChart } from "./ProfitabilityTrendChart";
 import { ProfitSimulatorWorkspace } from "./ProfitSimulatorWorkspace";
+import { Sparkles } from "lucide-react";
+import { requestProfitAdvisor } from "@/features/ai/lib/profitAdvisorEntry";
 
 type Props = {
   open: boolean;
@@ -36,6 +38,10 @@ type Props = {
   onRetry: () => void;
   onConfigureCosting: () => void;
   costingPolicy?: CostingPolicyView | null;
+  profitAdvisorEnabled?: boolean;
+  advisorPeriod?: { from: string; to: string };
+  initialSimulatorOpen?: boolean;
+  initialSimulatorSnapshotId?: string | null;
 };
 
 export function ProductProfitabilityDetailDialog({
@@ -47,8 +53,12 @@ export function ProductProfitabilityDetailDialog({
   onRetry,
   onConfigureCosting,
   costingPolicy,
+  profitAdvisorEnabled = false,
+  advisorPeriod,
+  initialSimulatorOpen = false,
+  initialSimulatorSnapshotId,
 }: Props) {
-  const [simulatorOpen, setSimulatorOpen] = useState(false);
+  const [simulatorOpen, setSimulatorOpen] = useState(initialSimulatorOpen);
   const baselines = useMemo(
     () => (detail ? toProfitSimulatorBaselines(detail, costingPolicy) : []),
     [costingPolicy, detail]
@@ -153,16 +163,37 @@ export function ProductProfitabilityDetailDialog({
                 />
               </dl>
               <div className="mt-4">
-                <Button
-                  variant={simulatorOpen ? "secondary" : "outline"}
-                  onClick={() => {
-                    setSimulatorOpen((current) => !current);
-                  }}
-                >
-                  {simulatorOpen
-                    ? "Close Profit Simulator"
-                    : "Open Profit Simulator"}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant={simulatorOpen ? "secondary" : "outline"}
+                    onClick={() => {
+                      setSimulatorOpen((current) => !current);
+                    }}
+                  >
+                    {simulatorOpen
+                      ? "Close Profit Simulator"
+                      : "Open Profit Simulator"}
+                  </Button>
+                  {profitAdvisorEnabled && advisorPeriod ? (
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        requestProfitAdvisor({
+                          question: `Explain ${detail.productCode} contribution margin, cost drivers, data gaps, and safe what-if evidence using only Factory1 costing, profitability, and simulation records.`,
+                          profit: {
+                            focus: "GENERAL",
+                            from: advisorPeriod.from,
+                            to: advisorPeriod.to,
+                            productId: detail.productId,
+                          },
+                        })
+                      }
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Ask Factory1
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </section>
 
@@ -170,6 +201,7 @@ export function ProductProfitabilityDetailDialog({
               <ConnectedProfitSimulator
                 productId={detail.productId}
                 baselines={baselines}
+                initialSnapshotId={initialSimulatorSnapshotId}
               />
             ) : null}
 
@@ -414,9 +446,11 @@ export function ProductProfitabilityDetailDialog({
 function ConnectedProfitSimulator({
   productId,
   baselines,
+  initialSnapshotId,
 }: {
   productId: string;
   baselines: ReturnType<typeof toProfitSimulatorBaselines>;
+  initialSnapshotId?: string | null;
 }) {
   const [requestError, setRequestError] = useState<string | null>(null);
   const lastDraft = useRef<ProfitSimulatorDraft | null>(null);
@@ -447,6 +481,7 @@ function ConnectedProfitSimulator({
   return (
     <ProfitSimulatorWorkspace
       baselines={baselines}
+      initialSnapshotId={initialSnapshotId}
       result={simulation.data}
       loading={simulation.isLoading}
       error={

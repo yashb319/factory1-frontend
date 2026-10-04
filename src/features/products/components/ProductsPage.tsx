@@ -60,6 +60,7 @@ import { ProductCostingDialog } from "./ProductCostingDialog";
 import { COSTING_POLICY_OPTIONS } from "../config/costingOptions";
 import type { CostingPolicyDraft } from "../types/costing.types";
 import { ProfitabilityWorkspace } from "./ProfitabilityWorkspace";
+import { canUseProfitAdvisor } from "@/features/ai/lib/profitAdvisor";
 
 export function ProductsPage() {
   const pathname = usePathname();
@@ -72,6 +73,10 @@ export function ProductsPage() {
     skip: !user || Boolean(user.platformAdmin),
   });
   const costingEnabled = isProductCostingEnabled(
+    featuresData?.data?.enabledFeatures
+  );
+  const profitAdvisorEnabled = canUseProfitAdvisor(
+    user,
     featuresData?.data?.enabledFeatures
   );
   const showCosting = canManageCosting && costingEnabled;
@@ -295,6 +300,20 @@ export function ProductsPage() {
     }
   }, [isLoading, products.length, handleExport]);
 
+  useEffect(() => {
+    const productId = searchParams.get("costingProduct");
+    if (!showCosting || !productId || handledMode.current[`costing-${productId}`]) {
+      return;
+    }
+    const product = products.find((entry) => entry.id === productId);
+    if (!product) return;
+    handledMode.current[`costing-${productId}`] = true;
+    queueMicrotask(() => {
+      setCostingProduct(product);
+      setCostingOpen(true);
+    });
+  }, [products, searchParams, showCosting]);
+
   const setProductsView = (view: "catalog" | "profitability") => {
     const next = new URLSearchParams(searchParams.toString());
     if (view === "profitability") next.set("view", "profitability");
@@ -404,6 +423,7 @@ export function ProductsPage() {
           {profitabilityActive ? (
             <ProfitabilityWorkspace
               onConfigureCosting={() => setPolicyOpen(true)}
+              profitAdvisorEnabled={profitAdvisorEnabled}
             />
           ) : isLoading || isFetching ? (
             <p role="status" className="text-sm text-muted-foreground">
@@ -635,7 +655,20 @@ export function ProductsPage() {
         open={costingOpen}
         onOpenChange={(open) => {
           setCostingOpen(open);
-          if (!open) setCostingProduct(null);
+          if (!open) {
+            setCostingProduct(null);
+            const productId = searchParams.get("costingProduct");
+            if (productId) {
+              delete handledMode.current[`costing-${productId}`];
+              const next = new URLSearchParams(searchParams.toString());
+              next.delete("costingProduct");
+              next.delete("snapshotId");
+              router.replace(
+                `${pathname}${next.size ? `?${next.toString()}` : ""}`,
+                { scroll: false }
+              );
+            }
+          }
         }}
         data={freezeState.data ?? previewState.data ?? null}
         loading={

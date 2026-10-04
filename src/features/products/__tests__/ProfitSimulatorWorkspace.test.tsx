@@ -99,6 +99,34 @@ const result: ProfitSimulationResult = {
 };
 
 describe("ProfitSimulatorWorkspace", () => {
+  it("selects the immutable snapshot requested by a safe advisor deep link", () => {
+    const olderBaseline: ProfitSimulatorBaseline = {
+      ...baseline,
+      snapshot: {
+        ...baseline.snapshot,
+        id: "snapshot-older",
+        asOf: "2026-08-31",
+        current: false,
+      },
+      sellingPrice: 125,
+    };
+
+    render(
+      <ProfitSimulatorWorkspace
+        baselines={[baseline, olderBaseline]}
+        initialSnapshotId="snapshot-older"
+        loading={false}
+        onCalculate={vi.fn()}
+        onRetry={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText("Snapshot and date")).toHaveValue(
+      "snapshot-older"
+    );
+    expect(screen.getByLabelText("Selling price per unit")).toHaveValue("125");
+  });
+
   it("uses bounded spinner-free controls, summarizes changes, and resets", async () => {
     const user = userEvent.setup();
     const calculate = vi.fn();

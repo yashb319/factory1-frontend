@@ -1,8 +1,15 @@
 "use client";
 
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Bot, ExternalLink, Send, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,9 +30,19 @@ import {
   readCurrentConversationId,
   setCurrentConversationId,
 } from "../lib/assistantContext";
+import {
+  filterProfitQuickQuestions,
+  moduleContextFromRoute,
+} from "../lib/profitAdvisor";
+import {
+  AI_PROFIT_ADVISOR_EVENT,
+  type AiProfitAdvisorEntryRequest,
+} from "../lib/profitAdvisorEntry";
+import { useProfitAdvisorAccess } from "../hooks/useProfitAdvisorAccess";
 import type {
   AiActionProposal,
   AiMessageSnapshot,
+  AiProfitRequest,
 } from "../types/ai.types";
 import { AiMessageContent } from "./AiMessageContent";
 
@@ -41,7 +58,12 @@ type FloatingMessage = {
 
 export function FloatingAssistant() {
   const pathname = usePathname();
-  const moduleContext = moduleContextFromPathname(pathname);
+  const searchParams = useSearchParams();
+  const moduleContext =
+    moduleContextFromRoute(pathname, searchParams) ??
+    moduleContextFromPathname(pathname);
+  const currentRoute = `${pathname}${searchParams.size ? `?${searchParams.toString()}` : ""}`;
+  const profitAdvisorAccess = useProfitAdvisorAccess();
   const [open, setOpen] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -66,16 +88,19 @@ export function FloatingAssistant() {
   });
   const quickQuestionsQuery = useGetAiQuickQuestionsQuery({
     moduleContext,
-    currentRoute: pathname,
+    currentRoute,
     limit: 6,
   });
   const quickQuestions = useMemo(
     () =>
       rankAdaptiveQuestions(
-        quickQuestionsQuery.data ?? [],
+        filterProfitQuickQuestions(
+          quickQuestionsQuery.data ?? [],
+          profitAdvisorAccess.enabled
+        ),
         moduleContext
       ),
-    [moduleContext, quickQuestionsQuery.data]
+    [moduleContext, profitAdvisorAccess.enabled, quickQuestionsQuery.data]
   );
 
   useEffect(() => {
@@ -100,7 +125,7 @@ export function FloatingAssistant() {
     window.localStorage.setItem(STORAGE_KEY, String(next));
   };
 
-  const ask = async (question: string) => {
+  const ask = async (question: string, profit?: AiProfitRequest) => {
     const message = question.trim();
     if (!message || sendState.isLoading) return;
     const requestConversationId = conversationId;
@@ -116,8 +141,9 @@ export function FloatingAssistant() {
       const response = await sendAiMessage({
         message,
         conversationId: requestConversationId,
-        moduleContext,
-        currentRoute: pathname,
+        moduleContext: profit ? "PROFIT" : moduleContext,
+        currentRoute,
+        profit,
       }).unwrap();
       if (!response.conversationId) throw new Error("Missing conversation id");
       if (
@@ -156,6 +182,7 @@ export function FloatingAssistant() {
             provider: response.provider,
             fallback: response.fallback,
             provenance: response.provenance,
+            profit: response.profit,
           },
           historical: false,
         },
@@ -175,6 +202,32 @@ export function FloatingAssistant() {
       );
     }
   };
+  const sendProfitAdvisorEntry = useEffectEvent(
+    (entry: AiProfitAdvisorEntryRequest) => {
+      setOpen(true);
+      window.localStorage.setItem(STORAGE_KEY, "true");
+      void ask(entry.question, entry.profit);
+    }
+  );
+
+  useEffect(() => {
+    const handleProfitAdvisorRequest = (event: Event) => {
+      const detail = (event as CustomEvent<AiProfitAdvisorEntryRequest>).detail;
+      if (!detail?.question || !detail.profit || !profitAdvisorAccess.enabled) {
+        return;
+      }
+      sendProfitAdvisorEntry(detail);
+    };
+    window.addEventListener(
+      AI_PROFIT_ADVISOR_EVENT,
+      handleProfitAdvisorRequest
+    );
+    return () =>
+      window.removeEventListener(
+        AI_PROFIT_ADVISOR_EVENT,
+        handleProfitAdvisorRequest
+      );
+  }, [profitAdvisorAccess.enabled]);
 
   if (!open) {
     return (

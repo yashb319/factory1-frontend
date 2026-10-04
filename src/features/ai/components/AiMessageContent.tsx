@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type {
@@ -12,6 +14,8 @@ import { AiActionCard } from "./AiActionCard";
 import { AiChartView } from "./AiChartView";
 import { AiRecordsView } from "./AiRecordsView";
 import { AiThinkingView } from "./AiThinkingView";
+import { AiProfitAdvisorView } from "./AiProfitAdvisorView";
+import { getSafeProfitNavigationRoute } from "../lib/profitAdvisor";
 
 const toneClass: Record<AiMetric["tone"], string> = {
   neutral: "border-border bg-muted/40 text-foreground",
@@ -47,6 +51,10 @@ export function AiMessageContent({
   return (
     <div className="space-y-3">
       <ProvenanceNote provenance={snapshot.provenance} />
+      <AiProfitAdvisorView
+        profit={snapshot.profit}
+        provenance={snapshot.provenance?.profit}
+      />
 
       {showBriefing ? (
         <div className="rounded-xl border bg-muted/20 p-3" aria-label="Owner briefing signals">
@@ -112,8 +120,31 @@ export function AiMessageContent({
               Historical proposals are shown for context and cannot be replayed.
             </p>
           ) : null}
-          {snapshot.actions.map((action) =>
-            historical || !onApplyAction ? (
+          {snapshot.actions.map((action) => {
+            const navigationRoute = getSafeProfitNavigationRoute(action);
+            if (!historical && navigationRoute) {
+              return (
+                <div
+                  key={action.id}
+                  className="rounded-lg border border-blue-200 bg-blue-50 p-3"
+                >
+                  <Badge variant="outline">{action.module}</Badge>
+                  <p className="mt-2 font-medium">{action.recordLabel}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {action.confirmationText}
+                  </p>
+                  <Button asChild size="sm" className="mt-3">
+                    <Link href={navigationRoute}>
+                      Open record
+                      <ExternalLink className="ml-2 h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
+                </div>
+              );
+            }
+            return historical ||
+              !onApplyAction ||
+              action.actionType === "NAVIGATE" ? (
               <div key={action.id} className="rounded-lg border bg-muted/30 p-3">
                 <Badge variant="outline">{action.module}</Badge>
                 <p className="mt-2 font-medium">{action.recordLabel}</p>
@@ -128,8 +159,8 @@ export function AiMessageContent({
                 loading={actionLoading}
                 onApply={onApplyAction}
               />
-            )
-          )}
+            );
+          })}
         </div>
       ) : null}
 
@@ -147,6 +178,24 @@ export function AiMessageContent({
               {suggestion}
             </Button>
           ))}
+        </div>
+      ) : null}
+
+      {snapshot.provider ? (
+        <div
+          className={`rounded-lg border px-3 py-2 text-xs ${
+            snapshot.fallback
+              ? "border-amber-200 bg-amber-50 text-amber-950"
+              : "bg-muted/20 text-muted-foreground"
+          }`}
+        >
+          <span className="font-medium">
+            {snapshot.fallback ? "Fallback provider" : "AI provider"}:
+          </span>{" "}
+          {snapshot.provider}
+          {snapshot.fallback
+            ? " · The primary provider was unavailable; verify material decisions against the evidence above."
+            : ""}
         </div>
       ) : null}
     </div>
