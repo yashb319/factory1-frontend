@@ -151,6 +151,8 @@ describe("HealthCheckPage", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute("href", "/privacy-policy");
     expect(screen.getByText(/not consent for marketing or sales follow-up/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Working days per month")).toHaveValue(26);
+    expect(screen.queryByText(/₹|labour cost|cash savings|time-cost/i)).not.toBeInTheDocument();
     const button = screen.getByRole("button", { name: /get my health-check report/i });
     expect(button).toBeEnabled();
     fireEvent.click(button);
@@ -205,8 +207,10 @@ describe("HealthCheckPage", () => {
         schemaVersion: "2026-10-04",
         answers: expect.any(Array),
         expectedRevision: 0,
+        projectionInputs: { workingDaysPerMonth: 26 },
       }),
     }));
+    expect(updateDraft.mock.calls[0][0].body.projectionInputs).not.toHaveProperty("loadedHourlyLabourCostInr");
     expect(finalizeDraft).toHaveBeenCalledWith(remoteDraft.draftToken);
     expect(localStorage.getItem(HEALTH_CHECK_DRAFT_KEY)).toBeNull();
     expect(JSON.parse(localStorage.getItem(HEALTH_CHECK_WELCOME_KEY) ?? "{}").status).toBe("completed");

@@ -30,12 +30,10 @@ export type HealthCheckAnswer = {
 
 export type HealthCheckProjectionInputs = {
   workingDaysPerMonth: number;
-  loadedHourlyLabourCostInr: number;
 };
 
 export type HealthCheckProjectionInputDraft = {
   workingDaysPerMonth: string;
-  loadedHourlyLabourCostInr: string;
 };
 
 export type SavingsRange = {
@@ -50,26 +48,35 @@ export type HealthCheckSavingsModule = {
   evidence: string[];
   baselineManualHoursPerMonth: SavingsRange;
   estimatedHoursSavedPerMonth: SavingsRange;
-  estimatedMonthlyCostSavedInr: SavingsRange;
-  estimatedMonthlyWasteLeakageReductionInr: null;
+  valueStatement: string | null;
+  /** @deprecated Kept only so historical result payloads remain readable. */
+  estimatedMonthlyCostSavedInr: SavingsRange | null;
+  /** @deprecated Kept only so historical result payloads remain readable. */
+  estimatedMonthlyWasteLeakageReductionInr: SavingsRange | null;
   confidence: "LOW" | "MEDIUM";
   dataQuality: "DIRECTIONAL_SELF_REPORTED";
 };
 
 export type HealthCheckSavingsProjection = {
-  modelVersion: "1.0.0";
-  currency: "INR";
-  costBasis: "PRODUCTIVITY_COST_EQUIVALENT";
+  modelVersion: "1.0.0" | "3.0.0";
+  /** @deprecated Kept only so historical result payloads remain readable. */
+  currency: "INR" | null;
+  /** @deprecated Kept only so historical result payloads remain readable. */
+  costBasis: "PRODUCTIVITY_COST_EQUIVALENT" | null;
   factorySizeBand: "MICRO" | "SMALL" | "MEDIUM" | "LARGE";
   assumptions: HealthCheckProjectionInputs & {
     realizationFactor: SavingsRange;
+    /** @deprecated Kept only so historical result payloads remain readable. */
+    loadedHourlyLabourCostInr: number | null;
   };
   modules: HealthCheckSavingsModule[];
   overall: {
     estimatedHoursSavedMonthly: SavingsRange;
     estimatedHoursSavedYearly: SavingsRange;
-    estimatedCostSavedMonthlyInr: SavingsRange;
-    estimatedCostSavedYearlyInr: SavingsRange;
+    /** @deprecated Kept only so historical result payloads remain readable. */
+    estimatedCostSavedMonthlyInr: SavingsRange | null;
+    /** @deprecated Kept only so historical result payloads remain readable. */
+    estimatedCostSavedYearlyInr: SavingsRange | null;
   };
   disclaimer: string;
 };

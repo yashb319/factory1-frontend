@@ -107,10 +107,9 @@ describe("HealthCheckLeadsPage", () => {
     render(<HealthCheckLeadsPage />);
     screen.getByRole("row", { name: /asha rao/i }).click();
 
-    expect(await screen.findByRole("heading", { name: "Submitted savings projection" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Submitted monthly-hours range" })).toBeInTheDocument();
     expect(screen.getByText(/marketing or sales follow-up consent: not explicitly provided/i)).toBeInTheDocument();
-    expect(screen.getByText("Medium (51–200 people)")).toBeInTheDocument();
-    expect(screen.getByText("26")).toBeInTheDocument();
-    expect(screen.getByText((content) => content.includes(healthCheckResult.savingsProjection?.disclaimer ?? "missing"))).toBeInTheDocument();
+    expect(screen.getByText("44–96 hours")).toBeInTheDocument();
+    expect(screen.queryByText(/₹|time-cost|labour cost/i)).not.toBeInTheDocument();
   });
 });

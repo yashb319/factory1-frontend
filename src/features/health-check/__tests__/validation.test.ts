@@ -14,14 +14,12 @@ describe("health check validation", () => {
   });
 
   it("validates optional projection inputs against the backend boundaries", () => {
-    expect(validateProjectionInputs({ workingDaysPerMonth: "", loadedHourlyLabourCostInr: "" })).toEqual({});
-    expect(validateProjectionInputs({ workingDaysPerMonth: "20", loadedHourlyLabourCostInr: "100" })).toEqual({});
-    expect(validateProjectionInputs({ workingDaysPerMonth: "31", loadedHourlyLabourCostInr: "10000" })).toEqual({});
-    expect(validateProjectionInputs({ workingDaysPerMonth: "19", loadedHourlyLabourCostInr: "10001" })).toEqual({
+    expect(validateProjectionInputs({ workingDaysPerMonth: "" })).toEqual({});
+    expect(validateProjectionInputs({ workingDaysPerMonth: "20" })).toEqual({});
+    expect(validateProjectionInputs({ workingDaysPerMonth: "31" })).toEqual({});
+    expect(validateProjectionInputs({ workingDaysPerMonth: "19" })).toEqual({
       workingDaysPerMonth: expect.any(String),
-      loadedHourlyLabourCostInr: expect.any(String),
     });
-    expect(validateProjectionInputs({ workingDaysPerMonth: "26", loadedHourlyLabourCostInr: "" })).toHaveProperty("loadedHourlyLabourCostInr");
   });
 
   it("requires valid contact details without a consent blocker", () => {

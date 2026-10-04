@@ -62,7 +62,6 @@ describe("health check submission adapter", () => {
       expectedRevision: 3,
       projectionInputs: {
         workingDaysPerMonth: 26,
-        loadedHourlyLabourCostInr: 250,
       },
     }));
     expect(updatePayload).not.toHaveProperty("contact");
@@ -70,21 +69,20 @@ describe("health check submission adapter", () => {
     expect(createPayload.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
-  it("serializes custom projection inputs exactly and omits the whole optional object when blank", () => {
+  it("serializes the working-days input exactly and omits the optional object when blank", () => {
     const draft = createHealthCheckDraft();
     for (const step of HEALTH_CHECK_STEPS) {
       for (const question of step.questions) draft.answers[question.id] = question.options[0].value;
     }
-    draft.projectionInputs = { workingDaysPerMonth: "24", loadedHourlyLabourCostInr: "375.50" };
+    draft.projectionInputs = { workingDaysPerMonth: "24" };
     expect(buildHealthCheckDraftUpdate(draft, 0).projectionInputs).toEqual({
       workingDaysPerMonth: 24,
-      loadedHourlyLabourCostInr: 375.5,
     });
 
-    draft.projectionInputs = { workingDaysPerMonth: "", loadedHourlyLabourCostInr: "" };
+    draft.projectionInputs = { workingDaysPerMonth: "" };
     expect(buildHealthCheckDraftUpdate(draft, 0)).not.toHaveProperty("projectionInputs");
 
-    draft.projectionInputs = { workingDaysPerMonth: "19", loadedHourlyLabourCostInr: "250" };
+    draft.projectionInputs = { workingDaysPerMonth: "19" };
     expect(() => buildHealthCheckDraftUpdate(draft, 0)).toThrow("projection inputs are invalid");
     expect(() => buildHealthCheckDraftUpdate(draft, -1)).toThrow("revision is invalid");
   });

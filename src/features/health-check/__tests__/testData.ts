@@ -1,7 +1,7 @@
 import type { HealthCheckResult, HealthCheckSavingsProjection } from "../types";
 
 export const savingsProjection: HealthCheckSavingsProjection = {
-  modelVersion: "1.0.0",
+  modelVersion: "3.0.0",
   currency: "INR",
   costBasis: "PRODUCTIVITY_COST_EQUIVALENT",
   factorySizeBand: "MEDIUM",
@@ -18,6 +18,7 @@ export const savingsProjection: HealthCheckSavingsProjection = {
       evidence: ["Stock accuracy varies", "Reordering uses team experience"],
       baselineManualHoursPerMonth: { min: 80, max: 120 },
       estimatedHoursSavedPerMonth: { min: 32.4, max: 67.6 },
+      valueStatement: "Stock receipts and usage become easier to trace without waiting for another manual count.",
       estimatedMonthlyCostSavedInr: { min: 8_100, max: 16_900 },
       estimatedMonthlyWasteLeakageReductionInr: null,
       confidence: "MEDIUM",
@@ -30,6 +31,7 @@ export const savingsProjection: HealthCheckSavingsProjection = {
       evidence: ["Reports take several days"],
       baselineManualHoursPerMonth: { min: 30, max: 50 },
       estimatedHoursSavedPerMonth: { min: 12, max: 28 },
+      valueStatement: "Owners can check the same structured update without waiting for a report to be rebuilt.",
       estimatedMonthlyCostSavedInr: { min: 3_000, max: 7_000 },
       estimatedMonthlyWasteLeakageReductionInr: null,
       confidence: "LOW",

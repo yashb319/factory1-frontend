@@ -3,6 +3,7 @@ import {
   EMPTY_CONTACT,
   HEALTH_CHECK_DRAFT_VERSION,
   HEALTH_CHECK_STEPS,
+  HEALTH_CHECK_WELCOME_VERSION,
 } from "./config";
 import type {
   HealthCheckContact,
@@ -11,7 +12,8 @@ import type {
 } from "./types";
 
 export const HEALTH_CHECK_DRAFT_KEY = `factory1:health-check:draft:v${HEALTH_CHECK_DRAFT_VERSION}`;
-export const HEALTH_CHECK_WELCOME_KEY = `factory1:health-check:welcome:v${HEALTH_CHECK_DRAFT_VERSION}`;
+export const LEGACY_HEALTH_CHECK_DRAFT_KEY = "factory1:health-check:draft:v5";
+export const HEALTH_CHECK_WELCOME_KEY = `factory1:health-check:welcome:v${HEALTH_CHECK_WELCOME_VERSION}`;
 // A dismissal hides the welcome prompt for 14 days; completion hides it for this questionnaire version.
 export const WELCOME_DISMISSAL_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -30,12 +32,16 @@ export function createHealthCheckDraft(): HealthCheckDraft {
 }
 
 export function loadHealthCheckDraft(storage: Storage = localStorage): HealthCheckDraft | null {
+  let currentRaw: string | null = null;
+  let legacyRaw: string | null = null;
   try {
-    const raw = storage.getItem(HEALTH_CHECK_DRAFT_KEY);
+    currentRaw = storage.getItem(HEALTH_CHECK_DRAFT_KEY);
+    legacyRaw = currentRaw ? null : storage.getItem(LEGACY_HEALTH_CHECK_DRAFT_KEY);
+    const raw = currentRaw ?? legacyRaw;
     if (!raw) return null;
     const value = JSON.parse(raw) as Partial<HealthCheckDraft>;
     if (
-      value.version !== HEALTH_CHECK_DRAFT_VERSION ||
+      (value.version !== HEALTH_CHECK_DRAFT_VERSION && value.version !== 5) ||
       typeof value.step !== "number" ||
       !Number.isInteger(value.step) ||
       value.step < 0 ||
@@ -50,21 +56,28 @@ export function loadHealthCheckDraft(storage: Storage = localStorage): HealthChe
       (value.remoteDraft !== undefined && !isRemoteDraft(value.remoteDraft)) ||
       (value.step > 0 && !isRemoteDraft(value.remoteDraft))
     ) {
-      storage.removeItem(HEALTH_CHECK_DRAFT_KEY);
+      storage.removeItem(currentRaw ? HEALTH_CHECK_DRAFT_KEY : LEGACY_HEALTH_CHECK_DRAFT_KEY);
       return null;
     }
-    return {
-      version: value.version,
+    const draft: HealthCheckDraft = {
+      version: HEALTH_CHECK_DRAFT_VERSION,
       step: value.step,
       answers: value.answers,
       contact: value.contact,
-      projectionInputs: value.projectionInputs,
+      projectionInputs: {
+        workingDaysPerMonth: value.projectionInputs.workingDaysPerMonth,
+      },
       idempotencyKey: value.idempotencyKey,
       formStartedAtEpochMs: value.formStartedAtEpochMs,
       ...(value.remoteDraft ? { remoteDraft: value.remoteDraft } : {}),
     };
+    if (legacyRaw) {
+      saveHealthCheckDraft(draft, storage);
+      storage.removeItem(LEGACY_HEALTH_CHECK_DRAFT_KEY);
+    }
+    return draft;
   } catch {
-    storage.removeItem(HEALTH_CHECK_DRAFT_KEY);
+    storage.removeItem(currentRaw ? HEALTH_CHECK_DRAFT_KEY : LEGACY_HEALTH_CHECK_DRAFT_KEY);
     return null;
   }
 }
@@ -89,8 +102,7 @@ function isProjectionInputDraft(value: unknown): value is HealthCheckProjectionI
   if (!value || typeof value !== "object") return false;
   const inputs = value as Record<string, unknown>;
   return (
-    typeof inputs.workingDaysPerMonth === "string" &&
-    typeof inputs.loadedHourlyLabourCostInr === "string"
+    typeof inputs.workingDaysPerMonth === "string"
   );
 }
 

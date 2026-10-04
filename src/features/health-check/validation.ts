@@ -28,8 +28,7 @@ export function validateQuestionStep(step: number, answers: Record<string, strin
 }
 
 export function validateContactStep(
-  contact: HealthCheckContact,
-  projectionInputs?: HealthCheckProjectionInputDraft
+  contact: HealthCheckContact
 ) {
   const parsed = contactSchema.safeParse(contact);
   const errors: Record<string, string> = {};
@@ -39,7 +38,7 @@ export function validateContactStep(
       if (!errors[key]) errors[key] = issue.message;
     }
   }
-  return { ...errors, ...validateProjectionInputs(projectionInputs) };
+  return errors;
 }
 
 export function validateProjectionInputs(inputs?: HealthCheckProjectionInputDraft) {
@@ -47,17 +46,11 @@ export function validateProjectionInputs(inputs?: HealthCheckProjectionInputDraf
   if (!inputs) return errors;
 
   const workingDays = inputs.workingDaysPerMonth.trim();
-  const hourlyCost = inputs.loadedHourlyLabourCostInr.trim();
-  if (!workingDays && !hourlyCost) return errors;
+  if (!workingDays) return errors;
 
   const parsedDays = Number(workingDays);
   if (!workingDays || !Number.isInteger(parsedDays) || parsedDays < 20 || parsedDays > 31) {
     errors.workingDaysPerMonth = "Enter a whole number from 20 to 31";
-  }
-
-  const parsedHourlyCost = Number(hourlyCost);
-  if (!hourlyCost || !Number.isFinite(parsedHourlyCost) || parsedHourlyCost < 100 || parsedHourlyCost > 10_000) {
-    errors.loadedHourlyLabourCostInr = "Enter an amount from ₹100 to ₹10,000";
   }
   return errors;
 }

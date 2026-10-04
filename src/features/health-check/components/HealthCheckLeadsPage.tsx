@@ -214,7 +214,7 @@ function HealthCheckLeadDetail({ id, onClose }: { id: string | null; onClose: ()
             </section>
 
             <section>
-              <h3 className="mb-3 font-semibold">Submitted savings projection</h3>
+              <h3 className="mb-3 font-semibold">Submitted monthly-hours range</h3>
               <SavingsProjectionView projection={lead.result.savingsProjection} compact />
             </section>
 

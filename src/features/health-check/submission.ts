@@ -42,15 +42,11 @@ export function buildHealthCheckDraftUpdate(
   }
 
   const workingDays = draft.projectionInputs.workingDaysPerMonth.trim();
-  const hourlyCost = draft.projectionInputs.loadedHourlyLabourCostInr.trim();
   if (Object.keys(validateProjectionInputs(draft.projectionInputs)).length > 0) {
     throw new Error("Health check projection inputs are invalid");
   }
-  const projectionInputs = workingDays || hourlyCost
-    ? {
-        workingDaysPerMonth: Number(workingDays),
-        loadedHourlyLabourCostInr: Number(hourlyCost),
-      }
+  const projectionInputs = workingDays
+    ? { workingDaysPerMonth: Number(workingDays) }
     : undefined;
 
   return {

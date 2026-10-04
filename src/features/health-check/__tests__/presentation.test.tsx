@@ -25,19 +25,16 @@ describe("health check presentation", () => {
     expect(screen.queryByText(/report (?:was|has been) (?:sent|emailed)|email (?:was|has been) sent/i)).not.toBeInTheDocument();
   });
 
-  it("renders accessible module ranges, overall arithmetic, assumptions, and the exact disclaimer", () => {
+  it("renders answer-grounded value statements and cautious monthly-hour ranges without money", () => {
     render(<HealthCheckResultView result={healthCheckResult} />);
 
-    expect(screen.getByLabelText("Inventory: 32–68 hours projected per month")).toBeInTheDocument();
+    expect(screen.getByText(/stock receipts and usage become easier to trace/i)).toBeInTheDocument();
+    expect(screen.getByText(/owners can check the same structured update/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Inventory: 32–68 hours possible per month")).toBeInTheDocument();
     expect(screen.getByText("44–96 hours")).toBeInTheDocument();
-    expect(screen.getByText("₹11,000–₹24,000")).toBeInTheDocument();
-    expect(screen.getByText("Medium (51–200 people)")).toBeInTheDocument();
-    expect(screen.getByText("40–70%")).toBeInTheDocument();
-    expect(screen.getByText((content) => content.includes(savingsProjection.disclaimer))).toBeInTheDocument();
-    expect(screen.getAllByText(/time-cost equivalent/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/not a forecast or guarantee/i)).toBeInTheDocument();
-    expect(screen.queryByText(/hours saved \/ year|equivalent \/ year/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/payback|roi/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/not a promised result/i)).toBeInTheDocument();
+    expect(screen.queryByText(/₹|time-cost|labour cost|cash savings|payback|roi/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/factory size band|realization factor|projection model/i)).not.toBeInTheDocument();
   });
 
   it("shows a useful low-opportunity state instead of misleading bars", () => {
@@ -56,12 +53,13 @@ describe("health check presentation", () => {
       />
     );
 
-    expect(screen.getByRole("heading", { name: /less obvious manual effort/i })).toBeInTheDocument();
-    expect(screen.queryByLabelText(/projected monthly hours saved by module/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /start with the operating improvements above/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/possible monthly hours available by module/i)).not.toBeInTheDocument();
   });
 
   it("handles historical results without a projection", () => {
     render(<HealthCheckResultView result={{ ...healthCheckResult, savingsProjection: null }} />);
-    expect(screen.getByRole("heading", { name: /savings snapshot unavailable/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /make stock changes easier to trace/i })).toBeInTheDocument();
+    expect(screen.queryByText(/snapshot unavailable/i)).not.toBeInTheDocument();
   });
 });
