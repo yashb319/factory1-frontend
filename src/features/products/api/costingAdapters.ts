@@ -52,9 +52,11 @@ function componentEvidence(component: string, dto: CostBreakdownDto) {
   );
 }
 
-function evidenceView(line: EvidenceLineDto) {
+function evidenceView(line: EvidenceLineDto, index: number) {
   return {
-    id: line.id,
+    id:
+      line.id ??
+      `${line.component}-${line.sourceType}-${line.sourceId ?? "source"}-${index}`,
     label: line.label,
     sourceType: line.sourceType,
     sourceReference: line.sourceId,

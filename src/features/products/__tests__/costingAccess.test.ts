@@ -19,7 +19,7 @@ function user(role: UserRole): AuthUser {
 }
 
 describe("product costing access", () => {
-  it.each(["OWNER", "ADMIN", "FINANCE"] as const)(
+  it.each(["OWNER", "ADMIN", "FINANCE", "MANAGEMENT"] as const)(
     "allows %s to manage costing",
     (role) => {
       expect(canManageProductCosting(user(role))).toBe(true);
@@ -30,8 +30,7 @@ describe("product costing access", () => {
     expect(canManageProductOperations(user("FINANCE"))).toBe(false);
   });
 
-  it("does not grant costing to management or employees", () => {
-    expect(canManageProductCosting(user("MANAGEMENT"))).toBe(false);
+  it("does not grant costing to employees", () => {
     expect(canManageProductCosting(user("EMPLOYEE"))).toBe(false);
   });
 

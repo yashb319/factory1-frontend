@@ -5,7 +5,7 @@ import type {
 
 export type MaterialRateDto = {
   inventoryItemId: string;
-  rate: number | string;
+  rate: number;
   unit: string;
   currency: string;
 };
@@ -20,13 +20,13 @@ export type CostingPolicyDto = {
   materialValuation: string;
   sellingPriceBasis: string;
   pinnedBomId?: string | null;
-  outputQuantity: number | string;
+  outputQuantity: number;
   labourMode: string;
-  labourAmount?: number | string | null;
+  labourAmount?: number | null;
   overheadMode: string;
-  overheadAmount?: number | string | null;
+  overheadAmount?: number | null;
   miscMode: string;
-  miscAmount?: number | string | null;
+  miscAmount?: number | null;
   taxBasis: string;
   discountBasis: string;
   returnsBasis: string;
@@ -51,17 +51,17 @@ export type CostingPolicyRequestDto = {
 };
 
 export type EvidenceLineDto = {
-  id: string;
+  id?: string | null;
   component: string;
   sourceType: string;
   sourceId?: string | null;
   sourceDate?: string | null;
   inventoryItemId?: string | null;
-  quantity?: number | string | null;
+  quantity?: number | null;
   unit?: string | null;
-  rate?: number | string | null;
+  rate?: number | null;
   currency: string;
-  calculatedAmount?: number | string | null;
+  calculatedAmount?: number | null;
   estimate: boolean;
   label: string;
 };
@@ -81,23 +81,23 @@ export type CostBreakdownDto = {
   snapshotVersion?: number | null;
   engineVersion: string;
   asOfDate: string;
-  outputQuantity: number | string;
+  outputQuantity: number;
   currency: string;
-  materialTotal?: number | string | null;
-  materialUnit?: number | string | null;
-  labourTotal?: number | string | null;
-  labourUnit?: number | string | null;
-  overheadTotal?: number | string | null;
-  overheadUnit?: number | string | null;
-  miscTotal?: number | string | null;
-  miscUnit?: number | string | null;
-  totalCost?: number | string | null;
-  totalUnitCost?: number | string | null;
+  materialTotal?: number | null;
+  materialUnit?: number | null;
+  labourTotal?: number | null;
+  labourUnit?: number | null;
+  overheadTotal?: number | null;
+  overheadUnit?: number | null;
+  miscTotal?: number | null;
+  miscUnit?: number | null;
+  totalCost?: number | null;
+  totalUnitCost?: number | null;
   sellingPriceBasis: string;
-  sellingUnitPrice?: number | string | null;
-  revenueTotal?: number | string | null;
-  unitProfit?: number | string | null;
-  marginPercent?: number | string | null;
+  sellingUnitPrice?: number | null;
+  revenueTotal?: number | null;
+  unitProfit?: number | null;
+  marginPercent?: number | null;
   status: CostingCompleteness;
   missingComponents: string[];
   warnings: string[];

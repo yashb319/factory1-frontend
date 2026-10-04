@@ -25,6 +25,16 @@ describe("costing contract helpers", () => {
     ).toThrow("Policy must be published");
   });
 
+  it("rejects a successful envelope with null data for data endpoints", () => {
+    expect(() =>
+      unwrapCostingEnvelope({
+        success: true,
+        message: "No policy data",
+        data: null,
+      })
+    ).toThrow("No policy data");
+  });
+
   it("preserves missing decimal values and rejects malformed values", () => {
     expect(costingDecimal(null, "totalCost")).toBeUndefined();
     expect(costingDecimal("12.50", "totalCost")).toBe(12.5);

@@ -1,6 +1,6 @@
 import type { AuthUser } from "@/features/auth/types";
 
-const COSTING_ROLES = new Set(["OWNER", "ADMIN", "FINANCE"]);
+const COSTING_ROLES = new Set(["OWNER", "ADMIN", "FINANCE", "MANAGEMENT"]);
 const PRODUCT_OPERATIONS_ROLES = new Set(["OWNER", "ADMIN", "MANAGEMENT"]);
 
 export function canManageProductCosting(user: AuthUser | null | undefined) {

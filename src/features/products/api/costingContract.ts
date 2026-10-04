@@ -1,7 +1,7 @@
 export type CostingApiEnvelope<T> = {
   success: boolean;
   message: string;
-  data: T;
+  data: T | null;
 };
 
 export function unwrapCostingEnvelope<T>(
@@ -9,6 +9,12 @@ export function unwrapCostingEnvelope<T>(
 ): T {
   if (!response.success) {
     throw new Error(response.message || "The costing request was not successful.");
+  }
+
+  if (response.data === null) {
+    throw new Error(
+      response.message || "The costing response did not include data."
+    );
   }
 
   return response.data;
