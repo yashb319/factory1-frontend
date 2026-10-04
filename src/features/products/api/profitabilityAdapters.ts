@@ -254,15 +254,29 @@ export function toProductProfitabilityDetail(
     }),
     evidence:
       costing?.components.flatMap((component) =>
-        component.evidence.map((evidence) => ({
-          id: evidence.id,
-          label: evidence.label,
-          sourceType: evidence.sourceType,
-          sourceReference: evidence.sourceReference,
-          asOf: evidence.asOf,
-          quality: evidence.quality,
-          notes: evidence.notes,
-        }))
+        component.evidence.map((evidence) => {
+          const rawLine = dto.frozenCost?.evidence.find(
+            (line) =>
+              (line.id ?? null) === evidence.id ||
+              line.sourceId === evidence.sourceReference
+          );
+          return {
+            id: evidence.id,
+            label: evidence.label,
+            sourceType: evidence.sourceType,
+            sourceReference: evidence.sourceReference,
+            component: component.key,
+            inventoryItemId: rawLine?.inventoryItemId ?? null,
+            quantity: metric(rawLine?.quantity, `${evidence.id}.quantity`),
+            unit: rawLine?.unit ?? null,
+            rate: metric(rawLine?.rate, `${evidence.id}.rate`),
+            currency: rawLine?.currency ?? evidence.amount?.currency,
+            simulatorOverrideSupported: Boolean(rawLine?.id),
+            asOf: evidence.asOf,
+            quality: evidence.quality,
+            notes: evidence.notes,
+          };
+        })
       ) ?? [],
     warnings: dto.reconciliation.warnings,
     coverage: {
@@ -319,7 +333,20 @@ export function toProductProfitabilityDetail(
       costingSnapshotFrozenAt: period.snapshotAsOfDate,
       completeness: completeness(period.completeness),
     })),
-    metadata: metadata(dto.metadata),
+    metadata: {
+      ...metadata(dto.metadata),
+      policyId: dto.frozenCost?.policyId,
+      policyVersion:
+        dto.frozenCost?.policyVersion === undefined
+          ? null
+          : String(dto.frozenCost.policyVersion),
+      outputQuantity: costing?.quantity ?? undefined,
+      outputUnit: dto.profitability.unit,
+      frozenSellingPrice: metric(
+        dto.frozenCost?.sellingUnitPrice,
+        "frozenSellingUnitPrice"
+      ),
+    },
   };
 }
 

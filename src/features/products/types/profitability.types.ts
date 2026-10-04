@@ -68,6 +68,13 @@ export type ProfitabilityEvidence = {
   label: string;
   sourceType: string;
   sourceReference?: string | null;
+  component?: string | null;
+  inventoryItemId?: string | null;
+  quantity?: number;
+  unit?: string | null;
+  rate?: number;
+  currency?: string | null;
+  simulatorOverrideSupported?: boolean;
   asOf?: string | null;
   quality?: string | null;
   notes?: string | null;
@@ -95,6 +102,11 @@ export type ProductProfitabilityDetail = ProductProfitabilitySummary & {
     costBasis?: string | null;
     revenueBasis?: string | null;
     dateBoundary?: string | null;
+    policyId?: string | null;
+    policyVersion?: string | null;
+    outputQuantity?: number;
+    outputUnit?: string | null;
+    frozenSellingPrice?: number;
   };
 };
 

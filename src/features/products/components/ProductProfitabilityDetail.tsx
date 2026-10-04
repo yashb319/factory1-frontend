@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,6 +10,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { ProductProfitabilityDetail } from "../types/profitability.types";
+import type { CostingPolicyView } from "../types/costing.types";
+import type { ProfitSimulatorDraft } from "../types/profitSimulator.types";
+import { getErrorMessage } from "@/lib/apiError";
+import {
+  toProfitSimulationRequest,
+  toProfitSimulatorBaselines,
+} from "../api/profitSimulatorAdapters";
+import { useSimulateProductProfitMutation } from "../api/profitSimulatorApi";
 import {
   formatProfitabilityDate,
   formatProfitabilityMoney,
@@ -16,6 +25,7 @@ import {
 } from "../utils/profitabilityPresentation";
 import { ProfitabilityHealthBadge } from "./ProfitabilityHealthBadge";
 import { ProfitabilityTrendChart } from "./ProfitabilityTrendChart";
+import { ProfitSimulatorWorkspace } from "./ProfitSimulatorWorkspace";
 
 type Props = {
   open: boolean;
@@ -25,6 +35,7 @@ type Props = {
   error?: string | null;
   onRetry: () => void;
   onConfigureCosting: () => void;
+  costingPolicy?: CostingPolicyView | null;
 };
 
 export function ProductProfitabilityDetailDialog({
@@ -35,9 +46,24 @@ export function ProductProfitabilityDetailDialog({
   error,
   onRetry,
   onConfigureCosting,
+  costingPolicy,
 }: Props) {
+  const [simulatorOpen, setSimulatorOpen] = useState(false);
+  const baselines = useMemo(
+    () => (detail ? toProfitSimulatorBaselines(detail, costingPolicy) : []),
+    [costingPolicy, detail]
+  );
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          setSimulatorOpen(false);
+        }
+        onOpenChange(nextOpen);
+      }}
+    >
       <DialogContent className="max-h-[92vh] sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle>
@@ -126,7 +152,26 @@ export function ProductProfitabilityDetailDialog({
                   value={formatProfitabilityPercent(detail.marginPercent)}
                 />
               </dl>
+              <div className="mt-4">
+                <Button
+                  variant={simulatorOpen ? "secondary" : "outline"}
+                  onClick={() => {
+                    setSimulatorOpen((current) => !current);
+                  }}
+                >
+                  {simulatorOpen
+                    ? "Close Profit Simulator"
+                    : "Open Profit Simulator"}
+                </Button>
+              </div>
             </section>
+
+            {simulatorOpen ? (
+              <ConnectedProfitSimulator
+                productId={detail.productId}
+                baselines={baselines}
+              />
+            ) : null}
 
             {detail.warnings.length ? (
               <section
@@ -363,6 +408,61 @@ export function ProductProfitabilityDetailDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ConnectedProfitSimulator({
+  productId,
+  baselines,
+}: {
+  productId: string;
+  baselines: ReturnType<typeof toProfitSimulatorBaselines>;
+}) {
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const lastDraft = useRef<ProfitSimulatorDraft | null>(null);
+  const [simulate, simulation] = useSimulateProductProfitMutation();
+
+  const calculate = (draft: ProfitSimulatorDraft) => {
+    const baseline = baselines.find(
+      (entry) => entry.snapshot.id === draft.snapshotId
+    );
+    if (!baseline) {
+      setRequestError("The selected immutable baseline is no longer available.");
+      return;
+    }
+    setRequestError(null);
+    lastDraft.current = draft;
+    try {
+      const request = toProfitSimulationRequest(productId, draft, baseline);
+      void simulate(request).unwrap().catch(() => undefined);
+    } catch (error) {
+      setRequestError(
+        error instanceof Error
+          ? error.message
+          : "The simulator assumptions are invalid."
+      );
+    }
+  };
+
+  return (
+    <ProfitSimulatorWorkspace
+      baselines={baselines}
+      result={simulation.data}
+      loading={simulation.isLoading}
+      error={
+        requestError ??
+        (simulation.isError
+          ? getErrorMessage(
+              simulation.error,
+              "The server could not calculate this hypothetical scenario."
+            )
+          : null)
+      }
+      onCalculate={calculate}
+      onRetry={() => {
+        if (lastDraft.current) calculate(lastDraft.current);
+      }}
+    />
   );
 }
 
