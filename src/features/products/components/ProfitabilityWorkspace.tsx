@@ -9,6 +9,7 @@ import {
   useGetProductProfitabilityTrendsQuery,
   useGetProfitabilityPortfolioQuery,
 } from "../api/profitabilityApi";
+import { useGetCostingPoliciesQuery } from "../api/costingApi";
 import type {
   ProfitabilityFilters,
   ProductProfitabilitySummary,
@@ -48,6 +49,14 @@ export function ProfitabilityWorkspace({
     detailQuery.data,
     trendsQuery.data
   );
+  const policyQuery = useGetCostingPoliciesQuery(
+    { page: 0, size: 100 },
+    { skip: !detail?.metadata.policyId }
+  );
+  const costingPolicy =
+    policyQuery.data?.content.find(
+      (policy) => policy.id === detail?.metadata.policyId
+    ) ?? null;
 
   const updateSearch = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -124,6 +133,7 @@ export function ProfitabilityWorkspace({
           void trendsQuery.refetch();
         }}
         onConfigureCosting={onConfigureCosting}
+        costingPolicy={costingPolicy}
       />
     </>
   );
