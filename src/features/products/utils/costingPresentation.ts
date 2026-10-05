@@ -2,6 +2,7 @@ import type {
   CostingAmount,
   CostingCompleteness,
 } from "../types/costing.types";
+import { formatCurrencyValue } from "./currencyPresentation";
 
 const STATUS_LABELS: Record<CostingCompleteness, string> = {
   COMPLETE: "Complete",
@@ -27,17 +28,9 @@ export function costingStatusDescription(status: CostingCompleteness) {
 
 export function formatCostingMoney(
   value: number | null | undefined,
-  currency: string
+  currency: string | null | undefined
 ) {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "Not available";
-  }
-
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(value);
+  return formatCurrencyValue(value, currency);
 }
 
 export function formatCostingAmount(

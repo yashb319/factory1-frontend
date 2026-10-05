@@ -16,6 +16,7 @@ import type {
 } from "../types/profitSimulator.types";
 import {
   formatProfitabilityDate,
+  formatProfitabilityMoney,
   formatProfitabilityPercent,
 } from "../utils/profitabilityPresentation";
 
@@ -816,12 +817,11 @@ function formatMetric(
   if (metric.key === "marginPercent" || metric.key === "markupPercent") {
     return formatProfitabilityPercent(value);
   }
-  if (metric.currency) {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
+  if (metric.currency !== undefined) {
+    return formatProfitabilityMoney({
       currency: metric.currency,
-      maximumFractionDigits: 2,
-    }).format(value);
+      value,
+    });
   }
   return `${new Intl.NumberFormat("en-IN", {
     maximumFractionDigits: 3,

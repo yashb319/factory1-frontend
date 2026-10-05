@@ -33,7 +33,8 @@ export type ProductProfitabilityItemDto = {
   snapshotAgeDays?: number | null;
   snapshotFreshness: SnapshotFreshnessDto;
   snapshotStatus?: SnapshotStatusDto | null;
-  currency: string;
+  currency: string | null;
+  currencyUnavailableReason?: string | null;
   sellingPriceBasis?: string | null;
   frozenSellingUnitPrice?: ProfitabilityMetricDto;
   frozenUnitCost?: ProfitabilityMetricDto;
@@ -53,6 +54,8 @@ export type ProductProfitabilityItemDto = {
 };
 
 export type PortfolioSummaryDto = {
+  currency?: string | null;
+  currencyUnavailableReason?: string | null;
   totalAttributedRevenue?: ProfitabilityMetricDto;
   totalAttributedCost?: ProfitabilityMetricDto;
   totalProfit?: ProfitabilityMetricDto;

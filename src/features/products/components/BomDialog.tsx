@@ -17,6 +17,7 @@ import {
 } from "../api/productsApi";
 import type { BomComponent, Product } from "../types/product.types";
 import type { InventoryItem } from "@/features/inventory/types/inventory.types";
+import { getErrorMessage } from "@/lib/apiError";
 
 type Props = {
   open: boolean;
@@ -44,10 +45,22 @@ export function BomDialog({ open, onOpenChange, product }: Props) {
     skip: !product?.id || !open,
   });
 
-  const { data: inventoryPage } = useGetInventoryItemsQuery({
-    page: 0,
-    size: 300,
-  });
+  const {
+    data: inventoryPage,
+    error: inventoryError,
+    isError: inventoryIsError,
+    isFetching: inventoryIsFetching,
+    refetch: refetchInventory,
+  } = useGetInventoryItemsQuery(
+    {
+      page: 0,
+      size: 300,
+    },
+    {
+      skip: !open,
+      refetchOnMountOrArgChange: true,
+    }
+  );
 
   const inventoryItems = inventoryPage?.content ?? [];
 
@@ -143,7 +156,9 @@ export function BomDialog({ open, onOpenChange, product }: Props) {
         },
       }).unwrap();
 
-      toast.success("BOM saved successfully");
+      toast.success(
+        "BOM saved as a draft. Publish it in Production > BOM Definition before using it for new production orders."
+      );
       onOpenChange(false);
     } catch {
       toast.error("Failed to save BOM");
@@ -192,6 +207,7 @@ export function BomDialog({ open, onOpenChange, product }: Props) {
                         <select
                           className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                           value={component.inventoryItemId}
+                          disabled={inventoryIsFetching || inventoryIsError}
                           onChange={(e) => handleItemChange(index, e.target.value)}
                         >
                           <option value="">Select inventory item</option>
@@ -264,8 +280,33 @@ export function BomDialog({ open, onOpenChange, product }: Props) {
             </table>
           </div>
 
+          {inventoryIsFetching ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              Loading inventory items...
+            </p>
+          ) : null}
+
+          {inventoryIsError ? (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+              <p>
+                {getErrorMessage(
+                  inventoryError,
+                  "Inventory items could not be loaded. Component choices are unavailable."
+                )}
+              </p>
+              <Button type="button" size="sm" variant="outline" onClick={() => void refetchInventory()}>
+                Retry inventory
+              </Button>
+            </div>
+          ) : null}
+
           <div className="flex justify-between">
-            <Button type="button" variant="outline" onClick={addComponent}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={addComponent}
+              disabled={inventoryIsFetching || inventoryIsError}
+            >
               Add Component
             </Button>
 

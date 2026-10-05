@@ -128,7 +128,7 @@ export type MaterialProvenanceDto = {
   inventoryItemId: string;
   sourceType: string;
   unit: string;
-  currency: string;
+  currency: string | null;
   estimate: boolean;
 };
 
@@ -152,7 +152,7 @@ export type ProfitSimulationResponseDto = {
   productId: string;
   productCode: string;
   productName: string;
-  currency: string;
+  currency: string | null;
   outputUnit: string;
   scale: 6;
   roundingMode: "HALF_UP";

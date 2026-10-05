@@ -1,15 +1,20 @@
 import type { MarketMoney } from "../types/marketIntelligence.types";
+import {
+  formatCurrencyValue,
+  normalizeCurrencyCode,
+} from "./currencyPresentation";
 
 export function formatMarketMoney(money: MarketMoney | null | undefined) {
   if (!money) return "Not available";
-  const formatter = new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: money.currency || "INR",
-    maximumFractionDigits: 2,
-  });
-  if (money.value != null) return formatter.format(money.value);
+  if (!normalizeCurrencyCode(money.currency)) return "Not available";
+  if (money.value != null) {
+    return formatCurrencyValue(money.value, money.currency);
+  }
   if (money.min != null && money.max != null) {
-    return `${formatter.format(money.min)} - ${formatter.format(money.max)}`;
+    return `${formatCurrencyValue(money.min, money.currency)} - ${formatCurrencyValue(
+      money.max,
+      money.currency
+    )}`;
   }
   return "Not available";
 }
