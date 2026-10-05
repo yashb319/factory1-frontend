@@ -10,6 +10,8 @@ import type {
   ProductionResponse,
 } from "../types/product.types";
 
+export const PRODUCT_BOM_CACHE_TAGS = ["Products", "Production"] as const;
+
 export const productsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getProducts: builder.query<
@@ -76,7 +78,7 @@ export const productsApi = baseApi.injectEndpoints({
         body,
       }),
       transformResponse: (response: ApiResponse<Bom>) => response.data,
-      invalidatesTags: ["Products"],
+      invalidatesTags: [...PRODUCT_BOM_CACHE_TAGS],
     }),
 
     recordProduction: builder.mutation<ProductionResponse, ProductionRequest>({

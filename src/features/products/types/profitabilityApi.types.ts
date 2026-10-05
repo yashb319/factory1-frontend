@@ -33,7 +33,7 @@ export type ProductProfitabilityItemDto = {
   snapshotAgeDays?: number | null;
   snapshotFreshness: SnapshotFreshnessDto;
   snapshotStatus?: SnapshotStatusDto | null;
-  currency: string;
+  currency: string | null;
   sellingPriceBasis?: string | null;
   frozenSellingUnitPrice?: ProfitabilityMetricDto;
   frozenUnitCost?: ProfitabilityMetricDto;

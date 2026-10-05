@@ -68,7 +68,7 @@ export type ProfitSimulatorBaseline = {
   snapshot: ProfitabilitySnapshotSummary;
   completeness: ProfitabilityCompleteness;
   warnings: string[];
-  currency: string;
+  currency: string | null;
   outputUnit?: string | null;
   sellingPrice?: number;
   outputQuantity?: number;

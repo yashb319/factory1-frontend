@@ -21,7 +21,7 @@ export type MarketRunStatus =
   | "UNAVAILABLE";
 
 export type MarketMoney = {
-  currency: string;
+  currency: string | null;
   value?: number | null;
   min?: number | null;
   max?: number | null;

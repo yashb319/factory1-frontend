@@ -121,6 +121,29 @@ describe("profitability adapters", () => {
     expect(result.metadata.dateBoundary).toBe("INCLUSIVE");
   });
 
+  it("preserves missing portfolio currency instead of inventing a default", () => {
+    const result = toProfitabilityPortfolio({
+      products: {
+        content: [{ ...completeItem, currency: null }],
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        totalPages: 1,
+      },
+      summary: {
+        totalAttributedRevenue: 1500,
+        totalAttributedCost: 1000,
+        totalProfit: 500,
+        unallocatedSalesLineCount: 0,
+      },
+      metadata: {},
+    });
+
+    expect(result.products.content[0].attributedRevenue.currency).toBeNull();
+    expect(result.summary.currency).toBeNull();
+    expect(result.summary.totalAttributedRevenue.currency).toBeNull();
+  });
+
   it("combines frozen-cost provenance, reconciliation, and historical snapshot periods", () => {
     const detailDto: ProductProfitabilityDetailDto = {
       profitability: completeItem,

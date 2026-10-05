@@ -12,8 +12,8 @@ export type ProfitabilityCompleteness =
   | "UNKNOWN";
 
 export type ProfitabilityMoney = {
-  currency: string;
-  value?: number;
+  currency: string | null;
+  value?: number | null;
 };
 
 export type ProfitabilityCoverage = {
@@ -139,7 +139,7 @@ export type ProfitabilityPage = {
 };
 
 export type ProfitabilityPortfolioSummary = {
-  currency: string;
+  currency: string | null;
   totalAttributedRevenue: ProfitabilityMoney;
   totalAttributedCost: ProfitabilityMoney;
   totalProfit: ProfitabilityMoney;

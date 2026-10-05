@@ -2,6 +2,7 @@ import type {
   ProfitabilityHealth,
   ProfitabilityMoney,
 } from "../types/profitability.types";
+import { formatCurrencyValue } from "./currencyPresentation";
 
 export const PROFITABILITY_HEALTH_LABELS: Record<ProfitabilityHealth, string> = {
   HEALTHY: "Healthy",
@@ -12,13 +13,7 @@ export const PROFITABILITY_HEALTH_LABELS: Record<ProfitabilityHealth, string> = 
 };
 
 export function formatProfitabilityMoney(money: ProfitabilityMoney) {
-  if (money.value === null || money.value === undefined) return "Not available";
-
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: money.currency,
-    maximumFractionDigits: 2,
-  }).format(money.value);
+  return formatCurrencyValue(money.value, money.currency);
 }
 
 export function formatProfitabilityPercent(value: number | null | undefined) {

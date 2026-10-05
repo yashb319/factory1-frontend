@@ -29,7 +29,7 @@ function metric(value: number | string | null | undefined, field: string) {
 }
 
 function money(
-  currency: string,
+  currency: string | null,
   value: number | string | null | undefined,
   field: string
 ): ProfitabilityMoney {
@@ -166,7 +166,7 @@ export function toProductProfitabilitySummary(
 export function toProfitabilityPortfolio(
   dto: ProductProfitabilityPortfolioDto
 ): ProfitabilityPortfolioView {
-  const currency = dto.products.content[0]?.currency ?? "INR";
+  const currency = dto.products.content[0]?.currency ?? null;
   return {
     products: {
       ...dto.products,

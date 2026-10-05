@@ -251,7 +251,7 @@ export function toProfitSimulatorBaselines(
 }
 
 function simulationMetrics(
-  currency: string,
+  currency: string | null,
   outputUnit: string,
   baseline: ProfitMetricsDto | null,
   scenario: ProfitMetricsDto | null,
@@ -388,7 +388,7 @@ function simulationMetrics(
 function moneyMetric(
   key: ProfitSimulatorMetric["key"],
   label: string,
-  currency: string,
+  currency: string | null,
   baseline: unknown,
   scenario: unknown,
   delta: unknown

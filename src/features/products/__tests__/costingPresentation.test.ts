@@ -17,6 +17,13 @@ describe("costing presentation", () => {
     expect(formatCostingMoney(0, "INR")).toContain("0");
   });
 
+  it.each([null, "", "INVALID", "ZZZ"])(
+    "renders amounts as unavailable for unsupported currency %j",
+    (currency) => {
+      expect(formatCostingMoney(125, currency)).toBe("Not available");
+    }
+  );
+
   it("does not describe estimated or blocked values as true cost", () => {
     expect(costingStatusDescription("ESTIMATED")).toContain("not a true cost");
     expect(costingStatusDescription("BLOCKED")).toContain("cannot be produced");
