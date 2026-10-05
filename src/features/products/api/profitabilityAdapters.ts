@@ -31,9 +31,14 @@ function metric(value: number | string | null | undefined, field: string) {
 function money(
   currency: string | null,
   value: number | string | null | undefined,
-  field: string
+  field: string,
+  unavailableReason?: string | null
 ): ProfitabilityMoney {
-  return { currency, value: metric(value, field) };
+  return {
+    currency,
+    value: metric(value, field),
+    unavailableReason,
+  };
 }
 
 function completeness(
@@ -108,19 +113,27 @@ export function toProductProfitabilitySummary(
     realizedUnitSellingPrice: money(
       dto.currency,
       dto.unitRevenue,
-      "unitRevenue"
+      "unitRevenue",
+      dto.currencyUnavailableReason
     ),
     attributedRevenue: money(
       dto.currency,
       dto.realizedRevenue,
-      "realizedRevenue"
+      "realizedRevenue",
+      dto.currencyUnavailableReason
     ),
     frozenUnitCost: money(
       dto.currency,
       dto.frozenUnitCost,
-      "frozenUnitCost"
+      "frozenUnitCost",
+      dto.currencyUnavailableReason
     ),
-    unitProfit: money(dto.currency, dto.unitProfit, "unitProfit"),
+    unitProfit: money(
+      dto.currency,
+      dto.unitProfit,
+      "unitProfit",
+      dto.currencyUnavailableReason
+    ),
     marginPercent: metric(dto.marginPercent, "marginPercent"),
     health: health(dto),
     completeness: completeness(dto.completeness),
@@ -150,9 +163,15 @@ export function toProductProfitabilitySummary(
       allocatedRevenue: money(
         dto.currency,
         dto.realizedRevenue,
-        "realizedRevenue"
+        "realizedRevenue",
+        dto.currencyUnavailableReason
       ),
-      unallocatedRevenue: money(dto.currency, null, "unallocatedRevenue"),
+      unallocatedRevenue: money(
+        dto.currency,
+        null,
+        "unallocatedRevenue",
+        dto.currencyUnavailableReason
+      ),
       reason:
         dto.missingCostLineCount > 0
           ? `${dto.missingCostLineCount} attributed sales line${
@@ -166,7 +185,9 @@ export function toProductProfitabilitySummary(
 export function toProfitabilityPortfolio(
   dto: ProductProfitabilityPortfolioDto
 ): ProfitabilityPortfolioView {
-  const currency = dto.products.content[0]?.currency ?? null;
+  const currency = dto.summary.currency ?? null;
+  const currencyUnavailableReason =
+    dto.summary.currencyUnavailableReason ?? null;
   return {
     products: {
       ...dto.products,
@@ -174,26 +195,31 @@ export function toProfitabilityPortfolio(
     },
     summary: {
       currency,
+      currencyUnavailableReason,
       totalAttributedRevenue: money(
         currency,
         dto.summary.totalAttributedRevenue,
-        "totalAttributedRevenue"
+        "totalAttributedRevenue",
+        currencyUnavailableReason
       ),
       totalAttributedCost: money(
         currency,
         dto.summary.totalAttributedCost,
-        "totalAttributedCost"
+        "totalAttributedCost",
+        currencyUnavailableReason
       ),
       totalProfit: money(
         currency,
         dto.summary.totalProfit,
-        "totalProfit"
+        "totalProfit",
+        currencyUnavailableReason
       ),
       marginPercent: metric(dto.summary.marginPercent, "portfolio.marginPercent"),
       unallocatedSalesAmount: money(
         currency,
         dto.summary.unallocatedSalesAmount,
-        "unallocatedSalesAmount"
+        "unallocatedSalesAmount",
+        currencyUnavailableReason
       ),
       unallocatedSalesLineCount: dto.summary.unallocatedSalesLineCount,
       attributionCoveragePercent: metric(
@@ -223,7 +249,8 @@ export function toProductProfitabilityDetail(
     grossProfit: money(
       dto.profitability.currency,
       dto.profitability.profit,
-      "profit"
+      "profit",
+      dto.profitability.currencyUnavailableReason
     ),
     components: dto.componentMix.map((component) => {
       const evidence = costing?.components.find(
@@ -235,12 +262,14 @@ export function toProductProfitabilityDetail(
         amount: money(
           dto.profitability.currency,
           component.totalAmount,
-          `${component.component}.totalAmount`
+          `${component.component}.totalAmount`,
+          dto.profitability.currencyUnavailableReason
         ),
         perUnit: money(
           dto.profitability.currency,
           component.unitAmount,
-          `${component.component}.unitAmount`
+          `${component.component}.unitAmount`,
+          dto.profitability.currencyUnavailableReason
         ),
         sourceLabel: evidence?.label,
         sourceReference: evidence?.sourceReference,
@@ -287,12 +316,14 @@ export function toProductProfitabilityDetail(
       allocatedRevenue: money(
         dto.profitability.currency,
         dto.reconciliation.attributedSalesAmount,
-        "attributedSalesAmount"
+        "attributedSalesAmount",
+        dto.profitability.currencyUnavailableReason
       ),
       unallocatedRevenue: money(
         dto.profitability.currency,
         dto.reconciliation.unallocatedSalesAmount,
-        "unallocatedSalesAmount"
+        "unallocatedSalesAmount",
+        dto.profitability.currencyUnavailableReason
       ),
       reason: `${dto.reconciliation.unallocatedSalesLineCount} sales line${
         dto.reconciliation.unallocatedSalesLineCount === 1 ? "" : "s"
@@ -318,12 +349,14 @@ export function toProductProfitabilityDetail(
       attributedRevenue: money(
         dto.profitability.currency,
         period.realizedRevenue,
-        `${period.periodStart}.realizedRevenue`
+        `${period.periodStart}.realizedRevenue`,
+        dto.profitability.currencyUnavailableReason
       ),
       grossProfit: money(
         dto.profitability.currency,
         period.profit,
-        `${period.periodStart}.profit`
+        `${period.periodStart}.profit`,
+        dto.profitability.currencyUnavailableReason
       ),
       marginPercent: metric(
         period.marginPercent,

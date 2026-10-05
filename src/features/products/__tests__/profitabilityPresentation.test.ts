@@ -35,4 +35,14 @@ describe("profitability presentation", () => {
     expect(formatted).toContain("$");
     expect(formatted).toContain("123.45");
   });
+
+  it("surfaces the backend reason when a monetary value has no defensible currency", () => {
+    expect(
+      formatProfitabilityMoney({
+        currency: null,
+        value: 123.45,
+        unavailableReason: "MIXED_SNAPSHOT_CURRENCIES",
+      })
+    ).toBe("Not available (mixed snapshot currencies)");
+  });
 });

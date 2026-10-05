@@ -13,7 +13,14 @@ export const PROFITABILITY_HEALTH_LABELS: Record<ProfitabilityHealth, string> = 
 };
 
 export function formatProfitabilityMoney(money: ProfitabilityMoney) {
-  return formatCurrencyValue(money.value, money.currency);
+  const formatted = formatCurrencyValue(money.value, money.currency);
+  if (formatted !== "Not available" || !money.unavailableReason) {
+    return formatted;
+  }
+
+  return `Not available (${money.unavailableReason
+    .replaceAll("_", " ")
+    .toLowerCase()})`;
 }
 
 export function formatProfitabilityPercent(value: number | null | undefined) {

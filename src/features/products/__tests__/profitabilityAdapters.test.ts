@@ -124,13 +124,21 @@ describe("profitability adapters", () => {
   it("preserves missing portfolio currency instead of inventing a default", () => {
     const result = toProfitabilityPortfolio({
       products: {
-        content: [{ ...completeItem, currency: null }],
+        content: [
+          {
+            ...completeItem,
+            currency: null,
+            currencyUnavailableReason: "MISSING_CURRENCY_EVIDENCE",
+          },
+        ],
         page: 0,
         size: 20,
         totalElements: 1,
         totalPages: 1,
       },
       summary: {
+        currency: null,
+        currencyUnavailableReason: "MIXED_SNAPSHOT_CURRENCIES",
         totalAttributedRevenue: 1500,
         totalAttributedCost: 1000,
         totalProfit: 500,
@@ -140,8 +148,17 @@ describe("profitability adapters", () => {
     });
 
     expect(result.products.content[0].attributedRevenue.currency).toBeNull();
+    expect(
+      result.products.content[0].attributedRevenue.unavailableReason
+    ).toBe("MISSING_CURRENCY_EVIDENCE");
     expect(result.summary.currency).toBeNull();
+    expect(result.summary.currencyUnavailableReason).toBe(
+      "MIXED_SNAPSHOT_CURRENCIES"
+    );
     expect(result.summary.totalAttributedRevenue.currency).toBeNull();
+    expect(result.summary.totalAttributedRevenue.unavailableReason).toBe(
+      "MIXED_SNAPSHOT_CURRENCIES"
+    );
   });
 
   it("combines frozen-cost provenance, reconciliation, and historical snapshot periods", () => {
