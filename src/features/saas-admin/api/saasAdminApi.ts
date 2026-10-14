@@ -1,6 +1,9 @@
 import { baseApi } from "@/services/baseApi";
 import type {
   ApiResponse,
+  FactoryDeletionJob,
+  FactoryDeletionPreview,
+  FactoryDeletionRequest,
   ModuleAddon,
   ModuleAddonRequest,
   PricingPlan,
@@ -198,6 +201,98 @@ export const saasAdminApi = baseApi.injectEndpoints({
       invalidatesTags: ["SaasAdmin"],
     }),
 
+    getFactoryDeletionPreview: builder.query<
+      ApiResponse<FactoryDeletionPreview>,
+      string
+    >({
+      query: (organizationId) =>
+        `/api/saas-admin/factories/${organizationId}/deletion-preview`,
+      keepUnusedDataFor: 0,
+    }),
+
+    permanentlyDeleteFactory: builder.mutation<
+      ApiResponse<FactoryDeletionJob>,
+      { organizationId: string; body: FactoryDeletionRequest }
+    >({
+      query: ({ organizationId, body }) => ({
+        url: `/api/saas-admin/factories/${organizationId}/permanent-deletion`,
+        method: "POST",
+        body,
+      }),
+      async onQueryStarted({ organizationId }, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(
+            applyFactoryDeletionToDashboard(organizationId, data.data.status)
+          );
+        } catch {
+          // Errors are surfaced by the caller; cache stays untouched.
+        }
+      },
+      invalidatesTags: (result) =>
+        result ? ["SaasAdmin", "FeatureGating", "Whitelabel"] : [],
+    }),
+
+    getFactoryDeletionStatus: builder.query<
+      ApiResponse<FactoryDeletionJob>,
+      string
+    >({
+      query: (organizationId) =>
+        `/api/saas-admin/factory-deletions/${organizationId}`,
+      keepUnusedDataFor: 0,
+      async onQueryStarted(organizationId, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(
+            applyFactoryDeletionToDashboard(organizationId, data.data.status)
+          );
+          if (data.data.status === "COMPLETED") {
+            dispatch(
+              saasAdminApi.util.invalidateTags([
+                "SaasAdmin",
+                "FeatureGating",
+                "Whitelabel",
+              ])
+            );
+          }
+        } catch {
+          // Polling errors are surfaced by the caller.
+        }
+      },
+    }),
+
+    getFactoryDeletionHistory: builder.query<
+      ApiResponse<FactoryDeletionJob[]>,
+      { offset: number; limit: number }
+    >({
+      query: ({ offset, limit }) => ({
+        url: "/api/saas-admin/factory-deletions",
+        params: { offset, limit },
+      }),
+      providesTags: ["SaasAdmin"],
+    }),
+
+    retryFactoryDeletionAssets: builder.mutation<
+      ApiResponse<FactoryDeletionJob>,
+      string
+    >({
+      query: (organizationId) => ({
+        url: `/api/saas-admin/factory-deletions/${organizationId}/retry-assets`,
+        method: "POST",
+      }),
+      invalidatesTags: (result) => (result ? ["SaasAdmin"] : []),
+      async onQueryStarted(organizationId, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(
+            applyFactoryDeletionToDashboard(organizationId, data.data.status)
+          );
+        } catch {
+          // Errors are surfaced by the caller.
+        }
+      },
+    }),
+
     sendSaasMarketing: builder.mutation<ApiResponse<MessageResponse>, SaasMarketingRequest>({
       query: (body) => ({
         url: "/api/saas-admin/marketing/send",
@@ -207,6 +302,53 @@ export const saasAdminApi = baseApi.injectEndpoints({
     }),
   }),
 });
+
+/**
+ * Keeps the cached dashboard honest immediately after a deletion response:
+ * completed tenants disappear (and counters drop), in-flight or failed ones
+ * are flagged so the list never presents them as usable.
+ */
+function applyFactoryDeletionToDashboard(
+  organizationId: string,
+  status: FactoryDeletionJob["status"]
+) {
+  return saasAdminApi.util.updateQueryData(
+    "getSaasAdminDashboard",
+    undefined,
+    (draft) => {
+      const dashboard = draft.data;
+      if (!dashboard) return;
+      const index = dashboard.factories.findIndex(
+        (factory) => factory.organizationId === organizationId
+      );
+      if (index === -1) return;
+
+      if (status === "COMPLETED") {
+        const [removed] = dashboard.factories.splice(index, 1);
+        dashboard.totalFactories = Math.max(0, dashboard.totalFactories - 1);
+        dashboard.totalEmployees = Math.max(
+          0,
+          dashboard.totalEmployees - removed.employeeCount
+        );
+        dashboard.totalAiPrompts = Math.max(
+          0,
+          dashboard.totalAiPrompts - removed.aiUsage.totalPrompts
+        );
+        dashboard.totalHostedAiPrompts = Math.max(
+          0,
+          dashboard.totalHostedAiPrompts - removed.aiUsage.externalPrompts
+        );
+        dashboard.totalDbRecords = Math.max(
+          0,
+          dashboard.totalDbRecords - removed.dbUsage.totalRecords
+        );
+        return;
+      }
+
+      dashboard.factories[index].deletionStatus = status;
+    }
+  );
+}
 
 export const {
   useGetSaasAdminDashboardQuery,
@@ -228,4 +370,9 @@ export const {
   useTerminateSaasFactoryMutation,
   useMarkPaidSaasFactoryMutation,
   useSendSaasMarketingMutation,
+  useGetFactoryDeletionPreviewQuery,
+  usePermanentlyDeleteFactoryMutation,
+  useGetFactoryDeletionStatusQuery,
+  useRetryFactoryDeletionAssetsMutation,
+  useGetFactoryDeletionHistoryQuery,
 } = saasAdminApi;
