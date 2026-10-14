@@ -4,6 +4,7 @@ import { FoundationStorefront } from "../components/FoundationStorefront";
 import { allowedAssetUrl, storefrontSchema } from "../contracts";
 import { usesLegacyHost } from "../host";
 import { storefront } from "./fixtures";
+import { isPartnerAuthRuntimeReady } from "../auth/runtime";
 
 const request = vi.hoisted(() => ({ host: "unknown.example.test" }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: request.host }) }));
@@ -26,7 +27,38 @@ describe("storefront identity and readiness", () => {
     expect(screen.getByRole("heading", { name: "Acme HR" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Sign-in and factory operations are not enabled");
     expect(screen.queryByRole("button", { name: /sign in|checkout/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
     expect(storefrontSchema.safeParse({ ...storefront, capabilities: { operationalAccess: true, sso: true, checkout: false } }).success).toBe(false);
+    expect(storefrontSchema.safeParse({ ...storefront, capabilities: { operationalAccess: false, sso: true, checkout: false } }).success).toBe(true);
+  });
+
+  it("shows central sign-in after the BFF confirms there is no active session", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: false, code: "AUTH_REQUIRED", message: "Sign in", data: null,
+    }), { status: 401 })));
+    render(<FoundationStorefront
+      storefront={{ ...storefront, capabilities: { operationalAccess: false, sso: true, checkout: false } }}
+      signInEnabled
+    />);
+    expect(await screen.findByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/auth/start");
+    expect(screen.getByRole("status")).toHaveTextContent("Operational access remains unavailable");
+  });
+
+  it("fails closed until enabled OAuth server configuration is complete and HTTPS-only", () => {
+    const configured = {
+      enabled: true,
+      backendOrigin: "https://backend.example.test",
+      clientId: "partner-bff",
+      clientSecret: "server-only-secret",
+      csrfSecret: "A".repeat(43),
+    };
+    expect(isPartnerAuthRuntimeReady({ ...configured, enabled: false })).toBe(false);
+    expect(isPartnerAuthRuntimeReady({ ...configured, clientSecret: undefined })).toBe(false);
+    expect(isPartnerAuthRuntimeReady({ ...configured, csrfSecret: undefined })).toBe(false);
+    expect(isPartnerAuthRuntimeReady({ ...configured, csrfSecret: "short" })).toBe(false);
+    expect(isPartnerAuthRuntimeReady({ ...configured, backendOrigin: "http://backend.example.test" })).toBe(false);
+    expect(isPartnerAuthRuntimeReady({ ...configured, backendOrigin: "https://backend.example.test/path" })).toBe(false);
+    expect(isPartnerAuthRuntimeReady(configured)).toBe(true);
   });
 
   it("keeps only explicitly allowlisted hosts legacy when the boundary is enabled", () => {
@@ -50,6 +82,18 @@ describe("storefront identity and readiness", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("requires explicit legacy-host allowlists once storefront rollout is enabled", async () => {
+    vi.stubEnv("PARTNER_SAAS_HOST_BOUNDARY_ENABLED", "false");
+    vi.stubEnv("PARTNER_SAAS_STOREFRONT_ENABLED", "true");
+    vi.stubEnv("PARTNER_SAAS_DIRECT_HOSTS", "factory1.in");
+    vi.stubGlobal("fetch", vi.fn());
+    request.host = "new-product.example.test";
+    render(await StorefrontBoundary({ children: <p>Legacy factory app</p> }));
+    expect(screen.queryByText("Legacy factory app")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Storefront is not enabled" })).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("preserves the direct site without issuing a v2 bootstrap request", async () => {
     vi.stubEnv("PARTNER_SAAS_HOST_BOUNDARY_ENABLED", "true");
     vi.stubEnv("PARTNER_SAAS_DIRECT_HOSTS", "factory1.in");
@@ -58,6 +102,24 @@ describe("storefront identity and readiness", () => {
     render(await StorefrontBoundary({ children: <p>Legacy factory app</p> }));
     expect(screen.getByText("Legacy factory app")).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not show sign-in when backend SSO capability is disabled", async () => {
+    vi.stubEnv("PARTNER_SAAS_HOST_BOUNDARY_ENABLED", "true");
+    vi.stubEnv("PARTNER_SAAS_DIRECT_HOSTS", "factory1.in");
+    vi.stubEnv("PARTNER_SAAS_STOREFRONT_ENABLED", "true");
+    vi.stubEnv("PARTNER_SAAS_BACKEND_ORIGIN", "https://backend.example.test");
+    vi.stubEnv("PARTNER_SAAS_EDGE_TOKEN", "test-only-edge-key-not-a-real-secret-123456");
+    vi.stubEnv("PARTNER_SAAS_ASSET_HOSTS", "");
+    request.host = "hr.example.test";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      data: storefront,
+    }))));
+
+    render(await StorefrontBoundary({ children: <p>Legacy factory app</p> }));
+    expect(screen.getByRole("heading", { name: "Acme HR" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
   });
 
   it.each(["http://assets.test/a.png", "https://evil.test/a.png", "https://assets.test.evil/a.png",

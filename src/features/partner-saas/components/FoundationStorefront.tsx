@@ -1,7 +1,8 @@
 import type { PublicStorefront } from "../contracts";
+import { PartnerSessionGate } from "./PartnerSessionGate";
 
-export function FoundationStorefront({ storefront, state = "unavailable" }: {
-  storefront?: PublicStorefront; state?: "loading" | "disabled" | "unavailable";
+export function FoundationStorefront({ storefront, state = "unavailable", signInEnabled = false }: {
+  storefront?: PublicStorefront; state?: "loading" | "disabled" | "unavailable"; signInEnabled?: boolean;
 }) {
   const brand = storefront?.storefront;
   return <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-slate-950">
@@ -15,10 +16,15 @@ export function FoundationStorefront({ storefront, state = "unavailable" }: {
         {brand?.displayName ?? (state === "loading" ? "Loading storefront" : state === "disabled" ? "Storefront is not enabled" : "Storefront unavailable")}
       </h1>
       <p role="status" className="text-sm text-slate-700">
-        {brand ? "Product identity resolved. Sign-in and factory operations are not enabled in this foundation release." :
+        {brand ? signInEnabled && storefront.capabilities.sso
+          ? "Product identity resolved. Sign in to select an authorized factory. Operational access remains unavailable until the backend authorization rollout is ready."
+          : "Product identity resolved. Sign-in and factory operations are not enabled in this release." :
           state === "loading" ? "Checking this address before displaying product identity or sign-in controls." :
           "This address cannot serve a product storefront yet. Domain ownership, routing, TLS and rollout readiness must be confirmed by the operator."}
       </p>
+      {brand && signInEnabled && storefront.capabilities.sso ? (
+        <PartnerSessionGate />
+      ) : null}
       {state !== "loading" ? <a href="" className="inline-block rounded-md border px-3 py-2 text-sm underline focus-visible:outline-2 focus-visible:outline-blue-600">Reload storefront</a> : null}
     </section>
   </main>;
