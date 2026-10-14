@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAppStore } from "@/lib/store";
 import { setCredentials } from "@/features/auth/authSlice";
 import { partnerSaasApi } from "../api";
+import { whitelabelApi } from "@/features/whitelabel/api/whitelabelApi";
 import { product, partnerId, productId, userId, domain } from "./fixtures";
 
 vi.hoisted(() => { process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.test"; });
@@ -21,6 +22,18 @@ function respond(data: unknown) {
 }
 
 describe("foundation API contract boundaries", () => {
+  it("never sends bearer credentials to legacy public branding or logs out on its 401", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(new Response("{}", { status: 401 }))));
+    const store = storeForPartner();
+    const request = store.dispatch(whitelabelApi.endpoints.getPublicWhitelabelBranding.initiate("legacy.example.test"));
+    await request;
+    const sent = vi.mocked(fetch).mock.calls[0][0] as Request;
+    expect(sent.headers.get("Authorization")).toBeNull();
+    expect(store.getState().auth.token).toBe("test-only-token");
+    request.unsubscribe();
+    store.dispatch(partnerSaasApi.util.resetApiState());
+  });
+
   it("uses scoped paginated product URLs and keys rather than void cross-partner caches", async () => {
     vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(respond({ items: [product], offset: 20, limit: 20, total: 21 }))));
     const store = storeForPartner();

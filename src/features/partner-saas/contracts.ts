@@ -64,6 +64,7 @@ export function envelopeSchema<T extends z.ZodType>(data: T) {
 
 export function allowedAssetUrl(value: string | null, hosts: string) {
   if (value === null) return true;
+  if (!/^https:\/\/[^/?#@\s]+(?:\/[^?#\s]*)?$/i.test(value)) return false;
   try {
     const url = new URL(value);
     return url.protocol === "https:" && !url.username && !url.password && !url.search && !url.hash &&

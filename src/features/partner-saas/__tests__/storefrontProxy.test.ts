@@ -3,7 +3,7 @@ import { proxyStorefront } from "../storefrontProxy";
 import { GET } from "@/app/api/public/v2/storefront/route";
 import { storefront } from "./fixtures";
 
-const config = { enabled: true, backendOrigin: "https://backend.example.test", edgeToken: "test-only-edge-key" };
+const config = { enabled: true, backendOrigin: "https://backend.example.test", edgeToken: "test-only-edge-key-not-a-real-secret-123456" };
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("public storefront trust boundary", () => {
@@ -11,6 +11,7 @@ describe("public storefront trust boundary", () => {
     vi.stubGlobal("fetch", vi.fn());
     expect((await proxyStorefront("brand.example.test", { ...config, enabled: false })).status).toBe(503);
     expect((await proxyStorefront("good.test,evil.test", config)).status).toBe(421);
+    expect((await proxyStorefront("brand.example.test:444", config)).status).toBe(421);
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -74,9 +75,19 @@ describe("public storefront trust boundary", () => {
     })))));
     const response = await proxyStorefront("hr.example.test", config);
     expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("application/json");
     expect(await response.text()).not.toContain(config.edgeToken);
     const mismatch = await proxyStorefront("different.example.test", config);
     expect(mismatch.status).toBe(502);
+  });
+
+  it("refuses a trust secret echoed inside even otherwise valid public fields", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true, data: { ...storefront, storefront: { ...storefront.storefront, displayName: config.edgeToken } },
+    }))));
+    const response = await proxyStorefront("hr.example.test", config);
+    expect(response.status).toBe(502);
+    expect(await response.text()).not.toContain(config.edgeToken);
   });
 
   it("does not follow redirects or log the edge token on transport failure", async () => {

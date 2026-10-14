@@ -62,7 +62,8 @@ describe("storefront identity and readiness", () => {
 
   it.each(["http://assets.test/a.png", "https://evil.test/a.png", "https://assets.test.evil/a.png",
     "https://u:p@assets.test/a.png", "https://assets.test:444/a.png", "https://assets.test/a.png?token=x",
-    "https://assets.test/a.svg#x", "data:image/png;base64,test", "/tenant-private-file"])("rejects unapproved asset %s", (url) => {
+    "https://assets.test/a.svg#x", "https://assets.test/a.png?", "https://assets.test/a.png#",
+    "https://@assets.test/a.png", "data:image/png;base64,test", "/tenant-private-file"])("rejects unapproved asset %s", (url) => {
     expect(allowedAssetUrl(url, "assets.test")).toBe(false);
   });
 

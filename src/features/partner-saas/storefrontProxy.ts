@@ -21,8 +21,8 @@ export async function proxyStorefront(
 ): Promise<Response> {
   if (!config.enabled) return failure(503, "STOREFRONT_ROLLOUT_DISABLED");
   const host = canonicalHost(authority);
-  if (!host) return failure(421, "UNTRUSTED_STOREFRONT_HOST");
-  if (!config.backendOrigin || !config.edgeToken) return failure(503, "STOREFRONT_PROXY_NOT_CONFIGURED");
+  if (!host || host.includes(":")) return failure(421, "UNTRUSTED_STOREFRONT_HOST");
+  if (!config.backendOrigin || !config.edgeToken || config.edgeToken.length < 32) return failure(503, "STOREFRONT_PROXY_NOT_CONFIGURED");
   let origin: URL;
   try {
     origin = new URL(config.backendOrigin);
@@ -65,8 +65,11 @@ export async function proxyStorefront(
         !allowedAssetUrl(data.storefront.faviconUrl, config.assetHosts ?? "")) {
       return failure(502, "STOREFRONT_INVALID_RESPONSE");
     }
-    return Response.json({ success: true, data }, {
-      headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" },
+    const publicBody = JSON.stringify({ success: true, data });
+    if (publicBody.includes(config.edgeToken)) return failure(502, "STOREFRONT_INVALID_RESPONSE");
+    return new Response(publicBody, {
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" },
+      status: 200,
     });
   } catch (error) {
     console.error("Storefront bootstrap request failed", error instanceof Error ? error.name : "UnknownError");

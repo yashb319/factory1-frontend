@@ -25,7 +25,7 @@ export function isEmployeePortalPath(pathname: string) {
 
 export function scopeHome(user: AuthUser | null) {
   const scope = accessScope(user);
-  return scope === "platform" ? "/saas-admin" : scope === "partner" ? "/partner/whitelabel" : "/dashboard";
+  return scope === "platform" ? "/saas-admin" : scope === "partner" ? "/partner/whitelabel" : scope === "factory" ? "/dashboard" : "/login";
 }
 
 /** A redirect decision also blocks rendering, before page query hooks mount. */

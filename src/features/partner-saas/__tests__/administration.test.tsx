@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { partnerId, productId, userId, domain, product } from "./fixtures";
 import { PartnerProductAdmin } from "../components/PartnerProductAdmin";
 import { ProductDomains } from "../components/ProductDomains";
@@ -94,6 +95,18 @@ describe("scoped foundation administration", () => {
     await waitFor(() => expect(mocks.updateDomain).toHaveBeenCalledWith({
       partnerId, platform: false, productId, domainId: domain.id, expectedVersion: 2, status: "RETIRED",
     }));
+  });
+
+  it("supports keyboard dialog cancellation with an accessible name and restores trigger focus", async () => {
+    const user = userEvent.setup();
+    render(<ProductDomains scope={{ platform: false, partnerId }} productId={productId} canEdit />);
+    const trigger = screen.getByRole("button", { name: "Retire domain" });
+    await user.click(trigger);
+    expect(screen.getByRole("alertdialog", { name: "Confirm domain change" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(mocks.updateDomain).not.toHaveBeenCalled();
   });
 
   it("replaces only product metadata/package with a reviewed version, not owner/code/tenant scope", async () => {
