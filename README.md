@@ -89,6 +89,15 @@ instructions; other roles retain their existing assistant access.
 Run the focused checks with `npm test -- src/features/help-center/__tests__
 src/features/ai/__tests__/featureGating.test.ts`.
 
+## Partner and white-label SaaS foundation
+
+The additive product/domain administration and host-readiness boundary are
+disabled by default. This is not a working storefront login, SSO or commercial
+release; existing direct Factory1 and legacy white-label flows remain available.
+See [Partner SaaS foundation](docs/PARTNER_SAAS_FOUNDATION.md) for the matching
+backend contract, scoped permissions, rollout flags, deployment requirements and
+explicit exclusions.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

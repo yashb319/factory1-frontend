@@ -22,6 +22,8 @@ import { toast } from "sonner";
 import { TALLY_UI_ENABLED } from "@/config/features";
 import { isFeatureEnabled } from "@/config/featureGating";
 import { useGetOrganizationFeaturesQuery } from "@/features/organization-features/api/organizationFeaturesApi";
+import { accessScope } from "@/features/auth/accessScope";
+import { ControlPlaneShell } from "./ControlPlaneShell";
 import {
   type FactoryUiMode,
   getFactoryUiMode,
@@ -34,6 +36,14 @@ type Props = {
 };
 
 export function AppShell({ children }: Props) {
+  const user = useAppSelector((state) => state.auth.user);
+  const scope = accessScope(user);
+  if (!scope) return null;
+  if (scope !== "factory") return <ControlPlaneShell>{children}</ControlPlaneShell>;
+  return <FactoryAppShell>{children}</FactoryAppShell>;
+}
+
+function FactoryAppShell({ children }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -340,6 +350,8 @@ export function shouldShowFloatingAssistant(
 
   return (
     !platformAdmin &&
+    role !== "PARTNER_ADMIN" &&
+    role !== "SAAS_OWNER" &&
     role !== "EMPLOYEE" &&
     !isFullAssistantRoute &&
     isFeatureEnabled(enabledFeatures, "ai_assistant")

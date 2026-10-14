@@ -22,6 +22,7 @@ import { TALLY_UI_ENABLED } from "@/config/features";
 import { useActiveBranding } from "@/features/whitelabel/hooks/useActiveBranding";
 import { Button } from "@/components/ui/button";
 import { safeProductionReturnPath } from "@/lib/productionOrderLink";
+import { accessScope, scopeHome } from "../accessScope";
 
 export function LoginForm() {
   const router = useRouter();
@@ -62,14 +63,14 @@ export function LoginForm() {
         })
       );
 
-      const productionReturn = response.user?.role === "PARTNER_ADMIN"
+      const productionReturn = accessScope(response.user) !== "factory"
         ? undefined
         : safeProductionReturnPath(new URLSearchParams(window.location.search).get("next"));
       const landingRoute =
-        response.user?.organizationStatus === "PENDING_APPROVAL"
+        accessScope(response.user) === "factory" && response.user?.organizationStatus === "PENDING_APPROVAL"
           ? "/registration-pending"
-          : response.user?.platformAdmin
-        ? "/saas-admin"
+          : accessScope(response.user) !== "factory"
+        ? scopeHome(response.user)
         : productionReturn ?? (TALLY_UI_ENABLED && getFactoryUiMode(response.user ?? null) === "tally"
           ? "/gateway"
           : "/dashboard");

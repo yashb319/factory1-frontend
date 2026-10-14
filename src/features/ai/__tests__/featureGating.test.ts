@@ -14,6 +14,8 @@ describe("floating assistant feature gating", () => {
     expect(shouldShowFloatingAssistant(false, ["inventory"], "/dashboard")).toBe(false);
     expect(shouldShowFloatingAssistant(false, ["ai_assistant"], "/dashboard")).toBe(true);
     expect(shouldShowFloatingAssistant(true, ["ai_assistant"], "/dashboard")).toBe(false);
+    expect(shouldShowFloatingAssistant(false, ["ai_assistant"], "/partner/whitelabel", "PARTNER_ADMIN")).toBe(false);
+    expect(shouldShowFloatingAssistant(false, ["ai_assistant"], "/saas-admin", "SAAS_OWNER")).toBe(false);
   });
 
   it("suppresses the floating composer on full assistant routes", () => {

@@ -1,0 +1,68 @@
+name: Partner foundation
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: partner-foundation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_PARTNER_SAAS_V2_ENABLED: "false"
+      PARTNER_SAAS_EDGE_TOKEN: "ci-only-storefront-edge-token-not-a-real-secret"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Focused regression tests
+        run: npm test -- src/features/auth/__tests__ src/features/partner-saas/__tests__ src/config/__tests__ src/features/saas-admin/__tests__ src/features/help-center/__tests__ src/features/ai/__tests__/featureGating.test.ts
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint changed TypeScript files
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/main' }}
+        run: git diff --name-only --diff-filter=ACMR -z "$BASE_REF"...HEAD -- '*.ts' '*.tsx' '*.mts' '*.mjs' | xargs -0 -r npx eslint
+      - name: Production build
+        run: npm run build
+      - name: Keep edge trust out of browser bundles
+        run: |
+          if grep -R -q -F "$PARTNER_SAAS_EDGE_TOKEN" .next/static; then
+            echo "Server-only edge trust marker found in a browser bundle"
+            exit 1
+          fi
+      - name: Production host-boundary smoke
+        env:
+          PARTNER_SAAS_HOST_BOUNDARY_ENABLED: "true"
+          PARTNER_SAAS_DIRECT_HOSTS: "direct.example.test"
+          PARTNER_SAAS_STOREFRONT_ENABLED: "false"
+        run: |
+          npm start > "$RUNNER_TEMP/partner-foundation-server.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent -H 'Host: direct.example.test' http://localhost:3000/login > "$RUNNER_TEMP/direct-login.html"; then
+              break
+            fi
+            sleep 1
+          done
+          grep -Fq '<form' "$RUNNER_TEMP/direct-login.html"
+          curl --fail --silent -H 'Host: unknown.example.test' http://localhost:3000/login > "$RUNNER_TEMP/unknown-host.html"
+          grep -Fq 'Storefront is not enabled' "$RUNNER_TEMP/unknown-host.html"
+          if grep -Fq '<form' "$RUNNER_TEMP/unknown-host.html"; then
+            echo "Unknown product host mounted a legacy login form"
+            exit 1
+          fi

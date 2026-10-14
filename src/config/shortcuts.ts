@@ -1,5 +1,6 @@
 import type { AuthUser, UserRole } from "@/features/auth/types";
 import { TALLY_UI_ENABLED } from "@/config/features";
+import { accessScope } from "@/features/auth/accessScope";
 
 export type AppShortcut = {
   key: string;
@@ -686,6 +687,8 @@ export function canUseShortcut(
   shortcut: AppShortcut,
   user: AuthUser | null
 ) {
+  const scope = accessScope(user);
+  if (!scope || scope === "partner") return false;
   if (shortcut.exactTally && !TALLY_UI_ENABLED) {
     return false;
   }

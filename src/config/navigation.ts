@@ -32,6 +32,8 @@ import type { ComponentType, CSSProperties } from "react";
 import type { AuthUser, UserRole } from "@/features/auth/types";
 import type { ModuleKey } from "@/config/theme";
 import type { FeatureKey } from "@/config/featureGating";
+import { accessScope } from "@/features/auth/accessScope";
+import { PARTNER_SAAS_V2_ENABLED } from "@/features/partner-saas/config";
 
 type NavigationItem = {
   title: string;
@@ -41,6 +43,7 @@ type NavigationItem = {
   module: ModuleKey;
   platformAdminOnly?: boolean;
   featureKey?: FeatureKey;
+  partnerFoundationOnly?: boolean;
 };
 
 const allRoles: UserRole[] = ["OWNER", "ADMIN", "EMPLOYEE", "FINANCE", "MANAGEMENT"];
@@ -169,6 +172,23 @@ export const navigationItems: NavigationItem[] = [
     roles: ["PARTNER_ADMIN"],
     module: "settings",
   },
+  {
+    title: "SaaS products",
+    href: "/partner/products",
+    icon: PackageCheck,
+    roles: ["PARTNER_ADMIN"],
+    module: "settings",
+    partnerFoundationOnly: true,
+  },
+  {
+    title: "Partner products",
+    href: "/saas-admin/partner-products",
+    icon: PackageCheck,
+    roles: ["SAAS_OWNER"],
+    module: "settings",
+    platformAdminOnly: true,
+    partnerFoundationOnly: true,
+  },
 
 ];
 
@@ -176,13 +196,16 @@ export function canAccessNavigationItem(
   item: NavigationItem,
   user: AuthUser | null
 ) {
+  const scope = accessScope(user);
+  if (!scope) return false;
+  if (item.partnerFoundationOnly && !PARTNER_SAAS_V2_ENABLED) return false;
   if (item.platformAdminOnly) {
-    return Boolean(user?.platformAdmin);
+    return scope === "platform";
   }
 
   if (user?.platformAdmin) {
     return false;
   }
 
-  return !user?.role || item.roles.includes(user.role);
+  return Boolean(user && item.roles.includes(user.role));
 }

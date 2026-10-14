@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useAppSelector } from "@/lib/hook";
+import { accessScope } from "@/features/auth/accessScope";
 import {
   useConvertSandboxMutation,
   useGetSandboxStatusQuery,
@@ -24,7 +25,7 @@ import {
 export function SandboxBanner() {
   const user = useAppSelector((state) => state.auth.user);
   const { data, refetch } = useGetSandboxStatusQuery(undefined, {
-    skip: Boolean(user?.platformAdmin),
+    skip: accessScope(user) !== "factory",
   });
   const [convertSandbox, { isLoading }] = useConvertSandboxMutation();
   const [dismissed, setDismissed] = useState(false);

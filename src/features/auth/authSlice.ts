@@ -3,9 +3,10 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { AuthUser } from "./types";
 
-type AuthState = {
+export type AuthState = {
   token: string | null;
   user: AuthUser | null;
+  generation?: number;
 };
 
 export const AUTH_TOKEN_STORAGE_KEY = "factory1_token";
@@ -47,6 +48,7 @@ const authSlice = createSlice({
       state,
       action: PayloadAction<{ token: string; user?: AuthUser | null }>
     ) => {
+      state.generation = (state.generation ?? 0) + 1;
       state.token = action.payload.token;
       state.user = action.payload.user ?? null;
 
@@ -72,6 +74,7 @@ const authSlice = createSlice({
     },
 
     logout: (state) => {
+      state.generation = (state.generation ?? 0) + 1;
       state.token = null;
       state.user = null;
 
