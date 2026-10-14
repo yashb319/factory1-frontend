@@ -18,7 +18,7 @@ export interface AttendanceRecord {
   checkOutTime?: string;
   totalHours?: number;
   status: AttendanceStatus;
-  source?: "MANUAL" | "DEVICE" | "BULK";
+  source?: "MANUAL" | "DEVICE" | "BULK" | "SELF_SERVICE";
   remarks?: string;
 }
 
@@ -40,6 +40,36 @@ export interface MarkAttendanceRequest {
   checkOutTime?: string;
   status: AttendanceStatus;
   remarks?: string;
+}
+
+export type SelfAttendanceStatus =
+  | "PRESENT"
+  | "ABSENT"
+  | "HALF_DAY"
+  | "PAID_LEAVE"
+  | "UNPAID_LEAVE"
+  | "HOLIDAY";
+
+export type SelfAttendanceNextAction = "CHECK_IN" | "CHECK_OUT" | null;
+
+export interface SelfAttendanceResponse {
+  attendanceId: string | null;
+  attendanceDate: string;
+  status: SelfAttendanceStatus | null;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  totalHours: number | null;
+  nextAction: SelfAttendanceNextAction;
+  finalized: boolean;
+  timezone: string;
+}
+
+export interface CorrectAttendanceRequest {
+  employeeId: string;
+  attendanceDate: string;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  reason: string;
 }
 
 export interface BulkAttendanceRequest {

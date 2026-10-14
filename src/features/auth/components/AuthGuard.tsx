@@ -9,7 +9,7 @@ import {
   logout,
 } from "../authSlice";
 import { TALLY_UI_ENABLED } from "@/config/features";
-import { productionLoginPath, safeProductionReturnPath } from "@/lib/productionOrderLink";
+import { productionLoginPath } from "@/lib/productionOrderLink";
 
 type AuthGuardProps = {
   children: React.ReactNode;
@@ -113,11 +113,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
     if (
       user?.role === "EMPLOYEE" &&
-      pathname !== "/leave" &&
-      pathname !== "/profile" &&
-      !safeProductionReturnPath(pathname + window.location.search)
+      !isEmployeePortalPath(pathname)
     ) {
-      router.replace("/leave");
+      router.replace("/dashboard");
     }
 
     if (
@@ -218,5 +216,15 @@ export function isPlatformAdminPath(pathname: string) {
     pathname.startsWith("/saas-admin") ||
     pathname === "/admin/load-testing" ||
     pathname.startsWith("/admin/load-testing/")
+  );
+}
+
+export function isEmployeePortalPath(pathname: string) {
+  return (
+    pathname === "/dashboard" ||
+    pathname === "/leave" ||
+    pathname === "/attendance" ||
+    pathname === "/profile" ||
+    pathname === "/production/my-assignments"
   );
 }

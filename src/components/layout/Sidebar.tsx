@@ -4,7 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, Factory } from "lucide-react";
 import { canAccessNavigationItem, navigationItems } from "@/config/navigation";
-import { isFeatureEnabled } from "@/config/featureGating";
+import {
+  isEmployeePortalFeatureEnabled,
+  isEmployeePortalFeatureKey,
+  isFeatureEnabled,
+} from "@/config/featureGating";
 import { moduleTheme } from "@/config/theme";
 import { useAppSelector } from "@/lib/hook";
 import { useGetOrganizationFeaturesQuery } from "@/features/organization-features/api/organizationFeaturesApi";
@@ -44,7 +48,9 @@ export function Sidebar({
   const items = navigationItems.filter(
     (item) =>
       canAccessNavigationItem(item, user) &&
-      isFeatureEnabled(enabledFeatures, item.featureKey)
+      (isEmployeePortalFeatureKey(item.featureKey)
+        ? isEmployeePortalFeatureEnabled(enabledFeatures, item.featureKey)
+        : isFeatureEnabled(enabledFeatures, item.featureKey))
   );
 
   return (

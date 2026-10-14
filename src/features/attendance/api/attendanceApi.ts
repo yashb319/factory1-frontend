@@ -12,7 +12,9 @@ import type {
     MarkAttendanceRequest,
     MonthlyAttendanceReport,
     AttendanceLeaveStatus,
+    CorrectAttendanceRequest,
     PageResponse,
+    SelfAttendanceResponse,
 } from "../types/attendance.types";
 
 export const attendanceApi = baseApi.injectEndpoints({
@@ -119,6 +121,52 @@ export const attendanceApi = baseApi.injectEndpoints({
             }),
             providesTags: ["Attendance"],
         }),
+        getSelfAttendanceStatus: builder.query<SelfAttendanceResponse, void>({
+            query: () => ({
+                url: "/api/employee-portal/attendance/status",
+                method: "GET",
+            }),
+            transformResponse: (response: ApiResponse<SelfAttendanceResponse>) =>
+                response.data,
+            providesTags: ["Attendance"],
+        }),
+        checkInSelfAttendance: builder.mutation<SelfAttendanceResponse, void>({
+            query: () => ({
+                url: "/api/employee-portal/attendance/check-in",
+                method: "POST",
+            }),
+            transformResponse: (response: ApiResponse<SelfAttendanceResponse>) =>
+                response.data,
+            invalidatesTags: ["Attendance"],
+        }),
+        checkOutSelfAttendance: builder.mutation<SelfAttendanceResponse, void>({
+            query: () => ({
+                url: "/api/employee-portal/attendance/check-out",
+                method: "POST",
+            }),
+            transformResponse: (response: ApiResponse<SelfAttendanceResponse>) =>
+                response.data,
+            invalidatesTags: ["Attendance"],
+        }),
+        correctAttendance: builder.mutation<
+            AttendanceRecord,
+            CorrectAttendanceRequest
+        >({
+            query: ({
+                employeeId,
+                attendanceDate,
+                checkInTime,
+                checkOutTime,
+                reason,
+            }) => ({
+                url: `/api/attendance/${employeeId}/${attendanceDate}/correction`,
+                method: "PUT",
+                body: { checkInTime, checkOutTime, reason },
+            }),
+            transformResponse: (response: ApiResponse<AttendanceRecord>) =>
+                response.data,
+            invalidatesTags: ["Attendance"],
+        }),
     }),
 });
 
@@ -130,4 +178,8 @@ export const {
     useGetMonthlyAttendanceReportQuery,
     useGetAttendanceDashboardQuery,
     useGetAttendanceLeaveStatusQuery,
+    useGetSelfAttendanceStatusQuery,
+    useCheckInSelfAttendanceMutation,
+    useCheckOutSelfAttendanceMutation,
+    useCorrectAttendanceMutation,
 } = attendanceApi;

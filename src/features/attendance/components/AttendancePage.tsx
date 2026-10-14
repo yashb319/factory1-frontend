@@ -18,8 +18,20 @@ import { exportAttendanceCsv } from "../utils/attendanceExport";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
 import { openExternalUrl } from "@/features/import-export/utils/localExportFiles";
 import { MonthlyReportPanel } from "./MonthlyReportPanel";
+import { useAppSelector } from "@/lib/hook";
+import { EmployeeSelfAttendancePage } from "./EmployeeSelfAttendancePage";
 
 export function AttendancePage() {
+  const user = useAppSelector((state) => state.auth.user);
+
+  if (user?.role === "EMPLOYEE") {
+    return <EmployeeSelfAttendancePage />;
+  }
+
+  return <AttendanceManagementPage canCorrect={user?.role === "OWNER"} />;
+}
+
+function AttendanceManagementPage({ canCorrect }: { canCorrect: boolean }) {
   const [markOpen, setMarkOpen] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -134,6 +146,7 @@ export function AttendancePage() {
       <AttendanceTable
         records={data?.content ?? []}
         loading={isLoading || isFetching}
+        canCorrect={canCorrect}
       />
 
       <MarkAttendanceDialog open={markOpen} onOpenChange={setMarkOpen} />
