@@ -44,6 +44,8 @@ const CODE_MESSAGES: Record<string, string> = {
     "Some user accounts also belong to other factories and cannot be removed.",
   UNMANAGED_ASSET_KEY:
     "Some stored files are outside managed storage and cannot be verified for cleanup.",
+  STORAGE_NAMESPACE_CHANGED:
+    "File cleanup failed because the S3 endpoint, region, or bucket no longer matches this deletion's original storage binding. Deletion is not complete; restore the original storage configuration before retrying.",
   REAL_DATA_RETENTION_POLICY_REQUIRED:
     "Deleting factories with real business data is not enabled until the data retention policy is finalized.",
 };

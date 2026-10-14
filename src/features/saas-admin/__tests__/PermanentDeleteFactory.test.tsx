@@ -525,6 +525,29 @@ describe("permanent factory deletion – paid subscription blocker", () => {
 });
 
 describe("permanent factory deletion – durable history", () => {
+  it("shows a storage namespace mismatch as incomplete and keeps retry available", async () => {
+    const GONE_ID = "9b1c-namespace-changed";
+    const failedJob = {
+      ...job("ASSET_CLEANUP_FAILED", { errorCode: "STORAGE_NAMESPACE_CHANGED" }),
+      organizationId: GONE_ID,
+    };
+    routes[HISTORY] = () => ok([failedJob]);
+    routes[`GET /api/saas-admin/factory-deletions/${GONE_ID}`] = () => ok(failedJob);
+    const user = userEvent.setup();
+    renderPage();
+
+    const history = await screen.findByRole("region", { name: "Factory deletion history" });
+    expect(await within(history).findByText("File cleanup failed")).toBeInTheDocument();
+    expect(within(history).getByText("STORAGE_NAMESPACE_CHANGED")).toBeInTheDocument();
+    await user.click(within(history).getByRole("button", { name: /review \/ retry/i }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("Deletion is not complete.");
+    expect(dialog).toHaveTextContent(/S3 endpoint, region, or bucket no longer matches/i);
+    expect(dialog).toHaveTextContent(/restore the original storage configuration before retrying/i);
+    expect(within(dialog).getByRole("button", { name: /retry file cleanup/i })).toBeEnabled();
+  });
+
   it("lists recorded deletions by organization ID and lets a failed cleanup be retried after reload", async () => {
     const GONE_ID = "9b1c-gone";
     const failedJob = { ...job("ASSET_CLEANUP_FAILED", { errorCode: "STORAGE_DELETE_FAILED", attempts: 2 }), organizationId: GONE_ID };
