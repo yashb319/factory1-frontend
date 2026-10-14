@@ -69,6 +69,26 @@ node --experimental-strip-types scripts/check-production-reviews.ts
 
 Helper assertions, lint/type checks and builds do **not** prove live backend integration, browser print/PDF behavior, camera access or physical label readability. Exercise root/child navigation, preview/confirmation, stale state, permission denial and QR opening in a browser with the matching backend. Separately verify deployed-HTTPS camera scanning and actual printed labels on the intended devices; no physical test is implied by the automated checks.
 
+## Employee Help Center
+
+Employees can open **Help Center** at `/help` to send their name, company email,
+issue type and description to support. The form uses the existing employee JWT
+with `POST /api/employee-portal/help/contact`; deploy the matching backend endpoint
+and its SMTP configuration before releasing this UI. The recipient is configured
+only on the backend, never supplied by the browser. A success message is shown
+only when the API confirms email acceptance, not final inbox delivery.
+
+Issue types are Attendance, Leave, Payroll, Account / Login, Technical issue and
+Other. Name, email and description limits are 120, 254 and 5,000 characters.
+The backend permits 3 attempts per employee in 15 minutes, including failed
+attempts. There are no automatic retries; delivery failures retain the form for
+an explicit retry. Drafts are not persisted and reset when the employee account
+changes. Employees do not see AI navigation, floating chat or AI walkthrough
+instructions; other roles retain their existing assistant access.
+
+Run the focused checks with `npm test -- src/features/help-center/__tests__
+src/features/ai/__tests__/featureGating.test.ts`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

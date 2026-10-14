@@ -88,7 +88,7 @@ export const navigationItems: NavigationItem[] = [
     roles: ["OWNER", "ADMIN"],
     module: "documents",
   },
-  { title: "AI Assistant", href: "/ai", icon: Bot, roles: allRoles, module: "aiInsights", featureKey: "ai_assistant" },
+  { title: "AI Assistant", href: "/ai", icon: Bot, roles: organizationRoles, module: "aiInsights", featureKey: "ai_assistant" },
   { title: "Help Center", href: "/help", icon: LifeBuoy, roles: allRoles, module: "settings" },
   // { title: "Docs", href: "/docs", icon: BookOpen, roles: allRoles },
   {

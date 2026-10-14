@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { driver, type DriveStep, type PopoverDOM } from "driver.js";
 import { toast } from "sonner";
+import { useAppSelector } from "@/lib/hook";
 
 const TOUR_STORAGE_PREFIX = "factory1-walkthrough-seen:";
 const GLOBAL_AUTO_TOUR_KEY = TOUR_STORAGE_PREFIX + "workspace";
@@ -134,8 +135,14 @@ function currentTourConfig(pathname: string) {
   return moduleTourConfigs[pathname] ?? fallbackTour;
 }
 
-function availableSteps(pathname: string) {
-  const config = currentTourConfig(pathname);
+function availableSteps(pathname: string, employeePortal: boolean) {
+  const config = employeePortal ? {
+    name: "Employee portal",
+    intro: "This is your employee workspace.",
+    workflow: "Use the modules enabled by your organization to manage your own attendance, leave and work orders.",
+    actions: "Open Help Center to contact Factory1 support about an issue.",
+    ai: "",
+  } : currentTourConfig(pathname);
 
   const steps: DriveStep[] = [
     {
@@ -162,7 +169,9 @@ function availableSteps(pathname: string) {
       popover: {
         title: "Factory Modules",
         description:
-          "Use the sidebar to move between dashboard, employees, attendance, payroll, inventory, billing and AI.",
+          employeePortal
+            ? "Use the sidebar to open your enabled modules, profile and Help Center."
+            : "Use the sidebar to move between dashboard, employees, attendance, payroll, inventory, billing and AI.",
         side: "right",
         align: "start",
       },
@@ -227,7 +236,8 @@ function availableSteps(pathname: string) {
   ];
 
   return steps.filter((step) =>
-    typeof step.element === "string" ? isVisible(step.element) : true
+    !(employeePortal && step.element === "[data-tour='ai-assistant']") &&
+    (typeof step.element === "string" ? isVisible(step.element) : true)
   );
 }
 
@@ -258,8 +268,8 @@ function currentPathname() {
   return window.location.pathname || "/dashboard";
 }
 
-function startWalkthrough(pathname = currentPathname()) {
-  const steps = availableSteps(pathname);
+function startWalkthrough(pathname = currentPathname(), employeePortal = false) {
+  const steps = availableSteps(pathname, employeePortal);
 
   if (!steps.length) {
     toast.info("Walkthrough is not available on this screen yet.");
@@ -291,28 +301,32 @@ function startWalkthrough(pathname = currentPathname()) {
 
 export function FactoryWalkthrough() {
   const pathname = usePathname();
+  const employeePortal = useAppSelector((state) => state.auth.user?.role === "EMPLOYEE");
 
   useEffect(() => {
-    const start = () => startWalkthrough(pathname);
+    const start = () => startWalkthrough(pathname, employeePortal);
 
     window.addEventListener(TOUR_EVENT, start);
 
     const hasSeenTour =
       window.localStorage.getItem(GLOBAL_AUTO_TOUR_KEY) === "true";
 
+    let timer: number | undefined;
     if (!hasSeenTour) {
       window.localStorage.setItem(GLOBAL_AUTO_TOUR_KEY, "true");
-      window.setTimeout(() => startWalkthrough(pathname), 700);
+      timer = window.setTimeout(start, 700);
     }
 
     return () => {
       window.removeEventListener(TOUR_EVENT, start);
+      window.clearTimeout(timer);
+      tourDriver?.destroy();
     };
-  }, [pathname]);
+  }, [pathname, employeePortal]);
 
   return null;
 }
 
 export function startFactoryWalkthrough() {
-  window.setTimeout(() => startWalkthrough(), 150);
+  window.setTimeout(() => window.dispatchEvent(new Event(TOUR_EVENT)), 150);
 }

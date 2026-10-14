@@ -204,7 +204,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     token,
   ]);
 
-  if (!mounted || !token) {
+  if (!mounted || !token || (user?.role === "EMPLOYEE" && !isEmployeePortalPath(pathname))) {
     return null;
   }
 
@@ -225,6 +225,7 @@ export function isEmployeePortalPath(pathname: string) {
     pathname === "/leave" ||
     pathname === "/attendance" ||
     pathname === "/profile" ||
+    pathname === "/help" ||
     pathname === "/production/my-assignments"
   );
 }

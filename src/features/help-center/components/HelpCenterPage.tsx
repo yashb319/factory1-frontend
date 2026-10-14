@@ -23,6 +23,7 @@ import { moduleTheme } from "@/config/theme";
 import { useAppSelector } from "@/lib/hook";
 import { cn } from "@/lib/utils";
 import type { HelpGuide } from "../types";
+import { EmployeeContactSupportForm } from "./EmployeeContactSupportForm";
 import {
   guidesForRole,
   HELP_CENTER_CONTENT_VERSION,
@@ -126,6 +127,15 @@ export function HelpCenterPage() {
     const frame = requestAnimationFrame(() => setHighlightedId(targetId));
     return () => cancelAnimationFrame(frame);
   }, [requestedModule, filteredGuides]);
+
+  if (user?.role === "EMPLOYEE" && !user.platformAdmin) {
+    return (
+      <EmployeeContactSupportForm
+        key={`${user.organizationId}:${user.id}`}
+        user={user}
+      />
+    );
+  }
 
   if (user?.platformAdmin) {
     return (
