@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,12 +15,16 @@ import { canonicalHost } from "../host";
 import type { ProductDomain } from "../contracts";
 import { FoundationError, PageControls } from "./FoundationFeedback";
 
+type DomainAction = "renew" | "suspend" | "retire";
+
 export function ProductDomains({ scope, productId, canEdit }: { scope: ProductScope; productId: string; canEdit: boolean }) {
   const [offset, setOffset] = useState(0);
   const [hostname, setHostname] = useState("");
   const [error, setError] = useState<unknown>();
   const [message, setMessage] = useState("");
-  const [confirmation, setConfirmation] = useState<{ domain: ProductDomain; action: "renew" | "suspend" | "retire" } | null>(null);
+  const [confirmation, setConfirmation] = useState<{ domain: ProductDomain; action: DomainAction } | null>(null);
+  const returnFocusRef = useRef<HTMLButtonElement | null>(null);
+  const sectionRef = useRef<HTMLElement | null>(null);
   const args = { ...scope, productId };
   const query = useGetProductDomainsQuery({ ...args, offset, limit: 20 });
   const [request, requestState] = useRequestProductDomainMutation();
@@ -29,6 +33,11 @@ export function ProductDomains({ scope, productId, canEdit }: { scope: ProductSc
   const [update, updateState] = useUpdateProductDomainMutation();
   const busy = requestState.isLoading || verifyState.isLoading || renewState.isLoading || updateState.isLoading;
   const data = query.currentData;
+
+  function openConfirmation(domain: ProductDomain, action: DomainAction, trigger: HTMLButtonElement) {
+    returnFocusRef.current = trigger;
+    setConfirmation({ domain, action });
+  }
 
   async function reserve(event: React.FormEvent) {
     event.preventDefault();
@@ -76,7 +85,7 @@ export function ProductDomains({ scope, productId, canEdit }: { scope: ProductSc
     }
   }
 
-  return <section className="space-y-4 rounded-lg border bg-white p-4" aria-label="Product domains">
+  return <section ref={sectionRef} tabIndex={-1} className="space-y-4 rounded-lg border bg-white p-4" aria-label="Product domains">
     <h2 className="text-lg font-semibold">Product domains</h2>
     <p className="text-sm text-slate-600">A domain identifies this product, not a factory. TXT ownership, traffic routing and TLS are separate. This foundation cannot activate or provision a domain.</p>
     {error ? <FoundationError error={error} /> : null}
@@ -110,16 +119,19 @@ export function ProductDomains({ scope, productId, canEdit }: { scope: ProductSc
           <p className="text-xs text-slate-600">Last checked: {domain.lastCheckedAt ?? "Not checked"}</p>
           {canEdit && domain.status !== "RETIRED" ? <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" disabled={busy || !data.capabilities.ownershipVerification} onClick={() => { void check(domain); }}>Check ownership of {domain.hostname}</Button>
-            <Button type="button" variant="outline" disabled={busy} onClick={() => setConfirmation({ domain, action: "renew" })}>Renew challenge</Button>
-            <Button type="button" variant="outline" disabled={busy || domain.status === "SUSPENDED"} onClick={() => setConfirmation({ domain, action: "suspend" })}>Suspend domain</Button>
-            <Button type="button" variant="outline" disabled={busy} onClick={() => setConfirmation({ domain, action: "retire" })}>Retire domain</Button>
+            <Button type="button" variant="outline" disabled={busy} onClick={(event) => openConfirmation(domain, "renew", event.currentTarget)}>Renew challenge</Button>
+            <Button type="button" variant="outline" disabled={busy || domain.status === "SUSPENDED"} onClick={(event) => openConfirmation(domain, "suspend", event.currentTarget)}>Suspend domain</Button>
+            <Button type="button" variant="outline" disabled={busy} onClick={(event) => openConfirmation(domain, "retire", event.currentTarget)}>Retire domain</Button>
           </div> : null}
         </li>)}
       </ul>
       <PageControls label="domains" offset={offset} limit={20} total={data.domains.total} busy={query.isFetching || busy} onChange={setOffset} />
     </> : null}
     <AlertDialog open={Boolean(confirmation)} onOpenChange={(open) => { if (!open && !busy) setConfirmation(null); }}>
-      <AlertDialogContent>
+      <AlertDialogContent onCloseAutoFocus={(event) => {
+        event.preventDefault();
+        (returnFocusRef.current?.isConnected ? returnFocusRef.current : sectionRef.current)?.focus();
+      }}>
         <AlertDialogHeader>
           <AlertDialogTitle>Confirm domain change</AlertDialogTitle>
           <AlertDialogDescription>

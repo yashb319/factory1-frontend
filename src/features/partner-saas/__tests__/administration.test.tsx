@@ -103,7 +103,8 @@ describe("scoped foundation administration", () => {
     const trigger = screen.getByRole("button", { name: "Retire domain" });
     await user.click(trigger);
     expect(screen.getByRole("alertdialog", { name: "Confirm domain change" })).toBeInTheDocument();
-    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    await user.keyboard("{Enter}");
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(mocks.updateDomain).not.toHaveBeenCalled();
