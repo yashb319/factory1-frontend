@@ -25,6 +25,7 @@ import {
   PERMANENT_DELETION_CONFIRMATION,
   type FactoryDeletionJob,
   type FactoryDeletionPreview,
+  type FactoryDeletionRetention,
   type FactoryDeletionStatus,
   type SaasFactory,
 } from "../types/saasAdmin.types";
@@ -67,7 +68,8 @@ type DataScope = "dummy" | "real";
 type Props = {
   factory: SaasFactory | null;
   onClose: () => void;
-  onCompleted: (organizationId: string) => void;
+  /** keepOpen is true when a retained archive summary must stay visible. */
+  onCompleted: (organizationId: string, options: { keepOpen: boolean }) => void;
 };
 
 /**
@@ -103,7 +105,7 @@ function DeleteFactoryDialogBody({
   onCompleted,
 }: {
   factory: SaasFactory;
-  onCompleted: (organizationId: string) => void;
+  onCompleted: Props["onCompleted"];
 }) {
   const nameInputId = useId();
   const phraseInputId = useId();
@@ -111,9 +113,10 @@ function DeleteFactoryDialogBody({
   const [typedName, setTypedName] = useState("");
   const [typedPhrase, setTypedPhrase] = useState("");
   const [dataScope, setDataScope] = useState<DataScope | null>(null);
+  const [retentionPolicyId, setRetentionPolicyId] = useState("");
+  const policyInputId = useId();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [job, setJob] = useState<FactoryDeletionJob | null>(null);
-  const [submittedScope, setSubmittedScope] = useState<DataScope | null>(null);
   const submittingRef = useRef(false);
   const completedRef = useRef(false);
 
@@ -152,18 +155,14 @@ function DeleteFactoryDialogBody({
     if (currentJob?.status !== "COMPLETED" || completedRef.current) return;
     completedRef.current = true;
     toast.success(
-      submittedScope === "real"
+      currentJob.retention
         ? `${factory.name}'s live data was deleted; required records remain in the restricted retention archive`
         : `${factory.name} and all its data were permanently deleted`
     );
-    onCompleted(factory.organizationId);
-  }, [
-    currentJob?.status,
-    factory.name,
-    factory.organizationId,
-    onCompleted,
-    submittedScope,
-  ]);
+    onCompleted(factory.organizationId, {
+      keepOpen: Boolean(currentJob.retention),
+    });
+  }, [currentJob, factory.name, factory.organizationId, onCompleted]);
 
   const previewData = preview.data?.data;
   const blockers = previewData?.blockers ?? [];
@@ -175,6 +174,10 @@ function DeleteFactoryDialogBody({
   const isSubmitting = deleteState.isLoading || retryState.isLoading;
   const failed = currentStatus === "ASSET_CLEANUP_FAILED";
   const showConfirmation = !alreadyDeleting && currentStatus === null;
+  const realAllowed = previewData?.realDeletionPolicyConfigured === true;
+  const policyOk =
+    dataScope === "dummy" ||
+    (dataScope === "real" && realAllowed && retentionPolicyId.trim() !== "");
 
   const canDelete =
     showConfirmation &&
@@ -184,6 +187,7 @@ function DeleteFactoryDialogBody({
     nameMatches &&
     phraseMatches &&
     dataScope !== null &&
+    policyOk &&
     !isSubmitting;
 
   async function runRequest(request: () => Promise<{ data: FactoryDeletionJob }>) {
@@ -209,7 +213,6 @@ function DeleteFactoryDialogBody({
 
   function submitDeletion() {
     if (!canDelete) return;
-    setSubmittedScope(dataScope);
     void runRequest(() =>
       deleteFactory({
         organizationId: factory.organizationId,
@@ -217,6 +220,9 @@ function DeleteFactoryDialogBody({
           factoryName: typedName,
           confirmation: typedPhrase,
           dummyDataOnly: dataScope === "dummy",
+          ...(dataScope === "real"
+            ? { retentionPolicyId: retentionPolicyId.trim() }
+            : {}),
         },
       }).unwrap()
     );
@@ -267,7 +273,9 @@ function DeleteFactoryDialogBody({
           </p>
         </section>
 
-        {showConfirmation ? <DeletionScopeWarning scope={dataScope} /> : null}
+        {showConfirmation ? (
+          <DeletionScopeWarning scope={dataScope} realAllowed={realAllowed} />
+        ) : null}
 
         {showConfirmation ? (
           <DeletionPreviewSection
@@ -318,12 +326,36 @@ function DeleteFactoryDialogBody({
                   type="radio"
                   name={scopeName}
                   checked={dataScope === "real"}
+                  disabled={!realAllowed}
                   onChange={() => setDataScope("real")}
                   onKeyDown={blockEnter}
                 />
-                Real business data (subject to the data retention policy)
+                Real business data (restricted retention archive)
               </label>
+              {previewData && !realAllowed ? (
+                <p className="text-xs text-slate-500">
+                  Real-data deletion is unavailable: no reviewed retention
+                  policy is configured for this factory.
+                </p>
+              ) : null}
             </fieldset>
+
+            {dataScope === "real" ? (
+              <label htmlFor={policyInputId} className="block space-y-1">
+                <span className="text-xs font-medium text-slate-700">
+                  Reviewed retention policy ID
+                </span>
+                <Input
+                  id={policyInputId}
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={retentionPolicyId}
+                  disabled={isSubmitting}
+                  onChange={(event) => setRetentionPolicyId(event.target.value)}
+                  onKeyDown={blockEnter}
+                />
+              </label>
+            ) : null}
 
             <label htmlFor={nameInputId} className="block space-y-1">
               <span className="text-xs font-medium text-slate-700">
@@ -404,7 +436,13 @@ function DeleteFactoryDialogBody({
   );
 }
 
-function DeletionScopeWarning({ scope }: { scope: DataScope | null }) {
+function DeletionScopeWarning({
+  scope,
+  realAllowed,
+}: {
+  scope: DataScope | null;
+  realAllowed: boolean;
+}) {
   if (scope === "real") {
     return (
       <div
@@ -421,7 +459,8 @@ function DeletionScopeWarning({ scope }: { scope: DataScope | null }) {
             hold applies.
           </li>
           <li>
-            This path stays blocked until an approved retention policy exists.
+            The reviewed retention policy bound to this factory decides the
+            jurisdiction and retention date.
           </li>
         </ul>
         <p className="mt-1">
@@ -458,7 +497,7 @@ function DeletionScopeWarning({ scope }: { scope: DataScope | null }) {
         <p className="mt-1">
           Deletion is irreversible. Dummy factories are purged completely;
           real factories keep legally required records in a restricted
-          archive.
+          archive{realAllowed ? "" : " and need a reviewed retention policy"}.
         </p>
       )}
     </div>
@@ -577,14 +616,24 @@ function DeletionStatusPanel({
     );
   }
 
+  const retention = job?.retention ?? null;
+  const retentionPanel = retention ? (
+    <RetentionSummary retention={retention} />
+  ) : null;
+
   if (status === "COMPLETED") {
     return (
-      <div
-        role="status"
-        className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800"
-      >
-        Deletion completed. The factory, its data and its files were removed.
-      </div>
+      <>
+        <div
+          role="status"
+          className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800"
+        >
+          {retention
+            ? "Live deletion completed. Live data, accounts and files were removed; required records remain in the restricted retention archive."
+            : "Deletion completed. The factory, its data and its files were removed."}
+        </div>
+        {retentionPanel}
+      </>
     );
   }
 
@@ -606,6 +655,7 @@ function DeletionStatusPanel({
         ) : null}
         <p>The factory cannot be used. Retry the file cleanup.</p>
         {pollError ? <p>Could not refresh deletion status.</p> : null}
+        {retentionPanel}
       </div>
     );
   }
@@ -626,6 +676,54 @@ function DeletionStatusPanel({
       {pollError ? (
         <p className="mt-1">Could not refresh status; retrying automatically.</p>
       ) : null}
+      {retentionPanel}
     </div>
+  );
+}
+
+function RetentionSummary({
+  retention,
+}: {
+  retention: FactoryDeletionRetention;
+}) {
+  const categories = Object.entries(retention.categories ?? {});
+  return (
+    <section
+      aria-label="Retained archive"
+      className="mt-2 rounded-lg border border-slate-300 bg-white p-3 text-xs text-slate-700"
+    >
+      <p className="font-semibold">Restricted retention archive (not erased)</p>
+      <dl className="mt-1 grid grid-cols-2 gap-x-2 gap-y-0.5">
+        <dt>Retained until</dt>
+        <dd className="font-medium">{retention.retainUntil}</dd>
+        <dt>Jurisdiction</dt>
+        <dd className="font-medium">{retention.jurisdiction}</dd>
+        <dt>Legal hold</dt>
+        <dd className="font-medium">
+          {retention.legalHold ? "Active - purge blocked" : "None"}
+        </dd>
+        <dt>Policy</dt>
+        <dd className="font-medium break-all">{retention.policyId}</dd>
+        <dt>Archive</dt>
+        <dd className="font-medium break-all">{retention.archiveId}</dd>
+      </dl>
+      {categories.length > 0 ? (
+        <ul className="mt-2 grid grid-cols-2 gap-1">
+          {categories.map(([table, count]) => (
+            <li
+              key={table}
+              className="flex justify-between rounded border bg-slate-50 px-2 py-1"
+            >
+              <span>{formatLabel(table)}</span>
+              <span className="font-medium">{count}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="mt-2">
+        Purged only after the retention date and only when no legal hold
+        applies.
+      </p>
+    </section>
   );
 }

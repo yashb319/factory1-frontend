@@ -215,6 +215,8 @@ describe("permanent factory deletion – confirmation", () => {
   });
 
   it("distinguishes a dummy complete purge from real live-data deletion with a retained archive", async () => {
+    routes[`GET /api/saas-admin/factories/${DUMMY_ID}/deletion-preview`] = () =>
+      ok({ ...preview, realDeletionPolicyConfigured: true });
     const { user, dialog } = await openDialog();
     await user.click(within(dialog).getByLabelText(/only dummy/i));
     expect(dialog).toHaveTextContent("complete purge");
@@ -225,7 +227,7 @@ describe("permanent factory deletion – confirmation", () => {
     await user.click(within(dialog).getByLabelText(/real business data/i));
     expect(dialog).toHaveTextContent("restricted retention archive");
     expect(dialog).toHaveTextContent(/legal hold/i);
-    expect(dialog).toHaveTextContent(/blocked until an approved retention policy/i);
+    expect(dialog).toHaveTextContent(/reviewed retention policy bound to this factory/i);
     expect(dialog).not.toHaveTextContent(/permanently erased/i);
   });
 
@@ -321,19 +323,76 @@ describe("permanent factory deletion – submission", () => {
     expect(calls(POST_DELETE)).toHaveLength(1);
   });
 
-  it("sends dummyDataOnly=false for real data and shows the retention-policy rejection while preserving input", async () => {
+  it("disables real-data deletion when no reviewed retention policy is configured", async () => {
+    const { user, dialog } = await openDialog();
+    expect(within(dialog).getByLabelText(/real business data/i)).toBeDisabled();
+    expect(dialog).toHaveTextContent(/no reviewed retention policy is configured/i);
+    await fillConfirmation(user, dialog);
+    expect(within(dialog).queryByLabelText(/retention policy id/i)).not.toBeInTheDocument();
+  });
+
+  it("requires a retention policy ID for real data, sends it, and shows the backend rejection while preserving input", async () => {
+    routes[`GET /api/saas-admin/factories/${DUMMY_ID}/deletion-preview`] = () =>
+      ok({ ...preview, realDeletionPolicyConfigured: true });
     routes[POST_DELETE] = () => fail("REAL_DATA_RETENTION_POLICY_REQUIRED", 409);
     const { user, dialog } = await openDialog();
     await fillConfirmation(user, dialog, { scope: /real business data/i });
+    expect(deleteButton(dialog)).toBeDisabled();
+    await user.type(within(dialog).getByLabelText(/retention policy id/i), "in-gst-8y");
     await user.click(deleteButton(dialog));
     expect(await within(dialog).findByText(/not enabled until the data retention policy is finalized/i)).toBeInTheDocument();
     const request = calls(POST_DELETE)[0][0] as Request;
-    expect((await request.clone().json()).dummyDataOnly).toBe(false);
+    expect(await request.clone().json()).toEqual({
+      factoryName: dummy.name,
+      confirmation: "PERMANENTLY DELETE",
+      dummyDataOnly: false,
+      retentionPolicyId: "in-gst-8y",
+    });
     expect(within(dialog).getByLabelText(/type the factory name/i)).toHaveValue(dummy.name);
     expect(within(dialog).getByLabelText(/to confirm permanent deletion/i)).toHaveValue("PERMANENTLY DELETE");
     expect(deleteButton(dialog)).toBeEnabled();
     expect(toastMock.success).not.toHaveBeenCalled();
     expect(screen.getByText(dummy.name, { selector: "div" })).toBeInTheDocument();
+  });
+
+  it("on COMPLETED with a retained archive never claims full erasure and shows archive details", async () => {
+    routes[`GET /api/saas-admin/factories/${DUMMY_ID}/deletion-preview`] = () =>
+      ok({ ...preview, realDeletionPolicyConfigured: true });
+    routes[POST_DELETE] = () => {
+      factories = [other];
+      return ok(
+        job("COMPLETED", {
+          retention: {
+            archiveId: "arch-1",
+            policyId: "in-gst-8y",
+            jurisdiction: "IN",
+            retainUntil: "2034-03-31",
+            legalHold: true,
+            categories: { invoices: 12, payroll_records: 5 },
+            integrityHash: "abc123",
+          },
+        })
+      );
+    };
+    const { user, dialog } = await openDialog();
+    await fillConfirmation(user, dialog, { scope: /real business data/i });
+    await user.type(within(dialog).getByLabelText(/retention policy id/i), "in-gst-8y");
+    await user.click(deleteButton(dialog));
+
+    const archive = await within(dialog).findByLabelText("Retained archive");
+    expect(archive).toHaveTextContent("2034-03-31");
+    expect(archive).toHaveTextContent("IN");
+    expect(archive).toHaveTextContent(/Active - purge blocked/);
+    expect(archive).toHaveTextContent("Invoices");
+    expect(archive).toHaveTextContent("12");
+    expect(dialog).toHaveTextContent("required records remain in the restricted retention archive");
+    expect(dialog).not.toHaveTextContent("The factory, its data and its files were removed");
+    expect(toastMock.success).toHaveBeenCalledWith(expect.stringContaining("retention archive"));
+    expect(toastMock.success).not.toHaveBeenCalledWith(expect.stringContaining("all its data"));
+    await waitFor(() =>
+      expect(within(screen.getByRole("table", { hidden: true })).queryByText(dummy.name)).not.toBeInTheDocument()
+    );
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
   });
 
   it("keeps the dialog and context when the provider/network fails", async () => {

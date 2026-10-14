@@ -132,8 +132,8 @@ export function SaasFactoriesPage() {
     []
   );
   const onDeletionCompleted = useCallback(
-    (organizationId: string) => {
-      setDeleteTarget(null);
+    (organizationId: string, { keepOpen }: { keepOpen: boolean }) => {
+      if (!keepOpen) setDeleteTarget(null);
       setSelected((current) =>
         current?.organizationId === organizationId ? null : current
       );

@@ -251,12 +251,27 @@ export interface FactoryDeletionPreview {
   /** Codes such as PROTECTED_ORGANIZATION or SHARED_REFERENCE:<table>. */
   blockers: string[];
   confirmationText: string;
+  /** True only when a reviewed retention policy is bound to this factory. */
+  realDeletionPolicyConfigured?: boolean;
 }
 
 export interface FactoryDeletionRequest {
   factoryName: string;
   confirmation: string;
   dummyDataOnly: boolean;
+  /** Required when dummyDataOnly is false. */
+  retentionPolicyId?: string;
+}
+
+/** Restricted financial/statutory archive kept after a real-factory deletion. */
+export interface FactoryDeletionRetention {
+  archiveId: string;
+  policyId: string;
+  jurisdiction: string;
+  retainUntil: string;
+  legalHold: boolean;
+  categories: Record<string, number>;
+  integrityHash: string;
 }
 
 export interface FactoryDeletionJob {
@@ -266,4 +281,5 @@ export interface FactoryDeletionJob {
   errorCode: string | null;
   requestedAt: string | null;
   completedAt: string | null;
+  retention?: FactoryDeletionRetention | null;
 }
