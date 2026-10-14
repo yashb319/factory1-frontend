@@ -8,6 +8,7 @@ import {
 } from "../api/whitelabelApi";
 import { WHITELABEL_DEFAULT_BRANDING } from "../config/whitelabelUiConfig";
 import type { PublicWhitelabelBranding } from "../types/whitelabel.types";
+import { accessScope } from "@/features/auth/accessScope";
 
 export const DEFAULT_APP_NAME = WHITELABEL_DEFAULT_BRANDING.appName;
 export const DEFAULT_APP_TITLE = WHITELABEL_DEFAULT_BRANDING.appTitle;
@@ -55,7 +56,7 @@ export type ActiveBranding = {
  */
 export function useActiveBranding(): ActiveBranding {
   const hostname = useActiveHostname();
-  const isAuthenticated = useAppSelector((state) => Boolean(state.auth.token));
+  const isAuthenticated = useAppSelector((state) => Boolean(state.auth.token) && accessScope(state.auth.user) === "factory");
 
   const domainQuery = useGetPublicWhitelabelBrandingQuery(hostname ?? "", {
     skip: !hostname,

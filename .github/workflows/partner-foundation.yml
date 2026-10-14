@@ -1,0 +1,42 @@
+name: Partner foundation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - yashb319-partner-saas-frontend-planning
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: partner-foundation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_PARTNER_SAAS_V2_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Focused regression tests
+        run: npm test -- src/features/auth/__tests__ src/features/partner-saas/__tests__ src/config/__tests__ src/features/saas-admin/__tests__ src/features/help-center/__tests__ src/features/ai/__tests__/featureGating.test.ts
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint changed TypeScript files
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/main' }}
+        run: git diff --name-only --diff-filter=ACMR -z "$BASE_REF"...HEAD -- '*.ts' '*.tsx' '*.mts' '*.mjs' | xargs -0 -r npx eslint
+      - name: Production build
+        run: npm run build

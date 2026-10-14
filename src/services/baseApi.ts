@@ -23,6 +23,10 @@ const publicEndpoints = new Set([
   "accessPublicPayslip",
   "submitHealthCheck",
   "getHealthCheckResult",
+  "getPublicWhitelabelBranding",
+  "validatePublicPartnerCode",
+  "getOrganizationPlanOptions",
+  "getOrganizationPlanOffers",
 ]);
 
 const rawBaseQuery = fetchBaseQuery({
@@ -49,7 +53,11 @@ const baseQueryWithAuthRedirect: BaseQueryFn<
   unknown,
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
+  const generation = (api.getState() as RootState).auth.generation;
   const result = await rawBaseQuery(args, api, extraOptions);
+  if (generation !== (api.getState() as RootState).auth.generation) {
+    return { error: { status: "CUSTOM_ERROR", error: "Session changed. Discarded the previous session response." } };
+  }
 
   if (result.error?.status === 401 && !publicEndpoints.has(api.endpoint)) {
     api.dispatch(logout());

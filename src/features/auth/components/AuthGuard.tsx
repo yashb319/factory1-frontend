@@ -10,6 +10,9 @@ import {
 } from "../authSlice";
 import { TALLY_UI_ENABLED } from "@/config/features";
 import { productionLoginPath } from "@/lib/productionOrderLink";
+import { authRedirect } from "../accessScope";
+
+export { isPlatformAdminPath, isEmployeePortalPath } from "../accessScope";
 
 type AuthGuardProps = {
   children: React.ReactNode;
@@ -31,6 +34,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const pathname = usePathname();
   const token = useAppSelector((state) => state.auth.token);
   const user = useAppSelector((state) => state.auth.user);
+  const redirect = authRedirect(user, pathname, TALLY_UI_ENABLED);
   const [mounted, setMounted] = useState(false);
   const logoutTimerRef = useRef<number | null>(null);
   const lastActivityWriteRef = useRef(0);
@@ -84,53 +88,12 @@ export function AuthGuard({ children }: AuthGuardProps) {
       return;
     }
 
-    if (
-      !TALLY_UI_ENABLED &&
-      (pathname === "/gateway" || pathname.startsWith("/tally"))
-    ) {
-      router.replace("/dashboard");
-      return;
-    }
-
-    if (
-      user?.organizationStatus === "PENDING_APPROVAL" &&
-      !user.platformAdmin &&
-      !pathname.startsWith("/registration-pending")
-    ) {
-      router.replace("/registration-pending");
-      return;
-    }
-
-    if (pathname.startsWith("/admin/load-testing") && !user?.platformAdmin) {
-      router.replace("/dashboard");
-      return;
-    }
-
-    if (user?.platformAdmin && !isPlatformAdminPath(pathname)) {
-      router.replace("/saas-admin");
-      return;
-    }
-
-    if (
-      user?.role === "EMPLOYEE" &&
-      !isEmployeePortalPath(pathname)
-    ) {
-      router.replace("/dashboard");
-    }
-
-    if (
-      user?.role === "PARTNER_ADMIN" &&
-      !pathname.startsWith("/partner")
-    ) {
-      router.replace("/partner/whitelabel");
-    }
+    if (redirect) router.replace(redirect);
   }, [
     mounted,
     pathname,
     token,
-    user?.organizationStatus,
-    user?.platformAdmin,
-    user?.role,
+    redirect,
     router,
   ]);
 
@@ -204,28 +167,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
     token,
   ]);
 
-  if (!mounted || !token || (user?.role === "EMPLOYEE" && !isEmployeePortalPath(pathname))) {
+  if (!mounted || !token || redirect) {
     return null;
   }
 
   return <>{children}</>;
-}
-
-export function isPlatformAdminPath(pathname: string) {
-  return (
-    pathname.startsWith("/saas-admin") ||
-    pathname === "/admin/load-testing" ||
-    pathname.startsWith("/admin/load-testing/")
-  );
-}
-
-export function isEmployeePortalPath(pathname: string) {
-  return (
-    pathname === "/dashboard" ||
-    pathname === "/leave" ||
-    pathname === "/attendance" ||
-    pathname === "/profile" ||
-    pathname === "/help" ||
-    pathname === "/production/my-assignments"
-  );
 }

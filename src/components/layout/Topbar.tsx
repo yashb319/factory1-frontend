@@ -38,6 +38,7 @@ import {
 import { useAppDispatch, useAppSelector } from "@/lib/hook";
 import { cn } from "@/lib/utils";
 import { useBranding } from "@/features/whitelabel/components/BrandingProvider";
+import { accessScope } from "@/features/auth/accessScope";
 
 type TopbarProps = {
   onMenuClick: () => void;
@@ -54,7 +55,7 @@ export function Topbar({ onMenuClick, uiMode = "modern" }: TopbarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { data: dashboard } = useGetDashboardSummaryQuery(undefined, {
-    skip: Boolean(user?.platformAdmin),
+    skip: accessScope(user) !== "factory",
   });
 
   useEffect(() => {

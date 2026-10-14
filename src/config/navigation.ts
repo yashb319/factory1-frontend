@@ -32,6 +32,7 @@ import type { ComponentType, CSSProperties } from "react";
 import type { AuthUser, UserRole } from "@/features/auth/types";
 import type { ModuleKey } from "@/config/theme";
 import type { FeatureKey } from "@/config/featureGating";
+import { accessScope } from "@/features/auth/accessScope";
 
 type NavigationItem = {
   title: string;
@@ -176,13 +177,15 @@ export function canAccessNavigationItem(
   item: NavigationItem,
   user: AuthUser | null
 ) {
+  const scope = accessScope(user);
+  if (!scope) return false;
   if (item.platformAdminOnly) {
-    return Boolean(user?.platformAdmin);
+    return scope === "platform";
   }
 
   if (user?.platformAdmin) {
     return false;
   }
 
-  return !user?.role || item.roles.includes(user.role);
+  return Boolean(user && item.roles.includes(user.role));
 }

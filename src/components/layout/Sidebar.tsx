@@ -13,6 +13,7 @@ import { moduleTheme } from "@/config/theme";
 import { useAppSelector } from "@/lib/hook";
 import { useGetOrganizationFeaturesQuery } from "@/features/organization-features/api/organizationFeaturesApi";
 import { useActiveBranding } from "@/features/whitelabel/hooks/useActiveBranding";
+import { accessScope } from "@/features/auth/accessScope";
 import { WHITELABEL_DEFAULT_BRANDING } from "@/features/whitelabel/config/whitelabelUiConfig";
 import { cn } from "@/lib/utils";
 import {
@@ -40,7 +41,7 @@ export function Sidebar({
   const pathname = usePathname();
   const user = useAppSelector((state) => state.auth.user);
   const { data: featuresData } = useGetOrganizationFeaturesQuery(undefined, {
-    skip: !user || Boolean(user.platformAdmin),
+    skip: accessScope(user) !== "factory",
   });
   const enabledFeatures = featuresData?.data?.enabledFeatures;
   const { displayName, logoUrl } = useActiveBranding();
