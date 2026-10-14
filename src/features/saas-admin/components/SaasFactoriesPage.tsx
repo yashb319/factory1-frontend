@@ -14,6 +14,7 @@ import {
   Sparkles,
   Trash2,
   Users,
+  XOctagon,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -59,6 +60,7 @@ import {
   useUpdateSaasFactoryStatusMutation,
 } from "../api/saasAdminApi";
 import { StatusBadge } from "./SaasAdminPage";
+import { PermanentDeleteFactoryDialog } from "./PermanentDeleteFactoryDialog";
 import { formatBytes, formatDuration } from "../utils/metrics";
 import type {
   OrganizationPlan,
@@ -101,6 +103,7 @@ export function SaasFactoriesPage() {
     null
   );
   const [selected, setSelected] = useState<SaasFactory | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SaasFactory | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
 
   const dashboard = data?.data;
@@ -123,6 +126,26 @@ export function SaasFactoriesPage() {
     (factory: SaasFactory, kind: FactoryAction["kind"]) =>
       setFactoryAction({ factory, kind }),
     []
+  );
+  const onOpenPermanentDelete = useCallback(
+    (factory: SaasFactory) => setDeleteTarget(factory),
+    []
+  );
+  const onDeletionCompleted = useCallback(
+    (organizationId: string) => {
+      setDeleteTarget(null);
+      setSelected((current) =>
+        current?.organizationId === organizationId ? null : current
+      );
+      setDrafts((current) => {
+        if (!(organizationId in current)) return current;
+        const next = { ...current };
+        delete next[organizationId];
+        return next;
+      });
+      refetch();
+    },
+    [refetch]
   );
   const onOpenMarkPaid = useCallback((factory: SaasFactory) => {
     setMarkPaidMonths("1");
@@ -343,6 +366,7 @@ export function SaasFactoriesPage() {
                   onOpenMarkPaid={onOpenMarkPaid}
                   onSave={onSaveFactory}
                   onDraftChange={updateDraft}
+                  onPermanentDelete={onOpenPermanentDelete}
                 />
               );
             })}
@@ -369,6 +393,7 @@ export function SaasFactoriesPage() {
             <FactoryDetail
               factory={selected}
               plans={dashboard?.plans ?? []}
+              onPermanentDelete={onOpenPermanentDelete}
             />
           ) : null}
         </SheetContent>
@@ -427,6 +452,12 @@ export function SaasFactoriesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <PermanentDeleteFactoryDialog
+        factory={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onCompleted={onDeletionCompleted}
+      />
 
       <AlertDialog
         open={markPaidTarget !== null}
@@ -502,6 +533,7 @@ type FactoryRowProps = {
   onOpenMarkPaid: (factory: SaasFactory) => void;
   onSave: (factory: SaasFactory) => void;
   onDraftChange: (organizationId: string, patch: Partial<Draft>) => void;
+  onPermanentDelete: (factory: SaasFactory) => void;
 };
 
 const FactoryRow = memo(function FactoryRow({
@@ -517,9 +549,11 @@ const FactoryRow = memo(function FactoryRow({
   onOpenMarkPaid,
   onSave,
   onDraftChange,
+  onPermanentDelete,
 }: FactoryRowProps) {
   const selectedPlan = plans.find((option) => option.plan === draftPlan);
   const status = factory.status ?? "ACTIVE";
+  const deletionLocked = Boolean(factory.deletionStatus);
   const dirty =
     draftPlan !== factory.plan ||
     Number(draftPrice || 0) !== Number(factory.planMonthlyPrice ?? 0);
@@ -548,6 +582,7 @@ const FactoryRow = memo(function FactoryRow({
 
       <TableCell>
         <StatusBadge status={status} />
+        <DeletionStatusBadge status={factory.deletionStatus} />
         {factory.subscriptionEndDate ? (
           <p className="mt-1 text-xs text-slate-500">
             renews {factory.subscriptionEndDate}
@@ -601,6 +636,7 @@ const FactoryRow = memo(function FactoryRow({
       <TableCell>
         <Select
           value={draftPlan}
+          disabled={deletionLocked}
           onValueChange={(value) =>
             onDraftChange(factory.organizationId, {
               plan: value as OrganizationPlan,
@@ -629,6 +665,7 @@ const FactoryRow = memo(function FactoryRow({
           type="number"
           min={0}
           className="h-8 w-28"
+          disabled={deletionLocked}
           value={draftPrice}
           onChange={(event) =>
             onDraftChange(factory.organizationId, {
@@ -650,73 +687,97 @@ const FactoryRow = memo(function FactoryRow({
             <Eye size={14} />
             View
           </Button>
-          {status === "PENDING_APPROVAL" ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={isStatusLoading}
-              onClick={() => onAction(factory, "approve")}
-            >
-              <CircleCheck size={14} />
-              Approve
-            </Button>
-          ) : status === "ACTIVE" ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={isStatusLoading}
-              onClick={() => onAction(factory, "suspend")}
-            >
-              <Ban size={14} />
-              Suspend
-            </Button>
-          ) : status === "SUSPENDED" ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={isStatusLoading}
-              onClick={() => onAction(factory, "activate")}
-            >
-              <CircleCheck size={14} />
-              Activate
-            </Button>
-          ) : null}
-          {status !== "TERMINATED" && factory.plan !== "FREE" ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={isMarkPaidLoading}
-              onClick={() => onOpenMarkPaid(factory)}
-            >
-              <CircleCheck size={14} />
-              Mark Paid
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            size="sm"
-            disabled={!dirty || isUpdateLoading}
-            onClick={() => onSave(factory)}
-          >
-            <Save size={14} />
-            Save
-          </Button>
-          {status !== "TERMINATED" ? (
+          {deletionLocked ? (
             <Button
               type="button"
               size="sm"
               variant="destructive"
-              disabled={isStatusLoading}
-              onClick={() => onAction(factory, "terminate")}
+              onClick={() => onPermanentDelete(factory)}
             >
-              <Trash2 size={14} />
-              Terminate
+              <XOctagon size={14} />
+              Deletion status
             </Button>
-          ) : null}
+          ) : (
+            <>
+              {status === "PENDING_APPROVAL" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isStatusLoading}
+                  onClick={() => onAction(factory, "approve")}
+                >
+                  <CircleCheck size={14} />
+                  Approve
+                </Button>
+              ) : status === "ACTIVE" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isStatusLoading}
+                  onClick={() => onAction(factory, "suspend")}
+                >
+                  <Ban size={14} />
+                  Suspend
+                </Button>
+              ) : status === "SUSPENDED" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isStatusLoading}
+                  onClick={() => onAction(factory, "activate")}
+                >
+                  <CircleCheck size={14} />
+                  Activate
+                </Button>
+              ) : null}
+              {status !== "TERMINATED" && factory.plan !== "FREE" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isMarkPaidLoading}
+                  onClick={() => onOpenMarkPaid(factory)}
+                >
+                  <CircleCheck size={14} />
+                  Mark Paid
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                disabled={!dirty || isUpdateLoading}
+                onClick={() => onSave(factory)}
+              >
+                <Save size={14} />
+                Save
+              </Button>
+              {status !== "TERMINATED" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  disabled={isStatusLoading}
+                  onClick={() => onAction(factory, "terminate")}
+                >
+                  <Trash2 size={14} />
+                  Terminate
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-red-300 text-red-700 hover:bg-red-50"
+                onClick={() => onPermanentDelete(factory)}
+              >
+                <XOctagon size={14} />
+                Delete permanently
+              </Button>
+            </>
+          )}
         </div>
       </TableCell>
     </TableRow>
@@ -726,9 +787,11 @@ const FactoryRow = memo(function FactoryRow({
 function FactoryDetail({
   factory,
   plans,
+  onPermanentDelete,
 }: {
   factory: SaasFactory;
   plans: SaasPlanOption[];
+  onPermanentDelete: (factory: SaasFactory) => void;
 }) {
   const plan = plans.find((option) => option.plan === factory.plan);
   const status = factory.status ?? "ACTIVE";
@@ -740,6 +803,7 @@ function FactoryDetail({
         <div className="flex items-center gap-2">
           <SheetTitle className="text-xl">{factory.name}</SheetTitle>
           <StatusBadge status={status} />
+          <DeletionStatusBadge status={factory.deletionStatus} />
         </div>
         <SheetDescription>
           {factory.email || "No email"}
@@ -844,7 +908,48 @@ function FactoryDetail({
         Plan changes apply limits immediately for new employee creation and
         hosted AI quota. Manage the plan and lifecycle from the factories table.
       </div>
+
+      <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+        <p className="text-sm font-semibold text-red-800">Danger zone</p>
+        <p className="mt-1 text-xs text-red-700">
+          Permanently delete this factory with all of its module data, user
+          accounts and files. Unlike Terminate, this cannot be undone.
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          className="mt-2"
+          onClick={() => onPermanentDelete(factory)}
+        >
+          <XOctagon size={14} />
+          {factory.deletionStatus ? "Deletion status" : "Delete permanently"}
+        </Button>
+      </div>
     </div>
+  );
+}
+
+function DeletionStatusBadge({
+  status,
+}: {
+  status?: SaasFactory["deletionStatus"];
+}) {
+  if (!status || status === "COMPLETED") return null;
+
+  const failed = status === "ASSET_CLEANUP_FAILED";
+  const label = failed ? "Deletion failed" : "Deletion in progress";
+
+  return (
+    <span
+      className={`mt-1 inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+        failed
+          ? "bg-red-100 text-red-800"
+          : "bg-amber-100 text-amber-900"
+      }`}
+    >
+      {label}
+    </span>
   );
 }
 

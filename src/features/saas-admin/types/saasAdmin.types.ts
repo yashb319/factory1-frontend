@@ -131,6 +131,7 @@ export interface SaasFactory {
   subscriptionEndDate?: string | null;
   serviceTimeMs?: number | null;
   dataVolumeBytes?: number | null;
+  deletionStatus?: FactoryDeletionStatus | null;
 }
 
 export type OrganizationStatus =
@@ -227,4 +228,42 @@ export interface SaasOfferRequest {
   discountPercent?: number;
   validUntil?: string;
   active?: boolean;
+}
+
+/**
+ * Permanent factory deletion (ROLE_PLATFORM_ADMIN only). Distinct from
+ * "terminate" (DELETE /factories/{id}), which only marks the organization
+ * TERMINATED and keeps its data. Tenant rows are purged synchronously; the
+ * status tracks the follow-up stored-file cleanup.
+ */
+export type FactoryDeletionStatus =
+  | "ASSET_CLEANUP_PENDING"
+  | "ASSET_CLEANUP_FAILED"
+  | "COMPLETED";
+
+export const PERMANENT_DELETION_CONFIRMATION = "PERMANENTLY DELETE";
+
+export interface FactoryDeletionPreview {
+  organizationId: string;
+  factoryName: string;
+  countsByTable: Record<string, number>;
+  countsByModule: Record<string, number>;
+  /** Codes such as PROTECTED_ORGANIZATION or SHARED_REFERENCE:<table>. */
+  blockers: string[];
+  confirmationText: string;
+}
+
+export interface FactoryDeletionRequest {
+  factoryName: string;
+  confirmation: string;
+  dummyDataOnly: boolean;
+}
+
+export interface FactoryDeletionJob {
+  organizationId: string;
+  status: FactoryDeletionStatus;
+  attempts: number;
+  errorCode: string | null;
+  requestedAt: string | null;
+  completedAt: string | null;
 }
