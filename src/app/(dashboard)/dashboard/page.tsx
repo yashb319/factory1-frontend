@@ -32,6 +32,8 @@ import { TrendSparkline } from "@/features/dashboard/components/TrendSparkline";
 import { DashboardTrendsChart } from "@/features/dashboard/components/DashboardTrendsChart";
 import { DashboardAiInsights } from "@/features/dashboard/components/DashboardAiInsights";
 import { BenchmarkCombobox } from "@/features/dashboard/components/BenchmarkCombobox";
+import { EmployeePortalDashboard } from "@/features/employee-portal/components/EmployeePortalDashboard";
+import { useAppSelector } from "@/lib/hook";
 
 function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -83,6 +85,16 @@ function presetRange(preset: RangePreset) {
 }
 
 export default function DashboardPage() {
+  const user = useAppSelector((state) => state.auth.user);
+
+  if (user?.role === "EMPLOYEE") {
+    return <EmployeePortalDashboard />;
+  }
+
+  return <FactoryDashboardPage />;
+}
+
+function FactoryDashboardPage() {
   const [range, setRange] = useState<{ fromDate: string; toDate: string }>({
     fromDate: "",
     toDate: "",

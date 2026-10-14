@@ -22,3 +22,13 @@ export const markAttendanceSchema = z.object({
 });
 
 export type MarkAttendanceFormValues = z.infer<typeof markAttendanceSchema>;
+
+export const correctAttendanceSchema = z.object({
+  checkInTime: z.string(),
+  checkOutTime: z.string(),
+  reason: z.string().trim().min(1, "Reason is required"),
+});
+
+export type CorrectAttendanceFormValues = z.infer<
+  typeof correctAttendanceSchema
+>;

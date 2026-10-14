@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import {
   FEATURE_LABELS,
   featureKeyForPath,
+  isEmployeePortalFeatureEnabled,
+  isEmployeePortalFeatureKey,
   isFeatureEnabled,
 } from "@/config/featureGating";
 import { useAppSelector } from "@/lib/hook";
@@ -19,7 +21,7 @@ type FeatureGateProps = {
 export function FeatureGate({ children }: FeatureGateProps) {
   const pathname = usePathname();
   const user = useAppSelector((state) => state.auth.user);
-  const featureKey = featureKeyForPath(pathname);
+  const featureKey = featureKeyForPath(pathname, user?.role);
   const skip = !featureKey || !user || Boolean(user.platformAdmin);
 
   const { data, isLoading } = useGetOrganizationFeaturesQuery(undefined, {
@@ -40,7 +42,11 @@ export function FeatureGate({ children }: FeatureGateProps) {
 
   const enabledFeatures = data?.data?.enabledFeatures;
 
-  if (!isFeatureEnabled(enabledFeatures, featureKey)) {
+  const enabled = isEmployeePortalFeatureKey(featureKey)
+    ? isEmployeePortalFeatureEnabled(enabledFeatures, featureKey)
+    : isFeatureEnabled(enabledFeatures, featureKey);
+
+  if (!enabled) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="w-full max-w-md rounded-lg border bg-white p-8 text-center">

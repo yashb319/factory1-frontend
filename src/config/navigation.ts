@@ -44,6 +44,7 @@ type NavigationItem = {
 };
 
 const allRoles: UserRole[] = ["OWNER", "ADMIN", "EMPLOYEE", "FINANCE", "MANAGEMENT"];
+const organizationRoles: UserRole[] = ["OWNER", "ADMIN", "FINANCE", "MANAGEMENT"];
 const operationsRoles: UserRole[] = ["OWNER", "ADMIN", "MANAGEMENT"];
 const financeRoles: UserRole[] = ["OWNER", "ADMIN", "FINANCE"];
 const employeeRoles: UserRole[] = ["EMPLOYEE"];
@@ -52,7 +53,7 @@ export const navigationItems: NavigationItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: allRoles, module: "dashboard" },
   { title: "Employees", href: "/employees", icon: Users, roles: operationsRoles, module: "employees" },
   { title: "Attendance", href: "/attendance", icon: CalendarCheck, roles: operationsRoles, module: "attendance" },
-  { title: "Leave", href: "/leave", icon: CalendarDays, roles: allRoles, module: "attendance", featureKey: "leave_management" },
+  { title: "Leave", href: "/leave", icon: CalendarDays, roles: organizationRoles, module: "attendance", featureKey: "leave_management" },
   { title: "Payroll", href: "/payroll", icon: Wallet, roles: financeRoles, module: "payroll", featureKey: "payroll" },
   { title: "Inventory", href: "/inventory", icon: Package, roles: operationsRoles, module: "inventory", featureKey: "inventory" },
   {
@@ -76,8 +77,9 @@ export const navigationItems: NavigationItem[] = [
   { title: "Suppliers", href: "/suppliers", icon: Truck, roles: operationsRoles, module: "suppliers" },
   { title: "Vendors", href: "/vendors", icon: Handshake, roles: operationsRoles, module: "production", featureKey: "production_tracking" },
   { title: "Customers", href: "/customers", icon: UserRound, roles: financeRoles, module: "customers" },
-  { title: "My Leave", href: "/leave", icon: CalendarCheck, roles: employeeRoles, module: "attendance", featureKey: "leave_management" },
-  { title: "My Orders", href: "/production/my-assignments", icon: ClipboardList, roles: employeeRoles, module: "production", featureKey: "production_tracking" },
+  { title: "Leave Apply", href: "/leave", icon: CalendarDays, roles: employeeRoles, module: "attendance", featureKey: "employee_portal_leave_application" },
+  { title: "Work Orders", href: "/production/my-assignments", icon: ClipboardList, roles: employeeRoles, module: "production", featureKey: "employee_portal_work_orders" },
+  { title: "Attendance", href: "/attendance", icon: CalendarCheck, roles: employeeRoles, module: "attendance", featureKey: "employee_portal_self_attendance" },
   { title: "My Profile", href: "/profile", icon: User, roles: employeeRoles, module: "organization" },
   {
     title: "Import / Export",

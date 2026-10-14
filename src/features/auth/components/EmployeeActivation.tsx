@@ -38,7 +38,7 @@ export function EmployeeActivation() {
       const response = await activate({ token, password }).unwrap();
       dispatch(setCredentials({ token: response.token, user: response.user }));
       toast.success("Your employee account is active.");
-      router.replace("/leave");
+      router.replace("/dashboard");
     } catch (error) {
       toast.error(
         getErrorMessage(error, "This activation link is invalid or has expired.")
