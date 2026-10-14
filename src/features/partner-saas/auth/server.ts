@@ -96,13 +96,6 @@ function failure(status: number, code: string, extraHeaders?: HeadersInit) {
   }), { status, headers });
 }
 
-function redirectResponse(url: URL) {
-  return new Response(null, {
-    status: 303,
-    headers: noStoreHeaders({ Location: url.toString() }),
-  });
-}
-
 function authErrorRedirect(
   canonicalOrigin: string,
   code: "cancelled" | "invalid" | "unavailable",
