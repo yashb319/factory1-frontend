@@ -8,6 +8,7 @@ import { FeatureGate } from "@/features/organization-features/components/Feature
 import { type AppShortcut, visibleShortcuts } from "@/config/shortcuts";
 import { useAppDispatch, useAppSelector } from "@/lib/hook";
 import { logout } from "@/features/auth/authSlice";
+import type { UserRole } from "@/features/auth/types";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { TallyGatewayHome } from "./TallyGatewayHome";
@@ -50,7 +51,8 @@ export function AppShell({ children }: Props) {
   const aiAssistantEnabled = shouldShowFloatingAssistant(
     Boolean(user?.platformAdmin),
     organizationFeatures?.data?.enabledFeatures,
-    pathname
+    pathname,
+    user?.role
   );
 
   useEffect(() => {
@@ -330,13 +332,15 @@ export function AppShell({ children }: Props) {
 export function shouldShowFloatingAssistant(
   platformAdmin: boolean,
   enabledFeatures: readonly string[] | undefined | null,
-  pathname: string
+  pathname: string,
+  role?: UserRole
 ) {
   const isFullAssistantRoute =
     pathname === "/ai" || pathname.startsWith("/ai/");
 
   return (
     !platformAdmin &&
+    role !== "EMPLOYEE" &&
     !isFullAssistantRoute &&
     isFeatureEnabled(enabledFeatures, "ai_assistant")
   );
