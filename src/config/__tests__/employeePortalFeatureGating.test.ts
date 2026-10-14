@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  FEATURE_DEPENDENCIES,
   featureKeyForPath,
   isEmployeePortalFeatureEnabled,
 } from "../featureGating";
@@ -38,5 +39,11 @@ describe("employee portal feature gating", () => {
         "employee_portal_self_attendance"
       )
     ).toBe(true);
+  });
+
+  it("declares attendance geofencing as dependent on self attendance", () => {
+    expect(
+      FEATURE_DEPENDENCIES.employee_portal_attendance_geofencing
+    ).toEqual(["employee_portal_self_attendance"]);
   });
 });

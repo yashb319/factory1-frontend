@@ -15,6 +15,7 @@ import type {
     CorrectAttendanceRequest,
     PageResponse,
     SelfAttendanceResponse,
+    SelfAttendancePunchRequest,
 } from "../types/attendance.types";
 
 export const attendanceApi = baseApi.injectEndpoints({
@@ -130,19 +131,27 @@ export const attendanceApi = baseApi.injectEndpoints({
                 response.data,
             providesTags: ["Attendance"],
         }),
-        checkInSelfAttendance: builder.mutation<SelfAttendanceResponse, void>({
-            query: () => ({
+        checkInSelfAttendance: builder.mutation<
+            SelfAttendanceResponse,
+            SelfAttendancePunchRequest | void
+        >({
+            query: (body) => ({
                 url: "/api/employee-portal/attendance/check-in",
                 method: "POST",
+                body: body || undefined,
             }),
             transformResponse: (response: ApiResponse<SelfAttendanceResponse>) =>
                 response.data,
             invalidatesTags: ["Attendance"],
         }),
-        checkOutSelfAttendance: builder.mutation<SelfAttendanceResponse, void>({
-            query: () => ({
+        checkOutSelfAttendance: builder.mutation<
+            SelfAttendanceResponse,
+            SelfAttendancePunchRequest | void
+        >({
+            query: (body) => ({
                 url: "/api/employee-portal/attendance/check-out",
                 method: "POST",
+                body: body || undefined,
             }),
             transformResponse: (response: ApiResponse<SelfAttendanceResponse>) =>
                 response.data,

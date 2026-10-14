@@ -1,11 +1,21 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { CalendarClock, CheckCircle2, Clock3, Loader2 } from "lucide-react";
+import {
+  CalendarClock,
+  CheckCircle2,
+  Clock3,
+  Loader2,
+  MapPin,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getErrorMessage } from "@/lib/apiError";
+import {
+  capturePunchLocation,
+  getLocationErrorMessage,
+} from "../utils/geolocation";
 import {
   useCheckInSelfAttendanceMutation,
   useCheckOutSelfAttendanceMutation,
@@ -18,10 +28,13 @@ export function EmployeeSelfAttendancePage() {
   const [checkIn, checkInState] = useCheckInSelfAttendanceMutation();
   const [checkOut, checkOutState] = useCheckOutSelfAttendanceMutation();
   const actionInFlight = useRef(false);
-  const [actionPending, setActionPending] = useState(false);
+  const [actionPhase, setActionPhase] = useState<
+    "idle" | "locating" | "submitting"
+  >("idle");
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const attendance = statusQuery.data;
   const busy =
-    actionPending ||
+    actionPhase !== "idle" ||
     checkInState.isLoading ||
     checkOutState.isLoading ||
     statusQuery.isFetching;
@@ -30,25 +43,42 @@ export function EmployeeSelfAttendancePage() {
     if (actionInFlight.current) return;
 
     actionInFlight.current = true;
-    setActionPending(true);
+    setActionMessage(null);
 
     try {
+      if (attendance?.geofencingRequired && !attendance.geofenceConfigured) {
+        setActionMessage(
+          "Your factory owner must configure the attendance site before location-based check-in or checkout can be used."
+        );
+        return;
+      }
+
+      let location;
+      if (attendance?.geofencingRequired) {
+        setActionPhase("locating");
+        location = await capturePunchLocation();
+      }
+
+      setActionPhase("submitting");
       if (action === "CHECK_IN") {
-        await checkIn().unwrap();
+        await checkIn(location).unwrap();
       } else {
-        await checkOut().unwrap();
+        await checkOut(location).unwrap();
       }
 
       await statusQuery.refetch().unwrap();
       toast.success(action === "CHECK_IN" ? "Checked in" : "Checked out");
     } catch (error) {
-      toast.error(
-        getErrorMessage(error, `Unable to ${action === "CHECK_IN" ? "check in" : "check out"}`)
-          .replace(/^ATTENDANCE_PUNCH_CONFLICT:\s*/, "")
-      );
+      const fallback = getErrorMessage(
+        error,
+        `Unable to ${action === "CHECK_IN" ? "check in" : "check out"}`
+      ).replace(/^ATTENDANCE_PUNCH_CONFLICT:\s*/, "");
+      const message = getLocationErrorMessage(error, fallback);
+      setActionMessage(message);
+      toast.error(message);
     } finally {
       actionInFlight.current = false;
-      setActionPending(false);
+      setActionPhase("idle");
     }
   }
 
@@ -85,6 +115,8 @@ export function EmployeeSelfAttendancePage() {
         <AttendanceStatusCard
           attendance={attendance}
           busy={busy}
+          actionPhase={actionPhase}
+          actionMessage={actionMessage}
           onAction={runAction}
         />
       )}
@@ -108,6 +140,12 @@ export function EmployeeSelfAttendancePage() {
           <p>
             Only the factory owner can correct missing or incorrect punches.
           </p>
+          <p>
+            When attendance geofencing is enabled, both check-in and checkout
+            require a fresh browser location captured only when you press the
+            attendance button. Factory1 does not track your location in the
+            background or save it in this browser.
+          </p>
         </CardContent>
       </Card>
     </div>
@@ -117,10 +155,14 @@ export function EmployeeSelfAttendancePage() {
 function AttendanceStatusCard({
   attendance,
   busy,
+  actionPhase,
+  actionMessage,
   onAction,
 }: {
   attendance: SelfAttendanceResponse;
   busy: boolean;
+  actionPhase: "idle" | "locating" | "submitting";
+  actionMessage: string | null;
   onAction: (action: "CHECK_IN" | "CHECK_OUT") => void;
 }) {
   const nextAction = attendance.nextAction;
@@ -147,6 +189,36 @@ function AttendanceStatusCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
+        {attendance.geofencingRequired ? (
+          <div
+            className={`rounded-lg border p-4 text-sm ${
+              attendance.geofenceConfigured
+                ? "border-blue-200 bg-blue-50 text-blue-900"
+                : "border-amber-200 bg-amber-50 text-amber-900"
+            }`}
+          >
+            <p className="flex items-center gap-2 font-medium">
+              <MapPin className="h-4 w-4 shrink-0" />
+              Site location required for both check-in and checkout
+            </p>
+            <p className="mt-1 text-xs">
+              {attendance.geofenceConfigured
+                ? "Your location is requested only when you perform a punch. The server decides whether it is inside the configured site."
+                : "The site is not configured yet. Ask your factory owner to configure it in Organization Settings."}
+            </p>
+          </div>
+        ) : null}
+
+        {actionMessage ? (
+          <p
+            role="alert"
+            aria-live="assertive"
+            className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+          >
+            {actionMessage}
+          </p>
+        ) : null}
+
         <dl className="grid gap-4 sm:grid-cols-3">
           <AttendanceValue
             label="Check in"
@@ -179,7 +251,11 @@ function AttendanceStatusCard({
             ) : (
               <Clock3 className="mr-2 h-4 w-4" />
             )}
-            {actionLabel}
+            {actionPhase === "locating"
+              ? "Getting location..."
+              : actionPhase === "submitting"
+                ? `${actionLabel}...`
+                : actionLabel}
           </Button>
         ) : (
           <p className="text-sm text-muted-foreground">
