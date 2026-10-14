@@ -53,7 +53,7 @@ export const storefrontSchema = z.object({
   }),
   // Foundation never enables a runtime merely because a backend advertises it.
   capabilities: z.object({
-    operationalAccess: z.literal(false), sso: z.literal(false), checkout: z.literal(false),
+    operationalAccess: z.literal(false), sso: z.boolean(), checkout: z.literal(false),
   }),
 });
 export type PublicStorefront = z.infer<typeof storefrontSchema>;
