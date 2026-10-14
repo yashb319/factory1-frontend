@@ -14,3 +14,9 @@ export function directHost(authority: string | null, configured: string) {
   const host = canonicalHost(authority);
   return Boolean(host && configured.split(",").some((entry) => canonicalHost(entry.trim()) === host));
 }
+
+export function usesLegacyHost(authority: string | null, config: {
+  boundaryEnabled: boolean; directHosts: string; legacyHosts: string;
+}) {
+  return !config.boundaryEnabled || directHost(authority, config.directHosts) || directHost(authority, config.legacyHosts);
+}

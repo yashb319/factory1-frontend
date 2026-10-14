@@ -1,0 +1,1 @@
+export const PARTNER_SAAS_V2_ENABLED = process.env.NEXT_PUBLIC_PARTNER_SAAS_V2_ENABLED === "true";

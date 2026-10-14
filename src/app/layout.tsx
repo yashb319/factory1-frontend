@@ -6,10 +6,13 @@ import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Suspense } from "react";
+import { StorefrontBoundary, legacyRequest } from "@/features/partner-saas/StorefrontBoundary";
+import { FoundationStorefront } from "@/features/partner-saas/components/FoundationStorefront";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
-export const metadata: Metadata = {
+const factoryMetadata: Metadata = {
   title: "Factory1 - AI first ERP",
   description: "Factory1 AI first ERP for factory operations management",
   icons: {
@@ -19,6 +22,15 @@ export const metadata: Metadata = {
   },
 };
 
+export async function generateMetadata(): Promise<Metadata> {
+  return await legacyRequest() ? factoryMetadata : {
+    title: "Product storefront",
+    description: "Product storefront readiness",
+    robots: { index: false, follow: false },
+    icons: { icon: [] },
+  };
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,12 +39,16 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("font-sans", geist.variable)}>
       <body>
-        <AppProviders>
-          {children}
-          <Toaster />
-          <Analytics />
-          <SpeedInsights />
-        </AppProviders>
+        <Suspense fallback={<FoundationStorefront state="loading" />}>
+          <StorefrontBoundary>
+            <AppProviders>
+              {children}
+              <Toaster />
+              <Analytics />
+              <SpeedInsights />
+            </AppProviders>
+          </StorefrontBoundary>
+        </Suspense>
       </body>
     </html>
   );

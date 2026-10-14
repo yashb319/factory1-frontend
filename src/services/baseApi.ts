@@ -146,6 +146,7 @@ export const baseApi = createApi({
     "FeatureGating",
     "Whitelabel",
     "WhitelabelPartner",
+    "PartnerSaas",
     "PayslipTemplate",
     "Payslip",
     "OrgIntelligence",
