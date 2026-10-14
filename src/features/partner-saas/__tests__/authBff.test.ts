@@ -25,6 +25,7 @@ const state = Buffer.alloc(32, 11).toString("base64url");
 const nonce = Buffer.alloc(32, 12).toString("base64url");
 const codeChallenge = Buffer.alloc(32, 13).toString("base64url");
 const sessionExpiry = () => new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+type FetchMock = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 const brandedStorefront = {
   ...storefront,
@@ -129,6 +130,10 @@ function testCsrf(tokenHandle = handle, tokenHost = `https://${host}`) {
     .digest("base64url");
 }
 
+function createFetchMock(implementation: (input: RequestInfo | URL) => Promise<Response>) {
+  return vi.fn<FetchMock>((input) => implementation(input));
+}
+
 beforeEach(() => installRuntime());
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -150,7 +155,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
   });
 
   it("starts OAuth only for a verified storefront, ignoring browser redirect and forwarded-host inputs", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = createFetchMock(async (input) => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
       if (url.pathname === "/api/public/v2/storefront") return trustedStorefrontResponse();
       if (url.pathname === "/api/partner/v2/bff/oauth/transactions") {
@@ -199,7 +204,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
   });
 
   it("rejects an authorization URL outside the configured issuer without redirecting to it", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = createFetchMock(async (input) => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
       return url.pathname === "/api/public/v2/storefront"
         ? trustedStorefrontResponse()
@@ -219,7 +224,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
 
   it("exchanges callback code server-side and issues only an opaque Secure host-only cookie", async () => {
     const newHandle = "C".repeat(43);
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = createFetchMock(async (input) => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
       if (url.pathname === "/api/public/v2/storefront") return trustedStorefrontResponse();
       if (url.pathname === "/api/partner/v2/bff/oauth/exchange") {
@@ -258,7 +263,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
   });
 
   it("consumes provider cancellation without exchanging or reflecting callback secrets", async () => {
-    const fetchMock = vi.fn(async () => trustedStorefrontResponse());
+    const fetchMock = createFetchMock(async () => trustedStorefrontResponse());
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await finishAuth(request(`/auth/callback?error=access_denied&state=${state}`, {
@@ -276,7 +281,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
   });
 
   it("rejects callback state not bound to this browser and never redirects an untrusted host", async () => {
-    const fetchMock = vi.fn(async () => trustedStorefrontResponse());
+    const fetchMock = createFetchMock(async () => trustedStorefrontResponse());
     vi.stubGlobal("fetch", fetchMock);
     const mismatch = await finishAuth(request(`/auth/callback?code=short-lived-code&state=${state}`, {
       headers: { Cookie: `__Host-factory1_oauth_state=${nonce}` },
@@ -296,7 +301,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
 
   it("returns a no-store session bootstrap with multiple server-authorized factories and no handles or tokens", async () => {
     const firstContext = apiContext();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = createFetchMock(async (input) => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
       if (url.pathname === "/api/public/v2/storefront") return trustedStorefrontResponse();
       if (url.pathname.endsWith("/bff/session/context/options")) {
@@ -335,7 +340,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
 
   it("requires same-origin CSRF before changing context and sends only the selected organization", async () => {
     const requestedContext = apiContext(otherOrganizationId, "Factory Two");
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = createFetchMock(async (input) => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
       if (url.pathname === "/api/public/v2/storefront") return trustedStorefrontResponse();
       if (url.pathname.endsWith("/bff/session/context/options")) {
@@ -397,7 +402,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
   });
 
   it("does not allow an unlisted factory even if a browser submits its identifier", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = createFetchMock(async (input) => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
       return url.pathname === "/api/public/v2/storefront"
         ? trustedStorefrontResponse()
@@ -422,7 +427,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
   });
 
   it("requires CSRF for both local and family logout, then clears the opaque cookie", async () => {
-    const fetchMock = vi.fn(async () => envelope({ revoked: true, scope: "all" }));
+    const fetchMock = createFetchMock(async () => envelope({ revoked: true, scope: "all" }));
     vi.stubGlobal("fetch", fetchMock);
     const response = await logoutAuth(requestWithSession("/auth/logout", {
       method: "POST",
@@ -446,7 +451,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
   });
 
   it("does not clear sessions or call backend when logout CSRF is invalid", async () => {
-    const fetchMock = vi.fn(async () => envelope({}));
+    const fetchMock = createFetchMock(async () => envelope({}));
     vi.stubGlobal("fetch", fetchMock);
     const response = await logoutAuth(requestWithSession("/auth/logout", {
       method: "POST",
@@ -464,7 +469,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
   });
 
   it("clears the browser cookie but reports when family revocation cannot be confirmed", async () => {
-    const fetchMock = vi.fn(async () => backendFailure(503, "BACKEND_UNAVAILABLE"));
+    const fetchMock = createFetchMock(async () => backendFailure(503, "BACKEND_UNAVAILABLE"));
     vi.stubGlobal("fetch", fetchMock);
     const response = await logoutAuth(requestWithSession("/auth/logout", {
       method: "POST",
