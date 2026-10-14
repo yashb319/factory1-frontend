@@ -261,6 +261,17 @@ export const saasAdminApi = baseApi.injectEndpoints({
       },
     }),
 
+    getFactoryDeletionHistory: builder.query<
+      ApiResponse<FactoryDeletionJob[]>,
+      { offset: number; limit: number }
+    >({
+      query: ({ offset, limit }) => ({
+        url: "/api/saas-admin/factory-deletions",
+        params: { offset, limit },
+      }),
+      providesTags: ["SaasAdmin"],
+    }),
+
     retryFactoryDeletionAssets: builder.mutation<
       ApiResponse<FactoryDeletionJob>,
       string
@@ -269,6 +280,7 @@ export const saasAdminApi = baseApi.injectEndpoints({
         url: `/api/saas-admin/factory-deletions/${organizationId}/retry-assets`,
         method: "POST",
       }),
+      invalidatesTags: (result) => (result ? ["SaasAdmin"] : []),
       async onQueryStarted(organizationId, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
@@ -362,4 +374,5 @@ export const {
   usePermanentlyDeleteFactoryMutation,
   useGetFactoryDeletionStatusQuery,
   useRetryFactoryDeletionAssetsMutation,
+  useGetFactoryDeletionHistoryQuery,
 } = saasAdminApi;

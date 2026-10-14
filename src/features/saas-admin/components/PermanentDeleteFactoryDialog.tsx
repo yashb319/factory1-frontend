@@ -39,7 +39,7 @@ export function isDeletionInProgress(status?: FactoryDeletionStatus | null) {
 const CODE_MESSAGES: Record<string, string> = {
   PROTECTED_ORGANIZATION: "This is a protected platform organization.",
   PAID_SUBSCRIPTION_REQUIRES_POLICY:
-    "The factory has a paid subscription; deletion needs a retention policy decision.",
+    "The factory has a paid subscription. It can only be deleted as real data under a reviewed retention policy (financial records are archived).",
   SHARED_USER_MEMBERSHIP:
     "Some user accounts also belong to other factories and cannot be removed.",
   UNMANAGED_ASSET_KEY:
@@ -47,6 +47,26 @@ const CODE_MESSAGES: Record<string, string> = {
   REAL_DATA_RETENTION_POLICY_REQUIRED:
     "Deleting factories with real business data is not enabled until the data retention policy is finalized.",
 };
+
+export const REAL_ARCHIVE_CLEARABLE_BLOCKERS = new Set([
+  "PAID_SUBSCRIPTION_REQUIRES_POLICY",
+]);
+
+/**
+ * Blockers that still apply for the chosen scope. A paid subscription can only
+ * be cleared by a real-data deletion under a reviewed retention policy; it is
+ * never cleared by claiming the factory holds only dummy data.
+ */
+export function activeDeletionBlockers(
+  blockers: string[],
+  scope: "dummy" | "real" | null,
+  realAllowed: boolean
+) {
+  if (scope === "real" && realAllowed) {
+    return blockers.filter((code) => !REAL_ARCHIVE_CLEARABLE_BLOCKERS.has(code));
+  }
+  return blockers;
+}
 
 export function describeDeletionCode(code: string) {
   if (code.startsWith("SHARED_REFERENCE:")) {
@@ -179,11 +199,13 @@ function DeleteFactoryDialogBody({
     dataScope === "dummy" ||
     (dataScope === "real" && realAllowed && retentionPolicyId.trim() !== "");
 
+  const activeBlockers = activeDeletionBlockers(blockers, dataScope, realAllowed);
+
   const canDelete =
     showConfirmation &&
     preview.isSuccess &&
     !!previewData &&
-    blockers.length === 0 &&
+    activeBlockers.length === 0 &&
     nameMatches &&
     phraseMatches &&
     dataScope !== null &&
@@ -283,6 +305,7 @@ function DeleteFactoryDialogBody({
             isError={preview.isError}
             error={preview.error}
             preview={previewData}
+            activeBlockers={activeBlockers}
             onRetry={() => preview.refetch()}
           />
         ) : null}
@@ -509,12 +532,14 @@ function DeletionPreviewSection({
   isError,
   error,
   preview,
+  activeBlockers,
   onRetry,
 }: {
   isLoading: boolean;
   isError: boolean;
   error: unknown;
   preview: FactoryDeletionPreview | undefined;
+  activeBlockers: string[];
   onRetry: () => void;
 }) {
   if (isError) {
@@ -579,24 +604,30 @@ function DeletionPreviewSection({
           ))}
         </ul>
       ) : null}
-      {preview.blockers.length > 0 ? (
+      {activeBlockers.length > 0 ? (
         <div
           role="alert"
           className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900"
         >
           <p className="font-semibold">Deletion is blocked:</p>
           <ul className="mt-1 list-disc pl-4">
-            {preview.blockers.map((code) => (
+            {activeBlockers.map((code) => (
               <li key={code}>{describeDeletionCode(code)}</li>
             ))}
           </ul>
         </div>
       ) : null}
+      {preview.blockers.length > activeBlockers.length ? (
+        <p className="rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-700">
+          Paid subscription records will be kept in the restricted retention
+          archive under the reviewed policy.
+        </p>
+      ) : null}
     </section>
   );
 }
 
-function DeletionStatusPanel({
+export function DeletionStatusPanel({
   status,
   job,
   loading,
@@ -725,5 +756,112 @@ function RetentionSummary({
         applies.
       </p>
     </section>
+  );
+}
+
+/**
+ * Reopens a recorded deletion (e.g. after a reload, when the factory is no
+ * longer in the dashboard) to watch pending cleanup or retry a failed one.
+ */
+export function FactoryDeletionJobDialog({
+  job,
+  onClose,
+}: {
+  job: FactoryDeletionJob | null;
+  onClose: () => void;
+}) {
+  return (
+    <AlertDialog
+      open={job !== null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      {job ? <DeletionJobBody key={job.organizationId} initialJob={job} /> : null}
+    </AlertDialog>
+  );
+}
+
+function DeletionJobBody({ initialJob }: { initialJob: FactoryDeletionJob }) {
+  const organizationId = initialJob.organizationId;
+  const [job, setJob] = useState<FactoryDeletionJob>(initialJob);
+  const [error, setError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+  const [retryAssets, retryState] = useRetryFactoryDeletionAssetsMutation();
+  const polling = isDeletionInProgress(job.status);
+  const statusQuery = useGetFactoryDeletionStatusQuery(organizationId, {
+    pollingInterval: polling ? DELETION_POLL_INTERVAL_MS : 0,
+    skipPollingIfUnfocused: false,
+    refetchOnMountOrArgChange: true,
+  });
+  const polledJob = statusQuery.data?.data;
+  const polledAt = statusQuery.fulfilledTimeStamp;
+  useEffect(() => {
+    if (polledJob && polledJob.organizationId === organizationId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mirror server status updates
+      setJob(polledJob);
+    }
+  }, [organizationId, polledAt, polledJob]);
+
+  async function retry() {
+    if (submittingRef.current || job.status !== "ASSET_CLEANUP_FAILED") return;
+    submittingRef.current = true;
+    setError(null);
+    try {
+      const response = await retryAssets(organizationId).unwrap();
+      setJob(response.data);
+    } catch (err) {
+      setError(
+        describeDeletionCode(getErrorMessage(err, "Retry was not accepted."))
+      );
+    } finally {
+      submittingRef.current = false;
+    }
+  }
+
+  return (
+    <AlertDialogContent
+      className="max-h-[90vh] overflow-y-auto data-[size=default]:max-w-lg data-[size=default]:sm:max-w-lg"
+      onOpenAutoFocus={(event) => event.preventDefault()}
+    >
+      <AlertDialogHeader>
+        <AlertDialogTitle>Factory deletion status</AlertDialogTitle>
+        <AlertDialogDescription className="break-all">
+          Organization ID {organizationId}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <div className="space-y-3 text-sm">
+        <DeletionStatusPanel
+          status={job.status}
+          job={job}
+          loading={false}
+          pollError={statusQuery.isError}
+        />
+        {error ? (
+          <div role="alert" className="rounded-lg border border-red-300 bg-white p-3 text-xs text-red-700">
+            {error}
+          </div>
+        ) : null}
+      </div>
+      <AlertDialogFooter>
+        <AlertDialogCancel disabled={retryState.isLoading}>Close</AlertDialogCancel>
+        {job.status === "ASSET_CLEANUP_FAILED" ? (
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={retryState.isLoading}
+            aria-busy={retryState.isLoading}
+            onClick={retry}
+          >
+            {retryState.isLoading ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            {retryState.isLoading ? "Retrying..." : "Retry file cleanup"}
+          </Button>
+        ) : null}
+      </AlertDialogFooter>
+    </AlertDialogContent>
   );
 }

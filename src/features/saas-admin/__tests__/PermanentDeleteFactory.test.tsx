@@ -22,6 +22,7 @@ vi.mock("sonner", () => ({ toast: toastMock }));
 
 const API = "https://api.factory1.test";
 const DUMMY_ID = "org-dummy";
+const HISTORY = "GET /api/saas-admin/factory-deletions?offset=0&limit=50";
 const OTHER_ID = "org-other";
 
 function makeFactory(organizationId: string, name: string): SaasFactory {
@@ -108,6 +109,7 @@ beforeEach(() => {
   routes = {
     "GET /api/saas-admin/dashboard": () => ok(dashboard(factories)),
     [`GET /api/saas-admin/factories/${DUMMY_ID}/deletion-preview`]: () => ok(preview),
+    [HISTORY]: () => ok([]),
   };
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (input) => {
@@ -149,7 +151,7 @@ function renderPage(user: Partial<AuthUser> = {}) {
 }
 
 function rowFor(name: string) {
-  return within(screen.getByRole("table", { hidden: true })).getByText(name).closest("tr") as HTMLElement;
+  return within(screen.getAllByRole("table", { hidden: true })[0]).getByText(name).closest("tr") as HTMLElement;
 }
 
 async function openDialog() {
@@ -390,7 +392,7 @@ describe("permanent factory deletion – submission", () => {
     expect(toastMock.success).toHaveBeenCalledWith(expect.stringContaining("retention archive"));
     expect(toastMock.success).not.toHaveBeenCalledWith(expect.stringContaining("all its data"));
     await waitFor(() =>
-      expect(within(screen.getByRole("table", { hidden: true })).queryByText(dummy.name)).not.toBeInTheDocument()
+      expect(within(screen.getAllByRole("table", { hidden: true })[0]).queryByText(dummy.name)).not.toBeInTheDocument()
     );
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
   });
@@ -490,4 +492,81 @@ describe("permanent factory deletion – submission", () => {
     },
     10000
   );
+});
+
+describe("permanent factory deletion – paid subscription blocker", () => {
+  it("is never cleared by a dummy attestation, only by a real archived deletion under a reviewed policy", async () => {
+    routes[`GET /api/saas-admin/factories/${DUMMY_ID}/deletion-preview`] = () =>
+      ok({ ...preview, blockers: ["PAID_SUBSCRIPTION_REQUIRES_POLICY"], realDeletionPolicyConfigured: true });
+    routes[POST_DELETE] = () => ok(job("ASSET_CLEANUP_PENDING"), 202);
+    routes[`GET /api/saas-admin/factory-deletions/${DUMMY_ID}`] = () => ok(job("ASSET_CLEANUP_PENDING"));
+    const { user, dialog } = await openDialog();
+    await fillConfirmation(user, dialog);
+    expect(dialog).toHaveTextContent("Deletion is blocked");
+    expect(deleteButton(dialog)).toBeDisabled();
+
+    await user.click(within(dialog).getByLabelText(/real business data/i));
+    await user.type(within(dialog).getByLabelText(/retention policy id/i), "in-gst-8y");
+    expect(dialog).not.toHaveTextContent("Deletion is blocked");
+    expect(dialog).toHaveTextContent(/kept in the restricted retention archive/i);
+    await user.click(deleteButton(dialog));
+    await waitFor(() => expect(calls(POST_DELETE)).toHaveLength(1));
+    const body = await (calls(POST_DELETE)[0][0] as Request).clone().json();
+    expect(body).toMatchObject({ dummyDataOnly: false, retentionPolicyId: "in-gst-8y" });
+  });
+
+  it("stays blocked for real data when no reviewed policy is configured", async () => {
+    routes[`GET /api/saas-admin/factories/${DUMMY_ID}/deletion-preview`] = () =>
+      ok({ ...preview, blockers: ["PAID_SUBSCRIPTION_REQUIRES_POLICY"] });
+    const { dialog } = await openDialog();
+    expect(within(dialog).getByLabelText(/real business data/i)).toBeDisabled();
+    expect(dialog).toHaveTextContent("Deletion is blocked");
+  });
+});
+
+describe("permanent factory deletion – durable history", () => {
+  it("lists recorded deletions by organization ID and lets a failed cleanup be retried after reload", async () => {
+    const GONE_ID = "9b1c-gone";
+    const failedJob = { ...job("ASSET_CLEANUP_FAILED", { errorCode: "STORAGE_DELETE_FAILED", attempts: 2 }), organizationId: GONE_ID };
+    const archived = {
+      ...job("COMPLETED"),
+      organizationId: "7a2d-archived",
+      retention: { archiveId: "a1", policyId: "p1", jurisdiction: "IN", retainUntil: "2034-03-31", legalHold: true, categories: { invoices: 3 }, integrityHash: "h" },
+    };
+    routes[HISTORY] = () => ok([failedJob, archived]);
+    routes[`GET /api/saas-admin/factory-deletions/${GONE_ID}`] = () => ok(failedJob);
+    let resolveRetry!: (response: Response) => void;
+    routes[`POST /api/saas-admin/factory-deletions/${GONE_ID}/retry-assets`] = () =>
+      new Promise((r) => (resolveRetry = r));
+
+    const user = userEvent.setup();
+    renderPage();
+    const history = await screen.findByRole("region", { name: "Factory deletion history" });
+    expect(await within(history).findByText(GONE_ID)).toBeInTheDocument();
+    expect(within(history).getByText("File cleanup failed")).toBeInTheDocument();
+    expect(within(history).getByText("Until 2034-03-31 • legal hold")).toBeInTheDocument();
+
+    await user.click(within(history).getByRole("button", { name: /review \/ retry/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(GONE_ID);
+    expect(dialog).toHaveTextContent("Deletion is not complete.");
+    expect(dialog).toHaveTextContent("STORAGE_DELETE_FAILED");
+
+    const retry = within(dialog).getByRole("button", { name: /retry file cleanup/i });
+    await user.click(retry);
+    await user.click(retry);
+    expect(calls(`POST /api/saas-admin/factory-deletions/${GONE_ID}/retry-assets`)).toHaveLength(1);
+    routes[HISTORY] = () => ok([{ ...failedJob, status: "COMPLETED", errorCode: null }, archived]);
+    routes[`GET /api/saas-admin/factory-deletions/${GONE_ID}`] = () => ok({ ...failedJob, status: "COMPLETED", errorCode: null });
+    await act(async () => resolveRetry(ok({ ...failedJob, status: "COMPLETED", errorCode: null })));
+    expect(await within(dialog).findByText(/Deletion completed/)).toBeInTheDocument();
+    await waitFor(() => expect(within(history).queryByText("File cleanup failed")).not.toBeInTheDocument());
+  });
+
+  it("shows a visible error when history cannot be loaded", async () => {
+    routes[HISTORY] = () => fail("History unavailable", 500);
+    renderPage();
+    const history = await screen.findByRole("region", { name: "Factory deletion history" });
+    expect(await within(history).findByText(/History unavailable/)).toBeInTheDocument();
+  });
 });

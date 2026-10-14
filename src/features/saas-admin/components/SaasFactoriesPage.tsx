@@ -61,6 +61,7 @@ import {
 } from "../api/saasAdminApi";
 import { StatusBadge } from "./SaasAdminPage";
 import { PermanentDeleteFactoryDialog } from "./PermanentDeleteFactoryDialog";
+import { DeletionHistoryPanel } from "./DeletionHistoryPanel";
 import { formatBytes, formatDuration } from "../utils/metrics";
 import type {
   OrganizationPlan,
@@ -381,6 +382,8 @@ export function SaasFactoriesPage() {
           </TableBody>
         </Table>
       </div>
+
+      <DeletionHistoryPanel />
 
       <Sheet
         open={selected !== null}
