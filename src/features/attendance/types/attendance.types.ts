@@ -62,6 +62,15 @@ export interface SelfAttendanceResponse {
   nextAction: SelfAttendanceNextAction;
   finalized: boolean;
   timezone: string;
+  geofencingRequired: boolean;
+  geofenceConfigured: boolean;
+}
+
+export interface SelfAttendancePunchRequest {
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+  capturedAt: string;
 }
 
 export interface CorrectAttendanceRequest {

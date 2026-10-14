@@ -2,6 +2,8 @@
 import { baseApi } from "@/services/baseApi";
 import {
   ApiResponse,
+  AttendanceGeofenceSettings,
+  AttendanceGeofenceSettingsRequest,
   MessageResponse,
   OrganizationSettingsRequest,
   OrganizationSettingsResponse,
@@ -42,6 +44,26 @@ export const organizationSettingsApi = baseApi.injectEndpoints({
       invalidatesTags: ["OrganizationSettings", "Payroll"],
     }),
 
+    getAttendanceGeofence: builder.query<
+      ApiResponse<AttendanceGeofenceSettings>,
+      void
+    >({
+      query: () => "/api/organization/settings/attendance-geofence",
+      providesTags: ["OrganizationSettings"],
+    }),
+
+    updateAttendanceGeofence: builder.mutation<
+      ApiResponse<AttendanceGeofenceSettings>,
+      AttendanceGeofenceSettingsRequest
+    >({
+      query: (body) => ({
+        url: "/api/organization/settings/attendance-geofence",
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["OrganizationSettings", "Attendance"],
+    }),
+
     regenerateAttendanceCaptureKey: builder.mutation<
       ApiResponse<OrganizationSettingsResponse>,
       void
@@ -75,10 +97,12 @@ export const organizationSettingsApi = baseApi.injectEndpoints({
 
 export const {
   useGetOrganizationSettingsQuery,
+  useGetAttendanceGeofenceQuery,
   useGetOrganizationPlanOffersQuery,
   useGetOrganizationPlanOptionsQuery,
   useRegenerateAttendanceCaptureKeyMutation,
   useRequestPlanChangeMutation,
   useUpdateOrganizationSettingsMutation,
+  useUpdateAttendanceGeofenceMutation,
   useTerminateOrganizationMutation,
 } = organizationSettingsApi;

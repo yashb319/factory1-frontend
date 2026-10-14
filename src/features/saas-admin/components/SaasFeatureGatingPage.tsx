@@ -46,7 +46,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { FEATURE_KEYS, FEATURE_LABELS } from "@/config/featureGating";
+import {
+  FEATURE_DEPENDENCIES,
+  FEATURE_KEYS,
+  FEATURE_LABELS,
+} from "@/config/featureGating";
 import type { FeatureKey } from "@/config/featureGating";
 import { useAppSelector } from "@/lib/hook";
 import {
@@ -353,6 +357,18 @@ function OrganizationFeatureDetail({
   }, [detail?.features]);
 
   function openToggle(feature: OrganizationFeatureState, nextEnabled: boolean) {
+    const blockedReason = getFeatureToggleBlockReason(
+      features,
+      feature.key,
+      nextEnabled
+    );
+    if (blockedReason) {
+      toast.error("Feature dependency prevents this change", {
+        description: blockedReason,
+      });
+      return;
+    }
+
     setToggleReason("");
     setPendingToggle({ feature, nextEnabled });
   }
@@ -445,58 +461,92 @@ function OrganizationFeatureDetail({
       </SheetHeader>
 
       <div className="space-y-3 px-4 pb-6">
-        {features.map((feature) => (
-          <div key={feature.key} className="rounded-lg border p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">
-                  {featureLabel(feature.key, catalogByKey)}
-                </p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {featureDescription(feature.key, catalogByKey)}
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Badge variant={feature.enabled ? "default" : "outline"}>
-                    {feature.enabled ? "Enabled" : "Disabled"}
-                  </Badge>
-                  <SourceBadge source={feature.source} />
-                </div>
-                {feature.source === "OVERRIDE" ? (
-                  <p className="mt-2 text-xs text-slate-500">
-                    {feature.overrideReason
-                      ? `Reason: ${feature.overrideReason}`
-                      : "Override active"}
-                    {feature.overrideUpdatedAt
-                      ? ` • updated ${formatDateTime(feature.overrideUpdatedAt)}`
-                      : ""}
+        {features.map((feature) => {
+          const blockedReason = getFeatureToggleBlockReason(
+            features,
+            feature.key,
+            !feature.enabled
+          );
+
+          return (
+            <div key={feature.key} className="rounded-lg border p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">
+                    {featureLabel(feature.key, catalogByKey)}
                   </p>
-                ) : null}
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {featureDescription(feature.key, catalogByKey)}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Badge variant={feature.enabled ? "default" : "outline"}>
+                      {feature.enabled ? "Enabled" : "Disabled"}
+                    </Badge>
+                    <SourceBadge source={feature.source} />
+                  </div>
+                  {feature.source === "OVERRIDE" ? (
+                    <p className="mt-2 text-xs text-slate-500">
+                      {feature.overrideReason
+                        ? `Reason: ${feature.overrideReason}`
+                        : "Override active"}
+                      {feature.overrideUpdatedAt
+                        ? ` • updated ${formatDateTime(feature.overrideUpdatedAt)}`
+                        : ""}
+                    </p>
+                  ) : null}
+                  {feature.key ===
+                  "employee_portal_attendance_geofencing" ? (
+                    <p className="mt-2 text-xs font-medium text-blue-700">
+                      Requires Employee Portal Attendance. When enabled, both
+                      employee check-in and checkout require an accepted site
+                      location.
+                    </p>
+                  ) : null}
+                  {blockedReason ? (
+                    <p className="mt-2 text-xs font-medium text-amber-700">
+                      {blockedReason}
+                    </p>
+                  ) : null}
+                </div>
+
+                <Switch
+                  checked={feature.enabled}
+                  disabled={busy || Boolean(blockedReason)}
+                  aria-label={`Toggle ${featureLabel(feature.key, catalogByKey)}`}
+                  aria-describedby={
+                    blockedReason
+                      ? `feature-dependency-${feature.key}`
+                      : undefined
+                  }
+                  onCheckedChange={(checked) => openToggle(feature, checked)}
+                />
               </div>
-
-              <Switch
-                checked={feature.enabled}
-                disabled={busy}
-                aria-label={`Toggle ${featureLabel(feature.key, catalogByKey)}`}
-                onCheckedChange={(checked) => openToggle(feature, checked)}
-              />
-            </div>
-
-            {feature.source === "OVERRIDE" ? (
-              <div className="mt-3 border-t pt-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => setPendingClear(feature)}
+              {blockedReason ? (
+                <span
+                  id={`feature-dependency-${feature.key}`}
+                  className="sr-only"
                 >
-                  <RotateCcw size={14} />
-                  Clear override
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        ))}
+                  {blockedReason}
+                </span>
+              ) : null}
+
+              {feature.source === "OVERRIDE" ? (
+                <div className="mt-3 border-t pt-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy || Boolean(blockedReason)}
+                    onClick={() => setPendingClear(feature)}
+                  >
+                    <RotateCcw size={14} />
+                    Clear override
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
 
         {features.length === 0 ? (
           <p className="text-sm text-slate-500">
@@ -608,6 +658,43 @@ function OrganizationFeatureDetail({
   );
 }
 
+export function getFeatureToggleBlockReason(
+  features: readonly OrganizationFeatureState[],
+  featureKey: string,
+  nextEnabled: boolean
+): string | null {
+  const enabledKeys = new Set(
+    features.filter((feature) => feature.enabled).map((feature) => feature.key)
+  );
+
+  if (nextEnabled) {
+    const dependencies =
+      FEATURE_DEPENDENCIES[featureKey as FeatureKey] ?? [];
+    const missingDependency = dependencies.find(
+      (dependency) => !enabledKeys.has(dependency)
+    );
+
+    if (missingDependency) {
+      return `${featureLabel(missingDependency, new Map())} must be enabled first.`;
+    }
+  } else {
+    const enabledDependent = features.find((feature) => {
+      if (!feature.enabled) return false;
+      return (
+        FEATURE_DEPENDENCIES[feature.key as FeatureKey]?.includes(
+          featureKey as FeatureKey
+        ) ?? false
+      );
+    });
+
+    if (enabledDependent) {
+      return `Disable ${featureLabel(enabledDependent.key, new Map())} first.`;
+    }
+  }
+
+  return null;
+}
+
 function SourceBadge({ source }: { source: FeatureSource }) {
   if (source === "OVERRIDE") {
     return (
@@ -639,6 +726,13 @@ function featureDescription(
   key: string,
   catalogByKey: Map<string, FeatureCatalogItem>
 ) {
+  if (key === "employee_portal_attendance_geofencing") {
+    return (
+      catalogByKey.get(key)?.description ??
+      "Require employees to submit a fresh location inside the owner-configured factory site for check-in and checkout."
+    );
+  }
+
   return catalogByKey.get(key)?.description ?? "No description available.";
 }
 

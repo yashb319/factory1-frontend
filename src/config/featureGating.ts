@@ -4,6 +4,7 @@ export const FEATURE_KEYS = [
   "employee_portal_leave_application",
   "employee_portal_work_orders",
   "employee_portal_self_attendance",
+  "employee_portal_attendance_geofencing",
   "inventory",
   "billing",
   "accounting",
@@ -20,12 +21,21 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   employee_portal_leave_application: "Employee Portal Leave Apply",
   employee_portal_work_orders: "Employee Portal Work Orders",
   employee_portal_self_attendance: "Employee Portal Attendance",
+  employee_portal_attendance_geofencing: "Attendance Geofencing",
   inventory: "Inventory",
   billing: "Billing",
   accounting: "Accounting",
   payroll: "Payroll",
   ai_assistant: "AI Assistant",
   product_costing: "Product Costing",
+};
+
+export const FEATURE_DEPENDENCIES: Partial<
+  Record<FeatureKey, readonly FeatureKey[]>
+> = {
+  employee_portal_attendance_geofencing: [
+    "employee_portal_self_attendance",
+  ],
 };
 
 const FEATURE_PATH_PREFIXES: { featureKey: FeatureKey; prefix: string }[] = [

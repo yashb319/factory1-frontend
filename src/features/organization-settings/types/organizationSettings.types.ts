@@ -94,3 +94,20 @@ export interface MessageResponse {
   message: string;
   debug?: Record<string, unknown> | null;
 }
+
+export interface AttendanceGeofenceSettings {
+  latitude: number | null;
+  longitude: number | null;
+  radiusMeters: number | null;
+  configured: boolean;
+  entitlementEnabled: boolean;
+  dependencySatisfied: boolean;
+  updatedAt: string | null;
+  updatedByUserId: string | null;
+}
+
+export interface AttendanceGeofenceSettingsRequest {
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+}

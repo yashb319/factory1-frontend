@@ -15,6 +15,7 @@ import type {
 const checkIn = vi.fn();
 const checkOut = vi.fn();
 const refetch = vi.fn();
+let statusResponse: SelfAttendanceResponse;
 
 vi.mock("sonner", () => ({
   toast: {
@@ -25,17 +26,7 @@ vi.mock("sonner", () => ({
 
 vi.mock("../api/attendanceApi", () => ({
   useGetSelfAttendanceStatusQuery: () => ({
-    data: {
-      attendanceId: null,
-      attendanceDate: "2026-10-14",
-      status: null,
-      checkInTime: null,
-      checkOutTime: null,
-      totalHours: null,
-      nextAction: "CHECK_IN",
-      finalized: false,
-      timezone: "Asia/Kolkata",
-    },
+    data: statusResponse,
     isLoading: false,
     isFetching: false,
     isError: false,
@@ -72,6 +63,25 @@ describe("employee self attendance", () => {
     checkIn.mockReturnValue({ unwrap: () => Promise.resolve() });
     checkOut.mockReturnValue({ unwrap: () => Promise.resolve() });
     refetch.mockReturnValue({ unwrap: () => Promise.resolve() });
+    statusResponse = {
+      attendanceId: null,
+      attendanceDate: "2026-10-14",
+      status: null,
+      checkInTime: null,
+      checkOutTime: null,
+      totalHours: null,
+      nextAction: "CHECK_IN",
+      finalized: false,
+      timezone: "Asia/Kolkata",
+      geofencingRequired: false,
+      geofenceConfigured: false,
+    };
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: {
+        getCurrentPosition: vi.fn(),
+      },
+    });
   });
 
   it("prevents duplicate in-flight check-in requests and refreshes status", async () => {
@@ -82,7 +92,175 @@ describe("employee self attendance", () => {
     fireEvent.click(button);
 
     expect(checkIn).toHaveBeenCalledTimes(1);
+    expect(checkIn).toHaveBeenCalledWith(undefined);
     await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1));
+  });
+
+  it("captures and sends a fresh location for geofenced check-in", async () => {
+    statusResponse = {
+      ...statusResponse,
+      geofencingRequired: true,
+      geofenceConfigured: true,
+    };
+    const timestamp = Date.now();
+    vi.mocked(navigator.geolocation.getCurrentPosition).mockImplementation(
+      (success) =>
+        success({
+          coords: {
+            latitude: 12.971599,
+            longitude: 77.594566,
+            accuracy: 18,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null,
+            toJSON: () => ({}),
+          },
+          timestamp,
+          toJSON: () => ({}),
+        })
+    );
+
+    render(<EmployeeSelfAttendancePage />);
+    fireEvent.click(screen.getByRole("button", { name: "Check In" }));
+
+    await waitFor(() =>
+      expect(checkIn).toHaveBeenCalledWith({
+        latitude: 12.971599,
+        longitude: 77.594566,
+        accuracyMeters: 18,
+        capturedAt: new Date(timestamp).toISOString(),
+      })
+    );
+  });
+
+  it("requires a fresh location independently for checkout", async () => {
+    statusResponse = {
+      ...statusResponse,
+      attendanceId: "attendance-1",
+      checkInTime: "2026-10-14T09:00:00",
+      nextAction: "CHECK_OUT",
+      geofencingRequired: true,
+      geofenceConfigured: true,
+    };
+    const timestamp = Date.now();
+    vi.mocked(navigator.geolocation.getCurrentPosition).mockImplementation(
+      (success) =>
+        success({
+          coords: {
+            latitude: 19.076,
+            longitude: 72.8777,
+            accuracy: 24,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null,
+            toJSON: () => ({}),
+          },
+          timestamp,
+          toJSON: () => ({}),
+        })
+    );
+
+    render(<EmployeeSelfAttendancePage />);
+    fireEvent.click(screen.getByRole("button", { name: "Check Out" }));
+
+    await waitFor(() =>
+      expect(checkOut).toHaveBeenCalledWith({
+        latitude: 19.076,
+        longitude: 72.8777,
+        accuracyMeters: 24,
+        capturedAt: new Date(timestamp).toISOString(),
+      })
+    );
+  });
+
+  it("explains denied location permission without submitting", async () => {
+    statusResponse = {
+      ...statusResponse,
+      geofencingRequired: true,
+      geofenceConfigured: true,
+    };
+    vi.mocked(navigator.geolocation.getCurrentPosition).mockImplementation(
+      (_success, error) =>
+        error?.({
+          code: 1,
+          message: "denied",
+          PERMISSION_DENIED: 1,
+          POSITION_UNAVAILABLE: 2,
+          TIMEOUT: 3,
+        })
+    );
+
+    render(<EmployeeSelfAttendancePage />);
+    fireEvent.click(screen.getByRole("button", { name: "Check In" }));
+
+    expect(
+      await screen.findByText(/allow location access for factory1/i)
+    ).toBeInTheDocument();
+    expect(checkIn).not.toHaveBeenCalled();
+  });
+
+  it("blocks punches when the authoritative status says the site is not configured", async () => {
+    statusResponse = {
+      ...statusResponse,
+      geofencingRequired: true,
+      geofenceConfigured: false,
+    };
+
+    render(<EmployeeSelfAttendancePage />);
+    fireEvent.click(screen.getByRole("button", { name: "Check In" }));
+
+    expect(
+      await screen.findByText(/factory owner must configure the attendance site/i)
+    ).toBeInTheDocument();
+    expect(navigator.geolocation.getCurrentPosition).not.toHaveBeenCalled();
+    expect(checkIn).not.toHaveBeenCalled();
+  });
+
+  it("shows authoritative outside-site errors and does not refresh status", async () => {
+    statusResponse = {
+      ...statusResponse,
+      geofencingRequired: true,
+      geofenceConfigured: true,
+    };
+    vi.mocked(navigator.geolocation.getCurrentPosition).mockImplementation(
+      (success) =>
+        success({
+          coords: {
+            latitude: 12.97,
+            longitude: 77.59,
+            accuracy: 12,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null,
+            toJSON: () => ({}),
+          },
+          timestamp: Date.now(),
+          toJSON: () => ({}),
+        })
+    );
+    checkIn.mockReturnValue({
+      unwrap: () =>
+        Promise.reject({ data: { code: "OUTSIDE_GEOFENCE" } }),
+    });
+
+    render(<EmployeeSelfAttendancePage />);
+    fireEvent.click(screen.getByRole("button", { name: "Check In" }));
+
+    expect(
+      await screen.findByText(/outside the configured attendance site/i)
+    ).toBeInTheDocument();
+    expect(refetch).not.toHaveBeenCalled();
+  });
+
+  it("does not request location when geofencing is disabled", async () => {
+    render(<EmployeeSelfAttendancePage />);
+    fireEvent.click(screen.getByRole("button", { name: "Check In" }));
+
+    await waitFor(() => expect(checkIn).toHaveBeenCalledWith(undefined));
+    expect(navigator.geolocation.getCurrentPosition).not.toHaveBeenCalled();
   });
 
   it("explains finalization policy and owner-only corrections", () => {
@@ -108,6 +286,8 @@ describe("employee self attendance", () => {
       nextAction: "CHECK_OUT",
       finalized: false,
       timezone: "Asia/Kolkata",
+      geofencingRequired: false,
+      geofenceConfigured: false,
     };
 
     expect(attendanceStatusLabel(attendance)).toBe("Checked in");

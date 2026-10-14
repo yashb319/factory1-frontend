@@ -3,6 +3,7 @@ import { TerminateOrganizationPanel } from "@/features/organization-settings/com
 import { AccessManagementPanel } from "@/features/access/components/AccessManagementPanel";
 import { GstIntegrationPanel } from "@/features/gst-integration/components/GstIntegrationPanel";
 import { PayslipTemplatesPanel } from "@/features/payslip-templates/components/PayslipTemplatesPanel";
+import { AttendanceGeofenceSettings } from "./AttendanceGeofenceSettings";
 
 export default function OrganizationSettingsPage() {
   return (
@@ -17,6 +18,7 @@ export default function OrganizationSettingsPage() {
       </div>
 
       <OrganizationSettingsForm />
+      <AttendanceGeofenceSettings />
       <PayslipTemplatesPanel />
       <GstIntegrationPanel />
       <AccessManagementPanel />
