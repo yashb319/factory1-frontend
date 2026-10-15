@@ -1,12 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   bffEnvelopeSchema,
   contextSelectionSchema,
-  partnerContextOptionsSchema,
   partnerEntitlementsSchema,
   partnerSessionSchema,
+  upstreamContextOptionsSchema,
   type PartnerEntitlements,
 } from "../auth/contracts";
+import { changeAuthContext, getAuthSession } from "../auth/server";
 import contextOptions from "./fixtures/context-options.json";
 import contextSelection from "./fixtures/context-selection.json";
 import entitlements from "./fixtures/entitlements.json";
@@ -70,14 +73,120 @@ describe("actual serialized authenticated BFF DTOs", () => {
     expectNoRuntimeCapability(parsed.entitlements);
   });
 
-  it("records the actual context-options envelope shape mismatch with only issue paths", () => {
-    // Backend returns ApiResponse<List<ContextOption>>; the frontend BFF contract expects { items }.
-    // A separately reviewed production fix owns this; the schema is not relaxed here.
-    const result = bffEnvelopeSchema(partnerContextOptionsSchema).safeParse(contextOptions);
-    const issues = result.success ? [] : issuePaths(result.error.issues);
-    console.log("Authenticated context-options schema issues:", JSON.stringify(issues));
-    expect(issues).toEqual([{ path: "data", code: "invalid_type" }]);
-    expect(Array.isArray(contextOptions.data)).toBe(true);
-    expect(partnerContextOptionsSchema.safeParse({ items: contextOptions.data }).success).toBe(true);
+  it("accepts the actual context-options list serialization upstream", () => {
+    const options = accepted(bffEnvelopeSchema(upstreamContextOptionsSchema).safeParse(contextOptions), "context-options").data;
+    expect(options).toEqual(contextOptions.data);
+  });
+});
+
+// Drives both production BFF consumers of context options (session bootstrap and /auth/context)
+// with the exact backend response bytes. Only the storefront and secrets are test-constructed.
+describe("BFF consumers of actual serialized authenticated DTOs", () => {
+  const raw = (name: string) => readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url), "utf8");
+  const json = (body: string) => new Response(body, { headers: { "Content-Type": "application/json" } });
+  const host = sessionAfter.data.context.hostname;
+  const handle = "A".repeat(43);
+  const csrfSecret = Buffer.alloc(32, 29).toString("base64url");
+  const storefront = {
+    success: true,
+    message: "OK",
+    data: {
+      schemaVersion: 2,
+      storefront: {
+        partnerId: "70000000-0000-4000-8000-000000000013", productId: sessionAfter.data.context.productId,
+        canonicalOrigin: `https://${host}`, displayName: "Product A",
+        logoUrl: null, faviconUrl: null, primaryColorHex: null, accentColorHex: null,
+      },
+      capabilities: { operationalAccess: false, sso: true, checkout: false },
+    },
+  };
+
+  function backend(sessionBody: string) {
+    return vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      if (url.pathname === "/api/public/v2/storefront") return json(JSON.stringify(storefront));
+      if (url.pathname === "/api/partner/v2/bff/session") return json(sessionBody);
+      if (url.pathname === "/api/partner/v2/bff/session/context/options") return json(raw("context-options"));
+      if (url.pathname === "/api/partner/v2/bff/session/entitlements") return json(raw("entitlements"));
+      if (url.pathname === "/api/partner/v2/bff/session/context") return json(raw("context-selection"));
+      throw new Error(`Unexpected upstream path: ${url.pathname}`);
+    });
+  }
+
+  function browserRequest(path: string, init: RequestInit = {}) {
+    const headers = new Headers(init.headers);
+    headers.set("Host", host);
+    headers.set("Cookie", `__Host-factory1_session=${handle}`);
+    return new Request(`https://${host}${path}`, { ...init, headers });
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T11:55:00Z"));
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("PARTNER_SAAS_STOREFRONT_ENABLED", "true");
+    vi.stubEnv("PARTNER_SAAS_BACKEND_ORIGIN", "https://backend.example.test");
+    vi.stubEnv("PARTNER_SAAS_EDGE_TOKEN", "test-only-edge-key-not-a-real-secret-123456");
+    vi.stubEnv("PARTNER_SAAS_ASSET_HOSTS", "");
+    vi.stubEnv("PARTNER_SAAS_OAUTH_CLIENT_ID", "partner-bff");
+    vi.stubEnv("PARTNER_SAAS_OAUTH_CLIENT_SECRET", "test-only-client-secret");
+    vi.stubEnv("PARTNER_SAAS_CSRF_SECRET", csrfSecret);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["session-before-selection", sessionBefore, null],
+    ["session-after-selection", sessionAfter, entitlements.data],
+  ] as const)("session bootstrap accepts actual %s with exact context options", async (name, sessionBody, expectedEntitlements) => {
+    const errors = vi.spyOn(console, "error");
+    vi.stubGlobal("fetch", backend(raw(name)));
+
+    const response = await getAuthSession(browserRequest("/auth/session"));
+    const body = await response.json();
+
+    expect(errors).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(body.data.contextOptions).toEqual({ items: contextOptions.data });
+    expect(body.data.session.context).toEqual(sessionBody.data.context);
+    expect(body.data.session.operationalAccess).toBe(false);
+    expect(body.data.entitlements).toEqual(expectedEntitlements);
+    expect(body.data.entitlements?.operationalAccess ?? false).toBe(false);
+    expect(JSON.stringify(body)).not.toContain(handle);
+  });
+
+  it("/auth/context accepts the exact context options and actual selection without operational access", async () => {
+    const errors = vi.spyOn(console, "error");
+    const upstream = backend(raw("session-after-selection"));
+    vi.stubGlobal("fetch", upstream);
+    const csrf = createHmac("sha256", Buffer.from(csrfSecret, "base64url"))
+      .update(`https://${host}\n${handle}`).digest("base64url");
+
+    const response = await changeAuthContext(browserRequest("/auth/context", {
+      method: "POST",
+      headers: {
+        Origin: `https://${host}`,
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrf,
+      },
+      body: JSON.stringify({ organizationId: contextSelection.data.context.organizationId }),
+    }));
+    const body = await response.json();
+
+    expect(errors).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(upstream.mock.calls.map(([input]) => new URL(input.toString()).pathname))
+      .toContain("/api/partner/v2/bff/session/context/options");
+    expect(body.data.context).toEqual(contextSelection.data.context);
+    expect(body.data.entitlements).toEqual(contextSelection.data.entitlements);
+    expect(body.data.operationalAccess).toBe(false);
+    expect(JSON.stringify(body)).not.toContain(contextSelection.data.sessionHandle);
+    expect(JSON.stringify(body)).not.toContain(handle);
   });
 });

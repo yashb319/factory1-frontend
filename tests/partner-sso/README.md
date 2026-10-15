@@ -160,11 +160,11 @@ to `760c43a`). They are actual HTTP serializations from disposable integration
 identities, use the unchanged reviewed main (#117/#118) contracts, and assert
 `operationalAccess=false`, `ready=false`, no runtime routes and no enabled
 modules. The selection sample's session handle is a non-functional placeholder.
-The same regression records a cross-repo defect: the backend serializes
-context options as `data: [...]` while the frontend BFF contract expects
-`data: { items: [...] }` (issue `data` / `invalid_type`). That requires a
-separately reviewed production fix; the schema is not relaxed here, and the
-full browser scenario cannot pass until it lands.
+The backend serializes context options as `data: [...]`; reviewed main #119
+(`128e1f5`) parses that strict bounded list in one BFF function and maps it to
+the unchanged browser `{ items }` contract. The regression drives both consumers,
+session bootstrap and `/auth/context`, with the exact sample bytes and asserts
+`operationalAccess=false` and no session handle in browser responses.
 
 The pinned backend advertises SSO only after validating enabled confidential
 configuration, a current registered client binding and exact callback, and an
