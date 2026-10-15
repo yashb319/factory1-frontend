@@ -14,8 +14,8 @@ and a fresh `postgres:14.22` service, exposed at `127.0.0.1:5432`, with database
 `factory1_e2e`, user `postgres`, password `disposable-e2e-only`.
 Use `contents: read`, `persist-credentials: false`, and separately checkout:
 
-- Backend **31e618d375b4daccb7e6ee41120e70490f716471**, the reviewed readiness-fix
-  merge, not latest main or PR head.
+- Backend **367524efed74c3f6f2391abf61c506dbccd51ddf**, the reviewed fixture-host
+  merge including the readiness fix, not latest main or PR head.
 - A reviewed immutable public `yashb319/factory1-frontend` commit containing
   this harness; pin its full SHA in the backend workflow, not arbitrary input.
 
