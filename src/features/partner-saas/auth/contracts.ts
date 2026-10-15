@@ -47,16 +47,21 @@ export const partnerSessionSchema = z.object({
 { message: "Operational sessions require an active authoritative factory principal and generation" });
 export type PartnerSession = z.infer<typeof partnerSessionSchema>;
 
-export const partnerContextOptionsSchema = z.object({
-  items: z.array(z.object({
-    organizationId: id,
-    label: z.string().min(1).max(120),
-    productId: id,
-    productName: z.string().min(1).max(120),
-    domainId: id,
-    hostname: z.string().min(1).max(253),
-  }).strict()),
+export const partnerContextOptionSchema = z.object({
+  organizationId: id,
+  label: z.string().min(1).max(120),
+  productId: id,
+  productName: z.string().min(1).max(120),
+  domainId: id,
+  hostname: z.string().min(1).max(253),
 }).strict();
+
+export const partnerContextOptionsSchema = z.object({
+  items: z.array(partnerContextOptionSchema),
+}).strict();
+
+// Backchannel serialization: the backend returns ApiResponse<List<ContextOption>>.
+export const upstreamContextOptionsSchema = z.array(partnerContextOptionSchema).max(500);
 export type PartnerContextOptions = z.infer<typeof partnerContextOptionsSchema>;
 
 export const partnerEntitlementsSchema = z.object({
