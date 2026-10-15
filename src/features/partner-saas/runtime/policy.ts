@@ -1,5 +1,7 @@
 export type RuntimeRoute = { method: string; path: string };
-type ReviewedRoute = RuntimeRoute & { features: readonly string[]; roles: readonly string[] };
+type ReviewedRoute = RuntimeRoute & {
+  method: "GET" | "POST" | "PUT" | "DELETE"; features: readonly string[]; roles: readonly string[];
+};
 type ModuleDecision = { key: string; enabled: boolean };
 
 const uuid = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
@@ -11,7 +13,12 @@ const roles = {
 } as const;
 
 function entries(methods: string, path: string, features: string, role: keyof typeof roles): ReviewedRoute[] {
-  return methods.split(",").map((method) => ({ method, path, features: features.split("+"), roles: roles[role] }));
+  return methods.split(",").map((method) => {
+    if (method !== "GET" && method !== "POST" && method !== "PUT" && method !== "DELETE") {
+      throw new Error("Invalid method in the reviewed runtime catalog");
+    }
+    return { method, path, features: features.split("+"), roles: roles[role] };
+  });
 }
 
 // Frozen against backend 6522bfce, docs/partner-runtime-and-onboarding.md.

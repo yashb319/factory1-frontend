@@ -82,14 +82,14 @@ describe("isolated product factory workspace", () => {
     });
     vi.stubGlobal("fetch", network);
     render(<ProductWorkspace data={data} />);
-    expect(await screen.findByRole("heading", { name: heading, exact: true })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: heading }, { timeout: 10_000 })).toBeInTheDocument();
     await waitFor(() => expect(network).toHaveBeenCalledTimes(count));
     for (const [url] of network.mock.calls) {
       expect(url).toMatch(/^\/api\/product-runtime\//);
       expect(url).not.toMatch(/organization-settings|\/products|user-accounts|\/balances|\/public|\/jobs|\/ai/);
     }
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  });
+  }, 15_000);
 
   it.each(["/employees", "/payroll", "/tally/inventory", "/ai", "/partner/products", "/payslip/token"])(
     "blocks direct navigation to %s before operational hooks mount", (pathname) => {

@@ -62,6 +62,9 @@ describe("reviewed product runtime policy", () => {
       const concrete = route.path.replace(/\{attendanceDate\}/g, "2026-05-12").replace(/\{[^}]+\}/g, factoryId);
       expect(reviewedRuntimeRoute(route.method, concrete)).toBe(route);
       const grant = [{ method: route.method, path: route.path }];
+      for (const role of ["OWNER", "ADMIN", "MANAGEMENT", "FINANCE", "EMPLOYEE", "PARTNER_ADMIN"]) {
+        expect(runtimeRouteAllowed(grant, role, route.method, concrete, route.features)).toBe(route.roles.includes(role));
+      }
       expect(runtimeRouteAllowed(grant, route.roles[0], route.method, concrete, route.features)).toBe(true);
       expect(runtimeRouteAllowed([], route.roles[0], route.method, concrete, route.features)).toBe(false);
       expect(runtimeRouteAllowed(grant, "PARTNER_ADMIN", route.method, concrete, route.features)).toBe(false);

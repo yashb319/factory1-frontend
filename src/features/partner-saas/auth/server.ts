@@ -616,7 +616,7 @@ export async function productRuntimeRequest(request: Request) {
     if (request.headers.get("X-Factory1-Context-Generation") !== data.session.contextGeneration) {
       throw new BffError(409, "CONTEXT_CHANGED");
     }
-    const method = reviewed.method as "GET" | "POST" | "PUT" | "DELETE";
+    const method = reviewed.method;
     const body = method === "POST" || method === "PUT"
       ? await requestJson(request, z.record(z.string(), z.unknown()), 64 * 1024) : undefined;
     if (body && ["organizationId", "tenantId", "partnerId", "domainId", "modules", "role", "userId",
