@@ -18,7 +18,7 @@ export const customerSchema = z.object({
 export type ProductCustomer = z.infer<typeof customerSchema>;
 
 export const onboardingInputSchema = z.object({
-  idempotencyKey: z.string().min(1).max(80),
+  idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/, "Use 8-80 letters, digits, underscores, or hyphens."),
   factoryName: z.string().trim().min(2).max(255),
   ownerName: z.string().trim().min(2).max(255),
   ownerEmail: z.email().max(255),

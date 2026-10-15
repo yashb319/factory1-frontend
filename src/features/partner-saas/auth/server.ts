@@ -90,9 +90,14 @@ function failure(status: number, code: string, extraHeaders?: HeadersInit) {
     LOGOUT_UNCONFIRMED: "Local sign-out completed, but server revocation could not be confirmed.",
     RUNTIME_ROUTE_DENIED: "This operation is not available for your selected product and role.",
     CONTEXT_CHANGED: "Your factory context changed. Reload before continuing.",
+    CONTEXT_REQUIRED: "Select a factory before continuing.",
+    CONTEXT_GENERATION_MISMATCH: "Your factory context changed. Reload before continuing.",
+    DOMAIN_CONTEXT_MISMATCH: "This address does not match your current factory context.",
     INVITATION_INVALID: "This invitation is invalid, expired, revoked or belongs to another product.",
     INVITATION_IDENTITY_MISMATCH: "Sign in with the explicitly invited account before accepting.",
     ONBOARDING_DISABLED: "Factory onboarding is not enabled for this product.",
+    OWNER_IDENTITY_EXISTS: "An account with this email already exists. Select the existing owner instead.",
+    IDEMPOTENCY_CONFLICT: "This request was already submitted with different details. Start a new request.",
   };
   const headers = noStoreHeaders(extraHeaders);
   headers.set("Content-Type", "application/json; charset=utf-8");
