@@ -1,0 +1,28 @@
+{
+  "success" : true,
+  "message" : "OK",
+  "data" : {
+    "authenticated" : true,
+    "expiresAt" : "2026-10-15T12:02:05.190729483Z",
+    "context" : {
+      "organizationId" : "7e6184df-8a99-46cc-baf9-0f946ea2492a",
+      "organizationName" : "Shared factory",
+      "productId" : "e965b13d-782d-42c6-a561-defc05eda234",
+      "productName" : "Product A",
+      "domainId" : "161d6c34-b050-4b38-9adc-154f4105691f",
+      "hostname" : "product-a.example.com"
+    },
+    "operationalAccess" : false,
+    "principal" : {
+      "id" : "badc1248-66aa-42d2-8e49-fb0a53325f84",
+      "name" : "SSO Test User",
+      "email" : "partner-sso-http-50f8da66-ee66-4d02-86fe-3eb5092210e1@example.test",
+      "role" : "OWNER",
+      "status" : "ACTIVE",
+      "organizationId" : "7e6184df-8a99-46cc-baf9-0f946ea2492a",
+      "organizationStatus" : "ACTIVE",
+      "platformAdmin" : false
+    },
+    "contextGeneration" : "99921420-2851-4739-8d94-a0b8438afd5a"
+  }
+}

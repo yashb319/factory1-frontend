@@ -152,6 +152,20 @@ strict RFC UUID validation; unsupported runtime metadata is not proof of module
 coverage. Browser fixture IDs use deterministic v4/variant-8 UUIDs
 `70000000-0000-4000-8000-<suffix>`, not the invalid version-zero legacy IDs.
 
+`authenticatedFixtureContract.test.ts` parses authenticated BFF session (before
+and after selection), entitlements and context-selection envelopes copied
+byte-for-byte from backend `src/test/resources/partner-sso/` at test-only commit
+`641d07f8413a51901cfbefc030df9f68c094d0ec` (#137; application source identical
+to `760c43a`). They are actual HTTP serializations from disposable integration
+identities, use the unchanged reviewed main (#117/#118) contracts, and assert
+`operationalAccess=false`, `ready=false`, no runtime routes and no enabled
+modules. The selection sample's session handle is a non-functional placeholder.
+The same regression records a cross-repo defect: the backend serializes
+context options as `data: [...]` while the frontend BFF contract expects
+`data: { items: [...] }` (issue `data` / `invalid_type`). That requires a
+separately reviewed production fix; the schema is not relaxed here, and the
+full browser scenario cannot pass until it lands.
+
 The pinned backend advertises SSO only after validating enabled confidential
 configuration, a current registered client binding and exact callback, and an
 ACTIVE product/partner with a VERIFIED, routing/TLS-READY, unexpired domain.
