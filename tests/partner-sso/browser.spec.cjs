@@ -168,6 +168,12 @@ test("real HTTPS OAuth, host cookies, context rotation, CSRF and two-product rev
     if (url.origin === CENTRAL && url.pathname === "/oauth2/authorize") authorizationRequests.push(url);
     if (url.origin === A && url.pathname === "/auth/callback") callback = url;
   });
+  context.on("response", async (response) => {
+    const url = new URL(response.url());
+    if (url.pathname !== "/auth/session" || response.ok() || response.status() === 401) return;
+    const code = await response.json().then((body) => body && typeof body.code === "string" && /^[A-Z_]{1,64}$/.test(body.code) ? body.code : "none").catch(() => "unparseable");
+    console.log(`Partner BFF session diagnostic: origin=${url.origin} status=${response.status()} code=${code}`);
+  });
 
   await page.goto(A);
   await requireSignInReady(page, A);
