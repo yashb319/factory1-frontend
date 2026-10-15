@@ -35,6 +35,8 @@ vi.mock("../api", () => ({
   useVerifyProductDomainMutation: () => [mocks.verify, { isLoading: false }],
   useRenewProductDomainChallengeMutation: () => [mocks.renew, { isLoading: false }],
   useUpdateProductDomainMutation: () => [mocks.updateDomain, { isLoading: false }],
+  useGetProductOnboardingPolicyQuery: () => ({ currentData: { enabled: false, invitationDelivery: false, checkout: false, activationMode: "PLATFORM_EVIDENCE_REQUIRED", existingIdentityAcceptance: "AUTHENTICATED_EXPLICIT" }, refetch: vi.fn() }),
+  useGetProductCustomersQuery: () => ({ currentData: { items: [], offset: 0, limit: 20, total: 0 }, refetch: vi.fn() }),
 }));
 
 beforeEach(() => {

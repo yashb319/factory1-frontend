@@ -35,3 +35,15 @@ export async function StorefrontBoundary({ children }: { children: React.ReactNo
     signInEnabled={parsed.data.data.capabilities.sso && isPartnerAuthRuntimeReady(authRuntime)}
   />;
 }
+
+export async function productMetadata() {
+  const response = await proxyStorefront((await headers()).get("host"), {
+    enabled: process.env.PARTNER_SAAS_STOREFRONT_ENABLED === "true",
+    backendOrigin: process.env.PARTNER_SAAS_BACKEND_ORIGIN,
+    edgeToken: process.env.PARTNER_SAAS_EDGE_TOKEN,
+    assetHosts: process.env.PARTNER_SAAS_ASSET_HOSTS,
+  });
+  if (!response.ok) return null;
+  const parsed = envelopeSchema(storefrontSchema).safeParse(await response.json());
+  return parsed.success ? parsed.data.data.storefront : null;
+}

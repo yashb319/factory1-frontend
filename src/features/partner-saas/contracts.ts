@@ -21,6 +21,13 @@ export const membershipSchema = z.object({
 });
 export type PartnerMembership = z.infer<typeof membershipSchema>;
 
+export const partnerEntitlementPolicySchema = z.object({
+  featureKeys: z.array(z.string()).max(100), approved: z.boolean(), version,
+});
+export const domainModulePolicySchema = z.object({
+  featureKeys: z.array(z.string()).max(100).nullable(), version,
+});
+
 export const domainSchema = z.object({
   id, productId: id, hostname: z.string().min(1).max(253),
   status: z.enum(["PENDING", "ACTIVE", "SUSPENDED", "RETIRED"]),
@@ -51,9 +58,9 @@ export const storefrontSchema = z.object({
     partnerId: id, productId: id, canonicalOrigin: z.url(), displayName: z.string().min(1).max(120),
     logoUrl: asset, faviconUrl: asset, primaryColorHex: color, accentColorHex: color,
   }),
-  // Foundation never enables a runtime merely because a backend advertises it.
   capabilities: z.object({
-    operationalAccess: z.literal(false), sso: z.boolean(), checkout: z.literal(false),
+    operationalAccess: z.boolean(), sso: z.boolean(), checkout: z.literal(false),
+    runtimeCoverage: z.literal("PARTIAL_TENANT_CRUD").optional(),
   }),
 });
 export type PublicStorefront = z.infer<typeof storefrontSchema>;
