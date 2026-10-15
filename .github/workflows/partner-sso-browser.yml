@@ -34,8 +34,11 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/browser-tools/node_modules
         run: |
           bash -n tests/partner-sso/run-hosted.sh
+          bash -n tests/partner-sso/filesystem.sh tests/partner-sso/filesystem.test.sh
+          bash tests/partner-sso/filesystem.test.sh
           node --check tests/partner-sso/https-proxy.cjs
           node --check tests/partner-sso/browser.spec.cjs
+          node --test tests/partner-sso/sanitize-logs.test.cjs
           node "$RUNNER_TEMP/browser-tools/node_modules/@playwright/test/cli.js" test --config tests/partner-sso/playwright.config.cjs --list
           npx tsc --noEmit
       - name: Existing focused frontend regressions

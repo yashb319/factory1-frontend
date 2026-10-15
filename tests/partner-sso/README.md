@@ -52,6 +52,14 @@ Outbound schedulers are disabled, SMTP points to loopback port 9, dedicated back
 non-loopback egress while the Actions runner retains its control connection. Photo storage
 and third-party credentials are absent from the backend's clean environment.
 
+Restricted checkout/tool/temp ancestors (including `/home/runner`) receive only
+temporary `o+x` traversal permission, with their exact original modes restored
+on exit before test-user cleanup. Backend HOME and JVM temp storage, and browser
+HOME/XDG/npm/temp storage, are explicitly writable test-user-owned directories.
+Cross-UID readability/executability checks run before services start. The public
+harness-check job also reproduces restricted ancestors and verifies exact mode
+restoration with a different UID.
+
 ## Assertions and limits
 
 One real Chromium scenario follows the central sign-in + password/OTP OAuth
@@ -72,6 +80,9 @@ operational workspace enforcement, or release readiness. Controlled DNS verifier
 coverage remains in the pinned backend's `PartnerSsoDnsOwnershipTest`.
 
 No traces, storage state, video, screenshots, raw HTTP dumps, backend source or
-runtime logs are uploaded. Runtime material is temporary and process cleanup is
-trapped. Record the private backend run URL and both exact tested SHAs in the PR;
+runtime logs are uploaded as artifacts. On failure, bounded sanitized backend,
+frontend and proxy diagnostics are printed to the private backend job log before
+temporary state is removed; credential-bearing lines and opaque values are
+redacted. Cleanup preserves the failing exit status. Runtime material is
+temporary and process cleanup is trapped. Record the private backend run URL and both exact tested SHAs in the PR;
 never label discovery or a skipped/blocked run as integration success.

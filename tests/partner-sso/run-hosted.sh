@@ -10,6 +10,7 @@ EXPECTED_BACKEND=c9bdbda834fadace0cf94e2a6850edea0bea0d87
 : "${BROWSER_TOOLS:?Install pinned Playwright tools first}"
 : "${RUNNER_TEMP:?}"
 : "${PLAYWRIGHT_BROWSERS_PATH:?Set the same shared browser path used by Playwright install}"
+source "$ROOT/tests/partner-sso/filesystem.sh"
 
 WORK="$(mktemp -d "$RUNNER_TEMP/partner-sso.XXXXXX")"
 TEST_HOME="$WORK/browser-home"
@@ -17,10 +18,21 @@ PIDS=()
 BACKEND_UID=""
 APP_UID=""
 cleanup() {
+  local status=$?
+  trap - EXIT
+  set +e
   for pid in "${PIDS[@]}"; do
     sudo kill "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
   done
+  if (( status != 0 )); then
+    for log in backend frontend proxy; do
+      if [[ -f "$WORK/$log.log" ]]; then
+        echo "Sanitized $log diagnostics (last 80 lines):"
+        tail -n 80 "$WORK/$log.log" | node "$ROOT/tests/partner-sso/sanitize-logs.cjs"
+      fi
+    done
+  fi
   if [[ -n "$BACKEND_UID" ]]; then
     sudo iptables -D OUTPUT -m owner --uid-owner "$BACKEND_UID" -d 127.0.0.0/8 -j ACCEPT 2>/dev/null || true
     sudo iptables -D OUTPUT -m owner --uid-owner "$BACKEND_UID" -j REJECT 2>/dev/null || true
@@ -32,12 +44,14 @@ cleanup() {
     sudo ip6tables -D OUTPUT -m owner --uid-owner "$APP_UID" -j REJECT 2>/dev/null || true
   fi
   sudo chown -R "$(id -u):$(id -g)" "$ROOT/.next" 2>/dev/null || true
+  restore_test_traversal
   sudo userdel --remove partner-sso-browser 2>/dev/null || true
   sudo userdel --remove partner-sso-ci 2>/dev/null || true
   sudo rm -f /usr/local/share/ca-certificates/partner-sso-ci.crt
   sudo update-ca-certificates >/dev/null 2>&1 || true
   sudo sed -i '/^127\.0\.0\.1 central\.test product-a\.test product-b\.test$/d' /etc/hosts
   sudo rm -rf "$WORK"
+  exit "$status"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -90,15 +104,36 @@ openssl pkey -in "$WORK/signing.key" -pubout -out "$WORK/signing.pub"
 sudo useradd --system --no-create-home partner-sso-ci
 sudo useradd --system --create-home --home-dir "$TEST_HOME" --shell /usr/sbin/nologin partner-sso-browser
 chmod 755 "$WORK"
+grant_test_traversal "$ROOT" "$BACKEND" "$BROWSER_TOOLS" "$PLAYWRIGHT_BROWSERS_PATH" "$RUNNER_TEMP" "$JAVA_HOME" "$(command -v node)" "$(command -v npm)"
 BACKEND_UID="$(id -u partner-sso-ci)"
 APP_UID="$(id -u partner-sso-browser)"
+sudo install -d -o partner-sso-ci -g partner-sso-ci -m 700 "$WORK/backend-home" "$WORK/backend-tmp"
 mkdir -p "$WORK/playwright-output"
-sudo -u partner-sso-browser mkdir -p "$TEST_HOME/.pki/nssdb"
+sudo -u partner-sso-browser mkdir -p "$TEST_HOME/.pki/nssdb" "$TEST_HOME/cache" "$TEST_HOME/config" "$TEST_HOME/data" "$TEST_HOME/npm-cache" "$TEST_HOME/tmp"
 sudo -u partner-sso-browser certutil -N -d "sql:$TEST_HOME/.pki/nssdb" --empty-password
 sudo -u partner-sso-browser certutil -A -d "sql:$TEST_HOME/.pki/nssdb" -n partner-sso-ci -t "C,," -i "$WORK/ca.crt"
 sudo chown -R partner-sso-browser:partner-sso-browser "$ROOT/.next" "$WORK/playwright-output"
 sudo chmod -R a+rX "$BROWSER_TOOLS" "$PLAYWRIGHT_BROWSERS_PATH"
 chmod 644 "$WORK/ca.crt" "$WORK/java-truststore.p12"
+require_access() {
+  local user=$1 permission=$2 path=$3
+  if ! sudo -u "$user" test "$permission" "$path"; then
+    echo "Runtime filesystem access check failed: user=$user permission=$permission path=$path" >&2
+    exit 1
+  fi
+}
+require_access partner-sso-ci -r "$BACKEND/target/factory1-backend-0.0.1-SNAPSHOT.jar"
+require_access partner-sso-ci -r "$WORK/java-truststore.p12"
+require_access partner-sso-ci -x "$JAVA_HOME/bin/java"
+require_access partner-sso-ci -w "$WORK/backend-home"
+require_access partner-sso-ci -w "$WORK/backend-tmp"
+for path in "$ROOT/package.json" "$BROWSER_TOOLS/node_modules/@playwright/test/cli.js"; do
+  require_access partner-sso-browser -r "$path"
+done
+for path in "$ROOT/node_modules/.bin/next" "$BROWSER_TOOLS" "$PLAYWRIGHT_BROWSERS_PATH"; do
+  require_access partner-sso-browser -x "$path"
+done
+require_access partner-sso-browser -w "$TEST_HOME/tmp"
 for key_line in "$WORK/signing.key" "$WORK/signing.pub"; do
   while IFS= read -r line; do echo "::add-mask::$line"; done < "$key_line"
 done
@@ -108,7 +143,7 @@ sudo iptables -I OUTPUT 3 -m owner --uid-owner "$APP_UID" -d 127.0.0.0/8 -j ACCE
 sudo iptables -I OUTPUT 4 -m owner --uid-owner "$APP_UID" -j REJECT
 sudo ip6tables -I OUTPUT 1 -m owner --uid-owner "$BACKEND_UID" -j REJECT
 sudo ip6tables -I OUTPUT 2 -m owner --uid-owner "$APP_UID" -j REJECT
-sudo -u partner-sso-ci env -i PATH="$PATH" JAVA_HOME="$JAVA_HOME" \
+sudo -u partner-sso-ci env -i PATH="$PATH" JAVA_HOME="$JAVA_HOME" HOME="$WORK/backend-home" TMPDIR="$WORK/backend-tmp" \
   SPRING_PROFILES_ACTIVE=prod PORT=8080 \
   DATABASE_URL=jdbc:postgresql://127.0.0.1:5432/factory1_e2e \
   DATABASE_USERNAME=postgres DATABASE_PASSWORD=disposable-e2e-only \
@@ -128,6 +163,7 @@ sudo -u partner-sso-ci env -i PATH="$PATH" JAVA_HOME="$JAVA_HOME" \
   MAIL_HOST=127.0.0.1 MAIL_PORT=9 MAIL_USERNAME= MAIL_PASSWORD= MAIL_FROM=ci@example.test \
   MAIL_SMTP_AUTH=false MAIL_SMTP_STARTTLS_ENABLE=false LOCAL_OTP_BYPASS_CODE= \
   java -Djavax.net.ssl.trustStore="$WORK/java-truststore.p12" \
+  -Djava.io.tmpdir="$WORK/backend-tmp" -Duser.home="$WORK/backend-home" \
   -Djavax.net.ssl.trustStoreType=PKCS12 \
   -Djavax.net.ssl.trustStorePassword="$TRUSTSTORE_PASSWORD" \
   -jar "$BACKEND/target/factory1-backend-0.0.1-SNAPSHOT.jar" \
@@ -147,6 +183,8 @@ sudo "$(command -v node)" "$ROOT/tests/partner-sso/https-proxy.cjs" "$WORK/tls.c
   > "$WORK/proxy.log" 2>&1 &
 PIDS+=("$!")
 sudo -u partner-sso-browser env -i PATH="$PATH" HOME="$TEST_HOME" \
+  XDG_CACHE_HOME="$TEST_HOME/cache" XDG_CONFIG_HOME="$TEST_HOME/config" XDG_DATA_HOME="$TEST_HOME/data" \
+  npm_config_cache="$TEST_HOME/npm-cache" TMPDIR="$TEST_HOME/tmp" \
   NODE_EXTRA_CA_CERTS="$WORK/ca.crt" NODE_PATH="$BROWSER_TOOLS/node_modules" \
   PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" \
   NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_PARTNER_SAAS_V2_ENABLED=true \
@@ -164,8 +202,7 @@ wait_for() {
     if curl --noproxy '*' --silent --fail "$1" > /dev/null; then return; fi
     sleep 1
   done
-  echo "Service did not become ready: $1 (bounded private runner log follows)"
-  if [[ -f "$WORK/backend.log" ]]; then tail -n 80 "$WORK/backend.log"; fi
+  echo "Service did not become ready: $1 (sanitized diagnostics follow during cleanup)"
   exit 1
 }
 wait_for https://central.test/actuator/health
@@ -178,8 +215,7 @@ for attempt in $(seq 1 120); do
   sleep 1
 done
 if [[ "$FRONTEND_READY" != true ]]; then
-  echo "Frontend did not become ready (bounded private runner log follows)"
-  tail -n 80 "$WORK/frontend.log"
+  echo "Frontend did not become ready (sanitized diagnostics follow during cleanup)"
   exit 1
 fi
 
@@ -190,6 +226,8 @@ fi
 wait_for https://product-a.test
 wait_for https://product-b.test
 sudo -u partner-sso-browser env -i PATH="$PATH" HOME="$TEST_HOME" \
+  XDG_CACHE_HOME="$TEST_HOME/cache" XDG_CONFIG_HOME="$TEST_HOME/config" XDG_DATA_HOME="$TEST_HOME/data" \
+  npm_config_cache="$TEST_HOME/npm-cache" TMPDIR="$TEST_HOME/tmp" \
   NODE_EXTRA_CA_CERTS="$WORK/ca.crt" NODE_PATH="$BROWSER_TOOLS/node_modules" \
   PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" \
   PLAYWRIGHT_OUTPUT_DIR="$WORK/playwright-output" GITHUB_ACTIONS=true \
