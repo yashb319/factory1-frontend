@@ -36,3 +36,12 @@ export const tenantMembershipSchema = z.object({
   status: z.enum(["ACTIVE", "SUSPENDED", "REVOKED"]), source: z.string(), version: z.number().int().nonnegative(),
 });
 export const userProductGrantSchema = z.object({ subscriptionId: z.uuid(), userId: z.uuid() });
+export const subscriptionEntitlementsSchema = z.object({
+  subscriptionId: z.uuid(), featureKeys: z.array(z.string()).max(100),
+  validFrom: z.iso.datetime({ offset: true }).nullable(), validUntil: z.iso.datetime({ offset: true }).nullable(),
+  version: z.number().int().nonnegative(),
+});
+export const grantPermissionsSchema = z.object({
+  subscriptionId: z.uuid(), userId: z.uuid(), roleCeiling: tenantMembershipSchema.shape.role,
+  version: z.number().int().nonnegative(),
+});

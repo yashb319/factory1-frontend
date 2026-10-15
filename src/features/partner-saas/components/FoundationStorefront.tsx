@@ -18,7 +18,7 @@ export function FoundationStorefront({ storefront, state = "unavailable", signIn
       <p role="status" className="text-sm text-slate-700">
         {brand ? signInEnabled && storefront.capabilities.sso
           ? storefront.capabilities.operationalAccess
-            ? "Sign in to select an authorized factory workspace for this product."
+            ? "Sign in to select an authorized factory workspace. Runtime coverage is partial: reviewed inventory and employee operations only."
             : "Product identity resolved. Sign in to select an authorized factory. Operational access remains unavailable until the backend authorization rollout is ready."
           : "Product identity resolved. Sign-in and factory operations are not enabled in this release." :
           state === "loading" ? "Checking this address before displaying product identity or sign-in controls." :

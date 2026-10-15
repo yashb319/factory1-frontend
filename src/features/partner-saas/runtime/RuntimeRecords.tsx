@@ -27,13 +27,16 @@ export function RuntimeRecords({ kind }: { kind: "inventory" | "employees" }) {
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [result, setResult] = useState<RecordsPage | null>(null);
+  const [loaded, setLoaded] = useState<{ key: string; result: RecordsPage | null; error: string } | null>(null);
   const [editor, setEditor] = useState<RecordItem | "new" | null>(null);
   const [deleting, setDeleting] = useState<RecordItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [revision, setRevision] = useState(0);
+  const requestKey = JSON.stringify([kind, keyword, page, revision]);
+  const result = loaded?.key === requestKey ? loaded.result : null;
+  const loadError = loaded?.key === requestKey ? loaded.error : "";
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const allowed = (method: string, target = path) => runtimeRouteAllowed(
@@ -43,16 +46,14 @@ export function RuntimeRecords({ kind }: { kind: "inventory" | "employees" }) {
     let current = true;
     const params = new URLSearchParams({ page: String(page), size: "20" });
     if (keyword) params.set(inventory ? "search" : "keyword", keyword);
-    setResult(null);
-    setError("");
     const target = `${path}?${params}`;
     const query = inventory
       ? request("GET", target, recordsPageSchema(inventoryRecordSchema))
       : request("GET", target, recordsPageSchema(employeeRecordSchema));
-    void query.then((response) => { if (current) setResult(response); })
-      .catch((caught: unknown) => { if (current) setError(message(caught)); });
+    void query.then((response) => { if (current) setLoaded({ key: requestKey, result: response, error: "" }); })
+      .catch((caught: unknown) => { if (current) setLoaded({ key: requestKey, result: null, error: message(caught) }); });
     return () => { current = false; };
-  }, [inventory, keyword, page, path, request, revision]);
+  }, [inventory, keyword, page, path, request, requestKey]);
 
   async function edit(item: RecordItem) {
     if (busy) return;
@@ -90,9 +91,9 @@ export function RuntimeRecords({ kind }: { kind: "inventory" | "employees" }) {
       {allowed("POST") ? <button type="button" className={button} disabled={busy} onClick={() => { setEditor("new"); setDeleting(null); setError(""); setNotice(""); }}>New {inventory ? "inventory item" : "employee"}</button> : null}
       <button type="button" className={button} disabled={busy} onClick={() => { setEditor(null); setDeleting(null); setRevision((value) => value + 1); }}>Refresh records</button>
     </div>
-    {error ? <p role="alert">{error}</p> : null}
+    {error || loadError ? <p role="alert">{error || loadError}</p> : null}
     {notice ? <p role="status">{notice}</p> : null}
-    {!result && !error ? <p role="status">Loading {title.toLowerCase()}...</p> : null}
+    {!result && !loadError ? <p role="status">Loading {title.toLowerCase()}...</p> : null}
     {result ? <>
       <div className="overflow-x-auto"><table className="w-full text-left text-sm">
         <caption className="sr-only">{title} for the selected factory</caption>

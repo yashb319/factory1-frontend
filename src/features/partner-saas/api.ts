@@ -6,7 +6,8 @@ import {
   partnerEntitlementPolicySchema, domainModulePolicySchema,
   type ProductInput, type ProductUpdate,
 } from "./contracts";
-import { customerSchema, onboardingInputSchema, onboardingPolicySchema, tenantMembershipSchema, userProductGrantSchema, type OnboardingInput } from "./onboarding/contracts";
+import { customerSchema, onboardingInputSchema, onboardingPolicySchema, tenantMembershipSchema, userProductGrantSchema,
+  subscriptionEntitlementsSchema, grantPermissionsSchema, type OnboardingInput } from "./onboarding/contracts";
 import { moduleDecisionSchema } from "./auth/contracts";
 
 const effectiveAccessInspectionSchema = z.object({
@@ -123,6 +124,28 @@ export const partnerSaasApi = baseApi.injectEndpoints({
       }, pageSchema(userProductGrantSchema)),
       providesTags: ["PartnerSaas"],
     }),
+    getSubscriptionEntitlements: builder.query<z.infer<typeof subscriptionEntitlementsSchema>, { subscriptionId: string }>({
+      queryFn: ({ subscriptionId }, _api, _extra, run) => validated(run,
+        `/api/saas-admin/v2/subscriptions/${encodeURIComponent(subscriptionId)}/entitlements`, subscriptionEntitlementsSchema),
+      providesTags: ["PartnerSaas"],
+    }),
+    updateSubscriptionEntitlements: builder.mutation<z.infer<typeof subscriptionEntitlementsSchema>, { subscriptionId: string; body: { featureKeys: string[]; validFrom: string | null; validUntil: string | null; expectedVersion: number } }>({
+      queryFn: ({ subscriptionId, body }, _api, _extra, run) => validated(run, {
+        url: `/api/saas-admin/v2/subscriptions/${encodeURIComponent(subscriptionId)}/entitlements`, method: "PUT", body,
+      }, subscriptionEntitlementsSchema),
+      invalidatesTags: ["PartnerSaas"],
+    }),
+    getGrantPermissions: builder.query<z.infer<typeof grantPermissionsSchema>, { subscriptionId: string; userId: string }>({
+      queryFn: ({ subscriptionId, userId }, _api, _extra, run) => validated(run,
+        `/api/saas-admin/v2/subscriptions/${encodeURIComponent(subscriptionId)}/grants/${encodeURIComponent(userId)}/permissions`, grantPermissionsSchema),
+      providesTags: ["PartnerSaas"],
+    }),
+    updateGrantPermissions: builder.mutation<z.infer<typeof grantPermissionsSchema>, { subscriptionId: string; userId: string; body: { roleCeiling: z.infer<typeof grantPermissionsSchema>["roleCeiling"]; expectedVersion: number } }>({
+      queryFn: ({ subscriptionId, userId, body }, _api, _extra, run) => validated(run, {
+        url: `/api/saas-admin/v2/subscriptions/${encodeURIComponent(subscriptionId)}/grants/${encodeURIComponent(userId)}/permissions`, method: "PUT", body,
+      }, grantPermissionsSchema),
+      invalidatesTags: ["PartnerSaas"],
+    }),
     createUserProductGrant: builder.mutation<z.infer<typeof userProductGrantSchema>, { subscriptionId: string; userId: string }>({
       queryFn: ({ subscriptionId, userId }, _api, _extra, run) => validated(run, {
         url: `/api/saas-admin/v2/subscriptions/${encodeURIComponent(subscriptionId)}/grants`, method: "POST", body: { userId },
@@ -205,4 +228,6 @@ export const {
   useGetPartnerEntitlementPolicyQuery, useUpdatePartnerEntitlementPolicyMutation,
   useGetDomainModulePolicyQuery, useUpdateDomainModulePolicyMutation,
   useLazyInspectProductAccessQuery,
+  useGetSubscriptionEntitlementsQuery, useUpdateSubscriptionEntitlementsMutation,
+  useGetGrantPermissionsQuery, useUpdateGrantPermissionsMutation,
 } = partnerSaasApi;

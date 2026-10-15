@@ -11,8 +11,8 @@ import { onboardingInputSchema, type OnboardingInput, type ProductCustomer } fro
 import { CustomerAccessAdmin } from "./CustomerAccessAdmin";
 import { EffectiveAccessInspector } from "./EffectiveAccessInspector";
 
-export function ProductCustomers({ scope, productId, canOnboard }: {
-  scope: ProductScope; productId: string; canOnboard: boolean;
+export function ProductCustomers({ scope, productId, canOnboard, productFeatures = [] }: {
+  scope: ProductScope; productId: string; canOnboard: boolean; productFeatures?: string[];
 }) {
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState("");
@@ -44,7 +44,7 @@ export function ProductCustomers({ scope, productId, canOnboard }: {
       {!customers.currentData.items.length ? <p>No customers are available for this product.</p> : null}
       <PageControls label="customers" offset={offset} limit={20} total={customers.currentData.total} busy={customers.isFetching} onChange={(next) => { setSelected(""); setOffset(next); }} />
     </> : null}
-    {selected ? <CustomerDetail key={selected} scope={scope} productId={productId} customerId={selected} onClose={() => setSelected("")} /> : null}
+    {selected ? <CustomerDetail key={selected} scope={scope} productId={productId} productFeatures={productFeatures} customerId={selected} onClose={() => setSelected("")} /> : null}
   </section>;
 }
 
@@ -99,8 +99,8 @@ function CustomerOnboardingForm({ scope, productId, onCreated }: {
   </form>;
 }
 
-function CustomerDetail({ scope, productId, customerId, onClose }: {
-  scope: ProductScope; productId: string; customerId: string; onClose: () => void;
+function CustomerDetail({ scope, productId, customerId, onClose, productFeatures }: {
+  scope: ProductScope; productId: string; customerId: string; onClose: () => void; productFeatures: string[];
 }) {
   const query = useGetProductCustomerQuery({ ...scope, productId, customerId });
   return <section aria-label="Customer details" className="space-y-3 rounded border p-4">
@@ -109,7 +109,7 @@ function CustomerDetail({ scope, productId, customerId, onClose }: {
     {query.error ? <FoundationError error={query.error} onRetry={() => { void query.refetch(); }} /> : null}
     {query.currentData && !query.isError ? <>
       <CustomerMetadata customer={query.currentData} />
-      {scope.platform ? <CustomerAccessAdmin key={`${query.currentData.organizationId}:${query.currentData.subscriptionId}`} customer={query.currentData} /> : null}
+      {scope.platform ? <CustomerAccessAdmin key={`${query.currentData.organizationId}:${query.currentData.subscriptionId}`} customer={query.currentData} productFeatures={productFeatures} /> : null}
       {scope.platform ? <EffectiveAccessInspector customer={query.currentData} partnerId={scope.partnerId} /> : null}
     </> : null}
   </section>;

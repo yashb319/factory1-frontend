@@ -107,7 +107,7 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
   }, [data, failure, stop]);
 
   if (failure) return <div role="alert" className="space-y-3 rounded border border-red-300 p-4">
-    <p>{failure}</p><a href="/" className="underline">Reload factory access</a>
+    <p>{failure}</p><button type="button" onClick={() => window.location.assign("/")} className="underline">Reload factory access</button>
   </div>;
   return <RuntimeContext.Provider value={{ data, request }}>{children}</RuntimeContext.Provider>;
 }

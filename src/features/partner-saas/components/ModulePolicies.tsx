@@ -109,7 +109,7 @@ function DomainPolicyEditor({ partnerId, productId, domainId, productFeatures, r
   </form>;
 }
 
-function ModuleSelection({ catalog, selected, onChange }: { catalog: string[]; selected: string[]; onChange: (keys: string[]) => void }) {
+export function ModuleSelection({ catalog, selected, onChange }: { catalog: string[]; selected: string[]; onChange: (keys: string[]) => void }) {
   return <div className="grid gap-2 sm:grid-cols-2">
     {[...new Set([...catalog, ...selected])].map((key) => <label key={key} className="flex items-center gap-2 text-sm">
       <input type="checkbox" checked={selected.includes(key)} onChange={(event) => onChange(event.target.checked ? [...selected, key] : selected.filter((value) => value !== key))} />

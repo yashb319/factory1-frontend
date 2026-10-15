@@ -210,11 +210,12 @@ describe("confidential reviewed operational BFF", () => {
   it.each(["POST", "PUT", "DELETE"])("requires same-origin CSRF on every %s before backend mutation", async (method) => {
     const upstream = runtimeBackend(); vi.stubGlobal("fetch", upstream);
     const path = method === "POST" ? "/api/inventory/items" : `/api/inventory/items/${organizationId}`;
-    for (const headers of [
+    const cases: Record<string, string>[] = [
       { Origin: `https://${host}`, "X-CSRF-Token": "invalid" },
       { Origin: "https://evil.test", "X-CSRF-Token": testCsrf() },
       { Origin: `https://${host}`, "X-CSRF-Token": testCsrf(), "Sec-Fetch-Site": "cross-site" },
-    ]) {
+    ];
+    for (const headers of cases) {
       const response = await productRuntimeRequest(requestWithSession(`/api/product-runtime${path}`, {
         method, headers: { ...headers, "X-Factory1-Context-Generation": generation },
       }));
@@ -264,6 +265,53 @@ describe("explicit product-bound invitation BFF", () => {
     }));
     expect(response.status).toBe(401);
     expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("forwards new identity activation only to the frozen product-bound endpoint and never signs in", async () => {
+    const upstream = vi.fn<FetchMock>(async (input) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      if (url.pathname === "/api/public/v2/storefront") return trustedStorefrontResponse();
+      if (url.pathname === "/api/public/v2/onboarding/activate") return envelope({ accepted: true, organizationId, subscriptionStatus: "PENDING" });
+      throw new Error("Unexpected activation endpoint");
+    });
+    vi.stubGlobal("fetch", upstream);
+    const challenge = await getInvitationChallenge(request("/auth/invitation"));
+    const cookie = challenge.headers.get("set-cookie")!.split(";")[0];
+    const payload = await challenge.json();
+    const response = await activateProductInvitation(request("/auth/invitation", {
+      method: "POST",
+      headers: { Origin: `https://${host}`, Cookie: cookie, "X-CSRF-Token": payload.data.csrfToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ token: "i".repeat(43), password: "Test-Only-Password1!" }),
+    }));
+    expect(response.status).toBe(200);
+    const [, init] = upstream.mock.calls.at(-1)!;
+    expect(new Headers(init?.headers).get("X-Factory1-Storefront-Host")).toBe(host);
+    expect(new Headers(init?.headers).get("X-Factory1-Edge-Token")).toBe(edgeToken);
+    expect(new Headers(init?.headers).get("cookie")).toBeNull();
+    expect(response.headers.get("set-cookie")).not.toContain("__Host-factory1_session");
+    expect(await response.json()).toMatchObject({ success: true, data: { accepted: true, subscriptionStatus: "PENDING" } });
+  });
+
+  it("accepts existing membership only using a session-bound CSRF and backend exact-invite check", async () => {
+    const upstream = vi.fn<FetchMock>(async (input) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      if (url.pathname === "/api/public/v2/storefront") return trustedStorefrontResponse();
+      if (url.pathname === "/api/partner/v2/bff/onboarding/accept") return envelope({ accepted: true, organizationId, subscriptionStatus: "PENDING" });
+      throw new Error("Unexpected acceptance endpoint");
+    });
+    vi.stubGlobal("fetch", upstream);
+    const response = await acceptProductInvitation(requestWithSession("/auth/invitation/accept", {
+      method: "POST",
+      headers: { Origin: `https://${host}`, "X-CSRF-Token": testCsrf(), "Content-Type": "application/json" },
+      body: JSON.stringify({ token: "i".repeat(43) }),
+    }));
+    expect(response.status).toBe(200);
+    const [, init] = upstream.mock.calls.at(-1)!;
+    const headers = new Headers(init?.headers);
+    expect(headers.get("X-Factory1-BFF-Session")).toBe(handle);
+    expect(headers.get("X-Factory1-Storefront-Host")).toBe(host);
+    expect(JSON.parse(String(init?.body))).toEqual({ token: "i".repeat(43) });
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 });
 

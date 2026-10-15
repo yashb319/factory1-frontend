@@ -11,17 +11,19 @@ import {
 } from "../api";
 import { tenantMembershipSchema, type ProductCustomer } from "../onboarding/contracts";
 import { FoundationError, PageControls } from "./FoundationFeedback";
+import { GrantRolePolicy, SubscriptionEntitlementPolicy } from "./SubscriptionAccessPolicies";
 
 const control = "min-h-11 rounded border bg-white px-3 py-2";
 type Membership = z.infer<typeof tenantMembershipSchema>;
 
-export function CustomerAccessAdmin({ customer }: { customer: ProductCustomer }) {
+export function CustomerAccessAdmin({ customer, productFeatures }: { customer: ProductCustomer; productFeatures: string[] }) {
   const user = useAppSelector((state) => state.auth.user);
   if (accessScope(user) !== "platform") return null;
   return <section className="space-y-5 border-t pt-4" aria-label="Platform factory access administration">
     <h3 className="font-semibold">Platform-only explicit access administration</h3>
     <p className="text-sm">Factory membership and product grants are independent. Use an explicitly verified user ID; never infer identity from an email or employee record. These changes do not approve a factory, activate a subscription or collect payment.</p>
     <MembershipAdmin organizationId={customer.organizationId} />
+    <SubscriptionEntitlementPolicy subscriptionId={customer.subscriptionId} productFeatures={productFeatures} />
     <GrantAdmin subscriptionId={customer.subscriptionId} />
   </section>;
 }
@@ -93,6 +95,7 @@ function GrantAdmin({ subscriptionId }: { subscriptionId: string }) {
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState("");
+  const [roleUserId, setRoleUserId] = useState("");
   const busy = query.isFetching || creating.isLoading || revoking.isLoading;
 
   async function grant(event: FormEvent<HTMLFormElement>) {
@@ -126,6 +129,7 @@ function GrantAdmin({ subscriptionId }: { subscriptionId: string }) {
     {query.currentData && !query.isError ? <>
       <ul className="space-y-2">{query.currentData.items.map((grant) => <li key={grant.userId} className="flex flex-wrap items-center gap-3 rounded border p-3">
         <span className="break-all">{grant.userId}</span><Button type="button" variant="outline" disabled={busy} onClick={() => setSelected(grant.userId)}>Revoke grant {grant.userId}</Button>
+        <Button type="button" variant="outline" disabled={busy} onClick={() => setRoleUserId(grant.userId)}>Edit role ceiling {grant.userId}</Button>
       </li>)}</ul>
       <PageControls label="product grants" offset={offset} limit={20} total={query.currentData.total} busy={busy} onChange={(next) => { setSelected(""); setOffset(next); }} />
       <form onSubmit={grant} className="space-y-3 rounded border p-3" aria-label="Create explicit product grant">
@@ -142,6 +146,7 @@ function GrantAdmin({ subscriptionId }: { subscriptionId: string }) {
         <Button type="submit" disabled={busy}>Confirm grant revocation</Button>{" "}
         <Button type="button" variant="outline" disabled={busy} onClick={() => setSelected("")}>Cancel grant revocation</Button>
       </form> : null}
+      {roleUserId ? <GrantRolePolicy key={roleUserId} subscriptionId={subscriptionId} userId={roleUserId} onClose={() => setRoleUserId("")} /> : null}
     </> : null}
     {error ? <FoundationError error={error} /> : null}
     {notice ? <p role="status">{notice}</p> : null}

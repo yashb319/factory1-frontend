@@ -60,6 +60,7 @@ export const storefrontSchema = z.object({
   }),
   capabilities: z.object({
     operationalAccess: z.boolean(), sso: z.boolean(), checkout: z.literal(false),
+    runtimeCoverage: z.literal("PARTIAL_TENANT_CRUD").optional(),
   }),
 });
 export type PublicStorefront = z.infer<typeof storefrontSchema>;

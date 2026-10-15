@@ -104,7 +104,7 @@ function ProductWorkspace({ scope, canEdit, canOnboard }: { scope: ProductScope;
         product={editor === "new" ? undefined : editor} features={features.currentData} canEdit={canEdit}
         onClose={() => setEditor(null)} onSaved={(saved) => { setEditor((current) => current === editor ? saved : current); setMessage("Product saved. No operational access or provisioning was activated."); }} />
       {editor !== "new" ? <ProductDomains key={editor.id} scope={scope} productId={editor.id} productFeatures={editor.featureKeys} canEdit={canEdit && editor.status !== "RETIRED"} /> : null}
-      {editor !== "new" ? <ProductCustomers key={`customers:${editor.id}`} scope={scope} productId={editor.id} canOnboard={canOnboard && editor.status === "ACTIVE"} /> : null}
+      {editor !== "new" ? <ProductCustomers key={`customers:${editor.id}`} scope={scope} productId={editor.id} productFeatures={editor.featureKeys} canOnboard={canOnboard && editor.status === "ACTIVE"} /> : null}
     </> : null}
   </div>;
 }

@@ -213,10 +213,33 @@ returns product hosts to the prior SSO/readiness UI; it must not remove existing
 factory data or undo unrelated authentication/subscription changes.
 
 Full release still requires reviewed authorization adapters and corresponding
-existing frontend surfaces for **all** business modules, effective-denial
-inspection and the full 15-case acceptance matrix in the authoritative spec.
+existing frontend surfaces for **all** business modules and the full 15-case
+acceptance matrix in the authoritative spec.
 Commercial checkout, invoices, commission and wholesale remain separate
 follow-on scope and must never be simulated as payment success.
+
+### Independent policy administration
+
+Platform-only partner approval/resale ceilings use versioned
+`/api/saas-admin/v2/partners/{partnerId}/entitlements`; this is independent of a
+reusable product bundle and does not alter direct tenant flags. Domain module
+policies use the versioned product/domain `/modules` endpoint: `null` inherits
+the product, while `[]` explicitly denies all modules. A domain may only narrow.
+
+Factory subscription entitlement/validity editing and per-user grant role
+ceilings use the backend's separate versioned subscription `/entitlements`
+and `/grants/{userId}/permissions` APIs. These never activate a subscription,
+fabricate payment evidence or elevate a factory membership. Platform customer
+detail also provides explicit factory/user/verified-domain effective-access
+inspection. Ineligible contexts return visible errors, not invented empty
+permissions. Product session inspection displays the backend's
+`runtimeCoverage` and all `moduleDecisions` with denial reasons.
+
+The frontend introduces no database migration. The matching backend owns
+additive policy/domain/invitation/session migrations, constraints and audit
+records; deploy those before enabling matching controls. Existing direct
+tenant flags, custom domain allowlists and legacy subscriptions are not
+rewritten or backfilled from partner policy.
 
 ## Validation and deployment
 

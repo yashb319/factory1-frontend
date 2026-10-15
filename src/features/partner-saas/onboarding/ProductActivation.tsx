@@ -82,7 +82,7 @@ export function ProductActivation() {
     <h2 className="text-xl font-semibold">Invitation accepted</h2>
     <p role="status">Factory membership was explicitly accepted. Subscription: {accepted.subscriptionStatus}.</p>
     <p>Approval and subscription activation remain separate. No payment or automatic sign-in was performed.</p>
-    <a href="/" className="underline">Check factory access</a>
+    <button type="button" onClick={() => window.location.assign("/")} className="underline">Check factory access</button>
   </section>;
   return <form onSubmit={submit} className="space-y-4" aria-label="Accept factory owner invitation" aria-busy={busy}>
     <h2 className="text-xl font-semibold">Accept your factory invitation</h2>
