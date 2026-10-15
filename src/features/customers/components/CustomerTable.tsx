@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { humanizeEnum } from "@/lib/format";
 import type { Customer } from "../types/customer.types";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 type Props = {
   customers: Customer[];
@@ -24,6 +25,7 @@ export function CustomerTable({
   onEdit,
   onDelete,
 }: Props) {
+  const { can } = useRuntimePermissions();
   return (
     <div className="rounded-lg border bg-card">
       <div className="overflow-x-auto">
@@ -111,6 +113,7 @@ export function CustomerTable({
                         size="sm"
                         variant="outline"
                         onClick={() => onEdit(customer)}
+                        disabled={!can("PUT", `/api/customers/${customer.id}`)}
                       >
                         Edit
                       </Button>
@@ -119,6 +122,7 @@ export function CustomerTable({
                         size="sm"
                         variant="ghost"
                         onClick={() => onDelete(customer)}
+                        disabled={!can("DELETE", `/api/customers/${customer.id}`)}
                       >
                         Disable
                       </Button>

@@ -31,8 +31,10 @@ import { EmployeeForm } from "./EmployeeForm";
 import { createDefaultStatutoryProfile } from "../utils/employeeStatutory";
 import {
   EmployeeStatutorySaveError,
+  buildEmployeeUpdateRequest,
   saveEmployeeEdit,
 } from "../utils/employeeFormPayload";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 interface Props {
   employee: Employee | null;
@@ -73,13 +75,14 @@ function isNotFound(error: unknown) {
 }
 
 export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
+  const { contextual } = useRuntimePermissions();
   const [updateEmployee, { isLoading }] = useUpdateEmployeeMutation();
   const [createStatutoryProfile, createStatutoryState] =
     useCreateEmployeeStatutoryProfileMutation();
   const [updateStatutoryProfile, updateStatutoryState] =
     useUpdateEmployeeStatutoryProfileMutation();
   const profileQuery = useGetEmployeeStatutoryProfileQuery(employee?.id ?? "", {
-    skip: !open || !employee,
+    skip: contextual || !open || !employee,
   });
   const { data: designations } = useGetEmployeeDesignationsQuery(undefined, {
     skip: !open,
@@ -205,7 +208,9 @@ export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
     if (!employee) return;
 
     try {
-      await saveEmployeeEdit({
+      if (contextual) {
+        await updateEmployee({ id: employee.id, body: buildEmployeeUpdateRequest(values) }).unwrap();
+      } else await saveEmployeeEdit({
         employeeId: employee.id,
         hasStatutoryProfile: Boolean(profileQuery.data),
         values,

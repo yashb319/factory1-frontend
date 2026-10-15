@@ -31,6 +31,7 @@ import { downloadAllPayslipsZip } from "../utils/payrollPayslipDownload.utils";
 import { PayrollStatusChip } from "./PayrollStatusChip";
 import { PayrollPayslipDialog } from "./PayrollPayslipDialog";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 interface Props {
   payrollId?: string | null;
@@ -43,6 +44,7 @@ export function PayrollDetailsDialog({
   open,
   onOpenChange,
 }: Props) {
+  const { contextual } = useRuntimePermissions();
   const [selectedPayslip, setSelectedPayslip] =
     useState<PayrollItemResponse | null>(null);
 
@@ -81,7 +83,7 @@ export function PayrollDetailsDialog({
 
           {!isLoading && data && (
             <div className="space-y-6">
-              <div className="flex flex-wrap justify-end gap-2">
+              {!contextual ? <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -110,7 +112,7 @@ export function PayrollDetailsDialog({
                   <Download className="mr-2 size-4" />
                   {downloadingAll ? "Preparing..." : "Download All Payslips"}
                 </Button>
-              </div>
+              </div> : null}
 
               <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
                 <Card label="Payroll Month">
@@ -209,6 +211,7 @@ export function PayrollDetailsDialog({
                           <Button
                             variant="ghost"
                             size="sm"
+                            disabled={contextual}
                             onClick={() => setSelectedPayslip(item)}
                           >
                             <FileText className="mr-2 size-4" />

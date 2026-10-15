@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { getErrorMessage } from "@/lib/apiError";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 import {
   EmployeeFormValues,
@@ -64,6 +65,7 @@ const defaultValues: EmployeeFormValues = {
 };
 
 export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
+  const { contextual } = useRuntimePermissions();
   const [createEmployee, { isLoading }] = useCreateEmployeeMutation();
   const { data: designations } = useGetEmployeeDesignationsQuery(undefined, {
     skip: !open,
@@ -126,7 +128,7 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
         bankIfscCode: values.bankIfscCode || undefined,
         employmentBasis: values.employmentBasis || undefined,
         reportingToEmployeeId: values.reportingToEmployeeId || undefined,
-        statutoryProfile: normalizeStatutoryProfile(
+        statutoryProfile: contextual ? undefined : normalizeStatutoryProfile(
           statutoryProfile ?? createDefaultStatutoryProfile()
         ),
       }).unwrap();
@@ -135,7 +137,7 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
       return;
     }
 
-    toast.success("Employee and statutory details added successfully");
+    toast.success(contextual ? "Employee added successfully" : "Employee and statutory details added successfully");
     form.reset(defaultValues);
     onOpenChange(false);
   }

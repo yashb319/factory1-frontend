@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Banknote, CalendarPlus, ShieldCheck, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 import {
   useApprovePayrollMutation,
@@ -34,6 +35,7 @@ interface ConfirmState {
 }
 
 export function PayrollPage() {
+  const { can } = useRuntimePermissions();
   const [page, setPage] = useState(0);
   const [month, setMonth] = useState<number | undefined>();
   const [year, setYear] = useState<number | undefined>();
@@ -67,7 +69,7 @@ export function PayrollPage() {
   const { data: dashboard, isLoading: dashboardLoading } =
     useGetPayrollDashboardQuery();
 
-  const { data: payrollRuns, isLoading: payrollLoading } =
+  const { data: payrollRuns, isLoading: payrollLoading, error: payrollError } =
     useGetPayrollRunsQuery(queryParams);
 
   const [approvePayroll, { isLoading: approving }] =
@@ -201,7 +203,7 @@ export function PayrollPage() {
               </p>
             </div>
           </div>
-          <Button onClick={() => setGenerateOpen(true)} className="md:w-auto">
+          <Button disabled={!can("POST", "/api/payroll")} onClick={() => setGenerateOpen(true)} className="md:w-auto">
             <CalendarPlus className="mr-2 h-4 w-4" />
             Generate Payroll
           </Button>
@@ -238,6 +240,7 @@ export function PayrollPage() {
         onDelete={(id) => openConfirm("DELETE", id)}
       />
 
+      {payrollError ? <p role="alert">Payroll could not be loaded. Refresh and verify your access.</p> : null}
       <PayrollGenerateDialog
         open={generateOpen}
         onOpenChange={setGenerateOpen}

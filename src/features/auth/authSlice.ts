@@ -32,13 +32,13 @@ function getStoredUser(): AuthUser | null {
   }
 }
 
-const initialState: AuthState = {
+const initialState = (): AuthState => ({
   token:
     typeof window !== "undefined"
       ? localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
       : null,
   user: getStoredUser(),
-};
+});
 
 const authSlice = createSlice({
   name: "auth",

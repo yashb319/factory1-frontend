@@ -94,6 +94,7 @@ import { bomRevision, buildPinnedMaterialRequirements, isSelectableBom, validBom
 import { cn } from "@/lib/utils";
 import { humanizeEnum } from "@/lib/format";
 import { useAppSelector } from "@/lib/hook";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 import { useGetActiveCustomersQuery } from "@/features/customers/api/customerApi";
 import { useGetInventoryItemsQuery } from "@/features/inventory/api/inventoryApi";
 import { useGetProductsQuery } from "@/features/products/api/productsApi";
@@ -294,6 +295,62 @@ const indicatorTone = (severity: ProductionIndicatorSeverity) => {
 };
 
 export function ProductionPage() {
+  const { contextual } = useRuntimePermissions();
+  return contextual ? <ContextProductionPage /> : <LegacyProductionPage />;
+}
+
+function ContextProductionPage() {
+  const { can } = useRuntimePermissions();
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState<string>();
+  const [tab, setTab] = useState<"orders" | "workflows">("orders");
+  const orders = useGetOrdersQuery({ page, size: 20, scope: "ALL" });
+  const workflows = useGetWorkflowsQuery({ page, size: 20 }, { skip: tab !== "workflows" || !can("GET", "/api/production/workflows") });
+  return <section className="space-y-4">
+    <h1 className="text-xl font-semibold">Production</h1>
+    <p>Reviewed order and workflow views only. Kanban, workstations, assignments, QR, quality and material execution are unavailable. Creation and quantity-flow mutations require reviewed catalog and preview dependencies; they are not enabled by this screen.</p>
+    <div className="flex gap-2"><Button onClick={() => { setPage(0); setTab("orders"); }}>Orders</Button>
+      {can("GET", "/api/production/workflows") ? <Button onClick={() => { setPage(0); setTab("workflows"); }}>Workflow versions</Button> : null}</div>
+    {orders.isError || workflows.isError ? <ErrorState title="Production information unavailable" message="Refresh and verify current access." onRetry={() => { void orders.refetch(); if (tab === "workflows") void workflows.refetch(); }} /> : null}
+    {tab === "orders" ? <>
+      {orders.isFetching ? <Loading text="Loading orders..." /> : <OrderListView orders={orders.data?.content ?? []} selectedOrderId={selected} onSelect={setSelected} />}
+      {selected ? <ContextOrderDetail key={selected} orderId={selected} /> : null}
+    </> : <div className="space-y-3">{workflows.data?.content.map((workflow) =>
+      <ContextWorkflow key={workflow.id} workflow={workflow} />)}</div>}
+    <CatalogPagination page={page} totalPages={(tab === "orders" ? orders.data : workflows.data)?.totalPages ?? 0}
+      loading={orders.isFetching || workflows.isFetching} onChange={setPage} />
+  </section>;
+}
+
+function ContextWorkflow({ workflow }: { workflow: WorkflowTemplate }) {
+  const { can } = useRuntimePermissions();
+  const versions = useGetWorkflowVersionsQuery(workflow.id, { skip: !can("GET", `/api/production/workflows/${workflow.id}/versions`) });
+  return <Card><CardHeader><CardTitle>{workflow.name}</CardTitle></CardHeader><CardContent>
+    {versions.isError ? <p role="alert">Workflow versions could not be loaded.</p> : versions.data?.map((version) =>
+      <p key={version.id}>{version.name} - version {version.versionNumber} - {version.status} - {version.steps.length} steps</p>)}
+  </CardContent></Card>;
+}
+
+function ContextOrderDetail({ orderId }: { orderId: string }) {
+  const { can } = useRuntimePermissions();
+  const order = useGetOrderQuery(orderId);
+  const timeline = useGetTimelineQuery(orderId, { skip: !can("GET", `/api/production/orders/${orderId}/timeline`) });
+  const audit = useGetAuditLogQuery({ orderId, page: 0, size: 20 }, { skip: !can("GET", `/api/production/orders/${orderId}/audit-log`) });
+  if (order.isError) return <p role="alert">This production order could not be loaded.</p>;
+  if (!order.data) return <Loading text="Loading order..." />;
+  return <Card><CardHeader><CardTitle>{order.data.orderNumber}</CardTitle></CardHeader><CardContent className="space-y-4">
+    <p>{order.data.status} - {order.data.productName || order.data.productId}</p>
+    {order.data.quantities ? <ProductionQuantitySummary quantities={order.data.quantities} /> :
+      <p>Planned: {order.data.plannedQuantity}; completed: {order.data.completedQuantity}; remaining: {order.data.remainingQuantity}</p>}
+    {can("GET", "/api/production/boms") ? <OrderBomBinding order={order.data} /> : null}
+    <Table><TableHeader><TableRow><TableHead>Step</TableHead><TableHead>Status</TableHead><TableHead>Completed</TableHead></TableRow></TableHeader>
+      <TableBody>{order.data.steps.map((step) => <TableRow key={step.id}><TableCell>{step.name}</TableCell><TableCell>{step.status}</TableCell><TableCell>{step.completedQuantity}</TableCell></TableRow>)}</TableBody></Table>
+    <h2 className="font-semibold">Timeline</h2>{timeline.isError ? <p role="alert">Timeline unavailable.</p> : timeline.data?.map((event) => <TimelineEventRow key={event.id} event={event} />)}
+    <h2 className="font-semibold">Audit trail (latest 20)</h2>{audit.isError ? <p role="alert">Audit trail unavailable.</p> : audit.data?.content.map((event) => <AuditLogRow key={event.id} event={event} />)}
+  </CardContent></Card>;
+}
+
+function LegacyProductionPage() {
   const user = useAppSelector((state) => state.auth.user);
   const [tab, setTab] = useState<Tab>("orders");
   const [scanOpen, setScanOpen] = useState(false);

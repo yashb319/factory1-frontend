@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { InventoryItem } from "../types/inventory.types";
 import { humanizeEnum } from "@/lib/format";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 import {
   formatCurrency,
   formatNumber,
@@ -40,6 +41,7 @@ export function InventoryTable({
   onStockMovement,
   onDelete,
 }: Props) {
+  const { can } = useRuntimePermissions();
   return (
     <div className="rounded-lg border bg-card">
       <div className="overflow-x-auto">
@@ -148,13 +150,13 @@ export function InventoryTable({
                           <DropdownMenuItem onClick={() => onView(item)}>
                             View details
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onStockMovement(item)}>
+                          <DropdownMenuItem disabled={!can("POST", `/api/inventory/items/${item.id}/stock-movements`)} onClick={() => onStockMovement(item)}>
                             Stock movement
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onEdit(item)}>
+                          <DropdownMenuItem disabled={!can("PUT", `/api/inventory/items/${item.id}`)} onClick={() => onEdit(item)}>
                             Edit item
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onDelete(item)}>
+                          <DropdownMenuItem disabled={!can("DELETE", `/api/inventory/items/${item.id}`)} onClick={() => onDelete(item)}>
                             Disable item
                           </DropdownMenuItem>
                         </DropdownMenuContent>

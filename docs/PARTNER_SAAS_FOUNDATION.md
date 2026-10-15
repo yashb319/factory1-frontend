@@ -158,16 +158,48 @@ response without the enforcement fields fails closed. Inventory requires the
 `inventory` effective module; employee CRUD requires `payroll` as a dependency,
 **not as evidence that the complete payroll module works**.
 
-`/api/product-runtime/api/...` is a confidential BFF adapter with an explicit
-method/path UUID allowlist matching the reviewed backend
-`/api/partner/v2/bff/runtime/api/...` routes. Only inventory item CRUD,
-inventory dashboard/stock movements and employee CRUD/designation/code APIs are
-reviewed. The UI currently exposes inventory/employee listing, search,
-pagination, creation, detail/edit and confirmed deletion. Mixed dashboards,
-Tally, payroll calculations, accounting, production, attendance, billing, AI,
-reports, public links, bulk actions and import/export are deliberately blocked.
-This is a gap against the full existing-module release requirement, not a
-claim that those modules are complete.
+`/api/product-runtime/...` is a confidential BFF adapter with an explicit
+method/path/role/dependency allowlist matching the backend's frozen runtime
+extension contract at `6522bfce0e8b52b932718b0371456105a9dbbf49`
+(`docs/partner-runtime-and-onboarding.md` in factory1-backend). UUID identifiers
+and attendance dates are typed, not arbitrary path suffixes. The backend's
+filtered `runtimeRoutes` must authorize each exact method/template as well.
+An explicit disabled `moduleDecisions` entry also denies the frontend surface.
+
+Sidebar and dashboard cards are built from those reviewed route grants, never
+from purchased module names alone. Existing module APIs and components run in
+an isolated, memory-only RTK Query store per authoritative bootstrap/generation.
+Its transport always uses the same-origin BFF; legacy authentication redirects,
+bearer preparation and localStorage persistence are never used. Responses
+preserve the entire unchanged legacy payload, including inner envelopes, so
+existing endpoint transforms remain authoritative. A context/policy/principal
+change destroys the old cache and UI, instead of relabeling cached tenant data.
+
+The reused Inventory, Employees, Attendance, Payroll, Suppliers and Customers
+pages expose reviewed operations with contextual action guards. Leave reuses
+reviewer/type/calendar components without email-derived self-service or balances.
+Production reuses order-list, quantity, timeline, audit and BOM-binding components
+and reads workflow versions; unreviewed catalog/user lookup/preview dependencies
+keep creation, quantity-flow execution, authoring, assignments, workstations and
+QR controls unavailable. Billing reuses voucher actions for confirmed post,
+cancel and payment operations; voucher creation remains unavailable until its
+catalog/settings dependencies are reviewed. Accounting reuses report components
+for ledger summaries, trial balance, profit/loss, balance sheet, aging and ledger
+drilldown, not accounting authoring/settings. These are bounded module surfaces,
+**not full existing-module parity**.
+
+Inventory exports alone use the three exact `/exports/inventory` job routes.
+The UI displays PENDING/COMPLETED/DENIED/FAILED, expiry and failure codes, and
+downloads only reauthorized, schema-checked JSON (at most 1000 rows, never
+truncated) without a persisted local file, bearer or public URL. Status checks
+are explicit; mutations are never retried automatically. The backend binds
+execution/status/download to the issuing session, tenant, product, domain,
+user and context generation. `ACCESS_CHANGED` tears down the workspace;
+`EXPORT_NOT_READY`, 410 expiry and 429 limits remain explicit errors.
+
+Mixed dashboards, Tally, AI, public links, bulk import, legacy export/job/file
+paths, payslip sharing and e-way remain blocked. The compatibility coverage
+marker remains `PARTIAL_TENANT_CRUD`; it does not advertise module completeness.
 
 Every operational request carries the opaque HttpOnly host session and server
 credentials only on the server backchannel, plus verified edge host and context
