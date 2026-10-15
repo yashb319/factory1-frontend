@@ -14,8 +14,9 @@ and a fresh `postgres:14.22` service, exposed at `127.0.0.1:5432`, with database
 `factory1_e2e`, user `postgres`, password `disposable-e2e-only`.
 Use `contents: read`, `persist-credentials: false`, and separately checkout:
 
-- Backend **18a235d952d1227e415709011e2c0e3c0a7a2a71**, the reviewed UUID-fixture
-  merge including the hostname and readiness fixes, not latest main or PR head.
+- Backend **760c43a56b15aa2601bfdee6231e537a6030e735**, the reviewed sign-in
+  referrer-policy merge including UUID, hostname and readiness fixes, not latest
+  main or PR head.
 - A reviewed immutable public `yashb319/factory1-frontend` commit containing
   this harness; pin its full SHA in the backend workflow, not arbitrary input.
 
@@ -144,7 +145,7 @@ cleanup. No artifacts are uploaded.
 The focused `hostedFixtureContract.test.ts` regression parses exact public JSON
 resources copied byte-for-byte from backend test resources
 `src/test/resources/partner-sso/bootstrap-product-{a,b}.json` at the pinned merge
-`18a235d952d1227e415709011e2c0e3c0a7a2a71`. The backend compares these with its
+`760c43a56b15aa2601bfdee6231e537a6030e735`. The backend compares these with its
 actual seeded service DTO serialized by the application ObjectMapper. The
 frontend uses its unchanged production envelope/storefront schemas, including
 strict RFC UUID validation; unsupported runtime metadata is not proof of module
@@ -158,3 +159,10 @@ The frontend hides Sign in and `/auth/start` returns `SSO_DISABLED` when that
 gate is not met. This replaces the original `c9bdbda` pin's unconditional
 `sso=false` capability; the harness does not bypass readiness. Runtime remains
 disabled, and bootstrap operational access and checkout remain false.
+
+The pinned central sign-in and OTP/error pages use `Referrer-Policy: same-origin`
+so native Chromium form submissions preserve their Origin. A credential-free
+hosted Chromium regression demonstrates that `no-referrer` instead sends the
+literal `Origin: null`. The integration scenario logs only native form Origin,
+Sec-Fetch-Site and response status; it never injects these headers or relaxes
+the backend's exact-origin/CSRF checks.
