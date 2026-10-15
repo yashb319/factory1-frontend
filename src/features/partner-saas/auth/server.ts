@@ -8,6 +8,7 @@ import {
   oauthTransactionSchema,
   partnerContextOptionsSchema,
   partnerEntitlementsSchema,
+  upstreamContextOptionsSchema,
   partnerSessionSchema,
   type PartnerContext,
   type PartnerContextOptions,
@@ -428,13 +429,18 @@ function entitlementsMatchContext(entitlements: PartnerEntitlements, context: Pa
   return entitlements.organizationId === context.organizationId && entitlements.productId === context.productId;
 }
 
+async function loadContextOptions(config: RuntimeConfig, handle: string): Promise<PartnerContextOptions> {
+  const items = await backendRequest(config, "/api/partner/v2/bff/session/context/options", upstreamContextOptionsSchema, {
+    sessionHandle: handle,
+  });
+  return partnerContextOptionsSchema.parse({ items });
+}
+
 async function loadSession(config: RuntimeConfig, handle: string, productId: string, hostname: string) {
   const session = await backendRequest(config, "/api/partner/v2/bff/session", partnerSessionSchema, {
     sessionHandle: handle,
   });
-  const contextOptions = await backendRequest(config, "/api/partner/v2/bff/session/context/options", partnerContextOptionsSchema, {
-    sessionHandle: handle,
-  });
+  const contextOptions = await loadContextOptions(config, handle);
   if (!contextOptionsMatchDomain(contextOptions, session.context, productId, hostname)) {
     throw new BffError(502, "AUTH_UNAVAILABLE");
   }
@@ -557,9 +563,7 @@ export async function changeAuthContext(request: Request) {
     assertSameOriginMutation(request, handle, config);
     const storefront = await verifiedStorefront(request);
     const body = await requestJson(request, contextBodySchema);
-    const options = await backendRequest(config, "/api/partner/v2/bff/session/context/options", partnerContextOptionsSchema, {
-      sessionHandle: handle,
-    });
+    const options = await loadContextOptions(config, handle);
     if (!contextOptionsMatchDomain(options, null, storefront.productId, storefront.hostname)) {
       throw new BffError(502, "AUTH_UNAVAILABLE");
     }

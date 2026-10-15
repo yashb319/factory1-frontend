@@ -154,7 +154,7 @@ describe("confidential reviewed operational BFF", () => {
         ...brandedStorefront, capabilities: { ...brandedStorefront.capabilities, operationalAccess: true },
       });
       if (url.pathname === "/api/partner/v2/bff/session") return envelope(data.session);
-      if (url.pathname.endsWith("/session/context/options")) return envelope(data.contextOptions);
+      if (url.pathname.endsWith("/session/context/options")) return envelope(data.contextOptions.items);
       if (url.pathname.endsWith("/session/entitlements")) return envelope(data.entitlements);
       if (url.pathname.startsWith("/api/partner/v2/bff/runtime/")) return envelope({ content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 });
       throw new Error("Unexpected reviewed runtime request");
@@ -513,13 +513,30 @@ describe("partner BFF OAuth and host-bound sessions", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects an upstream context-options object instead of the backend list serialization", async () => {
+    const fetchMock = createFetchMock(async (input) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      if (url.pathname === "/api/public/v2/storefront") return trustedStorefrontResponse();
+      if (url.pathname.endsWith("/bff/session/context/options")) return envelope({ items: [option()] });
+      if (url.pathname.endsWith("/bff/session")) return envelope(session(null));
+      throw new Error(`Unexpected upstream path: ${url.pathname}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await getAuthSession(requestWithSession("/auth/session"));
+
+    expect(response.status).toBe(502);
+    expect((await response.json()).code).toBe("AUTH_UNAVAILABLE");
+  });
+
   it("returns a no-store session bootstrap with multiple server-authorized factories and no handles or tokens", async () => {
     const firstContext = apiContext();
     const fetchMock = createFetchMock(async (input) => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
       if (url.pathname === "/api/public/v2/storefront") return trustedStorefrontResponse();
       if (url.pathname.endsWith("/bff/session/context/options")) {
-        return envelope({ items: [option(), option(otherOrganizationId, "Factory Two")] });
+        return envelope([option(), option(otherOrganizationId, "Factory Two")]);
       }
       if (url.pathname.endsWith("/bff/session/entitlements")) return envelope(entitlements());
       if (url.pathname.endsWith("/bff/session")) return envelope(session(firstContext));
@@ -558,7 +575,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
       if (url.pathname === "/api/public/v2/storefront") return trustedStorefrontResponse();
       if (url.pathname.endsWith("/bff/session/context/options")) {
-        return envelope({ items: [option(), option(otherOrganizationId, "Factory Two")] });
+        return envelope([option(), option(otherOrganizationId, "Factory Two")]);
       }
       if (url.pathname.endsWith("/bff/session/context")) {
         return envelope({
@@ -620,7 +637,7 @@ describe("partner BFF OAuth and host-bound sessions", () => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
       return url.pathname === "/api/public/v2/storefront"
         ? trustedStorefrontResponse()
-        : envelope({ items: [option()] });
+        : envelope([option()]);
     });
     vi.stubGlobal("fetch", fetchMock);
     const response = await changeAuthContext(requestWithSession("/auth/context", {
