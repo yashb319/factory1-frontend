@@ -39,8 +39,8 @@ export function CustomerPage() {
 
   const { data, isLoading, error } = useGetCustomersQuery(filters);
 
-  const { data: dashboard, isLoading: dashboardLoading } =
-    useGetCustomerDashboardQuery();
+  const { data: dashboard, isLoading: dashboardLoading, isError: dashboardError } =
+    useGetCustomerDashboardQuery(undefined, { skip: !can("GET", "/api/customers/dashboard") });
 
   const [deleteCustomer, deleteState] = useDeleteCustomerMutation();
   const logDataJob = useLogDataJob();
@@ -123,10 +123,11 @@ export function CustomerPage() {
         </div>
       </div>
 
-      <CustomerDashboardCards
+      {contextual && dashboardError ? <p role="alert">Customer summary could not be loaded.</p> :
+      can("GET", "/api/customers/dashboard") ? <CustomerDashboardCards
         data={dashboard}
         isLoading={dashboardLoading}
-      />
+      /> : null}
 
       <CustomerFilters filters={filters} onChange={setFilters} />
       {error ? <p role="alert">Customers could not be loaded. Refresh and verify your access.</p> : null}

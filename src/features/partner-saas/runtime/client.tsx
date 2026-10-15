@@ -42,7 +42,7 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
       pending.add(controller);
       try {
         const response = await fetch("/auth/session", {
-          credentials: "same-origin", cache: "no-store", signal: controller.signal,
+          credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal,
           headers: { Accept: "application/json" },
         });
         const parsed = response.ok
@@ -86,7 +86,7 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
     controllers.current.add(controller);
     try {
       const response = await fetch(`/api/product-runtime${path}`, {
-        method, credentials: "same-origin", cache: "no-store", signal: controller.signal,
+        method, credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal,
         headers: {
           Accept: "application/json",
           "X-Factory1-Context-Generation": data.session.contextGeneration ?? "",

@@ -48,8 +48,8 @@ export function InventoryPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
-  const { data: dashboard, isLoading: dashboardLoading } =
-    useGetInventoryDashboardQuery();
+  const { data: dashboard, isLoading: dashboardLoading, isError: dashboardError } =
+    useGetInventoryDashboardQuery(undefined, { skip: !can("GET", "/api/inventory/dashboard") });
 
   const { data, isLoading, error } = useGetInventoryItemsQuery(filters);
 
@@ -154,7 +154,8 @@ export function InventoryPage() {
 
       <InventoryInsightsPanel items={items} loading={isLoading} />
 
-      <InventoryDashboardCards data={dashboard} isLoading={dashboardLoading} />
+      {contextual && dashboardError ? <p role="alert">Inventory summary could not be loaded.</p> :
+        can("GET", "/api/inventory/dashboard") ? <InventoryDashboardCards data={dashboard} isLoading={dashboardLoading} /> : null}
 
       <div className="grid gap-3 md:grid-cols-3">
         {[

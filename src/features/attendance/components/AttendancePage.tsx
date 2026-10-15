@@ -120,7 +120,7 @@ function AttendanceManagementPage({ canCorrect }: { canCorrect: boolean }) {
             <p className="mt-1 text-blue-800">
               Generate the Attendance Capture Key in Organization Settings, then open the capture station on your gate phone or kiosk.
             </p>
-          </div> : null}
+          </div>
         </div>
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
           <Button variant="outline" onClick={() => window.open("/organization-settings", "_self")}>
@@ -135,7 +135,7 @@ function AttendanceManagementPage({ canCorrect }: { canCorrect: boolean }) {
             Open Capture
           </Button>
         </div>
-      </div>
+      </div> : null}
 
       <AttendanceStatsCards />
 
@@ -149,7 +149,7 @@ function AttendanceManagementPage({ canCorrect }: { canCorrect: boolean }) {
       <AttendanceTable
         records={data?.content ?? []}
         loading={isLoading || isFetching}
-        canCorrect={canCorrect && (!contextual || can("POST", "/api/attendance"))}
+        canCorrect={canCorrect}
       />
 
       <MarkAttendanceDialog open={markOpen} onOpenChange={setMarkOpen} />

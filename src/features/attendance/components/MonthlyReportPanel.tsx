@@ -68,9 +68,9 @@ export function MonthlyReportPanel() {
           </select>
           <Input type="date" value={statusDate} onChange={(event) => setStatusDate(event.target.value)} />
           <Button className="shrink-0" disabled={!employeeId.trim() || !statusDate || statusLoading} onClick={() => setStatusLookup({ employeeId: employeeId.trim(), date: statusDate })}><Search className="mr-2 h-4 w-4" />Check</Button>
-        </div> : null}
+        </div>
         {leaveStatus ? <p className="mt-2 rounded-md bg-slate-50 p-3 text-sm"><span className="font-medium">{leaveStatus.status.replaceAll("_", " ")}</span> · {leaveStatus.paid ? "Paid" : "Unpaid"} · {leaveStatus.reason || "No reason recorded"}</p> : null}
-      </div>
+      </div> : null}
     </section>
   );
 }

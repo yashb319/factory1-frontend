@@ -33,8 +33,8 @@ export function SupplierPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
 
   const { data, isLoading, error } = useGetSuppliersQuery(filters);
-  const { data: dashboard, isLoading: dashboardLoading } =
-    useGetSupplierDashboardQuery();
+  const { data: dashboard, isLoading: dashboardLoading, isError: dashboardError } =
+    useGetSupplierDashboardQuery(undefined, { skip: !can("GET", "/api/suppliers/dashboard") });
   const [deleteSupplier, deleteState] = useDeleteSupplierMutation();
   const logDataJob = useLogDataJob();
 
@@ -115,7 +115,8 @@ export function SupplierPage() {
         </div>
       </div>
 
-      <SupplierDashboardCards data={dashboard} isLoading={dashboardLoading} />
+      {contextual && dashboardError ? <p role="alert">Supplier summary could not be loaded.</p> :
+        can("GET", "/api/suppliers/dashboard") ? <SupplierDashboardCards data={dashboard} isLoading={dashboardLoading} /> : null}
 
       <SupplierFilters filters={filters} onChange={setFilters} />
       {error ? <p role="alert">Suppliers could not be loaded. Refresh and verify your access.</p> : null}

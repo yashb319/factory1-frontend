@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { useProductRuntime } from "./client";
@@ -21,18 +21,31 @@ export function InventoryExport() {
   const [job, setJob] = useState<z.infer<typeof exportStatusSchema> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [expired, setExpired] = useState(false);
   const inFlight = useRef(false);
+  useEffect(() => {
+    if (!job) return;
+    const timer = window.setTimeout(() => setExpired(true), Math.max(0, Date.parse(job.expiresAt) - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [job]);
+  function updateJob(value: z.infer<typeof exportStatusSchema>) {
+    setJob(value);
+    setExpired(Date.parse(value.expiresAt) <= Date.now());
+  }
   async function run(action: "create" | "status" | "download") {
     if (inFlight.current) return;
     inFlight.current = true; setBusy(true); setError("");
     try {
       if (action === "create") {
-        setJob(await request("POST", "/exports/inventory", exportStatusSchema, {}));
+        updateJob(await request("POST", "/exports/inventory", exportStatusSchema, {}));
       } else if (job && action === "status") {
         const status = await request("GET", `/exports/inventory/${job.id}`, exportStatusSchema);
         if (status.id !== job.id) throw new Error("The export response did not match this job.");
-        setJob(status);
+        updateJob(status);
       } else if (job && action === "download") {
+        if (job.status !== "COMPLETED" || Date.parse(job.expiresAt) <= Date.now()) {
+          throw new Error("Only a completed, unexpired export can be downloaded.");
+        }
         const result = await request("GET", `/exports/inventory/${job.id}/download`, downloadSchema);
         if (result.id !== job.id) throw new Error("The export response did not match this job.");
         const url = URL.createObjectURL(new Blob([JSON.stringify(result.rows, null, 2)], { type: "application/json" }));
@@ -51,7 +64,7 @@ export function InventoryExport() {
       <Button disabled={busy || !can("POST", "/exports/inventory")} onClick={() => void run("create")}>Request inventory export</Button>
       {job ? <>
         <Button variant="outline" disabled={busy || !can("GET", `/exports/inventory/${job.id}`)} onClick={() => void run("status")}>Check export status</Button>
-        <Button disabled={busy || job.status !== "COMPLETED" || Date.parse(job.expiresAt) <= Date.now() ||
+        <Button disabled={busy || job.status !== "COMPLETED" || expired ||
           !can("GET", `/exports/inventory/${job.id}/download`)} onClick={() => void run("download")}>Download inventory JSON</Button>
       </> : null}
     </div>

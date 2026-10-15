@@ -235,6 +235,11 @@ The hosted `Partner foundation` workflow runs regression tests, typecheck,
 changed-file lint, production build, server-secret browser-bundle scanning and
 direct/unknown-host isolation checks. The existing integration session owns the
 real browser suite; this tranche does not start a second browser runner.
+Reusing legacy module pages exposes pre-existing synchronous-effect lint debt.
+Hosted lint compares that one rule against the merge base at the exact unchanged
+source line/column; only existing identical findings are retained as baseline
+debt. All new/edited-line errors, other rules and parsing errors still fail.
+The line-map regression runs in the same job; no rule is globally disabled.
 
 Before deployment, apply the counterpart backend's additive migrations and
 configure the verified domains, confidential client/edge trust, partner approval

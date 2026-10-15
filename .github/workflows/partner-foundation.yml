@@ -40,7 +40,7 @@ jobs:
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         env:
           BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/main' }}
-        run: git diff --name-only --diff-filter=ACMR -z "$BASE_REF"...HEAD -- '*.ts' '*.tsx' '*.mts' '*.mjs' | xargs -0 -r npx eslint
+        run: node --test scripts/lint-line-map.test.mjs && node scripts/lint-changed.mjs
       - name: Production build
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         id: production_build

@@ -35,7 +35,7 @@ interface ConfirmState {
 }
 
 export function PayrollPage() {
-  const { can } = useRuntimePermissions();
+  const { contextual, can } = useRuntimePermissions();
   const [page, setPage] = useState(0);
   const [month, setMonth] = useState<number | undefined>();
   const [year, setYear] = useState<number | undefined>();
@@ -66,8 +66,8 @@ export function PayrollPage() {
     [page, month, year, status]
   );
 
-  const { data: dashboard, isLoading: dashboardLoading } =
-    useGetPayrollDashboardQuery();
+  const { data: dashboard, isLoading: dashboardLoading, isError: dashboardError } =
+    useGetPayrollDashboardQuery(undefined, { skip: !can("GET", "/api/payroll/dashboard") });
 
   const { data: payrollRuns, isLoading: payrollLoading, error: payrollError } =
     useGetPayrollRunsQuery(queryParams);
@@ -185,10 +185,11 @@ export function PayrollPage() {
         loading={payrollLoading}
       />
 
-      <PayrollDashboardCards
+      {contextual && dashboardError ? <p role="alert">Payroll summary could not be loaded.</p> :
+      can("GET", "/api/payroll/dashboard") ? <PayrollDashboardCards
         data={dashboard}
         isLoading={dashboardLoading}
-      />
+      /> : null}
 
       <div className="rounded-lg border bg-white p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
