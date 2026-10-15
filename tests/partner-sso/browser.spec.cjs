@@ -2,9 +2,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
 
-const A = "https://product-a.test";
-const B = "https://product-b.test";
-const CENTRAL = "https://central.test";
+const A = "https://product-a.example.com";
+const B = "https://product-b.example.com";
+const CENTRAL = "https://central.example.com";
 const SESSION = "__Host-factory1_session";
 const STATE = "__Host-factory1_oauth_state";
 const HOME = "70000000-0000-0000-0000-000000000010";
@@ -104,6 +104,15 @@ async function readiness(page) {
 }
 
 async function requireSignInReady(page, origin) {
+  const authority = await page.evaluate(async () => {
+    const response = await fetch("/api/partner-e2e-authority", { cache: "no-store" });
+    return { status: response.status, body: await response.json() };
+  });
+  console.log(`Next authority check: ${JSON.stringify(authority)}`);
+  expect(authority.status).toBe(200);
+  expect(authority.body).toEqual({
+    urlHost: new URL(origin).host, headerHost: new URL(origin).host, protocol: "https:",
+  });
   const result = await readiness(page);
   console.log(`Partner SSO readiness ${new URL(origin).hostname}: ${JSON.stringify(result)}`);
   expect(result.storefront.status, "public storefront bootstrap must be available").toBe(200);
@@ -208,10 +217,10 @@ test("real HTTPS OAuth, host cookies, context rotation, CSRF and two-product rev
   expect(data.entitlements.ready).toBe(true);
 
   // Deliberately transplant A's opaque handle: B must not bootstrap A's context.
-  await context.addCookies([{ ...switched, domain: "product-b.test" }]);
+  await context.addCookies([{ ...switched, domain: "product-b.example.com" }]);
   const transplanted = await other.goto(`${B}/auth/session`);
   expect(transplanted.status()).toBe(502);
-  await context.clearCookies({ domain: "product-b.test" });
+  await context.clearCookies({ domain: "product-b.example.com" });
   await other.goto(B);
   await other.getByRole("link", { name: "Sign in", exact: true }).click();
   await other.waitForURL(`${B}/`);

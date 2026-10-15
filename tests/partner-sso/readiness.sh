@@ -10,8 +10,8 @@ report_health_response() {
   echo "Health diagnostics: $url HTTP ${status:-000} curl exit $curl_status"
   if [[ -s "$body" ]]; then
     node "$ROOT/tests/partner-sso/sanitize-logs.cjs" < "$body"
-  elif [[ "$url" == https://central.test/actuator/health ]]; then
+  elif [[ "$url" == https://central.example.com/actuator/health ]]; then
     echo "Health response body was empty; checking readiness health group"
-    report_health_response https://central.test/actuator/health/readiness
+    report_health_response https://central.example.com/actuator/health/readiness
   fi
 }

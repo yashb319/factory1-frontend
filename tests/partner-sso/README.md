@@ -39,10 +39,30 @@ bash tests/partner-sso/run-hosted.sh /absolute/path/to/backend-checkout
 creates ephemeral client/encryption/JWT/CSRF/signing material, creates a one-day
 test CA and server certificate, and trusts that CA in Linux, Node and Chromium
 NSS. HTTPS verification remains enabled; there is no `ignoreHTTPSErrors` or
-TLS-verification bypass. Loopback-only TLS port 443 routes `central.test` to
-backend HTTP 8080 and `product-a.test` / `product-b.test` to frontend HTTP 3000.
+TLS-verification bypass. Loopback-only TLS port 443 routes `central.example.com` to
+backend HTTP 8080, `product-a.example.com` to frontend HTTP 3000, and
+`product-b.example.com` to frontend HTTP 3001.
 The proxy overwrites forwarding metadata; all authorities have exact hostnames,
 no wildcard callback, shared cookie domain, or public DNS dependence.
+These reserved example.com names satisfy the production public-suffix validator;
+they resolve only to loopback in the runner's hosts file and remain egress-isolated.
+
+Each product uses a separate test-only custom Next server with fixed canonical
+`hostname` and external `port: 443` options, listening only on its loopback socket.
+This uses the documented custom server API instead of making the BFF trust
+arbitrary forwarded authorities: `next start --hostname 127.0.0.1` would otherwise
+construct the route Request URL with the internal host/port and correctly fail
+the BFF's authority-equality check. The fixed-host server rejects mismatched Host
+or non-HTTPS proxy metadata. A temporary test-only API route asserts the actual
+Next Request URL host matches the Host header and uses HTTPS; only those authority
+fields are logged. No application origin or CSRF checks are changed.
+
+The custom server uses the full build, not the standalone traced server.
+The harness backs up `next.config.mjs`, temporarily disables only standalone
+output while building/running, and restores the original bytes on exit.
+The temporary authority route is also removed. Hosted regressions read the
+installed Next custom-server guide, run real Next authority checks for both
+hosts, and check config restoration on build failure and termination.
 
 The backend uses its supported `prod` configuration bindings, Flyway migrations,
 then exactly `PartnerSsoE2eFixtureSeederTest` with `PARTNER_SSO_E2E_FIXTURES=true`

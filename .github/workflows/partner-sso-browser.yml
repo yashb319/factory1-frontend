@@ -45,6 +45,21 @@ jobs:
           npx tsc --noEmit
       - name: Existing focused frontend regressions
         run: npm test -- src/features/partner-saas/__tests__
+      - name: Read installed Next custom server guide and verify canonical HTTPS authority
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          guide="$(find node_modules/next/dist/docs -type f -path '*custom-server*' | head -n 1)"
+          test -n "$guide"
+          cat "$guide"
+          bash -n tests/partner-sso/frontend-smoke.sh
+          node --check tests/partner-sso/frontend-server.cjs
+          node --check tests/partner-sso/frontend-server.test.cjs
+          node --check tests/partner-sso/build-config.cjs
+          node --test tests/partner-sso/build-config.test.cjs
+          bash tests/partner-sso/frontend-smoke.sh
+          git diff --exit-code -- next.config.mjs
+          test ! -e src/app/api/partner-e2e-authority
 
       - name: Evidence boundary
         run: echo "Harness checks only. Actual private-backend integration executes in backend-owned manual CI; this job is not browser integration evidence." >> "$GITHUB_STEP_SUMMARY"

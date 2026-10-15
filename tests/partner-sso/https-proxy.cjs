@@ -4,9 +4,9 @@ const fs = require("node:fs");
 
 const [cert, key] = process.argv.slice(2);
 const routes = new Map([
-  ["central.test", 8080],
-  ["product-a.test", 3000],
-  ["product-b.test", 3000],
+  ["central.example.com", 8080],
+  ["product-a.example.com", 3000],
+  ["product-b.example.com", 3001],
 ]);
 
 // TLS terminates only on loopback; overwrite forwarded authority, never trust it.

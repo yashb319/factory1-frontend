@@ -15,7 +15,7 @@ curl() {
       *) shift ;;
     esac
   done
-  if [[ "$url" == https://central.test/actuator/health ]]; then
+  if [[ "$url" == https://central.example.com/actuator/health ]]; then
     printf '%s' "${HEALTH_BODY:-}" > "$body"
     printf '503'
   else
@@ -25,12 +25,12 @@ curl() {
 }
 
 HEALTH_BODY='{"status":"DOWN","components":{"mail":{"status":"DOWN"}}}'
-OUTPUT="$(report_health_response https://central.test/actuator/health)"
+OUTPUT="$(report_health_response https://central.example.com/actuator/health)"
 [[ "$OUTPUT" == *"HTTP 503 curl exit 0"* ]]
 [[ "$OUTPUT" == *'"mail":{"status":"DOWN"}'* ]]
 [[ "$OUTPUT" != *"checking readiness health group"* ]]
 HEALTH_BODY=""
-OUTPUT="$(report_health_response https://central.test/actuator/health)"
+OUTPUT="$(report_health_response https://central.example.com/actuator/health)"
 [[ "$OUTPUT" == *"Health response body was empty"* ]]
 [[ "$OUTPUT" == *"/actuator/health/readiness HTTP 503"* ]]
 [[ "$OUTPUT" == *'"OUT_OF_SERVICE"'* ]]
