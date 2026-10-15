@@ -331,7 +331,8 @@ export function EmployeeForm({
               ) : null}
             </div>
             <p className="text-xs text-slate-500">
-              Used by the Factory1 capture station for prototype photo matching.
+              {contextual ? "Inline photos must fit the 64 KiB contextual request limit. Public capture and photo matching are unavailable." :
+                "Used by the Factory1 capture station for prototype photo matching."}
             </p>
             {errors.photoDataUrl && (
               <p className="text-xs text-destructive">

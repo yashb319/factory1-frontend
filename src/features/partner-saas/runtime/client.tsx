@@ -83,6 +83,10 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
         !runtimeRouteAllowed(entitlement.runtimeRoutes, entitlement.role, method, parsedUrl.pathname, entitlement.modules, entitlement.moduleDecisions)) {
       throw new RuntimeRequestError("This operation is not available for your selected product and role.");
     }
+    const serializedBody = body === undefined ? undefined : JSON.stringify(body);
+    if (serializedBody && new TextEncoder().encode(serializedBody).byteLength > 64 * 1024) {
+      throw new RuntimeRequestError("This request exceeds the 64 KiB contextual limit. Reduce inline photos or text before saving.", 400, "INVALID_REQUEST");
+    }
     const controller = new AbortController();
     controllers.current.add(controller);
     try {
@@ -94,7 +98,7 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
           ...(method === "GET" ? {} : { "X-CSRF-Token": data.csrfToken }),
           ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(serializedBody === undefined ? {} : { body: serializedBody }),
       });
       if (response.status === 409) {
         const payload = z.object({ code: z.string() }).safeParse(await response.json());

@@ -141,7 +141,7 @@ function AttendanceManagementPage({ canCorrect }: { canCorrect: boolean }) {
 
       {!contextual ? <DailyAttendanceRegister /> : null}
 
-      <MonthlyReportPanel />
+      {can("GET", "/api/attendance/report/monthly") ? <MonthlyReportPanel /> : null}
 
       <AttendanceFilters filters={filters} onChange={updateFilters} />
       {error ? <p role="alert">Attendance could not be loaded. Refresh and verify your factory access.</p> : null}
@@ -152,7 +152,7 @@ function AttendanceManagementPage({ canCorrect }: { canCorrect: boolean }) {
         canCorrect={canCorrect}
       />
 
-      <MarkAttendanceDialog open={markOpen} onOpenChange={setMarkOpen} />
+      {!contextual || markOpen ? <MarkAttendanceDialog open={markOpen} onOpenChange={setMarkOpen} /> : null}
     </div>
   );
 }

@@ -10,8 +10,8 @@ const api = baseApi.injectEndpoints({
     contextualTransportProbe: builder.query<{ name: string }, void>({
       query: () => "/api/inventory/items",
     }),
-    contextualMutationProbe: builder.mutation<{ name: string }, void>({
-      query: () => ({ url: "/api/inventory/items", method: "POST", body: { name: "Steel" } }),
+    contextualMutationProbe: builder.mutation<{ name: string }, { notes: string } | void>({
+      query: (body) => ({ url: "/api/inventory/items", method: "POST", body: body ?? { name: "Steel" } }),
       transformResponse: (response: { success: boolean; data: { name: string } }) => response.data,
     }),
     contextualDeniedProbe: builder.query<unknown, void>({
@@ -27,8 +27,11 @@ function Probe({ denied = false }: { denied?: boolean }) {
   return <div>
     <p>{query.data?.name}</p>
     <p>{mutation.data?.name}</p>
+    {mutation.error && "error" in mutation.error ? <p role="alert">{mutation.error.error}</p> : null}
     {blocked.isError ? <p>Denied without fallback</p> : null}
     <button onClick={() => void save()}>Save probe</button>
+    <button onClick={() => void save({ notes: "x".repeat(64 * 1024 - JSON.stringify({ notes: "" }).length) })}>Save exact limit</button>
+    <button onClick={() => void save({ notes: "x".repeat(64 * 1024) })}>Save oversized</button>
   </div>;
 }
 
@@ -70,6 +73,23 @@ describe("isolated existing-module transport", () => {
     render(<Workspace denied />);
     expect(await screen.findByText("Denied without fallback")).toBeInTheDocument();
     expect(network).not.toHaveBeenCalled();
+  });
+
+  it("accepts exactly 64 KiB JSON and rejects oversized bodies before network dispatch", async () => {
+    const network = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => new Response(JSON.stringify({
+      success: true, message: "OK", data: init.method === "POST"
+        ? { success: true, message: "Saved", data: { name: "Saved at exact limit" } }
+        : { name: "Factory data" },
+    })));
+    vi.stubGlobal("fetch", network);
+    render(<Workspace />);
+    expect(await screen.findByText("Factory data")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Save exact limit"));
+    expect(await screen.findByText("Saved at exact limit")).toBeInTheDocument();
+    expect(new TextEncoder().encode(String(network.mock.calls[1][1].body)).byteLength).toBe(64 * 1024);
+    fireEvent.click(screen.getByText("Save oversized"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("64 KiB contextual limit");
+    expect(network).toHaveBeenCalledTimes(2);
   });
 
   it("refetches identical query arguments in a new context store instead of reusing the old cache", async () => {
