@@ -31,12 +31,13 @@ cleanup() {
     sudo iptables -D OUTPUT -m owner --uid-owner "$APP_UID" -j REJECT 2>/dev/null || true
     sudo ip6tables -D OUTPUT -m owner --uid-owner "$APP_UID" -j REJECT 2>/dev/null || true
   fi
-  sudo userdel partner-sso-browser 2>/dev/null || true
-  sudo userdel partner-sso-ci 2>/dev/null || true
+  sudo chown -R "$(id -u):$(id -g)" "$ROOT/.next" 2>/dev/null || true
+  sudo userdel --remove partner-sso-browser 2>/dev/null || true
+  sudo userdel --remove partner-sso-ci 2>/dev/null || true
   sudo rm -f /usr/local/share/ca-certificates/partner-sso-ci.crt
   sudo update-ca-certificates >/dev/null 2>&1 || true
   sudo sed -i '/^127\.0\.0\.1 central\.test product-a\.test product-b\.test$/d' /etc/hosts
-  rm -rf "$WORK"
+  sudo rm -rf "$WORK"
 }
 trap cleanup EXIT
 cd "$ROOT"
