@@ -7,7 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Suspense } from "react";
-import { StorefrontBoundary, legacyRequest } from "@/features/partner-saas/StorefrontBoundary";
+import { StorefrontBoundary, legacyRequest, productMetadata } from "@/features/partner-saas/StorefrontBoundary";
 import { FoundationStorefront } from "@/features/partner-saas/components/FoundationStorefront";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
@@ -23,11 +23,14 @@ const factoryMetadata: Metadata = {
 };
 
 export async function generateMetadata(): Promise<Metadata> {
-  return await legacyRequest() ? factoryMetadata : {
-    title: "Product storefront",
-    description: "Product storefront readiness",
+  if (await legacyRequest()) return factoryMetadata;
+  const product = await productMetadata();
+  return {
+    title: product?.displayName ?? "Product storefront",
+    description: product ? `${product.displayName} factory workspace` : "Product storefront readiness",
     robots: { index: false, follow: false },
-    icons: { icon: [] },
+    icons: { icon: product?.faviconUrl ? [product.faviconUrl] : [] },
+    referrer: "no-referrer",
   };
 }
 

@@ -19,6 +19,8 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
       NEXT_PUBLIC_PARTNER_SAAS_V2_ENABLED: "false"
       PARTNER_SAAS_EDGE_TOKEN: "ci-only-storefront-edge-token-not-a-real-secret"
+      PARTNER_SAAS_OAUTH_CLIENT_SECRET: "ci-only-confidential-client-marker-not-a-real-secret"
+      PARTNER_SAAS_CSRF_SECRET: "ci-only-csrf-marker-not-a-real-key"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,10 +42,12 @@ jobs:
         run: npm run build
       - name: Keep edge trust out of browser bundles
         run: |
-          if grep -R -q -F "$PARTNER_SAAS_EDGE_TOKEN" .next/static; then
-            echo "Server-only edge trust marker found in a browser bundle"
-            exit 1
-          fi
+          for SECRET in "$PARTNER_SAAS_EDGE_TOKEN" "$PARTNER_SAAS_OAUTH_CLIENT_SECRET" "$PARTNER_SAAS_CSRF_SECRET"; do
+            if grep -R -q -F "$SECRET" .next/static; then
+              echo "Server-only trust marker found in a browser bundle"
+              exit 1
+            fi
+          done
       - name: Production host-boundary smoke
         env:
           PARTNER_SAAS_HOST_BOUNDARY_ENABLED: "true"

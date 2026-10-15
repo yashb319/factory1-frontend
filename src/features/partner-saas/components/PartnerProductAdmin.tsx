@@ -11,6 +11,7 @@ import type { SaasProduct } from "../contracts";
 import { FoundationError, PageControls } from "./FoundationFeedback";
 import { ProductEditor } from "./ProductEditor";
 import { ProductDomains } from "./ProductDomains";
+import { ProductCustomers } from "./ProductCustomers";
 
 export function PartnerProductAdmin({ platform = false }: { platform?: boolean }) {
   const user = useAppSelector((state) => state.auth.user);
@@ -22,7 +23,7 @@ export function PartnerProductAdmin({ platform = false }: { platform?: boolean }
   </section>;
   return <div className="space-y-5">
     <h1 className="text-2xl font-semibold">SaaS products and domains</h1>
-    <p className="text-sm text-slate-600">Foundation administration only. No operational factory data, tenant sign-in, subscription activation, financial flows or domain provisioning are enabled here.</p>
+    <p className="text-sm text-slate-600">Scoped product, domain and customer onboarding administration. This control plane never mounts factory operations. Subscription activation, checkout and domain provisioning remain separate backend-controlled actions.</p>
     {platform ? <PlatformPartnerPicker /> : <PartnerMembershipPicker />}
   </div>;
 }
@@ -41,7 +42,7 @@ function PlatformPartnerPicker() {
         {partners.map((item) => <option key={item.id} value={item.id}>{item.name}{item.active ? "" : " (inactive)"}</option>)}
       </select>
     </label>
-    {partner ? <ProductWorkspace key={partner.id} scope={{ partnerId: partner.id, platform: true }} canEdit /> :
+    {partner ? <ProductWorkspace key={partner.id} scope={{ partnerId: partner.id, platform: true }} canEdit canOnboard /> :
       <p>Create a partner in the existing White Label administration area first.</p>}
   </div>;
 }
@@ -62,12 +63,12 @@ function PartnerMembershipPicker() {
       </select>
     </label>
     <PageControls label="workspaces" offset={offset} limit={20} total={query.currentData?.total ?? 0} busy={query.isFetching} onChange={(next) => { setSelected(""); setOffset(next); }} />
-    {membership ? <ProductWorkspace key={`${membership.partnerId}:${membership.role}:${membership.version}`} scope={{ partnerId: membership.partnerId, platform: false }} canEdit={membership.role === "ADMIN" || membership.role === "CATALOG"} /> :
+    {membership ? <ProductWorkspace key={`${membership.partnerId}:${membership.role}:${membership.version}`} scope={{ partnerId: membership.partnerId, platform: false }} canEdit={membership.role === "ADMIN" || membership.role === "CATALOG"} canOnboard={membership.role === "ADMIN" || membership.role === "ONBOARDING"} /> :
       <p>No authorized partner workspace is available. Contact a platform administrator.</p>}
   </div>;
 }
 
-function ProductWorkspace({ scope, canEdit }: { scope: ProductScope; canEdit: boolean }) {
+function ProductWorkspace({ scope, canEdit, canOnboard }: { scope: ProductScope; canEdit: boolean; canOnboard: boolean }) {
   const [offset, setOffset] = useState(0);
   const [editor, setEditor] = useState<SaasProduct | "new" | null>(null);
   const [message, setMessage] = useState("");
@@ -102,6 +103,7 @@ function ProductWorkspace({ scope, canEdit }: { scope: ProductScope; canEdit: bo
         product={editor === "new" ? undefined : editor} features={features.currentData} canEdit={canEdit}
         onClose={() => setEditor(null)} onSaved={(saved) => { setEditor((current) => current === editor ? saved : current); setMessage("Product saved. No operational access or provisioning was activated."); }} />
       {editor !== "new" ? <ProductDomains key={editor.id} scope={scope} productId={editor.id} canEdit={canEdit && editor.status !== "RETIRED"} /> : null}
+      {editor !== "new" ? <ProductCustomers key={`customers:${editor.id}`} scope={scope} productId={editor.id} canOnboard={canOnboard && editor.status === "ACTIVE"} /> : null}
     </> : null}
   </div>;
 }

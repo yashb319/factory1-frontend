@@ -28,7 +28,7 @@ describe("storefront identity and readiness", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Sign-in and factory operations are not enabled");
     expect(screen.queryByRole("button", { name: /sign in|checkout/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
-    expect(storefrontSchema.safeParse({ ...storefront, capabilities: { operationalAccess: true, sso: true, checkout: false } }).success).toBe(false);
+    expect(storefrontSchema.safeParse({ ...storefront, capabilities: { operationalAccess: true, sso: true, checkout: false } }).success).toBe(true);
     expect(storefrontSchema.safeParse({ ...storefront, capabilities: { operationalAccess: false, sso: true, checkout: false } }).success).toBe(true);
   });
 

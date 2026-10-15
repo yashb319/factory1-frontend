@@ -6,8 +6,13 @@ import {
   getAuthSession,
   logoutAuth,
   startAuth,
+  productRuntimeRequest,
+  getInvitationChallenge,
+  activateProductInvitation,
+  acceptProductInvitation,
 } from "../auth/server";
 import { storefront } from "./fixtures";
+import { runtimeBootstrap, generation } from "./runtimeFixtures";
 
 const backendOrigin = "https://backend.example.test";
 const host = "hr.example.test";
@@ -139,6 +144,127 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
+});
+
+describe("confidential reviewed operational BFF", () => {
+  function runtimeBackend(data = runtimeBootstrap()) {
+    return vi.fn<FetchMock>(async (input) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      if (url.pathname === "/api/public/v2/storefront") return envelope({
+        ...brandedStorefront, capabilities: { ...brandedStorefront.capabilities, operationalAccess: true },
+      });
+      if (url.pathname === "/api/partner/v2/bff/session") return envelope(data.session);
+      if (url.pathname.endsWith("/session/context/options")) return envelope(data.contextOptions);
+      if (url.pathname.endsWith("/session/entitlements")) return envelope(data.entitlements);
+      if (url.pathname.startsWith("/api/partner/v2/bff/runtime/api/")) return envelope({ content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 });
+      throw new Error("Unexpected reviewed runtime request");
+    });
+  }
+
+  it("forwards only the fixed backend path, opaque session, server trust and matching generation", async () => {
+    const upstream = runtimeBackend();
+    vi.stubGlobal("fetch", upstream);
+    const response = await productRuntimeRequest(requestWithSession("/api/product-runtime/api/inventory/items?page=0&size=20", {
+      headers: { "X-Factory1-Context-Generation": generation, Authorization: "browser-must-not-forward", "X-Factory1-Edge-Token": "browser-untrusted" },
+    }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    const [target, init] = upstream.mock.calls.at(-1)!;
+    expect(target.toString()).toBe(`${backendOrigin}/api/partner/v2/bff/runtime/api/inventory/items?page=0&size=20`);
+    const headers = new Headers(init?.headers);
+    expect(headers.get("authorization")).toContain("Basic ");
+    expect(headers.get("cookie")).toBeNull();
+    expect(headers.get("X-Factory1-BFF-Session")).toBe(handle);
+    expect(headers.get("X-Factory1-Edge-Token")).toBe(edgeToken);
+    expect(headers.get("X-Factory1-Storefront-Host")).toBe(host);
+    expect(headers.get("X-Factory1-Context-Generation")).toBe(generation);
+    expect(init).toMatchObject({ credentials: "omit", cache: "no-store", redirect: "error" });
+    const text = await response.text();
+    for (const secret of [handle, clientSecret, edgeToken]) expect(text).not.toContain(secret);
+  });
+
+  it.each(["/api/ai/chat", "/api/dashboard", "/api/saas-admin/factories", "/api/employees/invite", "/api/inventory/items/bulk"])(
+    "denies %s before contacting any backend", async (path) => {
+      const upstream = runtimeBackend(); vi.stubGlobal("fetch", upstream);
+      const response = await productRuntimeRequest(requestWithSession(`/api/product-runtime${path}`));
+      expect(response.status).toBe(403); expect(upstream).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects client tenant authority, stale generations and second-product widening", async () => {
+    const upstream = runtimeBackend(); vi.stubGlobal("fetch", upstream);
+    expect((await productRuntimeRequest(requestWithSession("/api/product-runtime/api/inventory/items?organizationId=forged"))).status).toBe(403);
+    expect(upstream).not.toHaveBeenCalled();
+    expect((await productRuntimeRequest(requestWithSession("/api/product-runtime/api/inventory/items", {
+      headers: { "X-Factory1-Context-Generation": "stale-tab" },
+    }))).status).toBe(409);
+    expect(upstream.mock.calls.some(([input]) => input.toString().includes("/runtime/api/"))).toBe(false);
+    const data = runtimeBootstrap();
+    data.entitlements!.modules = ["payroll"];
+    vi.stubGlobal("fetch", runtimeBackend(data));
+    expect((await productRuntimeRequest(requestWithSession("/api/product-runtime/api/inventory/items", {
+      headers: { "X-Factory1-Context-Generation": generation },
+    }))).status).toBe(403);
+  });
+
+  it.each(["POST", "PUT", "DELETE"])("requires same-origin CSRF on every %s before backend mutation", async (method) => {
+    const upstream = runtimeBackend(); vi.stubGlobal("fetch", upstream);
+    const path = method === "POST" ? "/api/inventory/items" : `/api/inventory/items/${organizationId}`;
+    for (const headers of [
+      { Origin: `https://${host}`, "X-CSRF-Token": "invalid" },
+      { Origin: "https://evil.test", "X-CSRF-Token": testCsrf() },
+      { Origin: `https://${host}`, "X-CSRF-Token": testCsrf(), "Sec-Fetch-Site": "cross-site" },
+    ]) {
+      const response = await productRuntimeRequest(requestWithSession(`/api/product-runtime${path}`, {
+        method, headers: { ...headers, "X-Factory1-Context-Generation": generation },
+      }));
+      expect(response.status).toBe(403);
+    }
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("checks bounded JSON and never forwards a multipart operational mutation", async () => {
+    const upstream = runtimeBackend(); vi.stubGlobal("fetch", upstream);
+    const response = await productRuntimeRequest(requestWithSession("/api/product-runtime/api/inventory/items", {
+      method: "POST",
+      headers: { Origin: `https://${host}`, "X-CSRF-Token": testCsrf(), "X-Factory1-Context-Generation": generation, "Content-Type": "multipart/form-data" },
+      body: "unreviewed-file",
+    }));
+    expect(response.status).toBe(400);
+    expect(upstream.mock.calls.some(([input]) => input.toString().includes("/runtime/api/"))).toBe(false);
+  });
+});
+
+describe("explicit product-bound invitation BFF", () => {
+  it("issues only a short-lived host-only HttpOnly CSRF challenge, not an identity", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => trustedStorefrontResponse()));
+    const response = await getInvitationChallenge(request("/auth/invitation"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain("__Host-factory1_invitation_csrf=");
+    expect(response.headers.get("set-cookie")).toContain("HttpOnly; Secure; SameSite=Strict");
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=600");
+    expect(await response.json()).toMatchObject({ success: true, data: { csrfToken: expect.any(String) } });
+    expect(response.headers.get("set-cookie")).not.toContain("__Host-factory1_session");
+  });
+
+  it("requires anonymous CSRF + same origin before forwarding activation credentials", async () => {
+    const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
+    const response = await activateProductInvitation(request("/auth/invitation", {
+      method: "POST", headers: { Origin: `https://${host}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ token: "i".repeat(43), password: "Test-Only-Password1!" }),
+    }));
+    expect(response.status).toBe(403);
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("never accepts an existing identity without an authenticated opaque session", async () => {
+    const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
+    const response = await acceptProductInvitation(request("/auth/invitation/accept", {
+      method: "POST", body: JSON.stringify({ token: "i".repeat(43) }),
+    }));
+    expect(response.status).toBe(401);
+    expect(upstream).not.toHaveBeenCalled();
+  });
 });
 
 describe("partner BFF OAuth and host-bound sessions", () => {

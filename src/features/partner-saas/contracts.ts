@@ -51,9 +51,8 @@ export const storefrontSchema = z.object({
     partnerId: id, productId: id, canonicalOrigin: z.url(), displayName: z.string().min(1).max(120),
     logoUrl: asset, faviconUrl: asset, primaryColorHex: color, accentColorHex: color,
   }),
-  // Foundation never enables a runtime merely because a backend advertises it.
   capabilities: z.object({
-    operationalAccess: z.literal(false), sso: z.boolean(), checkout: z.literal(false),
+    operationalAccess: z.boolean(), sso: z.boolean(), checkout: z.literal(false),
   }),
 });
 export type PublicStorefront = z.infer<typeof storefrontSchema>;
