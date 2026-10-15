@@ -1,0 +1,45 @@
+name: Partner SSO browser harness checks
+
+on:
+  pull_request:
+    paths:
+      - tests/partner-sso/**
+      - .github/workflows/partner-sso-browser.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: partner-sso-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install isolated pinned browser tooling
+        run: npm install --prefix "$RUNNER_TEMP/browser-tools" --ignore-scripts --no-audit --no-fund @playwright/test@1.58.2
+      - name: Validate harness and discover real browser scenario
+        env:
+          NODE_PATH: ${{ runner.temp }}/browser-tools/node_modules
+        run: |
+          bash -n tests/partner-sso/run-hosted.sh
+          node --check tests/partner-sso/https-proxy.cjs
+          node --check tests/partner-sso/browser.spec.cjs
+          node "$RUNNER_TEMP/browser-tools/node_modules/@playwright/test/cli.js" test --config tests/partner-sso/playwright.config.cjs --list
+          npx tsc --noEmit
+      - name: Existing focused frontend regressions
+        run: npm test -- src/features/partner-saas/__tests__
+
+      - name: Evidence boundary
+        run: echo "Harness checks only. Actual private-backend integration executes in backend-owned manual CI; this job is not browser integration evidence." >> "$GITHUB_STEP_SUMMARY"
