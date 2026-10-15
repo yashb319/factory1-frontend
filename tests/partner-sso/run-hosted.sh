@@ -11,6 +11,7 @@ EXPECTED_BACKEND=c9bdbda834fadace0cf94e2a6850edea0bea0d87
 : "${RUNNER_TEMP:?}"
 : "${PLAYWRIGHT_BROWSERS_PATH:?Set the same shared browser path used by Playwright install}"
 source "$ROOT/tests/partner-sso/filesystem.sh"
+source "$ROOT/tests/partner-sso/readiness.sh"
 
 WORK="$(mktemp -d "$RUNNER_TEMP/partner-sso.XXXXXX")"
 TEST_HOME="$WORK/browser-home"
@@ -28,6 +29,11 @@ cleanup() {
   if (( status != 0 )); then
     for log in backend frontend proxy; do
       if [[ -f "$WORK/$log.log" ]]; then
+        if [[ "$log" == backend ]]; then
+          echo "Sanitized backend startup/error highlights (up to 40 matching lines):"
+          grep -m 40 -E 'APPLICATION FAILED|Caused by|ERROR|Description:|Action:|jdbc|Hikari|Flyway' "$WORK/backend.log" \
+            | node "$ROOT/tests/partner-sso/sanitize-logs.cjs"
+        fi
         echo "Sanitized $log diagnostics (last 80 lines):"
         tail -n 80 "$WORK/$log.log" | node "$ROOT/tests/partner-sso/sanitize-logs.cjs"
       fi
@@ -168,6 +174,7 @@ sudo -u partner-sso-ci env -i PATH="$PATH" JAVA_HOME="$JAVA_HOME" HOME="$WORK/ba
   -Djavax.net.ssl.trustStorePassword="$TRUSTSTORE_PASSWORD" \
   -jar "$BACKEND/target/factory1-backend-0.0.1-SNAPSHOT.jar" \
   --server.address=127.0.0.1 --server.forward-headers-strategy=framework \
+  --management.health.mail.enabled=false \
   --factory1.notifications.operational-digest.enabled=false \
   --factory1.notifications.renewal.cron=- \
   --factory1.notifications.production.deadline-breach.enabled=false \
@@ -203,6 +210,9 @@ wait_for() {
     sleep 1
   done
   echo "Service did not become ready: $1 (sanitized diagnostics follow during cleanup)"
+  if [[ "$1" == https://central.test/actuator/health ]]; then
+    report_health_response "$1"
+  fi
   exit 1
 }
 wait_for https://central.test/actuator/health

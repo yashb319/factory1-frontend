@@ -86,3 +86,11 @@ temporary state is removed; credential-bearing lines and opaque values are
 redacted. Cleanup preserves the failing exit status. Runtime material is
 temporary and process cleanup is trapped. Record the private backend run URL and both exact tested SHAs in the PR;
 never label discovery or a skipped/blocked run as integration success.
+
+SMTP remains pointed at an unused loopback port. Its Actuator mail health
+indicator is disabled only for this harness so intentional email isolation does
+not make the readiness endpoint return 503. On readiness failure the runner
+prints the sanitized HTTPS health response and HTTP status, trying the readiness
+health group if the response body is empty. Backend diagnostics include up to 40
+startup/error/database highlights before the final 80 log lines. Network policy
+and application behavior are unchanged.
