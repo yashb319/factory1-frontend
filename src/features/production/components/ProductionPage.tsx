@@ -84,6 +84,8 @@ import { ProductionQuantitySummary } from "./ProductionQuantitySummary";
 import { ProductionFamilyOverview } from "./ProductionFamilyOverview";
 import { ProductionSplit } from "./ProductionSplit";
 import { ProductionFinalGoodForm } from "./ProductionFinalGoodForm";
+import { ContextExecutionBatches } from "./ContextExecutionBatches";
+import { ExecutionBatchHistory } from "./ExecutionBatchHistory";
 import { ProductionShortClose } from "./ProductionShortClose";
 import { canProductionAction, matchesProductionOrderGuard, productionActionBlock, productionIsTerminal, productionOrderGuard } from "../utils/productionFlow";
 import type { ProductionOrderGuard } from "../types/productionFlow.types";
@@ -311,7 +313,7 @@ function ContextProductionPage() {
   const workflows = useGetWorkflowsQuery({ page, size: 20 }, { skip: tab !== "workflows" || !can("GET", "/api/production/workflows") });
   return <section className="space-y-4">
     <h1 className="text-xl font-semibold">Production</h1>
-    <p>Reviewed order and workflow views only. Kanban, workstations, assignments, QR, quality and material execution are unavailable. Creation and quantity-flow mutations require reviewed catalog and preview dependencies; they are not enabled by this screen.</p>
+    <p>Reviewed order/workflow views and explicitly authorized execution-batch previews and recording only. Order creation, workflow advance, workstations, assignments, QR, quality and manual material operations remain unavailable.</p>
     <div className="flex gap-2"><Button onClick={() => { setPage(0); setTab("orders"); }}>Orders</Button>
       {can("GET", "/api/production/workflows") ? <Button onClick={() => { setPage(0); setTab("workflows"); }}>Workflow versions</Button> : null}</div>
     {orders.isError || workflows.isError ? <ErrorState title="Production information unavailable" message="Refresh and verify current access." onRetry={() => { void orders.refetch(); if (tab === "workflows") void workflows.refetch(); }} /> : null}
@@ -348,6 +350,8 @@ function ContextOrderDetail({ orderId }: { orderId: string }) {
     {can("GET", "/api/production/boms") ? <OrderBomBinding order={order.data} /> : null}
     <Table><TableHeader><TableRow><TableHead>Step</TableHead><TableHead>Status</TableHead><TableHead>Completed</TableHead></TableRow></TableHeader>
       <TableBody>{order.data.steps.map((step) => <TableRow key={step.id}><TableCell>{step.name}</TableCell><TableCell>{step.status}</TableCell><TableCell>{step.completedQuantity}</TableCell></TableRow>)}</TableBody></Table>
+    <ContextExecutionBatches order={order.data} refreshing={order.isFetching} failed={order.isError}
+      onRefresh={() => { void order.refetch(); }} />
     <h2 className="font-semibold">Timeline</h2>{timeline.isError ? <p role="alert">Timeline unavailable.</p> : timeline.data?.map((event) => <TimelineEventRow key={event.id} event={event} />)}
     <h2 className="font-semibold">Audit trail (latest 20)</h2>{audit.isError ? <p role="alert">Audit trail unavailable.</p> : audit.data?.content.map((event) => <AuditLogRow key={event.id} event={event} />)}
   </CardContent></Card>;
@@ -2662,21 +2666,7 @@ function OrderDetail({
               ) : !executionBatches.length ? (
                 <Empty text="No execution batches recorded yet." />
               ) : (
-                <div className="space-y-2">
-                  {executionBatches.map((batch) => (
-                    <div key={batch.id} className="rounded-md border p-3 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">Output record {batch.batchNumber}</span>
-                        <span className="text-xs text-muted-foreground">{formatDateTime(batch.createdAt)}</span>
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        Completed {formatNumber(batch.completedQuantity)} · Rejected {formatNumber(batch.rejectedQuantity)}
-                      </div>
-                      {batch.notes ? <p className="mt-1 text-xs text-muted-foreground">{batch.notes}</p> : null}
-                      <p className="mt-1 break-all text-xs text-muted-foreground">Rejection evidence source: EXECUTION_BATCH / {batch.id}</p>
-                    </div>
-                  ))}
-                </div>
+                <ExecutionBatchHistory batches={executionBatches} quantityLabel={formatNumber} dateLabel={formatDateTime} />
               )}
             </CardContent>
           </Card>

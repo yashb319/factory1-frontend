@@ -21,7 +21,8 @@ function entries(methods: string, path: string, features: string, role: keyof ty
   });
 }
 
-// Frozen against backend 6522bfce, docs/partner-runtime-and-onboarding.md.
+// Backend 6522bfce plus the frozen three-route execution-batch addendum.
+// The 108-row fingerprint is pinned in runtimePolicy.test.ts.
 // The backend's filtered runtimeRoutes is still required for every operation.
 export const reviewedRoutes: readonly ReviewedRoute[] = [
   ...entries("GET,POST", "/api/inventory/items", "inventory", "M"),
@@ -66,6 +67,8 @@ export const reviewedRoutes: readonly ReviewedRoute[] = [
   ...entries("POST", "/api/production/orders/{orderId}/bom-binding", "production_tracking+inventory", "M"),
   ...["start", "pause", "record", "complete"].flatMap((action) =>
     entries("POST", `/api/production/orders/{orderId}/steps/{stepId}/${action}`, "production_tracking+inventory", "M")),
+  ...entries("POST", "/api/production/orders/{orderId}/steps/{stepId}/record-preview", "production_tracking+inventory", "M"),
+  ...entries("GET,POST", "/api/production/orders/{orderId}/execution-batches", "production_tracking+inventory", "M"),
   ...["timeline", "audit-log"].flatMap((suffix) =>
     entries("GET", `/api/production/orders/{orderId}/${suffix}`, "production_tracking", "M")),
   ...entries("GET", "/api/production/orders/progress", "production_tracking", "M"),
@@ -155,6 +158,8 @@ export const runtimeQueryKeys = new Set([
 
 export function runtimeQueryAllowed(params: URLSearchParams, path?: string) {
   const keys = [...params.keys()];
+  if (path && (/^\/api\/production\/orders\/[^/]+\/execution-batches$/.test(path) ||
+      /^\/api\/production\/orders\/[^/]+\/steps\/[^/]+\/record-preview$/.test(path))) return keys.length === 0;
   return keys.length <= 16 && keys.every((key) =>
     runtimeQueryKeys.has(key) && (key !== "productId" || path === "/api/production/boms") &&
     params.getAll(key).length === 1 &&

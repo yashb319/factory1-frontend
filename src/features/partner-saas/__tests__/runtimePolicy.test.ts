@@ -6,11 +6,34 @@ import { runtimeBootstrap, factoryId } from "./runtimeFixtures";
 
 describe("reviewed product runtime policy", () => {
   it("matches all 105 frozen backend method/path/dependency/role rows at 6522bfce", () => {
-    const rows = reviewedRoutes.map((route) =>
+    const rows = reviewedRoutes.filter((route) => !route.path.endsWith("/execution-batches") && !route.path.endsWith("/record-preview")).map((route) =>
       `${route.method} ${route.path}|${route.features.join("+")}|${route.roles.join(",")}`).sort();
     expect(rows).toHaveLength(105);
     expect(createHash("sha256").update(rows.join("\n")).digest("hex"))
       .toBe("a325dd97ab2a293921c17572fbb6e81939eb6f89661ad35b2befa090e1f15cd5");
+  });
+  it("adds only the three frozen execution-batch routes with both dependencies and operator roles", () => {
+    expect(reviewedRoutes).toHaveLength(108);
+    const rows = reviewedRoutes.map((route) =>
+      `${route.method} ${route.path}|${route.features.join("+")}|${route.roles.join(",")}`).sort();
+    expect(createHash("sha256").update(rows.join("\n")).digest("hex"))
+      .toBe("f602a7001790ff0f8db0e64d610cfdb8753aa907c0437b1435c02d28b7566cac");
+    const batchRoutes = reviewedRoutes.filter((route) => route.path.endsWith("/execution-batches") || route.path.endsWith("/record-preview"));
+    expect(batchRoutes).toEqual([
+      { method: "POST", path: "/api/production/orders/{orderId}/steps/{stepId}/record-preview",
+        features: ["production_tracking", "inventory"], roles: ["OWNER", "ADMIN", "MANAGEMENT"] },
+      { method: "GET", path: "/api/production/orders/{orderId}/execution-batches",
+        features: ["production_tracking", "inventory"], roles: ["OWNER", "ADMIN", "MANAGEMENT"] },
+      { method: "POST", path: "/api/production/orders/{orderId}/execution-batches",
+        features: ["production_tracking", "inventory"], roles: ["OWNER", "ADMIN", "MANAGEMENT"] },
+    ]);
+    for (const route of batchRoutes) {
+      const path = route.path.replaceAll("{orderId}", factoryId).replaceAll("{stepId}", factoryId);
+      expect(runtimeQueryAllowed(new URLSearchParams(), path)).toBe(true);
+      for (const query of ["page=0", "search=steel", "productId=forged"]) {
+        expect(runtimeQueryAllowed(new URLSearchParams(query), path)).toBe(false);
+      }
+    }
   });
   it("requires backend access, active principal, context and matching generations", () => {
     const data = runtimeBootstrap();

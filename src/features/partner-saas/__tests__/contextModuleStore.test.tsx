@@ -27,7 +27,9 @@ function Probe({ denied = false }: { denied?: boolean }) {
   return <div>
     <p>{query.data?.name}</p>
     <p>{mutation.data?.name}</p>
-    {mutation.error && "error" in mutation.error ? <p role="alert">{mutation.error.error}</p> : null}
+    {mutation.error ? <p role="alert">{"error" in mutation.error ? mutation.error.error :
+      "data" in mutation.error && mutation.error.data && typeof mutation.error.data === "object" &&
+      "message" in mutation.error.data ? String(mutation.error.data.message) : "The contextual request failed."}</p> : null}
     {blocked.isError ? <p>Denied without fallback</p> : null}
     <button onClick={() => void save()}>Save probe</button>
     <button onClick={() => void save({ notes: "x".repeat(64 * 1024 - JSON.stringify({ notes: "" }).length) })}>Save exact limit</button>

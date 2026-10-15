@@ -397,7 +397,7 @@ export type OrderAssignment = OrderAssignmentRequest & {
 
 export type ExecutionBatchRequest = {
   orderStepSnapshotId: string;
-  batchNumber: number;
+  batchNumber: string;
   completedQuantity: number;
   rejectedQuantity: number;
   notes?: string;
@@ -409,9 +409,11 @@ export type ExecutionBatchRequest = {
   materialCoverage?: MaterialCoverage[];
 };
 
-export type ExecutionBatch = ExecutionBatchRequest & {
+export type ExecutionBatch = Omit<ExecutionBatchRequest, "notes"> & {
   id: string;
   productionOrderId: string;
+  notes?: string | null;
+  occurredAt?: string;
   createdAt?: string;
 };
 
