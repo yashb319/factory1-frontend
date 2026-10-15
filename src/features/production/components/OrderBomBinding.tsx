@@ -12,10 +12,13 @@ import { useAppSelector } from "@/lib/hook";
 import { useBindOrderBomMutation, useGetBomsQuery, useGetOrderQuery } from "../api/productionApi";
 import type { ProductionOrder } from "../types/production.types";
 import { canProductionAction, productionIsTerminal, productionOrderGuard } from "../utils/productionFlow";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 export function OrderBomBinding({ order }: { order: ProductionOrder }) {
+  const { can } = useRuntimePermissions();
   const user = useAppSelector((state) => state.auth.user);
-  const canBind = !!user && ["OWNER", "ADMIN", "MANAGEMENT"].includes(user.role) && canProductionAction(order, "BIND_BOM");
+  const canBind = !!user && ["OWNER", "ADMIN", "MANAGEMENT"].includes(user.role) && canProductionAction(order, "BIND_BOM") &&
+    can("POST", `/api/production/orders/${order.id}/bom-binding`);
 
   if (order.bomBindingStatus === "PINNED") return null;
 

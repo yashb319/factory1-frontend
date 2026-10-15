@@ -14,7 +14,8 @@ export const runtimePrincipalSchema = z.object({
 
 export const runtimeRouteSchema = z.object({
   method: z.enum(["GET", "POST", "PUT", "DELETE"]),
-  path: z.string().startsWith("/api/").max(200),
+  path: z.string().max(200).refine((path) => path.startsWith("/api/") ||
+    ["/exports/inventory", "/exports/inventory/{id}", "/exports/inventory/{id}/download"].includes(path)),
 }).strict();
 export const moduleDecisionSchema = z.object({
   key: z.string().min(1).max(100), enabled: z.boolean(),
@@ -66,7 +67,7 @@ export const partnerEntitlementsSchema = z.object({
   operationalAccess: z.boolean(),
   role: factoryRole.nullable().optional().default(null),
   contextGeneration: z.string().min(1).max(128).nullable().optional().default(null),
-  runtimeRoutes: z.array(runtimeRouteSchema).max(100).optional().default([]),
+  runtimeRoutes: z.array(runtimeRouteSchema).max(256).optional().default([]),
   runtimeCoverage: z.literal("PARTIAL_TENANT_CRUD").optional(),
   moduleDecisions: z.array(moduleDecisionSchema).max(100).optional().default([]),
 }).strict().refine((entitlements) => !entitlements.operationalAccess ||

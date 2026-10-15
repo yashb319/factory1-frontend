@@ -22,12 +22,14 @@ import { EditEmployeeDrawer } from "./EditEmployeeDrawer";
 import { DeleteEmployeeDialog } from "./DeleteEmployeeDialog";
 import { EmployeeOffboardingDialog } from "./EmployeeOffboardingDialog";
 import { OrgIntelligenceHierarchyView } from "@/features/org-intelligence/components/OrgIntelligenceHierarchyView";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 export function EmployeesPage() {
+  const { contextual, can } = useRuntimePermissions();
   const { filters, updateFilters } = useEmployeeFilters();
 
   const user = useAppSelector((state) => state.auth.user);
-  const isOwner = user?.role === "OWNER";
+  const isOwner = !contextual && user?.role === "OWNER";
 
   const [viewMode, setViewMode] = useState<"list" | "hierarchy">("list");
   const showHierarchy = isOwner && viewMode === "hierarchy";
@@ -100,23 +102,23 @@ export function EmployeesPage() {
 
           {!showHierarchy && (
             <>
-              <EmployeeExportMenu employees={data?.content ?? []} />
+              {!contextual ? <EmployeeExportMenu employees={data?.content ?? []} /> : null}
 
-              <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Button variant="outline" disabled={contextual} onClick={() => setImportOpen(true)}>
                 <Upload className="mr-2 h-4 w-4" />
                 Import
               </Button>
 
               <Button
                 variant="outline"
-                disabled={!selectedInvitationIds.length || inviteState.isLoading}
+                disabled={contextual || !selectedInvitationIds.length || inviteState.isLoading}
                 onClick={sendInvitations}
               >
                 <Mail className="mr-2 h-4 w-4" />
                 {inviteState.isLoading ? "Sending…" : `Invite selected${selectedInvitationIds.length ? ` (${selectedInvitationIds.length})` : ""}`}
               </Button>
 
-              <Button onClick={() => setAddOpen(true)}>
+              <Button disabled={!can("POST", "/api/employees")} onClick={() => setAddOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Employee
               </Button>
@@ -166,7 +168,7 @@ export function EmployeesPage() {
 
       <AddEmployeeDrawer open={addOpen} onOpenChange={setAddOpen} />
 
-      <EmployeeImportDialog open={importOpen} onOpenChange={setImportOpen} />
+      {!contextual ? <EmployeeImportDialog open={importOpen} onOpenChange={setImportOpen} /> : null}
 
       <EmployeeDetailsDrawer
         employee={detailsEmployee}
@@ -186,11 +188,11 @@ export function EmployeesPage() {
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       />
 
-      <EmployeeOffboardingDialog
+      {!contextual ? <EmployeeOffboardingDialog
         employee={offboardingTarget}
         open={!!offboardingTarget}
         onOpenChange={(open) => !open && setOffboardingTarget(null)}
-      />
+      /> : null}
     </div>
   );
 }

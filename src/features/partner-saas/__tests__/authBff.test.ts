@@ -156,7 +156,7 @@ describe("confidential reviewed operational BFF", () => {
       if (url.pathname === "/api/partner/v2/bff/session") return envelope(data.session);
       if (url.pathname.endsWith("/session/context/options")) return envelope(data.contextOptions);
       if (url.pathname.endsWith("/session/entitlements")) return envelope(data.entitlements);
-      if (url.pathname.startsWith("/api/partner/v2/bff/runtime/api/")) return envelope({ content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 });
+      if (url.pathname.startsWith("/api/partner/v2/bff/runtime/")) return envelope({ content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 });
       throw new Error("Unexpected reviewed runtime request");
     });
   }
@@ -233,6 +233,46 @@ describe("confidential reviewed operational BFF", () => {
     }));
     expect(response.status).toBe(400);
     expect(upstream.mock.calls.some(([input]) => input.toString().includes("/runtime/api/"))).toBe(false);
+  });
+
+  it("confines contextual export creation to the exact opaque-session route with mutation CSRF", async () => {
+    const data = runtimeBootstrap();
+    data.entitlements!.runtimeRoutes.push({ method: "POST", path: "/exports/inventory" });
+    const upstream = runtimeBackend(data);
+    vi.stubGlobal("fetch", upstream);
+    const response = await productRuntimeRequest(requestWithSession("/api/product-runtime/exports/inventory", {
+      method: "POST", body: "{}",
+      headers: { Origin: `https://${host}`, "Content-Type": "application/json",
+        "X-CSRF-Token": testCsrf(), "X-Factory1-Context-Generation": generation },
+    }));
+    expect(response.status).toBe(200);
+    const [url, init] = upstream.mock.calls.at(-1)!;
+    expect(url.toString()).toBe(`${backendOrigin}/api/partner/v2/bff/runtime/exports/inventory`);
+    expect(init).toMatchObject({ method: "POST", body: "{}", redirect: "error", credentials: "omit" });
+    expect(new Headers(init?.headers).get("X-Factory1-BFF-Session")).toBe(handle);
+    const before = upstream.mock.calls.length;
+    expect((await productRuntimeRequest(requestWithSession("/api/product-runtime/exports/inventory/arbitrary-file"))).status).toBe(403);
+    expect(upstream).toHaveBeenCalledTimes(before);
+  });
+
+  it("distinguishes a reviewed production catalog SKU from caller-supplied tenant authority", async () => {
+    const data = runtimeBootstrap();
+    data.entitlements!.modules.push("production_tracking");
+    data.entitlements!.runtimeRoutes.push({ method: "POST", path: "/api/production/orders" });
+    const upstream = runtimeBackend(data);
+    vi.stubGlobal("fetch", upstream);
+    const headers = { Origin: `https://${host}`, "Content-Type": "application/json",
+      "X-CSRF-Token": testCsrf(), "X-Factory1-Context-Generation": generation };
+    expect((await productRuntimeRequest(requestWithSession("/api/product-runtime/api/production/orders", {
+      method: "POST", headers, body: JSON.stringify({ productId: otherOrganizationId, plannedQuantity: 1 }),
+    }))).status).toBe(200);
+    expect((await productRuntimeRequest(requestWithSession("/api/product-runtime/api/inventory/items", {
+      method: "POST", headers, body: JSON.stringify({ productId: otherOrganizationId }),
+    }))).status).toBe(400);
+    expect((await productRuntimeRequest(requestWithSession("/api/product-runtime/api/production/orders", {
+      method: "POST", headers, body: JSON.stringify({ productId: otherOrganizationId, organizationId: otherOrganizationId }),
+    }))).status).toBe(400);
+    expect(upstream.mock.calls.filter(([url]) => url.toString().includes("/runtime/"))).toHaveLength(1);
   });
 });
 

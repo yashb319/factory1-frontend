@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useGetAttendanceLeaveStatusQuery, useGetMonthlyAttendanceReportQuery } from "../api/attendanceApi";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 export function MonthlyReportPanel() {
+  const { can } = useRuntimePermissions();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -20,7 +22,7 @@ export function MonthlyReportPanel() {
   const { data = [], isLoading, isFetching, isError } = useGetMonthlyAttendanceReportQuery({ month, year });
   const { data: leaveStatus, isFetching: statusLoading } = useGetAttendanceLeaveStatusQuery(
     statusLookup ?? { employeeId: "", date: "" },
-    { skip: !statusLookup },
+    { skip: !statusLookup || !can("GET", "/api/attendance/leave-status") },
   );
 
   return (
@@ -47,7 +49,7 @@ export function MonthlyReportPanel() {
         </div>
       ) : null}
       {isFetching && !isLoading ? <p className="text-xs text-slate-500">Refreshing report...</p> : null}
-      <div className="border-t pt-3">
+      {can("GET", "/api/attendance/leave-status") ? <div className="border-t pt-3">
         <h3 className="text-sm font-semibold text-slate-950">Check leave status for a day</h3>
         <p className="mb-2 text-xs text-slate-500">Select an employee to resolve the status applied to attendance and payroll.</p>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -68,7 +70,7 @@ export function MonthlyReportPanel() {
           <Button className="shrink-0" disabled={!employeeId.trim() || !statusDate || statusLoading} onClick={() => setStatusLookup({ employeeId: employeeId.trim(), date: statusDate })}><Search className="mr-2 h-4 w-4" />Check</Button>
         </div>
         {leaveStatus ? <p className="mt-2 rounded-md bg-slate-50 p-3 text-sm"><span className="font-medium">{leaveStatus.status.replaceAll("_", " ")}</span> · {leaveStatus.paid ? "Paid" : "Unpaid"} · {leaveStatus.reason || "No reason recorded"}</p> : null}
-      </div>
+      </div> : null}
     </section>
   );
 }

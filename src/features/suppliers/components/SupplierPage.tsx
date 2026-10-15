@@ -17,7 +17,9 @@ import { SupplierDashboardCards } from "./SupplierDashboardCards";
 import { SupplierFilters } from "./SupplierFilters";
 import { SupplierFormDialog } from "./SupplierFormDialog";
 import { SupplierTable } from "./SupplierTable";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 export function SupplierPage() {
+  const { contextual, can } = useRuntimePermissions();
   const [filters, setFilters] = useState<SupplierSearchParams>({
     page: 0,
     size: 10,
@@ -30,9 +32,9 @@ export function SupplierPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
 
-  const { data, isLoading } = useGetSuppliersQuery(filters);
-  const { data: dashboard, isLoading: dashboardLoading } =
-    useGetSupplierDashboardQuery();
+  const { data, isLoading, error } = useGetSuppliersQuery(filters);
+  const { data: dashboard, isLoading: dashboardLoading, isError: dashboardError } =
+    useGetSupplierDashboardQuery(undefined, { skip: !can("GET", "/api/suppliers/dashboard") });
   const [deleteSupplier, deleteState] = useDeleteSupplierMutation();
   const logDataJob = useLogDataJob();
 
@@ -100,22 +102,24 @@ export function SupplierPage() {
           <Button
             variant="outline"
             onClick={handleExport}
-            disabled={suppliers.length === 0}
+            disabled={contextual || suppliers.length === 0}
           >
             Export CSV
           </Button>
 
-          <Button variant="outline" onClick={() => setBulkOpen(true)}>
+          <Button variant="outline" disabled={contextual} onClick={() => setBulkOpen(true)}>
             Import CSV
           </Button>
 
-          <Button onClick={openCreate}>Add Supplier</Button>
+          <Button disabled={!can("POST", "/api/suppliers")} onClick={openCreate}>Add Supplier</Button>
         </div>
       </div>
 
-      <SupplierDashboardCards data={dashboard} isLoading={dashboardLoading} />
+      {contextual && dashboardError ? <p role="alert">Supplier summary could not be loaded.</p> :
+        can("GET", "/api/suppliers/dashboard") ? <SupplierDashboardCards data={dashboard} isLoading={dashboardLoading} /> : null}
 
       <SupplierFilters filters={filters} onChange={setFilters} />
+      {error ? <p role="alert">Suppliers could not be loaded. Refresh and verify your access.</p> : null}
 
       {isLoading ? (
         <div className="rounded-lg border bg-card p-10 text-center text-muted-foreground">
@@ -139,10 +143,10 @@ export function SupplierPage() {
         onClose={() => setFormOpen(false)}
       />
 
-      <SupplierBulkImportDialog
+      {!contextual ? <SupplierBulkImportDialog
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
-      />
+      /> : null}
 
       <SupplierConfirmDialog
         open={confirmOpen}

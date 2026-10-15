@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import type { BalanceType, VoucherType } from "../types/accounting.types";
 import { formatCurrency, labelCase } from "../utils/accountingFormat";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 export type SelectedLedger = {
   id: string;
@@ -42,7 +43,7 @@ type Props = {
   fromDate: string;
   toDate: string;
   onClose: () => void;
-  onExport: () => void;
+  onExport?: () => void;
 };
 
 export function LedgerDrilldownDialog({
@@ -54,6 +55,7 @@ export function LedgerDrilldownDialog({
   onClose,
   onExport,
 }: Props) {
+  const { contextual } = useRuntimePermissions();
   return (
     <Dialog
       open={Boolean(selectedLedger)}
@@ -134,7 +136,7 @@ export function LedgerDrilldownDialog({
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          <Button onClick={onExport} disabled={!rows.length}>
+          <Button onClick={onExport} disabled={contextual || !onExport || !rows.length}>
             <Download className="mr-2 h-4 w-4" />
             CSV
           </Button>

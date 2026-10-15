@@ -20,7 +20,9 @@ import { CustomerDashboardCards } from "./CustomerDashboardCards";
 import { CustomerFilters } from "./CustomerFilters";
 import { CustomerFormDialog } from "./CustomerFormDialog";
 import { CustomerTable } from "./CustomerTable";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 export function CustomerPage() {
+  const { contextual, can } = useRuntimePermissions();
   const [filters, setFilters] = useState<CustomerSearchParams>({
     page: 0,
     size: 10,
@@ -35,10 +37,10 @@ export function CustomerPage() {
     null
   );
 
-  const { data, isLoading } = useGetCustomersQuery(filters);
+  const { data, isLoading, error } = useGetCustomersQuery(filters);
 
-  const { data: dashboard, isLoading: dashboardLoading } =
-    useGetCustomerDashboardQuery();
+  const { data: dashboard, isLoading: dashboardLoading, isError: dashboardError } =
+    useGetCustomerDashboardQuery(undefined, { skip: !can("GET", "/api/customers/dashboard") });
 
   const [deleteCustomer, deleteState] = useDeleteCustomerMutation();
   const logDataJob = useLogDataJob();
@@ -108,25 +110,27 @@ export function CustomerPage() {
           <Button
             variant="outline"
             onClick={handleExport}
-            disabled={customers.length === 0}
+            disabled={contextual || customers.length === 0}
           >
             Export CSV
           </Button>
 
-          <Button variant="outline" onClick={() => setBulkOpen(true)}>
+          <Button variant="outline" disabled={contextual} onClick={() => setBulkOpen(true)}>
             Import CSV
           </Button>
 
-          <Button onClick={openCreate}>Add Customer</Button>
+          <Button disabled={!can("POST", "/api/customers")} onClick={openCreate}>Add Customer</Button>
         </div>
       </div>
 
-      <CustomerDashboardCards
+      {contextual && dashboardError ? <p role="alert">Customer summary could not be loaded.</p> :
+      can("GET", "/api/customers/dashboard") ? <CustomerDashboardCards
         data={dashboard}
         isLoading={dashboardLoading}
-      />
+      /> : null}
 
       <CustomerFilters filters={filters} onChange={setFilters} />
+      {error ? <p role="alert">Customers could not be loaded. Refresh and verify your access.</p> : null}
 
       {isLoading ? (
         <div className="rounded-lg border bg-card p-10 text-center text-muted-foreground">
@@ -155,10 +159,10 @@ export function CustomerPage() {
         onClose={() => setFormOpen(false)}
       />
 
-      <CustomerBulkImportDialog
+      {!contextual ? <CustomerBulkImportDialog
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
-      />
+      /> : null}
 
       <CustomerConfirmDialog
         open={confirmOpen}

@@ -33,6 +33,7 @@ import {
 import { isCodeConflict } from "@/lib/apiError";
 import { useLazyGetGstSuggestionsQuery } from "@/features/billing/api/billingApi";
 import type { GstRateSuggestion } from "@/features/billing/types/billing.types";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 type Props = {
   open: boolean;
@@ -59,12 +60,13 @@ type FormValues = {
 };
 
 export function InventoryFormDialog({ open, item, onClose }: Props) {
+  const { can } = useRuntimePermissions();
   const isEdit = Boolean(item);
 
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
   const [gstSuggestions, setGstSuggestions] = useState<GstRateSuggestion[]>([]);
 
-  const { data: suppliers = [] } = useGetActiveSuppliersQuery();
+  const { data: suppliers = [] } = useGetActiveSuppliersQuery(undefined, { skip: !open || !can("GET", "/api/suppliers/active") });
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -331,7 +333,7 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
                     type="button"
                     size="icon"
                     variant="outline"
-                    disabled={gstSuggestionState.isFetching}
+                    disabled={gstSuggestionState.isFetching || !can("GET", "/api/billing/gst-suggestions")}
                     onClick={lookupGst}
                     aria-label="Find GST suggestion"
                   >
@@ -387,6 +389,7 @@ export function InventoryFormDialog({ open, item, onClose }: Props) {
                   variant="outline"
                   size="sm"
                   onClick={() => setSupplierDialogOpen(true)}
+                  disabled={!can("POST", "/api/suppliers")}
                 >
                   + New Supplier
                 </Button>

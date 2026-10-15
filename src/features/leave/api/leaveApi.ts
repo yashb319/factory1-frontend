@@ -12,6 +12,7 @@ import type {
   HolidayRequest,
   HolidayResponse,
   LeaveCalendarEntry,
+  LeaveRequestCommentResponse,
 } from "../types/leave.types";
 
 export const leaveApi = baseApi.injectEndpoints({
@@ -82,6 +83,14 @@ export const leaveApi = baseApi.injectEndpoints({
       transformResponse: (response: ApiResponse<LeaveRequestResponse>) => response.data,
       invalidatesTags: ["Leave"],
     }),
+    getLeaveRequestComments: builder.query<LeaveRequestCommentResponse[], string>({
+      query: (id) => `/api/leave/requests/${id}/comments`,
+      providesTags: ["Leave"],
+    }),
+    requestLeaveClarification: builder.mutation<LeaveRequestResponse, { id: string; comment: string }>({
+      query: ({ id, comment }) => ({ url: `/api/leave/requests/${id}/clarification`, method: "POST", body: { comment } }),
+      invalidatesTags: ["Leave"],
+    }),
     getLeaveCalendar: builder.query<LeaveCalendarEntry[], { from?: string; to?: string } | void>({
       query: (params) => ({
         url: "/api/leave/calendar",
@@ -123,6 +132,8 @@ export const {
   useApproveLeaveRequestMutation,
   useRejectLeaveRequestMutation,
   useCancelLeaveRequestMutation,
+  useGetLeaveRequestCommentsQuery,
+  useRequestLeaveClarificationMutation,
   useGetLeaveCalendarQuery,
   useGetHolidaysQuery,
   useCreateHolidayMutation,

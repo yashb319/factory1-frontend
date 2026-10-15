@@ -25,6 +25,7 @@ import { EmployeeFormValues } from "../schemas/employee.schema";
 import { createDefaultStatutoryProfile } from "../utils/employeeStatutory";
 import { EmployeeStatutoryFields } from "./EmployeeStatutoryFields";
 import { EmployeeInsuranceFields } from "./EmployeeInsuranceFields";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 interface Props {
   form: UseFormReturn<EmployeeFormValues>;
@@ -99,6 +100,7 @@ export function EmployeeForm({
   onCancel,
   onSubmit,
 }: Props) {
+  const { contextual } = useRuntimePermissions();
   const errors = form.formState.errors;
   const photoDataUrl = form.watch("photoDataUrl");
   const dateOfBirth = form.watch("dateOfBirth");
@@ -329,7 +331,8 @@ export function EmployeeForm({
               ) : null}
             </div>
             <p className="text-xs text-slate-500">
-              Used by the Factory1 capture station for prototype photo matching.
+              {contextual ? "Inline photos must fit the 64 KiB contextual request limit. Public capture and photo matching are unavailable." :
+                "Used by the Factory1 capture station for prototype photo matching."}
             </p>
             {errors.photoDataUrl && (
               <p className="text-xs text-destructive">
@@ -685,7 +688,7 @@ export function EmployeeForm({
           <EmployeeInsuranceFields form={form} />
         </section>
 
-        <section
+        {!contextual ? <section
           hidden={activeSection !== "employee-financial"}
           className="space-y-4 border-t pt-5"
         >
@@ -707,7 +710,7 @@ export function EmployeeForm({
               })
             }
           />
-        </section>
+        </section> : null}
       </div>
 
       <div className="flex shrink-0 flex-col-reverse gap-2 border-t bg-background px-4 py-4 sm:flex-row sm:justify-end sm:px-6">

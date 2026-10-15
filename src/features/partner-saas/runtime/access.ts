@@ -10,5 +10,5 @@ export function hasOperationalAccess(data: Pick<AuthBootstrap, "session" | "enti
     principal.organizationStatus === "ACTIVE" && principal.organizationId === context.organizationId &&
     entitlements.organizationId === context.organizationId && entitlements.productId === context.productId &&
     session.contextGeneration && session.contextGeneration === entitlements.contextGeneration &&
-    principal.role === entitlements.role && runtimeScreens(entitlements.runtimeRoutes, principal.role, entitlements.modules).length);
+    principal.role === entitlements.role && runtimeScreens(entitlements.runtimeRoutes, principal.role, entitlements.modules, entitlements.moduleDecisions).length);
 }

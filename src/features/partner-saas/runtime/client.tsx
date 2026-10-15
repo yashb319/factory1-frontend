@@ -3,7 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { z } from "zod";
 import { authBootstrapSchema, bffEnvelopeSchema, type AuthBootstrap } from "../auth/contracts";
-import { runtimeRouteAllowed } from "./policy";
+import { runtimeQueryAllowed, runtimeRouteAllowed } from "./policy";
+import { hasOperationalAccess } from "./access";
 
 type RuntimeClient = {
   data: AuthBootstrap;
@@ -17,13 +18,17 @@ export function useProductRuntime() {
   return context;
 }
 
-export class RuntimeRequestError extends Error {}
+export class RuntimeRequestError extends Error {
+  constructor(message: string, readonly status?: number, readonly code?: string) { super(message); }
+}
 
 export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap; children: ReactNode }) {
   const [failure, setFailure] = useState("");
   const controllers = useRef(new Set<AbortController>());
+  const stopped = useRef(false);
 
   const stop = useCallback((message: string) => {
+    stopped.current = true;
     for (const controller of controllers.current) controller.abort();
     controllers.current.clear();
     setFailure(message);
@@ -38,7 +43,7 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
       pending.add(controller);
       try {
         const response = await fetch("/auth/session", {
-          credentials: "same-origin", cache: "no-store", signal: controller.signal,
+          credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal,
           headers: { Accept: "application/json" },
         });
         const parsed = response.ok
@@ -73,28 +78,36 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
   const request = useCallback(async <T,>(method: string, path: string, schema: z.ZodType<T>, body?: unknown): Promise<T> => {
     const entitlement = data.entitlements;
     const parsedUrl = new URL(path, "https://runtime.invalid");
-    if (failure || parsedUrl.origin !== "https://runtime.invalid" || !entitlement ||
-        !runtimeRouteAllowed(entitlement.runtimeRoutes, entitlement.role, method, parsedUrl.pathname, entitlement.modules)) {
+    if (failure || stopped.current || !hasOperationalAccess(data) || parsedUrl.hash || parsedUrl.origin !== "https://runtime.invalid" || !entitlement ||
+        !runtimeQueryAllowed(parsedUrl.searchParams, parsedUrl.pathname) ||
+        !runtimeRouteAllowed(entitlement.runtimeRoutes, entitlement.role, method, parsedUrl.pathname, entitlement.modules, entitlement.moduleDecisions)) {
       throw new RuntimeRequestError("This operation is not available for your selected product and role.");
+    }
+    const serializedBody = body === undefined ? undefined : JSON.stringify(body);
+    if (serializedBody && new TextEncoder().encode(serializedBody).byteLength > 64 * 1024) {
+      throw new RuntimeRequestError("This request exceeds the 64 KiB contextual limit. Reduce inline photos or text before saving.", 400, "INVALID_REQUEST");
     }
     const controller = new AbortController();
     controllers.current.add(controller);
     try {
       const response = await fetch(`/api/product-runtime${path}`, {
-        method, credentials: "same-origin", cache: "no-store", signal: controller.signal,
+        method, credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal,
         headers: {
           Accept: "application/json",
           "X-Factory1-Context-Generation": data.session.contextGeneration ?? "",
           ...(method === "GET" ? {} : { "X-CSRF-Token": data.csrfToken }),
           ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(serializedBody === undefined ? {} : { body: serializedBody }),
       });
       if (response.status === 409) {
         const payload = z.object({ code: z.string() }).safeParse(await response.json());
-        if (payload.success && ["CONTEXT_CHANGED", "CONTEXT_GENERATION_MISMATCH", "CONTEXT_REQUIRED"].includes(payload.data.code)) {
+        if (payload.success && ["CONTEXT_CHANGED", "CONTEXT_GENERATION_MISMATCH", "CONTEXT_REQUIRED", "ACCESS_CHANGED"].includes(payload.data.code)) {
           stop("Your factory access changed. Reload to verify current access.");
-          throw new RuntimeRequestError("Factory context is no longer valid.");
+          throw new RuntimeRequestError("Factory context is no longer valid.", 409, payload.data.code);
+        }
+        if (payload.success && payload.data.code === "EXPORT_NOT_READY") {
+          throw new RuntimeRequestError("The export is still pending. Check its status before downloading.", 409, payload.data.code);
         }
         throw new RuntimeRequestError("This record conflicts with current factory data. Refresh the record and review before retrying.");
       }
@@ -102,6 +115,8 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
         stop("Your factory access changed or expired. Reload to verify current access.");
         throw new RuntimeRequestError("Factory context is no longer valid.");
       }
+      if (response.status === 410) throw new RuntimeRequestError("This export expired. Request a new export.", 410, "EXPORT_EXPIRED");
+      if (response.status === 429) throw new RuntimeRequestError("The request limit was reached. Wait before requesting another export.", 429);
       if (!response.ok) throw new RuntimeRequestError("The server could not complete this operation. Check the details and try again.");
       const parsed = bffEnvelopeSchema(schema).safeParse(await response.json());
       if (!parsed.success) throw new RuntimeRequestError("The server response could not be verified. Reload before continuing.");

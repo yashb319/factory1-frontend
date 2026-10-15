@@ -32,7 +32,7 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
         id: dependencies
       - name: Focused regression tests
-        run: npm test -- src/features/auth/__tests__ src/features/partner-saas/__tests__ src/config/__tests__ src/features/saas-admin/__tests__ src/features/help-center/__tests__ src/features/ai/__tests__/featureGating.test.ts
+        run: npm test -- src/features/auth/__tests__ src/features/partner-saas/__tests__ src/config/__tests__ src/features/saas-admin/__tests__ src/features/help-center/__tests__ src/features/ai/__tests__/featureGating.test.ts src/features/inventory/__tests__ src/features/employees/__tests__ src/features/attendance/__tests__ src/features/payroll/__tests__ src/features/leave/__tests__ src/features/production/__tests__ src/features/billing/__tests__ src/features/accounting/__tests__ src/features/suppliers/__tests__ src/features/customers/__tests__
       - name: Typecheck
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         run: npx tsc --noEmit
@@ -40,7 +40,7 @@ jobs:
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         env:
           BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/main' }}
-        run: git diff --name-only --diff-filter=ACMR -z "$BASE_REF"...HEAD -- '*.ts' '*.tsx' '*.mts' '*.mjs' | xargs -0 -r npx eslint
+        run: node --test scripts/lint-line-map.test.mjs && node scripts/lint-changed.mjs
       - name: Production build
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         id: production_build

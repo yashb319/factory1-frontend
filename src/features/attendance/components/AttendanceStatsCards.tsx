@@ -2,11 +2,16 @@
 
 import { CalendarCheck, Clock, UserCheck, UserX } from "lucide-react";
 import { useGetAttendanceDashboardQuery } from "../api/attendanceApi";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 export function AttendanceStatsCards() {
+    const { contextual, can } = useRuntimePermissions();
     const today = new Date().toISOString().slice(0, 10);
 
-    const { data, isLoading } = useGetAttendanceDashboardQuery(today);
+    const allowed = can("GET", "/api/attendance/dashboard");
+    const { data, isLoading, isError } = useGetAttendanceDashboardQuery(today, { skip: !allowed });
+    if (!allowed) return null;
+    if (contextual && isError) return <p role="alert">Attendance summary could not be loaded.</p>;
 
     const total =
         (data?.present ?? 0) +

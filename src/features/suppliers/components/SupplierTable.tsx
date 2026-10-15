@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { humanizeEnum } from "@/lib/format";
 import type { Supplier } from "../types/supplier.types";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 type Props = {
   suppliers: Supplier[];
@@ -24,6 +25,7 @@ export function SupplierTable({
   onEdit,
   onDelete,
 }: Props) {
+  const { can } = useRuntimePermissions();
   return (
     <div className="rounded-lg border bg-card">
       <div className="overflow-x-auto">
@@ -93,10 +95,10 @@ export function SupplierTable({
 
                   <td className="px-4 py-3" data-label="Actions">
                     <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="outline" onClick={() => onEdit(supplier)}>
+                      <Button size="sm" variant="outline" disabled={!can("PUT", `/api/suppliers/${supplier.id}`)} onClick={() => onEdit(supplier)}>
                         Edit
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => onDelete(supplier)}>
+                      <Button size="sm" variant="ghost" disabled={!can("DELETE", `/api/suppliers/${supplier.id}`)} onClick={() => onDelete(supplier)}>
                         Disable
                       </Button>
                     </div>

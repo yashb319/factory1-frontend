@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDownToLine,
@@ -62,6 +62,7 @@ import { playUiSound } from "@/lib/uiSounds";
 import { humanizeEnum } from "@/lib/format";
 import { GstIntegrationPanel } from "@/features/gst-integration/components/GstIntegrationPanel";
 import { AutoPurchaseBillImportDialog } from "./AutoPurchaseBillImportDialog";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 type DraftItem = {
   rowId: string;
@@ -126,6 +127,77 @@ const newItem = (): DraftItem => ({
 });
 
 export function BillingPage() {
+  const { contextual } = useRuntimePermissions();
+  return contextual ? <ContextBillingPage /> : <LegacyBillingPage />;
+}
+
+function ContextBillingPage() {
+  const { can } = useRuntimePermissions();
+  const submitting = useRef(false);
+  const [type, setType] = useState<BillType>("SALES");
+  const [page, setPage] = useState(0);
+  const bills = useGetBillsQuery({ type, page, size: 20 });
+  const [review, setReview] = useState<{ bill: Bill; action: "post" | "cancel" | "payment" } | null>(null);
+  const [amount, setAmount] = useState("");
+  const [post, posting] = usePostBillMutation();
+  const [cancel, cancelling] = useCancelBillMutation();
+  const [pay, paying] = useRecordBillPaymentMutation();
+  const [error, setError] = useState("");
+  const busy = posting.isLoading || cancelling.isLoading || paying.isLoading;
+  async function confirm() {
+    if (!review || busy || submitting.current) return;
+    if (!can("PUT", `/api/billing/bills/${review.bill.id}/${review.action}`)) {
+      setError("This operation is not authorized in the selected context."); return;
+    }
+    submitting.current = true;
+    setError("");
+    try {
+      if (review.action === "post") await post(review.bill.id).unwrap();
+      else if (review.action === "cancel") await cancel(review.bill.id).unwrap();
+      else {
+        const paidAmount = Number(amount);
+        if (!amount.trim() || !Number.isFinite(paidAmount) || paidAmount < 0 || paidAmount > Number(review.bill.grandTotal)) {
+          setError("Enter a finite total paid amount between zero and the bill total."); return;
+        }
+        await pay({ id: review.bill.id, paidAmount }).unwrap();
+      }
+      setReview(null); setAmount("");
+    } catch { setError("The bill operation could not be confirmed. Refresh the bill before retrying."); }
+    finally { submitting.current = false; }
+  }
+  return <section className="space-y-4" aria-label="Contextual billing">
+    <h1 className="text-xl font-semibold">Billing</h1>
+    <p>Reviewed factory bill operations only. Voucher creation needs catalog/settings dependencies not exposed by this tranche. Commercial product checkout, e-way, imports, printing and exports remain unavailable.</p>
+    <div className="flex gap-2">{voucherModes.map((mode) => <Button key={mode.type}
+      onClick={() => { setType(mode.type); setPage(0); }} aria-pressed={type === mode.type}>{mode.title}</Button>)}</div>
+    {bills.isError ? <p role="alert">Bills could not be loaded. Refresh and verify current access.</p> : null}
+    {bills.isFetching ? <p role="status">Loading bills...</p> : bills.data?.content.map((bill) =>
+      <Card key={bill.id}><CardHeader><CardTitle>{bill.billNumber} - {bill.partyName}</CardTitle></CardHeader><CardContent className="space-y-3">
+        <p>{humanizeEnum(bill.status)} - {formatCurrency(Number(bill.grandTotal))}; paid {formatCurrency(Number(bill.paidAmount ?? 0))}</p>
+        <RecentVoucherActions bill={bill} cancelling={cancelling.isLoading} posting={posting.isLoading}
+          recordingPayment={paying.isLoading} ewayLoading={false}
+          onPost={() => { setError(""); setReview({ bill, action: "post" }); }}
+          onCancel={() => { setError(""); setReview({ bill, action: "cancel" }); }}
+          onPayment={() => { setError(""); setAmount(String(bill.paidAmount ?? 0)); setReview({ bill, action: "payment" }); }}
+          onPrint={() => {}} onGenerateEway={() => {}} onEwayDetails={() => {}} onCancelEway={() => {}} />
+      </CardContent></Card>)}
+    {!bills.isFetching && !bills.isError && !bills.data?.content.length ? <p>No bills found.</p> : null}
+    <div className="flex gap-2"><Button disabled={page === 0 || bills.isFetching} onClick={() => setPage(page - 1)}>Previous</Button>
+      <span>Page {page + 1}</span><Button disabled={bills.isFetching || page + 1 >= (bills.data?.totalPages ?? 0)} onClick={() => setPage(page + 1)}>Next</Button></div>
+    <Dialog open={Boolean(review)} onOpenChange={(open) => { if (!open && !busy) setReview(null); }}>
+      <DialogContent><DialogHeader><DialogTitle>Review bill operation</DialogTitle><DialogDescription>
+        {review?.action} {review?.bill.billNumber}. Confirm this operation for the currently selected factory only.
+      </DialogDescription></DialogHeader>
+        {review?.action === "payment" ? <label>Total paid amount (not an additional payment)<Input disabled={busy} type="number" min="0" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} /></label> : null}
+        {error ? <p role="alert">{error}</p> : null}
+        <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setReview(null)}>Close</Button>
+          <Button disabled={busy || bills.isFetching || bills.isError} onClick={() => void confirm()}>Confirm operation</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </section>;
+}
+
+function LegacyBillingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [type, setType] = useState<BillType>(() =>
@@ -1733,14 +1805,15 @@ function RecentVoucherActions({
   onEwayDetails: () => void;
   onCancelEway: () => void;
 }) {
+  const { contextual, can } = useRuntimePermissions();
   return (
     <div className="flex flex-wrap justify-end gap-2">
-      <Button size="sm" variant="outline" onClick={onPrint}>
+      <Button size="sm" variant="outline" disabled={contextual} onClick={onPrint}>
         Print
       </Button>
 
       {bill.status === "DRAFT" ? (
-        <Button size="sm" onClick={onPost} disabled={posting}>
+        <Button size="sm" onClick={onPost} disabled={posting || !can("PUT", `/api/billing/bills/${bill.id}/post`)}>
           Post
         </Button>
       ) : null}
@@ -1749,7 +1822,7 @@ function RecentVoucherActions({
         <Button
           size="sm"
           variant="outline"
-          disabled={recordingPayment}
+          disabled={recordingPayment || !can("PUT", `/api/billing/bills/${bill.id}/payment`)}
           onClick={onPayment}
         >
           Payment
@@ -1760,7 +1833,7 @@ function RecentVoucherActions({
         <Button
           size="sm"
           variant="outline"
-          disabled={ewayLoading}
+          disabled={contextual || ewayLoading}
           onClick={onGenerateEway}
         >
           Gen E-way
@@ -1771,7 +1844,7 @@ function RecentVoucherActions({
         <Button
           size="sm"
           variant="outline"
-          disabled={ewayLoading}
+          disabled={contextual || ewayLoading}
           onClick={onEwayDetails}
         >
           E-way Details
@@ -1782,7 +1855,7 @@ function RecentVoucherActions({
         <Button
           size="sm"
           variant="outline"
-          disabled={ewayLoading}
+          disabled={contextual || ewayLoading}
           onClick={onCancelEway}
         >
           Cancel E-way
@@ -1793,7 +1866,7 @@ function RecentVoucherActions({
         <Button
           size="sm"
           variant="outline"
-          disabled={cancelling}
+          disabled={cancelling || !can("PUT", `/api/billing/bills/${bill.id}/cancel`)}
           onClick={onCancel}
         >
           Cancel

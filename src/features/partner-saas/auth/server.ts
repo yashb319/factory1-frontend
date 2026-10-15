@@ -98,6 +98,11 @@ function failure(status: number, code: string, extraHeaders?: HeadersInit) {
     ONBOARDING_DISABLED: "Factory onboarding is not enabled for this product.",
     OWNER_IDENTITY_EXISTS: "An account with this email already exists. Select the existing owner instead.",
     IDEMPOTENCY_CONFLICT: "This request was already submitted with different details. Start a new request.",
+    ACCESS_CHANGED: "Your permissions changed. Reload factory access before retrying.",
+    RUNTIME_JOB_DENIED: "This export is not available in your current factory context.",
+    EXPORT_NOT_READY: "This export is not ready. Check its status before downloading.",
+    EXPORT_EXPIRED: "This export expired. Request a new export.",
+    EXPORT_LIMIT: "The active export limit was reached. Wait before creating another.",
   };
   const headers = noStoreHeaders(extraHeaders);
   headers.set("Content-Type", "application/json; charset=utf-8");
@@ -147,7 +152,7 @@ function backendStatus(code: string | undefined, status: number) {
   if (code === "AUTH_REQUIRED" || status === 401) return 401;
   if (status === 403 || code === "INVALID_CONTEXT" || code === "CSRF_INVALID" || code === "ENTITLEMENTS_NOT_READY") return 403;
   if (status === 404) return 404;
-  if ([400, 409, 422, 429, 503].includes(status)) return status;
+  if ([400, 409, 410, 422, 429, 503].includes(status)) return status;
   return 502;
 }
 
@@ -597,7 +602,7 @@ export async function productRuntimeRequest(request: Request) {
     const prefix = "/api/product-runtime";
     const path = url.pathname.slice(prefix.length);
     const reviewed = reviewedRuntimeRoute(request.method, path);
-    if (!url.pathname.startsWith(`${prefix}/api/`) || !reviewed || !runtimeQueryAllowed(url.searchParams)) {
+    if (!url.pathname.startsWith(`${prefix}/`) || !reviewed || !runtimeQueryAllowed(url.searchParams, path)) {
       throw new BffError(403, "RUNTIME_ROUTE_DENIED");
     }
     const handle = sessionHandleFromRequest(request);
@@ -605,16 +610,17 @@ export async function productRuntimeRequest(request: Request) {
     const storefront = await verifiedStorefront(request);
     const data = await loadSession(config, handle, storefront.productId, storefront.hostname);
     if (!storefront.operationalAccess || !hasOperationalAccess(data) || !data.entitlements ||
-        !runtimeRouteAllowed(data.entitlements.runtimeRoutes, data.entitlements.role, request.method, path, data.entitlements.modules)) {
+        !runtimeRouteAllowed(data.entitlements.runtimeRoutes, data.entitlements.role, request.method, path, data.entitlements.modules, data.entitlements.moduleDecisions)) {
       throw new BffError(403, "RUNTIME_ROUTE_DENIED");
     }
     if (request.headers.get("X-Factory1-Context-Generation") !== data.session.contextGeneration) {
       throw new BffError(409, "CONTEXT_CHANGED");
     }
-    const method = reviewed.method as "GET" | "POST" | "PUT" | "DELETE";
+    const method = reviewed.method;
     const body = method === "POST" || method === "PUT"
       ? await requestJson(request, z.record(z.string(), z.unknown()), 64 * 1024) : undefined;
-    if (body && ["organizationId", "tenantId", "partnerId", "productId", "domainId", "modules", "role", "userId"]
+    if (body && ["organizationId", "tenantId", "partnerId", "domainId", "modules", "role", "userId",
+      ...(path.startsWith("/api/production/") ? [] : ["productId"])]
       .some((key) => key in body)) throw new BffError(400, "INVALID_REQUEST");
     const result = await backendRequest(
       config, `/api/partner/v2/bff/runtime${path}${url.search}`, z.unknown(),

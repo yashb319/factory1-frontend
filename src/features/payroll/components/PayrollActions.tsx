@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { PayrollRunSummaryResponse } from "../types/payroll.types";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 interface Props {
   payroll: PayrollRunSummaryResponse;
@@ -29,9 +30,10 @@ export function PayrollActions({
   onPay,
   onDelete,
 }: Props) {
-  const canApprove = payroll.status === "GENERATED";
-  const canPay = payroll.status === "APPROVED";
-  const canDelete = payroll.status === "GENERATED";
+  const { can } = useRuntimePermissions();
+  const canApprove = payroll.status === "GENERATED" && can("PUT", `/api/payroll/${payroll.id}/approve`);
+  const canPay = payroll.status === "APPROVED" && can("PUT", `/api/payroll/${payroll.id}/pay`);
+  const canDelete = payroll.status === "GENERATED" && can("DELETE", `/api/payroll/${payroll.id}`);
 
   return (
     <DropdownMenu>

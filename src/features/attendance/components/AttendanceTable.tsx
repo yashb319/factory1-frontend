@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { AttendanceRecord } from "../types/attendance.types";
 import { CorrectAttendanceDialog } from "./CorrectAttendanceDialog";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 interface Props {
   records: AttendanceRecord[];
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function AttendanceTable({ records, loading, canCorrect = false }: Props) {
+  const { can } = useRuntimePermissions();
   const [correctionRecord, setCorrectionRecord] =
     useState<AttendanceRecord | null>(null);
   const columnCount = canCorrect ? 8 : 7;
@@ -108,6 +110,7 @@ export function AttendanceTable({ records, loading, canCorrect = false }: Props)
                           type="button"
                           variant="outline"
                           size="sm"
+                          disabled={!can("PUT", `/api/attendance/${record.employeeId}/${record.date}/correction`)}
                           onClick={() => setCorrectionRecord(record)}
                         >
                           Correct
