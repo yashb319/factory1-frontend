@@ -102,7 +102,15 @@ export NODE_PATH="$BROWSER_TOOLS/node_modules"
 # Build before denying runtime egress; never reuse a build with different flags.
 npm run build
 (cd "$BACKEND" && bash mvnw -B -q -DskipTests package)
-(cd "$BACKEND" && bash mvnw -B -q -Dtest=PartnerSsoE2eFixtureSeederTest -DskipTests test)
+# Resolve surefire's JUnit Platform provider/launcher online; the seeder is
+# @EnabledIfEnvironmentVariable-guarded, so it is skipped with the fixture env unset.
+SEEDER_UNSET=(env -u PARTNER_SSO_E2E_FIXTURES -u PARTNER_SSO_E2E_JDBC_URL -u PARTNER_SSO_E2E_DB_USER -u PARTNER_SSO_E2E_DB_PASSWORD)
+(cd "$BACKEND" && "${SEEDER_UNSET[@]}" bash mvnw -B -q -Dtest=PartnerSsoE2eFixtureSeederTest -Dsurefire.failIfNoSpecifiedTests=false test)
+# Fail fast if the later offline seeder step would miss any artifact.
+(cd "$BACKEND" && "${SEEDER_UNSET[@]}" bash mvnw -B -q -o -Dtest=PartnerSsoE2eFixtureSeederTest -Dsurefire.failIfNoSpecifiedTests=false test) || {
+  echo "Offline Maven seeder preflight failed; required artifacts were not prefetched" >&2
+  exit 1
+}
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$WORK/signing.key" 2>/dev/null
 openssl pkey -in "$WORK/signing.key" -pubout -out "$WORK/signing.pub"
 

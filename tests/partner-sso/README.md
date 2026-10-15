@@ -46,6 +46,10 @@ no wildcard callback, shared cookie domain, or public DNS dependence.
 The backend uses its supported `prod` configuration bindings, Flyway migrations,
 then exactly `PartnerSsoE2eFixtureSeederTest` with `PARTNER_SSO_E2E_FIXTURES=true`
 and its localhost / database-name-containing-`e2e` guard. No SQL is duplicated.
+Before any users, firewall rules or services exist, the runner resolves the
+seeder's surefire JUnit Platform provider online with the fixture environment
+unset (the test is skipped by its environment guard), then repeats it offline so
+a missing artifact fails in seconds; the real seeder step stays offline (`-o`).
 The fixed fixture password and ten-minute OTP belong only to the disposable test
 account `partner-sso-e2e@example.test`. There is no email request or OTP bypass.
 Outbound schedulers are disabled, SMTP points to loopback port 9, dedicated backend/frontend browser runtime identities are firewalled against all
