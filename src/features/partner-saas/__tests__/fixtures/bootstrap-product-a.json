@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "message": "OK",
+  "data": {
+    "schemaVersion": 2,
+    "storefront": {
+      "partnerId": "70000000-0000-4000-8000-000000000013",
+      "productId": "70000000-0000-4000-8000-000000000020",
+      "canonicalOrigin": "https://product-a.example.com",
+      "displayName": "Product A",
+      "logoUrl": null,
+      "faviconUrl": null,
+      "primaryColorHex": null,
+      "accentColorHex": null
+    },
+    "capabilities": {
+      "operationalAccess": false,
+      "sso": true,
+      "checkout": false,
+      "runtimeCoverage": "PARTIAL_TENANT_CRUD"
+    }
+  }
+}

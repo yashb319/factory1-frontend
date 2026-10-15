@@ -1,0 +1,80 @@
+{
+  "success" : true,
+  "message" : "OK",
+  "data" : {
+    "sessionHandle" : "PUBLIC-TEST-PLACEHOLDER-NOT-A-SESSION-HANDLE",
+    "expiresAt" : "2026-10-15T12:02:05.079814032Z",
+    "context" : {
+      "organizationId" : "7e6184df-8a99-46cc-baf9-0f946ea2492a",
+      "organizationName" : "Shared factory",
+      "productId" : "e965b13d-782d-42c6-a561-defc05eda234",
+      "productName" : "Product A",
+      "domainId" : "161d6c34-b050-4b38-9adc-154f4105691f",
+      "hostname" : "product-a.example.com"
+    },
+    "entitlements" : {
+      "productId" : "e965b13d-782d-42c6-a561-defc05eda234",
+      "organizationId" : "7e6184df-8a99-46cc-baf9-0f946ea2492a",
+      "modules" : [ "inventory", "payroll" ],
+      "ready" : false,
+      "operationalAccess" : false,
+      "role" : "OWNER",
+      "contextGeneration" : "99921420-2851-4739-8d94-a0b8438afd5a",
+      "runtimeRoutes" : [ ],
+      "runtimeCoverage" : "PARTIAL_TENANT_CRUD",
+      "moduleDecisions" : [ {
+        "key" : "production_tracking",
+        "enabled" : false,
+        "reasons" : [ "PARTNER_DISABLED", "PRODUCT_DISABLED", "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "ROLLOUT_DISABLED" ]
+      }, {
+        "key" : "leave_management",
+        "enabled" : false,
+        "reasons" : [ "PARTNER_DISABLED", "PRODUCT_DISABLED", "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "ROLLOUT_DISABLED" ]
+      }, {
+        "key" : "inventory",
+        "enabled" : false,
+        "reasons" : [ "ROLLOUT_DISABLED" ]
+      }, {
+        "key" : "billing",
+        "enabled" : false,
+        "reasons" : [ "PARTNER_DISABLED", "PRODUCT_DISABLED", "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "ROLLOUT_DISABLED" ]
+      }, {
+        "key" : "accounting",
+        "enabled" : false,
+        "reasons" : [ "PARTNER_DISABLED", "PRODUCT_DISABLED", "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "ROLLOUT_DISABLED" ]
+      }, {
+        "key" : "payroll",
+        "enabled" : false,
+        "reasons" : [ "ROLLOUT_DISABLED" ]
+      }, {
+        "key" : "ai_assistant",
+        "enabled" : false,
+        "reasons" : [ "PARTNER_DISABLED", "PRODUCT_DISABLED", "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "RUNTIME_NOT_IMPLEMENTED", "ROLLOUT_DISABLED" ]
+      }, {
+        "key" : "product_costing",
+        "enabled" : false,
+        "reasons" : [ "TENANT_DISABLED", "PARTNER_DISABLED", "PRODUCT_DISABLED", "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "RUNTIME_NOT_IMPLEMENTED", "ROLLOUT_DISABLED" ]
+      }, {
+        "key" : "market_intelligence",
+        "enabled" : false,
+        "reasons" : [ "TENANT_DISABLED", "PARTNER_DISABLED", "PRODUCT_DISABLED", "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "RUNTIME_NOT_IMPLEMENTED", "ROLLOUT_DISABLED" ]
+      }, {
+        "key" : "employee_portal_leave_application",
+        "enabled" : false,
+        "reasons" : [ "PARTNER_DISABLED", "PRODUCT_DISABLED", "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "RUNTIME_NOT_IMPLEMENTED", "ROLLOUT_DISABLED" ]
+      }, {
+        "key" : "employee_portal_work_orders",
+        "enabled" : false,
+        "reasons" : [ "PARTNER_DISABLED", "PRODUCT_DISABLED", "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "RUNTIME_NOT_IMPLEMENTED", "ROLLOUT_DISABLED" ]
+      }, {
+        "key" : "employee_portal_self_attendance",
+        "enabled" : false,
+        "reasons" : [ "TENANT_DISABLED", "PARTNER_DISABLED", "PRODUCT_DISABLED", "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "RUNTIME_NOT_IMPLEMENTED", "ROLLOUT_DISABLED" ]
+      }, {
+        "key" : "employee_portal_attendance_geofencing",
+        "enabled" : false,
+        "reasons" : [ "TENANT_DISABLED", "PARTNER_DISABLED", "PRODUCT_DISABLED", "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "RUNTIME_NOT_IMPLEMENTED", "ROLLOUT_DISABLED" ]
+      } ]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "success" : true,
+  "message" : "OK",
+  "data" : {
+    "authenticated" : true,
+    "expiresAt" : "2026-10-15T12:02:04.512899819Z",
+    "context" : null,
+    "operationalAccess" : false,
+    "principal" : null,
+    "contextGeneration" : null
+  }
+}
