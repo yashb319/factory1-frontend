@@ -1,0 +1,19 @@
+{
+  "success" : true,
+  "message" : "OK",
+  "data" : [ {
+    "organizationId" : "7e6184df-8a99-46cc-baf9-0f946ea2492a",
+    "label" : "Shared factory",
+    "productId" : "e965b13d-782d-42c6-a561-defc05eda234",
+    "productName" : "Product A",
+    "domainId" : "161d6c34-b050-4b38-9adc-154f4105691f",
+    "hostname" : "product-a.example.com"
+  }, {
+    "organizationId" : "d1ca0427-4f4c-4cbf-8f2b-3bf0b2e08cf5",
+    "label" : "Home factory",
+    "productId" : "e965b13d-782d-42c6-a561-defc05eda234",
+    "productName" : "Product A",
+    "domainId" : "161d6c34-b050-4b38-9adc-154f4105691f",
+    "hostname" : "product-a.example.com"
+  } ]
+}
