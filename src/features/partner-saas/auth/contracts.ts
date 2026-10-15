@@ -16,6 +16,11 @@ export const runtimeRouteSchema = z.object({
   method: z.enum(["GET", "POST", "PUT", "DELETE"]),
   path: z.string().startsWith("/api/").max(200),
 }).strict();
+export const moduleDecisionSchema = z.object({
+  key: z.string().min(1).max(100), enabled: z.boolean(),
+  reasons: z.array(z.enum(["TENANT_DISABLED", "PARTNER_NOT_APPROVED", "PARTNER_DISABLED", "PRODUCT_DISABLED",
+    "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "ROLE_DENIED", "RUNTIME_NOT_IMPLEMENTED", "ROLLOUT_DISABLED"])),
+}).strict();
 
 export const partnerContextSchema = z.object({
   organizationId: id,
@@ -62,6 +67,8 @@ export const partnerEntitlementsSchema = z.object({
   role: factoryRole.nullable().optional().default(null),
   contextGeneration: z.string().min(1).max(128).nullable().optional().default(null),
   runtimeRoutes: z.array(runtimeRouteSchema).max(100).optional().default([]),
+  runtimeCoverage: z.literal("PARTIAL_TENANT_CRUD").optional(),
+  moduleDecisions: z.array(moduleDecisionSchema).max(100).optional().default([]),
 }).strict().refine((entitlements) => !entitlements.operationalAccess ||
   Boolean(entitlements.ready && entitlements.role && entitlements.contextGeneration && entitlements.runtimeRoutes.length),
 { message: "Operational entitlements require enforced runtime authorization" });

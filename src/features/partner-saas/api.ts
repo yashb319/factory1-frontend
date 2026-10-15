@@ -3,9 +3,17 @@ import { z } from "zod";
 import { baseApi } from "@/services/baseApi";
 import {
   domainPageSchema, domainSchema, envelopeSchema, membershipSchema, pageSchema, productSchema,
+  partnerEntitlementPolicySchema, domainModulePolicySchema,
   type ProductInput, type ProductUpdate,
 } from "./contracts";
 import { customerSchema, onboardingInputSchema, onboardingPolicySchema, tenantMembershipSchema, userProductGrantSchema, type OnboardingInput } from "./onboarding/contracts";
+import { moduleDecisionSchema } from "./auth/contracts";
+
+const effectiveAccessInspectionSchema = z.object({
+  userId: z.uuid(), organizationId: z.uuid(), productId: z.uuid(), domainId: z.uuid(),
+  role: tenantMembershipSchema.shape.role, runtimeCoverage: z.literal("PARTIAL_TENANT_CRUD"),
+  moduleDecisions: z.array(moduleDecisionSchema).max(100),
+});
 
 export type ProductScope = { partnerId: string; platform: boolean };
 type PageArgs = ProductScope & { offset: number; limit: number };
@@ -36,6 +44,36 @@ export const partnerSaasApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getPartnerMemberships: builder.query<z.infer<ReturnType<typeof pageSchema<typeof membershipSchema>>>, { offset: number; limit: number }>({
       queryFn: (args, _api, _extra, run) => validated(run, { url: "/api/partner/v2/memberships", params: args }, pageSchema(membershipSchema)),
+    }),
+    getPartnerEntitlementPolicy: builder.query<z.infer<typeof partnerEntitlementPolicySchema>, { partnerId: string }>({
+      queryFn: ({ partnerId }, _api, _extra, run) => validated(run,
+        `/api/saas-admin/v2/partners/${encodeURIComponent(partnerId)}/entitlements`, partnerEntitlementPolicySchema),
+      providesTags: ["PartnerSaas"],
+    }),
+    inspectProductAccess: builder.query<z.infer<typeof effectiveAccessInspectionSchema>, { partnerId: string; productId: string; organizationId: string; userId: string; domainId: string }>({
+      queryFn: ({ partnerId, productId, ...params }, _api, _extra, run) => validated(run, {
+        url: `/api/saas-admin/v2/partners/${encodeURIComponent(partnerId)}/products/${encodeURIComponent(productId)}/effective-access`, params,
+      }, effectiveAccessInspectionSchema),
+      providesTags: ["PartnerSaas"],
+    }),
+    updatePartnerEntitlementPolicy: builder.mutation<z.infer<typeof partnerEntitlementPolicySchema>, { partnerId: string; body: { featureKeys: string[]; approved: boolean; expectedVersion: number } }>({
+      queryFn: ({ partnerId, body }, _api, _extra, run) => validated(run, {
+        url: `/api/saas-admin/v2/partners/${encodeURIComponent(partnerId)}/entitlements`, method: "PUT", body,
+      }, partnerEntitlementPolicySchema),
+      invalidatesTags: ["PartnerSaas"],
+    }),
+    getDomainModulePolicy: builder.query<z.infer<typeof domainModulePolicySchema>, { partnerId: string; productId: string; domainId: string }>({
+      queryFn: ({ partnerId, productId, domainId }, _api, _extra, run) => validated(run,
+        `/api/saas-admin/v2/partners/${encodeURIComponent(partnerId)}/products/${encodeURIComponent(productId)}/domains/${encodeURIComponent(domainId)}/modules`,
+        domainModulePolicySchema),
+      providesTags: ["PartnerSaas"],
+    }),
+    updateDomainModulePolicy: builder.mutation<z.infer<typeof domainModulePolicySchema>, { partnerId: string; productId: string; domainId: string; body: { featureKeys: string[] | null; expectedVersion: number } }>({
+      queryFn: ({ partnerId, productId, domainId, body }, _api, _extra, run) => validated(run, {
+        url: `/api/saas-admin/v2/partners/${encodeURIComponent(partnerId)}/products/${encodeURIComponent(productId)}/domains/${encodeURIComponent(domainId)}/modules`,
+        method: "PUT", body,
+      }, domainModulePolicySchema),
+      invalidatesTags: ["PartnerSaas"],
     }),
     getProductOnboardingPolicy: builder.query<z.infer<typeof onboardingPolicySchema>, ProductArgs>({
       queryFn: (args, _api, _extra, run) => validated(run, `${productPath(args)}/onboarding-policy`, onboardingPolicySchema),
@@ -164,4 +202,7 @@ export const {
   useGetProductOnboardingPolicyQuery, useGetProductCustomersQuery, useGetProductCustomerQuery, useOnboardProductCustomerMutation,
   useGetTenantMembershipsQuery, useCreateTenantMembershipMutation, useUpdateTenantMembershipMutation,
   useGetUserProductGrantsQuery, useCreateUserProductGrantMutation, useRevokeUserProductGrantMutation,
+  useGetPartnerEntitlementPolicyQuery, useUpdatePartnerEntitlementPolicyMutation,
+  useGetDomainModulePolicyQuery, useUpdateDomainModulePolicyMutation,
+  useLazyInspectProductAccessQuery,
 } = partnerSaasApi;

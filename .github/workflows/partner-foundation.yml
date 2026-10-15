@@ -30,17 +30,23 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
+        id: dependencies
       - name: Focused regression tests
         run: npm test -- src/features/auth/__tests__ src/features/partner-saas/__tests__ src/config/__tests__ src/features/saas-admin/__tests__ src/features/help-center/__tests__ src/features/ai/__tests__/featureGating.test.ts
       - name: Typecheck
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         run: npx tsc --noEmit
       - name: Lint changed TypeScript files
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         env:
           BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/main' }}
         run: git diff --name-only --diff-filter=ACMR -z "$BASE_REF"...HEAD -- '*.ts' '*.tsx' '*.mts' '*.mjs' | xargs -0 -r npx eslint
       - name: Production build
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        id: production_build
         run: npm run build
       - name: Keep edge trust out of browser bundles
+        if: ${{ !cancelled() && steps.production_build.outcome == 'success' }}
         run: |
           for SECRET in "$PARTNER_SAAS_EDGE_TOKEN" "$PARTNER_SAAS_OAUTH_CLIENT_SECRET" "$PARTNER_SAAS_CSRF_SECRET"; do
             if grep -R -q -F "$SECRET" .next/static; then
@@ -49,6 +55,7 @@ jobs:
             fi
           done
       - name: Production host-boundary smoke
+        if: ${{ !cancelled() && steps.production_build.outcome == 'success' }}
         env:
           PARTNER_SAAS_HOST_BOUNDARY_ENABLED: "true"
           PARTNER_SAAS_DIRECT_HOSTS: "direct.example.test"

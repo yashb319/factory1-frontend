@@ -583,97 +583,98 @@ export async function changeAuthContext(request: Request) {
     return bffFailure(error, headers);
   }
 
-  export async function productRuntimeRequest(request: Request) {
-    try {
-      const config = runtimeConfig();
-      const url = new URL(request.url);
-      const prefix = "/api/product-runtime";
-      const path = url.pathname.slice(prefix.length);
-      const reviewed = reviewedRuntimeRoute(request.method, path);
-      if (!url.pathname.startsWith(`${prefix}/api/`) || !reviewed || !runtimeQueryAllowed(url.searchParams)) {
-        throw new BffError(403, "RUNTIME_ROUTE_DENIED");
-      }
+}
 
-      const invitationCsrfCookie = "__Host-factory1_invitation_csrf";
-      const invitationToken = z.string().min(32).max(4096);
-
-      export async function getInvitationChallenge(request: Request) {
-        try {
-          const config = runtimeConfig();
-          await verifiedStorefront(request);
-          const nonce = `${randomUUID()}.${Date.now()}`;
-          const headers = noStoreHeaders();
-          headers.append("Set-Cookie", `${invitationCsrfCookie}=${nonce}; Path=/; Max-Age=600; HttpOnly; Secure; SameSite=Strict`);
-          return bffJson({ csrfToken: csrfForSession(nonce, new URL(request.url).origin, config.csrfSecret) }, 200, headers);
-        } catch (error) { return bffFailure(error); }
-      }
-
-      export async function activateProductInvitation(request: Request) {
-        try {
-          const config = runtimeConfig();
-          const nonces = (request.headers.get("cookie") ?? "").split(";")
-            .map((part) => part.trim()).filter((part) => part.startsWith(`${invitationCsrfCookie}=`))
-            .map((part) => part.slice(invitationCsrfCookie.length + 1));
-          if (nonces.length !== 1 || !/^[0-9a-f-]{36}\.\d{13}$/.test(nonces[0])) throw new BffError(403, "CSRF_INVALID");
-          const age = Date.now() - Number(nonces[0].split(".")[1]);
-          if (age < 0 || age > 600_000) throw new BffError(403, "CSRF_INVALID");
-          assertSameOriginMutation(request, nonces[0], config);
-          const storefront = await verifiedStorefront(request);
-          const body = await requestJson(request, z.object({ token: invitationToken, password: passwordSchema }).strict(), 8192);
-          const result = await backendRequest(config, "/api/public/v2/onboarding/activate", invitationResultSchema, {
-            method: "POST", body, storefrontHost: storefront.hostname,
-          });
-          const headers = noStoreHeaders();
-          headers.append("Set-Cookie", `${invitationCsrfCookie}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict`);
-          return bffJson(result, 200, headers);
-        } catch (error) { return bffFailure(error); }
-      }
-
-      export async function acceptProductInvitation(request: Request) {
-        try {
-          const config = runtimeConfig();
-          const handle = sessionHandleFromRequest(request);
-          assertSameOriginMutation(request, handle, config);
-          const storefront = await verifiedStorefront(request);
-          const body = await requestJson(request, z.object({ token: invitationToken }).strict(), 8192);
-          const result = await backendRequest(config, "/api/partner/v2/bff/onboarding/accept", invitationResultSchema, {
-            method: "POST", body, sessionHandle: handle, storefrontHost: storefront.hostname,
-          });
-          return bffJson(result);
-        } catch (error) { return bffFailure(error); }
-      }
-      const handle = sessionHandleFromRequest(request);
-      if (request.method !== "GET") assertSameOriginMutation(request, handle, config);
-      const storefront = await verifiedStorefront(request);
-      const data = await loadSession(config, handle, storefront.productId, storefront.hostname);
-      if (!storefront.operationalAccess || !hasOperationalAccess(data) || !data.entitlements ||
-          !runtimeRouteAllowed(data.entitlements.runtimeRoutes, data.entitlements.role, request.method, path, data.entitlements.modules)) {
-        throw new BffError(403, "RUNTIME_ROUTE_DENIED");
-      }
-      if (request.headers.get("X-Factory1-Context-Generation") !== data.session.contextGeneration) {
-        throw new BffError(409, "CONTEXT_CHANGED");
-      }
-      const method = reviewed.method as "GET" | "POST" | "PUT" | "DELETE";
-      const body = method === "POST" || method === "PUT"
-        ? await requestJson(request, z.record(z.string(), z.unknown()), 64 * 1024) : undefined;
-      if (body && ["organizationId", "tenantId", "partnerId", "productId", "domainId", "modules", "role", "userId"]
-        .some((key) => key in body)) throw new BffError(400, "INVALID_REQUEST");
-      const result = await backendRequest(
-        config, `/api/partner/v2/bff/runtime${path}${url.search}`, z.unknown(),
-        { method, sessionHandle: handle, body, storefrontHost: storefront.hostname,
-          contextGeneration: data.session.contextGeneration ?? undefined },
-      );
-      const serialized = JSON.stringify(result);
-      if ([handle, config.clientSecret, process.env.PARTNER_SAAS_EDGE_TOKEN].some((secret) => secret && serialized?.includes(secret))) {
-        throw new BffError(502, "AUTH_UNAVAILABLE");
-      }
-      return bffJson(result);
-    } catch (error) {
-      const headers = noStoreHeaders();
-      if (error instanceof BffError && error.code === "AUTH_REQUIRED") clearSessionCookie(headers);
-      return bffFailure(error, headers);
+export async function productRuntimeRequest(request: Request) {
+  try {
+    const config = runtimeConfig();
+    const url = new URL(request.url);
+    const prefix = "/api/product-runtime";
+    const path = url.pathname.slice(prefix.length);
+    const reviewed = reviewedRuntimeRoute(request.method, path);
+    if (!url.pathname.startsWith(`${prefix}/api/`) || !reviewed || !runtimeQueryAllowed(url.searchParams)) {
+      throw new BffError(403, "RUNTIME_ROUTE_DENIED");
     }
+    const handle = sessionHandleFromRequest(request);
+    if (request.method !== "GET") assertSameOriginMutation(request, handle, config);
+    const storefront = await verifiedStorefront(request);
+    const data = await loadSession(config, handle, storefront.productId, storefront.hostname);
+    if (!storefront.operationalAccess || !hasOperationalAccess(data) || !data.entitlements ||
+        !runtimeRouteAllowed(data.entitlements.runtimeRoutes, data.entitlements.role, request.method, path, data.entitlements.modules)) {
+      throw new BffError(403, "RUNTIME_ROUTE_DENIED");
+    }
+    if (request.headers.get("X-Factory1-Context-Generation") !== data.session.contextGeneration) {
+      throw new BffError(409, "CONTEXT_CHANGED");
+    }
+    const method = reviewed.method as "GET" | "POST" | "PUT" | "DELETE";
+    const body = method === "POST" || method === "PUT"
+      ? await requestJson(request, z.record(z.string(), z.unknown()), 64 * 1024) : undefined;
+    if (body && ["organizationId", "tenantId", "partnerId", "productId", "domainId", "modules", "role", "userId"]
+      .some((key) => key in body)) throw new BffError(400, "INVALID_REQUEST");
+    const result = await backendRequest(
+      config, `/api/partner/v2/bff/runtime${path}${url.search}`, z.unknown(),
+      { method, sessionHandle: handle, body, storefrontHost: storefront.hostname,
+        contextGeneration: data.session.contextGeneration ?? undefined },
+    );
+    const serialized = JSON.stringify(result);
+    if ([handle, config.clientSecret, process.env.PARTNER_SAAS_EDGE_TOKEN].some((secret) => secret && serialized?.includes(secret))) {
+      throw new BffError(502, "AUTH_UNAVAILABLE");
+    }
+    return bffJson(result);
+  } catch (error) {
+    const headers = noStoreHeaders();
+    if (error instanceof BffError && error.code === "AUTH_REQUIRED") clearSessionCookie(headers);
+    return bffFailure(error, headers);
   }
+}
+
+const invitationCsrfCookie = "__Host-factory1_invitation_csrf";
+const invitationToken = z.string().min(32).max(4096);
+
+export async function getInvitationChallenge(request: Request) {
+  try {
+    const config = runtimeConfig();
+    await verifiedStorefront(request);
+    const nonce = `${randomUUID()}.${Date.now()}`;
+    const headers = noStoreHeaders();
+    headers.append("Set-Cookie", `${invitationCsrfCookie}=${nonce}; Path=/; Max-Age=600; HttpOnly; Secure; SameSite=Strict`);
+    return bffJson({ csrfToken: csrfForSession(nonce, new URL(request.url).origin, config.csrfSecret) }, 200, headers);
+  } catch (error) { return bffFailure(error); }
+}
+
+export async function activateProductInvitation(request: Request) {
+  try {
+    const config = runtimeConfig();
+    const nonces = (request.headers.get("cookie") ?? "").split(";")
+      .map((part) => part.trim()).filter((part) => part.startsWith(`${invitationCsrfCookie}=`))
+      .map((part) => part.slice(invitationCsrfCookie.length + 1));
+    if (nonces.length !== 1 || !/^[0-9a-f-]{36}\.\d{13}$/.test(nonces[0])) throw new BffError(403, "CSRF_INVALID");
+    const age = Date.now() - Number(nonces[0].split(".")[1]);
+    if (age < 0 || age > 600_000) throw new BffError(403, "CSRF_INVALID");
+    assertSameOriginMutation(request, nonces[0], config);
+    const storefront = await verifiedStorefront(request);
+    const body = await requestJson(request, z.object({ token: invitationToken, password: passwordSchema }).strict(), 8192);
+    const result = await backendRequest(config, "/api/public/v2/onboarding/activate", invitationResultSchema, {
+      method: "POST", body, storefrontHost: storefront.hostname,
+    });
+    const headers = noStoreHeaders();
+    headers.append("Set-Cookie", `${invitationCsrfCookie}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict`);
+    return bffJson(result, 200, headers);
+  } catch (error) { return bffFailure(error); }
+}
+
+export async function acceptProductInvitation(request: Request) {
+  try {
+    const config = runtimeConfig();
+    const handle = sessionHandleFromRequest(request);
+    assertSameOriginMutation(request, handle, config);
+    const storefront = await verifiedStorefront(request);
+    const body = await requestJson(request, z.object({ token: invitationToken }).strict(), 8192);
+    const result = await backendRequest(config, "/api/partner/v2/bff/onboarding/accept", invitationResultSchema, {
+      method: "POST", body, sessionHandle: handle, storefrontHost: storefront.hostname,
+    });
+    return bffJson(result);
+  } catch (error) { return bffFailure(error); }
 }
 
 const logoutBodySchema = z.object({ scope: z.enum(["domain", "all"]) }).strict();

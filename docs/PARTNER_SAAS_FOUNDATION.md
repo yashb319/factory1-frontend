@@ -88,7 +88,7 @@ deployed together.
 The central issuer owns credential and OTP collection. The storefront BFF uses
 the backend's authorization-code/PKCE transaction and exchange endpoints; it
 validates the issuer URL and exact callback, and binds the one-time state to a
-short-lived host-only HttpOnly cookie. It never collects passwords, creates
+short-lived host-only HttpOnly cookie. Sign-in never collects passwords or creates
 browser access/refresh tokens, or stores bearer credentials in browser storage.
 The only browser session value is the backend-issued opaque handle in a
 `Secure; HttpOnly; Path=/; SameSite=Lax` `__Host-` cookie with no `Domain`.

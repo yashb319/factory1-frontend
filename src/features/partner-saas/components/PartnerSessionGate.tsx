@@ -249,6 +249,15 @@ export function PartnerSessionGate({ operationalEnabled = false }: { operational
               ? "Your effective access is verified, but operational workspace routes remain unavailable in this rollout."
               : "Your context is selected, but effective access is not ready. Operational workspace routes remain unavailable."}
           </p>
+          {entitlements?.moduleDecisions.length ? <details className="rounded border p-3">
+            <summary className="cursor-pointer font-medium">Effective module access and unavailable reasons</summary>
+            <p className="my-2 text-sm">Runtime coverage: {entitlements.runtimeCoverage ?? "unavailable"}. Payroll as a dependency does not enable payroll calculations.</p>
+            <ul className="space-y-2 text-sm" aria-label="Authoritative module decisions">
+              {entitlements.moduleDecisions.map((decision) => <li key={decision.key}>
+                <strong>{decision.key}</strong>: {decision.enabled ? "Enabled" : "Unavailable"}{decision.reasons.length ? ` — ${decision.reasons.join(", ")}` : ""}
+              </li>)}
+            </ul>
+          </details> : null}
         </section>
       ) : null}
       {contexts.length > 0 && (!selectedContext || contexts.length > 1) ? (

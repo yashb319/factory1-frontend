@@ -21,6 +21,13 @@ export const membershipSchema = z.object({
 });
 export type PartnerMembership = z.infer<typeof membershipSchema>;
 
+export const partnerEntitlementPolicySchema = z.object({
+  featureKeys: z.array(z.string()).max(100), approved: z.boolean(), version,
+});
+export const domainModulePolicySchema = z.object({
+  featureKeys: z.array(z.string()).max(100).nullable(), version,
+});
+
 export const domainSchema = z.object({
   id, productId: id, hostname: z.string().min(1).max(253),
   status: z.enum(["PENDING", "ACTIVE", "SUSPENDED", "RETIRED"]),

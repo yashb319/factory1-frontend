@@ -9,6 +9,7 @@ import {
 } from "../api";
 import { onboardingInputSchema, type OnboardingInput, type ProductCustomer } from "../onboarding/contracts";
 import { CustomerAccessAdmin } from "./CustomerAccessAdmin";
+import { EffectiveAccessInspector } from "./EffectiveAccessInspector";
 
 export function ProductCustomers({ scope, productId, canOnboard }: {
   scope: ProductScope; productId: string; canOnboard: boolean;
@@ -109,6 +110,7 @@ function CustomerDetail({ scope, productId, customerId, onClose }: {
     {query.currentData && !query.isError ? <>
       <CustomerMetadata customer={query.currentData} />
       {scope.platform ? <CustomerAccessAdmin key={`${query.currentData.organizationId}:${query.currentData.subscriptionId}`} customer={query.currentData} /> : null}
+      {scope.platform ? <EffectiveAccessInspector customer={query.currentData} partnerId={scope.partnerId} /> : null}
     </> : null}
   </section>;
 }

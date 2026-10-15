@@ -14,10 +14,11 @@ import {
 import { canonicalHost } from "../host";
 import type { ProductDomain } from "../contracts";
 import { FoundationError, PageControls } from "./FoundationFeedback";
+import { DomainModulePolicy } from "./ModulePolicies";
 
 type DomainAction = "renew" | "suspend" | "retire";
 
-export function ProductDomains({ scope, productId, canEdit }: { scope: ProductScope; productId: string; canEdit: boolean }) {
+export function ProductDomains({ scope, productId, canEdit, productFeatures = [] }: { scope: ProductScope; productId: string; canEdit: boolean; productFeatures?: string[] }) {
   const [offset, setOffset] = useState(0);
   const [hostname, setHostname] = useState("");
   const [error, setError] = useState<unknown>();
@@ -123,6 +124,7 @@ export function ProductDomains({ scope, productId, canEdit }: { scope: ProductSc
             <Button type="button" variant="outline" disabled={busy || domain.status === "SUSPENDED"} onClick={(event) => openConfirmation(domain, "suspend", event.currentTarget)}>Suspend domain</Button>
             <Button type="button" variant="outline" disabled={busy} onClick={(event) => openConfirmation(domain, "retire", event.currentTarget)}>Retire domain</Button>
           </div> : null}
+          {scope.platform ? <DomainModulePolicy partnerId={scope.partnerId} productId={productId} domainId={domain.id} productFeatures={productFeatures} readOnly={!canEdit || domain.status === "RETIRED"} /> : null}
         </li>)}
       </ul>
       <PageControls label="domains" offset={offset} limit={20} total={data.domains.total} busy={query.isFetching || busy} onChange={setOffset} />

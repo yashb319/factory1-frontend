@@ -12,6 +12,7 @@ import { FoundationError, PageControls } from "./FoundationFeedback";
 import { ProductEditor } from "./ProductEditor";
 import { ProductDomains } from "./ProductDomains";
 import { ProductCustomers } from "./ProductCustomers";
+import { PartnerModulePolicy } from "./ModulePolicies";
 
 export function PartnerProductAdmin({ platform = false }: { platform?: boolean }) {
   const user = useAppSelector((state) => state.auth.user);
@@ -42,7 +43,7 @@ function PlatformPartnerPicker() {
         {partners.map((item) => <option key={item.id} value={item.id}>{item.name}{item.active ? "" : " (inactive)"}</option>)}
       </select>
     </label>
-    {partner ? <ProductWorkspace key={partner.id} scope={{ partnerId: partner.id, platform: true }} canEdit canOnboard /> :
+    {partner ? <div key={partner.id} className="space-y-4"><PartnerModulePolicy partnerId={partner.id} /><ProductWorkspace scope={{ partnerId: partner.id, platform: true }} canEdit canOnboard /></div> :
       <p>Create a partner in the existing White Label administration area first.</p>}
   </div>;
 }
@@ -102,7 +103,7 @@ function ProductWorkspace({ scope, canEdit, canOnboard }: { scope: ProductScope;
       <ProductEditor key={editor === "new" ? "new" : `${editor.id}:${editor.version}`} scope={scope}
         product={editor === "new" ? undefined : editor} features={features.currentData} canEdit={canEdit}
         onClose={() => setEditor(null)} onSaved={(saved) => { setEditor((current) => current === editor ? saved : current); setMessage("Product saved. No operational access or provisioning was activated."); }} />
-      {editor !== "new" ? <ProductDomains key={editor.id} scope={scope} productId={editor.id} canEdit={canEdit && editor.status !== "RETIRED"} /> : null}
+      {editor !== "new" ? <ProductDomains key={editor.id} scope={scope} productId={editor.id} productFeatures={editor.featureKeys} canEdit={canEdit && editor.status !== "RETIRED"} /> : null}
       {editor !== "new" ? <ProductCustomers key={`customers:${editor.id}`} scope={scope} productId={editor.id} canOnboard={canOnboard && editor.status === "ACTIVE"} /> : null}
     </> : null}
   </div>;
