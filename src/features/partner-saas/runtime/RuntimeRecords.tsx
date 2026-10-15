@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { z } from "zod";
 import { employeeFormSchema } from "@/features/employees/schemas/employee.schema";
 import { buildEmployeeUpdateRequest } from "@/features/employees/utils/employeeFormPayload";
-import { envelopeSchema } from "../contracts";
 import { useProductRuntime } from "./client";
 import { runtimeRouteAllowed } from "./policy";
 import { employeeRecordSchema, inventoryRecordSchema, recordsPageSchema, recordInputSchema,
@@ -61,8 +60,8 @@ export function RuntimeRecords({ kind }: { kind: "inventory" | "employees" }) {
     try {
       const detail = inventory
         ? await request("GET", `${path}/${item.id}`, inventoryRecordSchema)
-        : await request("GET", `${path}/${item.id}`, envelopeSchema(employeeRecordSchema));
-      if (mounted.current) setEditor("data" in detail ? detail.data : detail);
+        : await request("GET", `${path}/${item.id}`, employeeRecordSchema);
+      if (mounted.current) setEditor(detail);
     } catch (caught) { if (mounted.current) setError(message(caught)); }
     finally { if (mounted.current) setBusy(false); }
   }
@@ -169,7 +168,8 @@ function RuntimeRecordEditor({ kind, item, canSave, onSaved, onClose }: {
     setBusy(true); setError("");
     try {
       const path = `${inventory ? "/api/inventory/items" : "/api/employees"}${item ? `/${item.id}` : ""}`;
-      await request(item ? "PUT" : "POST", path, z.unknown(), body);
+      if (inventory) await request(item ? "PUT" : "POST", path, inventoryRecordSchema, body);
+      else await request(item ? "PUT" : "POST", path, employeeRecordSchema, body);
       if (mounted.current) onSaved();
     } catch (caught) { if (mounted.current) setError(message(caught)); }
     finally { if (mounted.current) setBusy(false); }

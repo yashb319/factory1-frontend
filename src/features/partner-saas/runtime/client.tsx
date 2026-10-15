@@ -90,7 +90,15 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
-      if ([401, 403, 409].includes(response.status)) {
+      if (response.status === 409) {
+        const payload = z.object({ code: z.string() }).safeParse(await response.json());
+        if (payload.success && ["CONTEXT_CHANGED", "CONTEXT_GENERATION_MISMATCH", "CONTEXT_REQUIRED"].includes(payload.data.code)) {
+          stop("Your factory access changed. Reload to verify current access.");
+          throw new RuntimeRequestError("Factory context is no longer valid.");
+        }
+        throw new RuntimeRequestError("This record conflicts with current factory data. Refresh the record and review before retrying.");
+      }
+      if ([401, 403].includes(response.status)) {
         stop("Your factory access changed or expired. Reload to verify current access.");
         throw new RuntimeRequestError("Factory context is no longer valid.");
       }
