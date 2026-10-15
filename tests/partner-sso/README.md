@@ -141,6 +141,16 @@ final page origin/path, title and a bounded ARIA snapshot are written under the
 browser-owned output directory and printed through the existing sanitizer before
 cleanup. No artifacts are uploaded.
 
+The focused `hostedFixtureContract.test.ts` regression parses exact public JSON
+resources copied byte-for-byte from backend test resources
+`src/test/resources/partner-sso/bootstrap-product-{a,b}.json` at reviewed candidate
+`1958347a12b28f26bdf1866306e46a4aa33d3a81`. The backend compares these with its
+actual seeded service DTO serialized by the application ObjectMapper. The
+frontend uses its unchanged production envelope/storefront schemas, including
+strict RFC UUID validation; unsupported runtime metadata is not proof of module
+coverage. Browser fixture IDs use deterministic v4/variant-8 UUIDs
+`70000000-0000-4000-8000-<suffix>`, not the invalid version-zero legacy IDs.
+
 The pinned backend advertises SSO only after validating enabled confidential
 configuration, a current registered client binding and exact callback, and an
 ACTIVE product/partner with a VERIFIED, routing/TLS-READY, unexpired domain.

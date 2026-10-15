@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { envelopeSchema, storefrontSchema } from "../contracts";
+import productA from "./fixtures/bootstrap-product-a.json";
+import productB from "./fixtures/bootstrap-product-b.json";
 
 function fixture(partnerId: string, productId: string) {
   return {
@@ -17,6 +19,19 @@ function fixture(partnerId: string, productId: string) {
 }
 
 describe("hosted backend fixture UUID contract", () => {
+  it.each([productA, productB])("accepts the exact serialized seeded public DTO for $data.storefront.displayName", (body) => {
+    const result = envelopeSchema(storefrontSchema).safeParse(body);
+    if (!result.success) {
+      console.log("Serialized fixture schema issues:", JSON.stringify(
+        result.error.issues.map(({ path, code }) => ({ path: path.join("."), code })),
+      ));
+    }
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("Serialized public fixture was rejected");
+    expect(result.data.data.capabilities).toEqual({ operationalAccess: false, sso: true, checkout: false });
+    expect(result.data.data.storefront).toEqual(body.data.storefront);
+  });
+
   it("rejects version-zero/variant-zero fixture IDs with only UUID issue paths", () => {
     const result = envelopeSchema(storefrontSchema).safeParse(fixture(
       "70000000-0000-0000-0000-000000000013",

@@ -7,10 +7,10 @@ const B = "https://product-b.example.com";
 const CENTRAL = "https://central.example.com";
 const SESSION = "__Host-factory1_session";
 const STATE = "__Host-factory1_oauth_state";
-const HOME = "70000000-0000-0000-0000-000000000010";
-const SECOND = "70000000-0000-0000-0000-000000000011";
-const PRODUCT_A = "70000000-0000-0000-0000-000000000020";
-const PRODUCT_B = "70000000-0000-0000-0000-000000000021";
+const HOME = "70000000-0000-4000-8000-000000000010";
+const SECOND = "70000000-0000-4000-8000-000000000011";
+const PRODUCT_A = "70000000-0000-4000-8000-000000000020";
+const PRODUCT_B = "70000000-0000-4000-8000-000000000021";
 
 function mask(value) {
   if (process.env.GITHUB_ACTIONS === "true" && value) console.log(`::add-mask::${value}`);
@@ -191,7 +191,7 @@ test("real HTTPS OAuth, host cookies, context rotation, CSRF and two-product rev
   expect(noCsrf.status).toBe(403);
   expect(noCsrf.body.code).toBe("CSRF_INVALID");
   const invalidContext = await mutation(page, "/auth/context",
-    { organizationId: "70000000-0000-0000-0000-000000000099" }, data.csrfToken);
+    { organizationId: "70000000-0000-4000-8000-000000000099" }, data.csrfToken);
   expect(invalidContext.status).toBe(403);
   expect(invalidContext.body.code).toBe("INVALID_CONTEXT");
   await page.getByLabel("Choose an authorized factory").selectOption(HOME);
