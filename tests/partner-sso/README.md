@@ -14,7 +14,8 @@ and a fresh `postgres:14.22` service, exposed at `127.0.0.1:5432`, with database
 `factory1_e2e`, user `postgres`, password `disposable-e2e-only`.
 Use `contents: read`, `persist-credentials: false`, and separately checkout:
 
-- Backend **c9bdbda834fadace0cf94e2a6850edea0bea0d87**, not latest main or PR head.
+- Backend **31e618d375b4daccb7e6ee41120e70490f716471**, the reviewed readiness-fix
+  merge, not latest main or PR head.
 - A reviewed immutable public `yashb319/factory1-frontend` commit containing
   this harness; pin its full SHA in the backend workflow, not arbitrary input.
 
@@ -115,8 +116,10 @@ final page origin/path, title and a bounded ARIA snapshot are written under the
 browser-owned output directory and printed through the existing sanitizer before
 cleanup. No artifacts are uploaded.
 
-Known blocker at backend `c9bdbda`: `FoundationService.bootstrap` returns
-`RuntimeCapabilities(false, false, false)` unconditionally, so `sso` is always
-false. The frontend then correctly hides Sign in and `/auth/start` returns
-`SSO_DISABLED`. The harness does not bypass this gate; real sign-in requires a
-reviewed backend pin whose storefront advertises SSO for the ready fixture domain.
+The pinned backend advertises SSO only after validating enabled confidential
+configuration, a current registered client binding and exact callback, and an
+ACTIVE product/partner with a VERIFIED, routing/TLS-READY, unexpired domain.
+The frontend hides Sign in and `/auth/start` returns `SSO_DISABLED` when that
+gate is not met. This replaces the original `c9bdbda` pin's unconditional
+`sso=false` capability; the harness does not bypass readiness. Runtime remains
+disabled, and bootstrap operational access and checkout remain false.

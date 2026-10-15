@@ -5,7 +5,7 @@ set -euo pipefail
 [[ "$(uname)" == Linux ]] || exit 1
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BACKEND="$(realpath "${1:?Pass the pinned backend checkout directory}")"
-EXPECTED_BACKEND=c9bdbda834fadace0cf94e2a6850edea0bea0d87
+EXPECTED_BACKEND=31e618d375b4daccb7e6ee41120e70490f716471
 [[ "$(git -C "$BACKEND" rev-parse HEAD)" == "$EXPECTED_BACKEND" ]] || { echo "Backend SHA mismatch"; exit 1; }
 : "${BROWSER_TOOLS:?Install pinned Playwright tools first}"
 : "${RUNNER_TEMP:?}"
