@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   bffEnvelopeSchema,
@@ -82,7 +83,7 @@ describe("actual serialized authenticated BFF DTOs", () => {
 // Drives both production BFF consumers of context options (session bootstrap and /auth/context)
 // with the exact backend response bytes. Only the storefront and secrets are test-constructed.
 describe("BFF consumers of actual serialized authenticated DTOs", () => {
-  const raw = (name: string) => readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url), "utf8");
+  const raw = (name: string) => readFileSync(resolve(process.cwd(), "src/features/partner-saas/__tests__/fixtures", `${name}.json`), "utf8");
   const json = (body: string) => new Response(body, { headers: { "Content-Type": "application/json" } });
   const host = sessionAfter.data.context.hostname;
   const handle = "A".repeat(43);
