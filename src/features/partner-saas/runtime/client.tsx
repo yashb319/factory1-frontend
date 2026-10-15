@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { z } from "zod";
 import { authBootstrapSchema, bffEnvelopeSchema, type AuthBootstrap } from "../auth/contracts";
 import { runtimeQueryAllowed, runtimeRouteAllowed } from "./policy";
+import { hasOperationalAccess } from "./access";
 
 type RuntimeClient = {
   data: AuthBootstrap;
@@ -77,7 +78,7 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
   const request = useCallback(async <T,>(method: string, path: string, schema: z.ZodType<T>, body?: unknown): Promise<T> => {
     const entitlement = data.entitlements;
     const parsedUrl = new URL(path, "https://runtime.invalid");
-    if (failure || stopped.current || parsedUrl.origin !== "https://runtime.invalid" || !entitlement ||
+    if (failure || stopped.current || !hasOperationalAccess(data) || parsedUrl.hash || parsedUrl.origin !== "https://runtime.invalid" || !entitlement ||
         !runtimeQueryAllowed(parsedUrl.searchParams, parsedUrl.pathname) ||
         !runtimeRouteAllowed(entitlement.runtimeRoutes, entitlement.role, method, parsedUrl.pathname, entitlement.modules, entitlement.moduleDecisions)) {
       throw new RuntimeRequestError("This operation is not available for your selected product and role.");

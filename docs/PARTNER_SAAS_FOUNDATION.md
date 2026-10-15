@@ -177,7 +177,10 @@ change destroys the old cache and UI, instead of relabeling cached tenant data.
 
 The reused Inventory, Employees, Attendance, Payroll, Suppliers and Customers
 pages expose reviewed operations with contextual action guards. Leave reuses
-reviewer/type/calendar components without email-derived self-service or balances.
+reviewer/type/calendar/detail and shared holiday management components, including
+confirmed holiday deletion, reviewer comments and required clarification
+(the frozen controller's 2000-character limit), without email-derived self-service
+or balances.
 Production reuses order-list, quantity, timeline, audit and BOM-binding components
 and reads workflow versions; unreviewed catalog/user lookup/preview dependencies
 keep creation, quantity-flow execution, authoring, assignments, workstations and

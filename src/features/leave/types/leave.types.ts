@@ -81,6 +81,15 @@ export interface CreateLeaveRequest {
   reason: string;
 }
 
+export interface LeaveRequestCommentResponse {
+  id: string;
+  type: string;
+  authorRole: string;
+  authorName: string | null;
+  body: string;
+  createdAt: string;
+}
+
 export interface LeaveListParams {
   page?: number;
   size?: number;

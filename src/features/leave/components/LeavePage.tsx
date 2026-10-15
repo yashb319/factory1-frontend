@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CalendarDays,
   Check,
@@ -52,6 +52,8 @@ import {
   useDeleteHolidayMutation,
   useGetLeaveBalancesQuery,
   useGetLeaveRequestQuery,
+  useGetLeaveRequestCommentsQuery,
+  useRequestLeaveClarificationMutation,
   useGetLeaveRequestsQuery,
   useGetLeaveTypesQuery,
   useGetLeaveCalendarQuery,
@@ -121,8 +123,9 @@ function ContextLeavePage() {
       selectedDate={selectedDate} rangeStart={null} rangeEnd={null} onSelect={setSelectedDate} />
       <DayDetails date={selectedDate} entries={calendar.data ?? []} holidays={holidays.data ?? []}
         onApply={() => toast.error("Self-service leave requests are unavailable in this context.")} /></CardContent></Card> : null}
+    {can("GET", "/api/leave/holidays") ? <HolidayManagement from={range.from} to={range.to} /> : null}
     <LeaveTypeDialog key={editingType?.id ?? "new"} open={typeOpen} onOpenChange={setTypeOpen} type={editingType} />
-    <RequestDetailDialog request={selected.data} loading={selected.isFetching} open={Boolean(requestId)} onOpenChange={(open) => { if (!open) setRequestId(""); }}
+    <RequestDetailDialog request={selected.currentData} loading={selected.isFetching} open={Boolean(requestId) && !selected.isError} onOpenChange={(open) => { if (!open) setRequestId(""); }}
       onCancel={() => toast.error("Self-service cancellation is unavailable in this context.")} />
     <DecisionDialog key={decision ? `${decision.request.id}-${decision.action}` : "closed"} decision={decision}
       loading={approving.isLoading || rejecting.isLoading} onOpenChange={(open) => { if (!open) setDecision(null); }}
@@ -150,7 +153,6 @@ function LegacyLeavePage() {
   const [editingType, setEditingType] = useState<LeaveTypeResponse | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [decision, setDecision] = useState<{ request: LeaveRequestResponse; action: "approve" | "reject" } | null>(null);
-  const [holidayForm, setHolidayForm] = useState({ holidayDate: "", name: "", paid: true });
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(currentYear, new Date().getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [rangeStart, setRangeStart] = useState<string | null>(null);
@@ -171,7 +173,7 @@ function LegacyLeavePage() {
   const monthFrom = toIsoDate(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1));
   const monthTo = toIsoDate(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0));
   const { data: calendar = [], isLoading: calendarLoading, isError: calendarError } = useGetLeaveCalendarQuery({ from: monthFrom, to: monthTo });
-  const { data: holidays = [], isLoading: holidaysLoading, isError: holidaysError } = useGetHolidaysQuery({ from: yearFrom, to: yearTo });
+  const { data: holidays = [] } = useGetHolidaysQuery({ from: yearFrom, to: yearTo });
   const { data: selectedRequest, isFetching: requestLoading } = useGetLeaveRequestQuery(
     selectedRequestId ?? "",
     { skip: !selectedRequestId },
@@ -180,8 +182,6 @@ function LegacyLeavePage() {
   const [cancelRequest] = useCancelLeaveRequestMutation();
   const [approveRequest, { isLoading: approving }] = useApproveLeaveRequestMutation();
   const [rejectRequest, { isLoading: rejecting }] = useRejectLeaveRequestMutation();
-  const [createHoliday, { isLoading: creatingHoliday }] = useCreateHolidayMutation();
-  const [deleteHoliday] = useDeleteHolidayMutation();
 
   const orgSettingsQuery = useGetOrganizationSettingsQuery(undefined, { skip: !isApprover });
   const orgSettings = orgSettingsQuery.data?.data;
@@ -216,15 +216,6 @@ function LegacyLeavePage() {
       toast.success("Weekend rules updated");
     } catch {
       toast.error("Unable to update weekend rules");
-    }
-  }
-
-  async function handleDeleteHoliday(id: string) {
-    try {
-      await deleteHoliday(id).unwrap();
-      toast.success("Holiday deleted");
-    } catch {
-      toast.error("Unable to delete holiday");
     }
   }
 
@@ -328,13 +319,7 @@ function LegacyLeavePage() {
           <CardHeader><CardTitle>{selectedDate ? formatDate(selectedDate) : "Select a day"}</CardTitle><CardDescription>{selectedDate ? "Leave and holiday details for this date." : "Choose a date on the calendar to see what is scheduled."}</CardDescription></CardHeader>
           <CardContent><DayDetails date={selectedDate} entries={calendar} holidays={holidays} onApply={() => setApplyOpen(true)} /></CardContent>
         </Card>
-        <Card className="xl:col-span-2">
-          <CardHeader><CardTitle>Organization holidays</CardTitle><CardDescription>Configure paid and unpaid holidays used by attendance.</CardDescription></CardHeader>
-          <CardContent className="space-y-3">
-            {holidaysError ? <ErrorBlock message="Unable to load organization holidays." /> : holidaysLoading ? <LoadingBlock /> : holidays.length ? <div className="space-y-2">{holidays.map((holiday) => <div key={holiday.id} className="flex items-center justify-between gap-2 rounded-md border p-2"><div><p className="font-medium">{holiday.name}</p><p className="text-xs text-slate-500">{formatDate(holiday.holidayDate)} · {holiday.paid ? "Paid" : "Unpaid"}</p></div><Button size="icon-sm" variant="ghost" aria-label={`Delete ${holiday.name}`} onClick={() => void handleDeleteHoliday(holiday.id)}><Trash2 className="h-4 w-4 text-red-600" /></Button></div>)}</div> : <EmptyState icon={CalendarDays} title="No holidays configured" description="Add your organization's holidays below." />}
-            {isApprover ? <form className="grid gap-2 border-t pt-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end" onSubmit={async (event) => { event.preventDefault(); if (!holidayForm.holidayDate || !holidayForm.name.trim()) return; try { await createHoliday({ ...holidayForm, name: holidayForm.name.trim() }).unwrap(); toast.success("Holiday added"); setHolidayForm({ holidayDate: "", name: "", paid: true }); } catch { toast.error("Unable to add holiday"); } }}><FieldLabel label="Date"><Input type="date" value={holidayForm.holidayDate} onChange={(event) => setHolidayForm({ ...holidayForm, holidayDate: event.target.value })} /></FieldLabel><FieldLabel label="Holiday name"><Input value={holidayForm.name} onChange={(event) => setHolidayForm({ ...holidayForm, name: event.target.value })} placeholder="Factory foundation day" /></FieldLabel><div className="flex items-center gap-2"><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={holidayForm.paid} onChange={(event) => setHolidayForm({ ...holidayForm, paid: event.target.checked })} />Paid</label><Button type="submit" disabled={creatingHoliday}>Add</Button></div></form> : null}
-          </CardContent>
-        </Card>
+        <HolidayManagement from={yearFrom} to={yearTo} />
       </section>
 
       <Card>
@@ -490,7 +475,7 @@ function RequestTable({ requests, loading, canDecide, onView, onCancel, onDecide
             <TableCell><Badge variant={statusVariant[request.status]}>{humanizeEnum(request.status)}</Badge></TableCell>
             <TableCell className="text-right">
               <div className="flex justify-end gap-1">
-                <Button size="sm" variant="outline" onClick={() => onView(request.id)}>View</Button>
+                <Button size="sm" variant="outline" disabled={!can("GET", `/api/leave/requests/${request.id}`)} onClick={() => onView(request.id)}>View</Button>
                 {request.status === "PENDING" && canDecide && onDecide ? <><Button size="sm" disabled={!can("POST", `/api/leave/requests/${request.id}/approve`)} onClick={() => onDecide(request, "approve")}><Check className="h-3.5 w-3.5" /></Button><Button size="sm" variant="destructive" disabled={!can("POST", `/api/leave/requests/${request.id}/reject`)} onClick={() => onDecide(request, "reject")}><X className="h-3.5 w-3.5" /></Button></> : null}
                 {request.status === "PENDING" && !canDecide && onCancel ? <Button size="sm" variant="outline" onClick={() => onCancel(request)}>Cancel</Button> : null}
               </div>
@@ -640,15 +625,100 @@ function LeaveTypeDialog({ open, onOpenChange, type }: { open: boolean; onOpenCh
 
 function RequestDetailDialog({ request, loading, open, onOpenChange, onCancel }: { request?: LeaveRequestResponse; loading: boolean; open: boolean; onOpenChange: (open: boolean) => void; onCancel: (request: LeaveRequestResponse) => void }) {
   const { contextual } = useRuntimePermissions();
-  if (contextual) return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader>
-    <DialogTitle>Leave request details</DialogTitle><DialogDescription>Authorized reviewer information</DialogDescription>
-  </DialogHeader>{loading || !request ? <LoadingBlock /> : <div className="space-y-3">
-    <Detail label="Employee" value={request.employeeName || "Employee name unavailable"} />
-    <Detail label="Status" value={humanizeEnum(request.status)} /><Detail label="Days" value={formatDays(request.days)} />
-    <p>{formatDate(request.startDate)} - {formatDate(request.endDate)}</p><p>{request.reason}</p>
-    <p>{request.decisionComment}</p>
-  </div>}<Button onClick={() => onOpenChange(false)}>Close</Button></DialogContent></Dialog>;
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Leave request details</DialogTitle><DialogDescription>{request ? `${request.leaveTypeCode} · ${formatDate(request.startDate)} to ${formatDate(request.endDate)}` : "Loading request..."}</DialogDescription></DialogHeader>{loading || !request ? <LoadingBlock /> : <div className="space-y-3 text-sm"><div className="grid grid-cols-2 gap-3"><Detail label="Days" value={formatDays(request.days)} /><Detail label="Status" value={humanizeEnum(request.status)} /><Detail label="Employee" value={request.employeeName || "Employee name unavailable"} /><Detail label="Decision date" value={request.decisionAt ? formatDate(request.decisionAt) : "—"} /></div><div><p className="text-xs font-medium text-slate-500">Reason</p><p className="mt-1 whitespace-pre-wrap">{request.reason || "No reason provided"}</p></div>{request.decisionComment ? <div><p className="text-xs font-medium text-slate-500">Decision comment</p><p className="mt-1 whitespace-pre-wrap">{request.decisionComment}</p></div> : null}<DialogFooter>{request.status === "PENDING" ? <Button variant="outline" onClick={() => onCancel(request)}>Cancel request</Button> : null}<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button></DialogFooter></div>}</DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader>
+    <DialogTitle>Leave request details</DialogTitle>
+    <DialogDescription>{request ? `${request.leaveTypeCode} - ${formatDate(request.startDate)} to ${formatDate(request.endDate)}` : "Loading request..."}</DialogDescription>
+  </DialogHeader>{loading || !request ? <LoadingBlock /> : <div className="space-y-3 text-sm">
+    <div className="grid grid-cols-2 gap-3"><Detail label="Days" value={formatDays(request.days)} />
+      <Detail label="Status" value={humanizeEnum(request.status)} /><Detail label="Employee" value={request.employeeName || "Employee name unavailable"} />
+      <Detail label="Decision date" value={request.decisionAt ? formatDate(request.decisionAt) : "-"} /></div>
+    <div><p className="text-xs font-medium text-slate-500">Reason</p><p className="mt-1 whitespace-pre-wrap">{request.reason || "No reason provided"}</p></div>
+    {request.decisionComment ? <div><p className="text-xs font-medium text-slate-500">Decision comment</p><p className="mt-1 whitespace-pre-wrap">{request.decisionComment}</p></div> : null}
+    {contextual && open ? <ReviewerComments key={request.id} request={request} /> : null}
+    <DialogFooter>{!contextual && request.status === "PENDING" ? <Button variant="outline" onClick={() => onCancel(request)}>Cancel request</Button> : null}
+      <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button></DialogFooter>
+  </div>}</DialogContent></Dialog>;
+}
+
+function ReviewerComments({ request }: { request: LeaveRequestResponse }) {
+  const { can } = useRuntimePermissions();
+  const comments = useGetLeaveRequestCommentsQuery(request.id, { skip: !can("GET", `/api/leave/requests/${request.id}/comments`) });
+  const [clarify, saving] = useRequestLeaveClarificationMutation();
+  const [comment, setComment] = useState("");
+  const submitting = useRef(false);
+  return <section className="space-y-3 border-t pt-3" aria-label="Reviewer comments">
+    <h3 className="font-semibold">Reviewer discussion</h3>
+    {comments.isFetching ? <p role="status">Loading comments...</p> : null}
+    {comments.isError ? <p role="alert">Reviewer comments could not be loaded.</p> : null}
+    {!comments.isError ? comments.currentData?.map((entry) => <div key={entry.id} className="rounded border p-2">
+      <p>{entry.authorName || "Reviewer"} - {humanizeEnum(entry.authorRole)} - {formatDate(entry.createdAt)}</p>
+      <p className="whitespace-pre-wrap">{entry.body}</p>
+    </div>) : null}
+    {request.status === "PENDING" && can("POST", `/api/leave/requests/${request.id}/clarification`) ? <form className="space-y-2" onSubmit={async (event) => {
+      event.preventDefault();
+      if (submitting.current || saving.isLoading) return;
+      if (!comment.trim() || comment.trim().length > 2000) { toast.error("Enter a clarification of 1 to 2000 characters."); return; }
+      submitting.current = true;
+      try {
+        await clarify({ id: request.id, comment: comment.trim() }).unwrap();
+        setComment(""); toast.success("Clarification requested");
+      } catch { toast.error("Unable to request clarification."); }
+      finally { submitting.current = false; }
+    }}>
+      <label>Clarification required<Textarea required maxLength={2000} disabled={saving.isLoading} value={comment} onChange={(event) => setComment(event.target.value)} /></label>
+      <Button disabled={saving.isLoading || comments.isFetching || comments.isError} type="submit">Request clarification</Button>
+    </form> : null}
+  </section>;
+}
+
+function HolidayManagement({ from, to }: { from: string; to: string }) {
+  const { can } = useRuntimePermissions();
+  const user = useAppSelector((state) => state.auth.user);
+  const reviewer = Boolean(user && approverRoles.has(user.role));
+  const holidays = useGetHolidaysQuery({ from, to }, { skip: !can("GET", "/api/leave/holidays") });
+  const [form, setForm] = useState({ holidayDate: "", name: "", paid: true });
+  const [target, setTarget] = useState<HolidayResponse | null>(null);
+  const [create, creating] = useCreateHolidayMutation();
+  const [remove, deleting] = useDeleteHolidayMutation();
+  const submitting = useRef(false);
+  const busy = creating.isLoading || deleting.isLoading;
+  return <Card className="xl:col-span-2"><CardHeader><CardTitle>Organization holidays</CardTitle>
+    <CardDescription>Configure paid and unpaid holidays used by attendance in this factory.</CardDescription></CardHeader>
+    <CardContent className="space-y-3">
+      {holidays.isError ? <ErrorBlock message="Unable to load organization holidays." /> : holidays.isLoading ? <LoadingBlock /> :
+        holidays.currentData?.length ? holidays.currentData.map((holiday) => <div key={holiday.id} className="flex items-center justify-between gap-2 rounded border p-2">
+          <div><p className="font-medium">{holiday.name}</p><p>{formatDate(holiday.holidayDate)} - {holiday.paid ? "Paid" : "Unpaid"}</p></div>
+          {reviewer ? <Button size="icon-sm" variant="ghost" aria-label={`Delete ${holiday.name}`} disabled={busy || !can("DELETE", `/api/leave/holidays/${holiday.id}`)} onClick={() => setTarget(holiday)}><Trash2 className="h-4 w-4" /></Button> : null}
+        </div>) : <p>No holidays configured for this period.</p>}
+      {reviewer && can("POST", "/api/leave/holidays") ? <form className="space-y-2 border-t pt-3" onSubmit={async (event) => {
+        event.preventDefault();
+        if (submitting.current || busy) return;
+        if (!form.holidayDate || !form.name.trim()) { toast.error("Enter a holiday date and name."); return; }
+        submitting.current = true;
+        try {
+          await create({ ...form, name: form.name.trim() }).unwrap();
+          setForm({ holidayDate: "", name: "", paid: true }); toast.success("Holiday added");
+        } catch { toast.error("Unable to add holiday."); }
+        finally { submitting.current = false; }
+      }}>
+        <FieldLabel label="Holiday date"><Input required type="date" disabled={busy} value={form.holidayDate} onChange={(event) => setForm({ ...form, holidayDate: event.target.value })} /></FieldLabel>
+        <FieldLabel label="Holiday name"><Input required maxLength={100} disabled={busy} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></FieldLabel>
+        <label><input type="checkbox" disabled={busy} checked={form.paid} onChange={(event) => setForm({ ...form, paid: event.target.checked })} /> Paid</label>
+        <Button type="submit" disabled={busy || holidays.isFetching || holidays.isError}>Add holiday</Button>
+      </form> : null}
+      <AlertDialog open={Boolean(target)} onOpenChange={(open) => { if (!open && !busy) setTarget(null); }}><AlertDialogContent>
+        <AlertDialogHeader><AlertDialogTitle>Delete holiday?</AlertDialogTitle><AlertDialogDescription>Delete {target?.name} from the selected factory.</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction disabled={busy || !target || !can("DELETE", `/api/leave/holidays/${target?.id}`)} onClick={(event) => {
+            event.preventDefault();
+            if (!target || submitting.current || busy) return;
+            submitting.current = true;
+            void remove(target.id).unwrap().then(() => { setTarget(null); toast.success("Holiday deleted"); })
+              .catch(() => toast.error("Unable to delete holiday.")).finally(() => { submitting.current = false; });
+          }}>Delete holiday</AlertDialogAction></AlertDialogFooter>
+      </AlertDialogContent></AlertDialog>
+    </CardContent>
+  </Card>;
 }
 
 function DecisionDialog({ decision, loading, onOpenChange, onSubmit }: { decision: { request: LeaveRequestResponse; action: "approve" | "reject" } | null; loading: boolean; onOpenChange: (open: boolean) => void; onSubmit: (comment: string) => Promise<void> }) {

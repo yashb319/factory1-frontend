@@ -14,7 +14,8 @@ export const runtimePrincipalSchema = z.object({
 
 export const runtimeRouteSchema = z.object({
   method: z.enum(["GET", "POST", "PUT", "DELETE"]),
-  path: z.string().max(200).refine((path) => path.startsWith("/api/") || path.startsWith("/exports/inventory")),
+  path: z.string().max(200).refine((path) => path.startsWith("/api/") ||
+    ["/exports/inventory", "/exports/inventory/{id}", "/exports/inventory/{id}/download"].includes(path)),
 }).strict();
 export const moduleDecisionSchema = z.object({
   key: z.string().min(1).max(100), enabled: z.boolean(),

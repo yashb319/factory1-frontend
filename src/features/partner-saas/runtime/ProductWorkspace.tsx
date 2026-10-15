@@ -8,6 +8,7 @@ import { ProductRuntimeProvider } from "./client";
 import { runtimeScreens } from "./policy";
 import { ContextModuleStore } from "./ContextModuleStore";
 import { Toaster } from "@/components/ui/sonner";
+import { hasOperationalAccess } from "./access";
 
 const surfaces = {
   "/inventory": lazy(() => import("@/features/inventory/components/InventoryPage").then((module) => ({ default: module.InventoryPage }))),
@@ -24,6 +25,7 @@ const surfaces = {
 
 export function ProductWorkspace({ data }: { data: AuthBootstrap }) {
   const pathname = usePathname();
+  if (!hasOperationalAccess(data)) return <p role="alert">Operational factory access has not been authorized by the backend.</p>;
   const screens = runtimeScreens(data.entitlements?.runtimeRoutes ?? [], data.entitlements?.role,
     data.entitlements?.modules ?? [], data.entitlements?.moduleDecisions ?? []);
   const active = screens.find((screen) => screen.href === pathname);
@@ -48,7 +50,7 @@ export function ProductWorkspace({ data }: { data: AuthBootstrap }) {
           <p>Role: {data.session.principal?.role}. Only operations authorized for this product and factory are available.</p>
           <div className="grid gap-3 sm:grid-cols-2">{screens.map((screen) => <Link key={screen.href} href={screen.href} className="rounded border p-5 underline">Open {screen.label}</Link>)}</div>
           <details><summary>Module availability</summary><ul className="space-y-2">{data.entitlements?.moduleDecisions.map((decision) =>
-            <li key={decision.key}>{decision.key}: {decision.enabled ? "Reviewed operations enabled" : `Unavailable - ${decision.reasons.join(", ")}`}</li>)}</ul></details>
+            <li key={decision.key}>{decision.key}: {decision.enabled ? "Effective module enabled; operations still require explicit runtime routes" : `Unavailable - ${decision.reasons.join(", ")}`}</li>)}</ul></details>
           <p className="text-sm">This dashboard shows only authorized modules, not mixed-module totals. Tally, AI, bulk import, public links and legacy exports are unavailable. Inventory exports use a separately authorized contextual job. Purchasing another product does not widen this workspace.</p>
         </section> : pathname === "/help" ? <section className="space-y-3" aria-label="Product workspace help">
           <h2 className="text-xl font-semibold">Factory access help</h2>

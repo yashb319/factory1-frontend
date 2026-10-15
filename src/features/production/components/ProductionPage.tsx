@@ -305,6 +305,9 @@ function ContextProductionPage() {
   const [selected, setSelected] = useState<string>();
   const [tab, setTab] = useState<"orders" | "workflows">("orders");
   const orders = useGetOrdersQuery({ page, size: 20, scope: "ALL" });
+  const displayOrders: DisplayOrder[] = (orders.currentData?.content ?? []).map((order) => ({
+    ...order, productCode: order.productCode ?? undefined, productName: order.productName ?? undefined,
+  }));
   const workflows = useGetWorkflowsQuery({ page, size: 20 }, { skip: tab !== "workflows" || !can("GET", "/api/production/workflows") });
   return <section className="space-y-4">
     <h1 className="text-xl font-semibold">Production</h1>
@@ -313,7 +316,7 @@ function ContextProductionPage() {
       {can("GET", "/api/production/workflows") ? <Button onClick={() => { setPage(0); setTab("workflows"); }}>Workflow versions</Button> : null}</div>
     {orders.isError || workflows.isError ? <ErrorState title="Production information unavailable" message="Refresh and verify current access." onRetry={() => { void orders.refetch(); if (tab === "workflows") void workflows.refetch(); }} /> : null}
     {tab === "orders" ? <>
-      {orders.isFetching ? <Loading text="Loading orders..." /> : <OrderListView orders={orders.data?.content ?? []} selectedOrderId={selected} onSelect={setSelected} />}
+      {orders.isFetching ? <Loading text="Loading orders..." /> : <OrderListView orders={displayOrders} selectedOrderId={selected} onSelect={setSelected} />}
       {selected ? <ContextOrderDetail key={selected} orderId={selected} /> : null}
     </> : <div className="space-y-3">{workflows.data?.content.map((workflow) =>
       <ContextWorkflow key={workflow.id} workflow={workflow} />)}</div>}

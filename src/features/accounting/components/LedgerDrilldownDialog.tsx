@@ -43,7 +43,7 @@ type Props = {
   fromDate: string;
   toDate: string;
   onClose: () => void;
-  onExport: () => void;
+  onExport?: () => void;
 };
 
 export function LedgerDrilldownDialog({
@@ -136,7 +136,7 @@ export function LedgerDrilldownDialog({
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          <Button onClick={onExport} disabled={contextual || !rows.length}>
+          <Button onClick={onExport} disabled={contextual || !onExport || !rows.length}>
             <Download className="mr-2 h-4 w-4" />
             CSV
           </Button>

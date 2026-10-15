@@ -274,11 +274,11 @@ function ContextAccountingReports() {
       <BalanceSheetSide title="Assets" rows={balance.data.assets} total={balance.data.totalAssets} onOpenLedger={setSelectedLedger} />
       <BalanceSheetSide title="Liabilities" rows={balance.data.liabilities} total={balance.data.totalLiabilities} onOpenLedger={setSelectedLedger} />
     </div> : null}
-    {receivables.data && !receivables.isError ? <AgingPanel title="Receivables aging" report={receivables.data} onExport={() => {}} /> : null}
-    {payables.data && !payables.isError ? <AgingPanel title="Payables aging" report={payables.data} onExport={() => {}} /> : null}
+    {receivables.data && !receivables.isError ? <AgingPanel title="Receivables aging" report={receivables.data} /> : null}
+    {payables.data && !payables.isError ? <AgingPanel title="Payables aging" report={payables.data} /> : null}
     {!vouchers.isError && !vouchers.isFetching ? <LedgerDrilldownDialog selectedLedger={selectedLedger} rows={rows}
       totals={summarizeLedgerDrilldown(rows)} fromDate={range.fromDate} toDate={range.toDate}
-      onClose={() => setSelectedLedger(null)} onExport={() => {}} /> : null}
+      onClose={() => setSelectedLedger(null)} /> : null}
   </section>;
 }
 
@@ -4618,6 +4618,7 @@ function BalanceSheetSide({
   total: number;
   onOpenLedger: (ledger: SelectedLedger) => void;
 }) {
+  const { can } = useRuntimePermissions();
   return (
       <div className="overflow-x-auto rounded-md border">
         <div className="flex items-center justify-between bg-muted px-3 py-2 text-sm font-semibold">
@@ -4642,6 +4643,7 @@ function BalanceSheetSide({
                 {row.ledgerId ? (
                   <button
                     type="button"
+                    disabled={!can("GET", "/api/accounting/vouchers")}
                     className="text-left font-medium text-blue-700 hover:underline"
                     onClick={() =>
                       onOpenLedger({
@@ -4685,7 +4687,7 @@ function AgingPanel({
 }: {
   title: string;
   report: AgingReport | undefined;
-  onExport: () => void;
+  onExport?: () => void;
 }) {
   const { contextual } = useRuntimePermissions();
   return (
@@ -4701,7 +4703,7 @@ function AgingPanel({
           size="sm"
           variant="outline"
           onClick={onExport}
-          disabled={contextual || !report?.rows.length}
+          disabled={contextual || !onExport || !report?.rows.length}
         >
           <Download className="mr-2 h-4 w-4" />
           CSV
