@@ -45,6 +45,13 @@ jobs:
           npx tsc --noEmit
       - name: Existing focused frontend regressions
         run: npm test -- src/features/partner-saas/__tests__
+      - name: Reproduce Chromium native form Origin policy without credentials
+        env:
+          NODE_PATH: ${{ runner.temp }}/browser-tools/node_modules
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/browser-tools/browsers
+        run: |
+          node "$RUNNER_TEMP/browser-tools/node_modules/@playwright/test/cli.js" install --with-deps chromium
+          node --test tests/partner-sso/referrer-policy.test.cjs
       - name: Read installed Next custom server guide and verify canonical HTTPS authority
         env:
           NEXT_TELEMETRY_DISABLED: "1"

@@ -121,6 +121,30 @@ async function requireSignInReady(page, origin) {
   expect(result.session.status, "anonymous BFF session must be 401").toBe(401);
 }
 
+async function submitCentralLogin(page) {
+  const responsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.origin === CENTRAL && url.pathname === "/api/partner/v2/sso/login"
+      && response.request().method() === "POST";
+  });
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  const response = await responsePromise;
+  const request = response.request();
+  const rawOrigin = await request.headerValue("origin");
+  let origin = rawOrigin === "null" || rawOrigin === null ? rawOrigin : "unexpected";
+  try {
+    if (rawOrigin && new URL(rawOrigin).origin === rawOrigin) origin = new URL(rawOrigin).origin;
+  } catch {
+    origin = "invalid";
+  }
+  const fetchSite = await request.headerValue("sec-fetch-site");
+  console.log(`Central native form: ${JSON.stringify({
+    origin,
+    fetchSite: ["same-origin", "same-site", "cross-site", "none"].includes(fetchSite) ? fetchSite : null,
+    status: response.status(),
+  })}`);
+}
+
 test.afterEach(async ({ page }, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) return;
   for (const current of page.context().pages()) {
@@ -162,12 +186,12 @@ test("real HTTPS OAuth, host cookies, context rotation, CSRF and two-product rev
 
   await page.getByLabel("Email", { exact: true }).fill("partner-sso-e2e@example.test");
   await page.getByLabel("Password", { exact: true }).fill("Factory1-E2E!Password-2026");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await submitCentralLogin(page);
   await expect(page.getByLabel("Verification code")).toBeVisible();
   await page.getByLabel("Email", { exact: true }).fill("partner-sso-e2e@example.test");
   await page.getByLabel("Password", { exact: true }).fill("Factory1-E2E!Password-2026");
   await page.getByLabel("Verification code").fill("482619");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await submitCentralLogin(page);
   await page.waitForURL(`${A}/`);
   await expect(page.getByLabel("Choose an authorized factory")).toBeVisible();
   await cookie(context, CENTRAL, "__Host-factory1_central_auth");
