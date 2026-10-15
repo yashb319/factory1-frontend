@@ -101,7 +101,9 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
         ...(serializedBody === undefined ? {} : { body: serializedBody }),
       });
       if (response.status === 409) {
-        const payload = z.object({ code: z.string() }).safeParse(await response.json());
+        const payload = z.object({ code: z.string() }).safeParse(await response.json().catch(() => {
+          throw new RuntimeRequestError("The conflict response could not be verified. Refresh the record and review before trying again.", 409);
+        }));
         if (payload.success && ["CONTEXT_CHANGED", "CONTEXT_GENERATION_MISMATCH", "CONTEXT_REQUIRED", "ACCESS_CHANGED"].includes(payload.data.code)) {
           stop("Your factory access changed. Reload to verify current access.");
           throw new RuntimeRequestError("Factory context is no longer valid.", 409, payload.data.code);

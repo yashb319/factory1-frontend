@@ -25,3 +25,25 @@ export const contextualExecutionBatchSchema = z.object({
   ...common, orderStepSnapshotId: z.uuid(), batchNumber, expectedVersion: version,
   requestId: z.uuid(), previewToken: z.string().min(1),
 }).strict();
+
+const materialLabel = { itemCode: z.string().nullable().optional(), itemName: z.string().nullable().optional() };
+export const contextualBatchPreviewResultSchema = z.object({
+  previewToken: z.string(), action: z.literal("RECORD_GOOD"), sourceOrderId: z.uuid(), sourceStepId: z.uuid(),
+  expectedOrderVersion: version, expectedStepVersion: version, expectedFamilyVersion: version,
+  blockingReasons: z.array(z.object({ code: z.string(), message: z.string(), remediation: z.string().nullable() })),
+  finishedGoodCredit: quantity, stockWarnings: z.array(z.string()),
+  items: z.array(z.object({
+    ...materialLabel, inventoryItemId: z.uuid(), requiredQuantity: quantity, coveredQuantity: quantity,
+    newStockDebitQuantity: quantity, unit: z.string(),
+    coverageSources: z.array(z.object({
+      ...materialLabel, consumptionId: z.uuid(), inventoryItemId: z.uuid(), quantity, unit: z.string(),
+    })),
+  })),
+});
+
+export const contextualExecutionBatchResultSchema = z.object({
+  id: z.uuid(), productionOrderId: z.uuid(), orderStepSnapshotId: z.uuid(), batchNumber,
+  completedQuantity: quantity, rejectedQuantity: quantity, notes: z.string().nullable().optional(),
+  occurredAt: z.string().optional(), createdAt: z.string().optional(),
+});
+export const contextualExecutionBatchHistorySchema = z.array(contextualExecutionBatchResultSchema);

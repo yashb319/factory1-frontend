@@ -409,9 +409,11 @@ export type ExecutionBatchRequest = {
   materialCoverage?: MaterialCoverage[];
 };
 
-export type ExecutionBatch = ExecutionBatchRequest & {
+export type ExecutionBatch = Omit<ExecutionBatchRequest, "notes"> & {
   id: string;
   productionOrderId: string;
+  notes?: string | null;
+  occurredAt?: string;
   createdAt?: string;
 };
 

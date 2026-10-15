@@ -293,7 +293,7 @@ describe("confidential reviewed operational BFF", () => {
         requestId: organizationId, previewToken: "server-token" };
     const headers = { Origin: `https://${host}`, "Content-Type": "application/json",
       "X-CSRF-Token": testCsrf(), "X-Factory1-Context-Generation": generation };
-    const make = (bodyOverride = body, suffix = "", headerOverride = headers) => productRuntimeRequest(
+    const make = (bodyOverride: unknown = body, suffix = "", headerOverride = headers) => productRuntimeRequest(
       requestWithSession(`/api/product-runtime${path}${suffix}`, {
         method, headers: headerOverride, ...(method === "GET" ? {} : { body: JSON.stringify(bodyOverride) }),
       }));

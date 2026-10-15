@@ -28,12 +28,13 @@ const previewResult: RecordPreview = {
   expectedOrderVersion: 2, expectedStepVersion: 3, expectedFamilyVersion: 4, blockingReasons: [],
   finishedGoodCredit: 2, items: [], stockWarnings: [],
 };
-const batch = { id: "recorded-batch", batchNumber: "LOT-A", productionOrderId: factoryId,
-  orderStepSnapshotId: stepId, completedQuantity: 2, rejectedQuantity: 0, createdAt: "2026-01-01T00:00:00Z" };
+const batch = { id: "88888888-8888-4888-8888-888888888888", batchNumber: "LOT-A", productionOrderId: factoryId,
+  orderStepSnapshotId: stepId, completedQuantity: 2, rejectedQuantity: 0, occurredAt: "2026-01-01T00:00:00Z" };
 function bootstrap() {
   const data = runtimeBootstrap();
   data.entitlements!.modules = ["production_tracking", "inventory"];
   data.entitlements!.runtimeRoutes = [
+    { method: "GET", path: "/api/production/orders" },
     { method: "GET", path: "/api/production/orders/{orderId}/execution-batches" },
     { method: "POST", path: "/api/production/orders/{orderId}/execution-batches" },
     { method: "POST", path: "/api/production/orders/{orderId}/steps/{stepId}/record-preview" },
@@ -108,16 +109,16 @@ describe("contextual execution batch reuse", () => {
     }
   });
 
-  it.each(["missing preview", "missing create", "missing inventory", "denied module", "employee", "partner admin"])(
+  it.each(["missing preview", "missing create", "missing inventory", "denied module", "employee", "missing factory role"])(
     "never mounts mutation controls for %s", async (reason) => {
       const fetcher = network();
       const data = bootstrap();
-      if (reason === "missing preview") data.entitlements!.runtimeRoutes = data.entitlements!.runtimeRoutes.slice(0, 2);
-      if (reason === "missing create") data.entitlements!.runtimeRoutes.splice(1, 1);
+      if (reason === "missing preview") data.entitlements!.runtimeRoutes = data.entitlements!.runtimeRoutes.filter((route) => !route.path.endsWith("record-preview"));
+      if (reason === "missing create") data.entitlements!.runtimeRoutes = data.entitlements!.runtimeRoutes.filter((route) => route.method !== "POST" || !route.path.endsWith("execution-batches"));
       if (reason === "missing inventory") data.entitlements!.modules = ["production_tracking"];
       if (reason === "denied module") data.entitlements!.moduleDecisions = [{ key: "inventory", enabled: false, reasons: ["PRODUCT_DISABLED"] }];
       if (reason === "employee") data.entitlements!.role = "EMPLOYEE";
-      if (reason === "partner admin") data.entitlements!.role = "PARTNER_ADMIN";
+      if (reason === "missing factory role") data.entitlements!.role = null;
       mount({ data });
       await waitFor(() => expect(screen.queryByText("Review execution batch")).not.toBeInTheDocument());
       expect(fetcher.mock.calls.every(([, init]) => init.method === "GET")).toBe(true);

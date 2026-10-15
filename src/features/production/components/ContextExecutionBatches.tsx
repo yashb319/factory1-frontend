@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
+import { contextualBatchPreviewResultSchema, contextualExecutionBatchResultSchema,
+  contextualExecutionBatchHistorySchema } from "@/features/partner-saas/runtime/executionBatchContracts";
 import { useCreateExecutionBatchMutation, useGetExecutionBatchesQuery } from "../api/productionApi";
 import { usePreviewProductionRecordMutation } from "../api/productionFlowApi";
 import type { OrderStep, ProductionOrder } from "../types/production.types";
@@ -25,6 +27,8 @@ export function ContextExecutionBatches({ order, refreshing, failed, onRefresh }
   const path = `/api/production/orders/${order.id}/execution-batches`;
   const readable = can("GET", path);
   const history = useGetExecutionBatchesQuery(order.id, { skip: !readable });
+  const validHistory = contextualExecutionBatchHistorySchema.safeParse(history.currentData);
+  const historyVerified = validHistory.success && validHistory.data.every((batch) => batch.productionOrderId === order.id);
   const step = order.steps.find((item) => item.id === order.currentStepId);
   const finalStep = step && !order.steps.some((item) => item.active && item.sequenceNumber > step.sequenceNumber);
   const writable = Boolean(step?.active && finalStep && order.quantityModel === "FLOW_V1" &&
@@ -34,12 +38,12 @@ export function ContextExecutionBatches({ order, refreshing, failed, onRefresh }
   return <section className="space-y-4 rounded border p-4" aria-label="Contextual execution batches">
     <h2 className="font-semibold">Recorded output history</h2>
     <p className="text-sm">Only reviewed execution-batch recording is supported. No workflow advance, rejection disposition, manual material issue, assignment or order creation is enabled.</p>
-    {history.isError ? <p role="alert">Execution batches could not be loaded. Refresh before recording output.</p> :
+    {history.isError || (!history.isFetching && history.currentData && !historyVerified) ? <p role="alert">Execution batches could not be verified. Refresh before recording output.</p> :
       history.isFetching ? <p role="status">Loading execution batches...</p> :
-        history.currentData ? <ExecutionBatchHistory batches={history.currentData} /> : null}
+        validHistory.success && historyVerified ? <ExecutionBatchHistory batches={validHistory.data} /> : null}
     <Button variant="outline" disabled={refreshing || history.isFetching} onClick={refresh}>Refresh order and output history</Button>
     {writable && step ? <ExecutionBatchForm key={step.id} order={order} step={step}
-      disabled={refreshing || failed || history.isFetching || history.isError || !history.currentData}
+      disabled={refreshing || failed || history.isFetching || history.isError || !historyVerified}
       onRefresh={refresh} /> :
       <p className="text-sm">Recording requires a current FLOW_V1 final step and explicit preview, create and history permissions. Other production operations remain unavailable.</p>}
   </section>;
@@ -56,16 +60,28 @@ function ExecutionBatchForm({ order, step, disabled, onRefresh }: {
   const control = useProductionReview<RecordPreviewRequest, RecordPreview, unknown>({
     order, step, action: "RECORD_GOOD", disabled,
     draftKey: JSON.stringify({ batchNumber, quantity, notes }),
-    preview: (body) => preview({ orderId: order.id, stepId: step.id, body }).unwrap(),
-    commit: (body, source) => {
+    preview: async (body) => {
+      const result = await preview({ orderId: order.id, stepId: step.id, body }).unwrap();
+      const parsed = contextualBatchPreviewResultSchema.safeParse(result);
+      if (!parsed.success) throw new Error("The material preview could not be verified. Refresh before recording output.");
+      return parsed.data;
+    },
+    commit: async (body, source) => {
       if (body.source.type !== "EXECUTION_BATCH") throw new Error("Execution-batch source is required.");
-      return create({ orderId: source.orderId, body: {
+      const result = await create({ orderId: source.orderId, body: {
         orderStepSnapshotId: source.stepId, batchNumber: body.source.batchNumber,
         completedQuantity: body.completedQuantity, rejectedQuantity: 0, notes: body.notes,
         expectedVersion: body.expectedOrderVersion, expectedStepVersion: body.expectedStepVersion,
         expectedFamilyVersion: body.expectedFamilyVersion, requestId: body.requestId,
         previewToken: body.previewToken, materialCoverage: body.materialCoverage,
       } }).unwrap();
+      const parsed = contextualExecutionBatchResultSchema.safeParse(result);
+      if (!parsed.success || parsed.data.productionOrderId !== source.orderId || parsed.data.orderStepSnapshotId !== source.stepId ||
+          parsed.data.batchNumber !== body.source.batchNumber || parsed.data.completedQuantity !== body.completedQuantity ||
+          parsed.data.rejectedQuantity !== 0) {
+        throw new Error("The execution-batch result could not be verified. Inspect history before trying again.");
+      }
+      return parsed.data;
     },
     onRefresh,
     onDone: () => {
