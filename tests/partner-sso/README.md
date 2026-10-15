@@ -166,6 +166,16 @@ the unchanged browser `{ items }` contract. The regression drives both consumers
 session bootstrap and `/auth/context`, with the exact sample bytes and asserts
 `operationalAccess=false` and no session handle in browser responses.
 
+`bootstrap-contract.cjs` is the single strict `/auth/session` shape check used by
+the Playwright scenario. It covers exact session keys including `principal` and
+`contextGeneration`, the principal/context binding, the allowed entitlement
+keys, and `operationalAccess=false`/`ready=false` (the pinned backend sets
+both from the same disabled runtime gate). It also requires no runtime routes,
+no enabled modules and no credential-bearing fields or cookie values. The same
+helper is applied in Vitest to the production `getAuthSession` output built from
+the exact backend samples, with negative cases, so stale shape assertions fail
+in static CI before a full hosted run.
+
 The pinned backend advertises SSO only after validating enabled confidential
 configuration, a current registered client binding and exact callback, and an
 ACTIVE product/partner with a VERIFIED, routing/TLS-READY, unexpired domain.

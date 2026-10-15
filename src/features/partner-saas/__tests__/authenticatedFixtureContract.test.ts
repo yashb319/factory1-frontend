@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -11,6 +12,11 @@ import {
   type PartnerEntitlements,
 } from "../auth/contracts";
 import { changeAuthContext, getAuthSession } from "../auth/server";
+
+type BootstrapExpectation = { productId: string; hostname: string; optionCount: number; forbiddenValues?: string[] };
+const { assertBootstrapPayload } = createRequire(resolve(process.cwd(), "package.json"))(
+  "./tests/partner-sso/bootstrap-contract.cjs",
+) as { assertBootstrapPayload: (body: unknown, expected: BootstrapExpectation) => unknown };
 import contextOptions from "./fixtures/context-options.json";
 import contextSelection from "./fixtures/context-selection.json";
 import entitlements from "./fixtures/entitlements.json";
@@ -114,6 +120,13 @@ describe("BFF consumers of actual serialized authenticated DTOs", () => {
     });
   }
 
+  const browserExpectation = {
+    productId: sessionAfter.data.context.productId,
+    hostname: host,
+    optionCount: contextOptions.data.length,
+    forbiddenValues: [handle],
+  };
+
   function browserRequest(path: string, init: RequestInit = {}) {
     const headers = new Headers(init.headers);
     headers.set("Host", host);
@@ -159,6 +172,31 @@ describe("BFF consumers of actual serialized authenticated DTOs", () => {
     expect(body.data.entitlements).toEqual(expectedEntitlements);
     expect(body.data.entitlements?.operationalAccess ?? false).toBe(false);
     expect(JSON.stringify(body)).not.toContain(handle);
+    expect(() => assertBootstrapPayload(body, browserExpectation)).not.toThrow();
+  });
+
+  it("the hosted browser bootstrap assertions reject stale, privileged or leaking payloads", async () => {
+    vi.stubGlobal("fetch", backend(raw("session-after-selection")));
+    const body = await (await getAuthSession(browserRequest("/auth/session"))).json();
+    const mutate = (change: (copy: typeof body) => void) => {
+      const copy = structuredClone(body);
+      change(copy);
+      return () => assertBootstrapPayload(copy, browserExpectation);
+    };
+
+    expect(() => assertBootstrapPayload(body, browserExpectation)).not.toThrow();
+    expect(mutate((copy) => { delete copy.data.session.principal; delete copy.data.session.contextGeneration; })).toThrow();
+    expect(mutate((copy) => { copy.data.session.extra = true; })).toThrow();
+    expect(mutate((copy) => { copy.data.session.operationalAccess = true; })).toThrow();
+    expect(mutate((copy) => { copy.data.entitlements.operationalAccess = true; })).toThrow();
+    expect(mutate((copy) => { copy.data.entitlements.ready = true; })).toThrow();
+    expect(mutate((copy) => { copy.data.entitlements.runtimeRoutes = [{ method: "GET", path: "/api/inventory" }]; })).toThrow();
+    expect(mutate((copy) => { copy.data.entitlements.moduleDecisions[0].enabled = true; })).toThrow();
+    expect(mutate((copy) => { copy.data.entitlements.unexpected = []; })).toThrow();
+    expect(mutate((copy) => { copy.data.session.principal.platformAdmin = true; })).toThrow();
+    expect(mutate((copy) => { copy.data.contextOptions.items[0].sessionHandle = handle; })).toThrow();
+    expect(() => assertBootstrapPayload(body, { ...browserExpectation, forbiddenValues: [body.data.session.contextGeneration] }))
+      .toThrow();
   });
 
   it("/auth/context accepts the exact context options and actual selection without operational access", async () => {

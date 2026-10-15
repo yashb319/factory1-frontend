@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
+const { assertBootstrapPayload } = require("./bootstrap-contract.cjs");
 
 const A = "https://product-a.example.com";
 const B = "https://product-b.example.com";
@@ -37,19 +38,14 @@ async function bootstrap(page, productId) {
   });
   expect(result.status).toBe(200);
   expect(result.cache).toContain("no-store");
-  expect(Object.keys(result.body).sort()).toEqual(["data", "message", "success"]);
-  const data = result.body.data;
-  mask(data.csrfToken);
-  expect(Object.keys(data).sort()).toEqual(["contextOptions", "csrfToken", "entitlements", "session"]);
-  expect(Object.keys(data.session).sort()).toEqual(["authenticated", "context", "expiresAt", "operationalAccess"]);
-  expect(data.session.authenticated).toBe(true);
-  expect(data.session.operationalAccess).toBe(false);
-  expect(data.contextOptions.items.length).toBe(2);
-  for (const item of data.contextOptions.items) {
-    expect(item.productId).toBe(productId);
-    expect(item.hostname).toBe(new URL(page.url()).hostname);
-  }
-  if (data.entitlements) expect(data.entitlements.operationalAccess).toBe(false);
+  mask(result.body?.data?.csrfToken);
+  const sessionCookies = (await page.context().cookies()).filter((item) => item.name.startsWith("__Host-factory1_"));
+  const data = assertBootstrapPayload(result.body, {
+    productId,
+    hostname: new URL(page.url()).hostname,
+    optionCount: 2,
+    forbiddenValues: sessionCookies.map((item) => item.value),
+  });
   expect(await page.evaluate(() => document.cookie.includes("__Host-factory1_"))).toBe(false);
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   return data;
@@ -244,7 +240,8 @@ test("real HTTPS OAuth, host cookies, context rotation, CSRF and two-product rev
   expect(await replayStatus(browser, selected, A)).toBe(401);
   data = await bootstrap(page, PRODUCT_A);
   expect(data.session.context.organizationId).toBe(SECOND);
-  expect(data.entitlements.ready).toBe(true);
+  expect(data.entitlements.operationalAccess).toBe(false);
+  expect(data.entitlements.ready).toBe(false);
 
   // Deliberately transplant A's opaque handle: B must not bootstrap A's context.
   await context.addCookies([{ ...switched, domain: "product-b.example.com" }]);
