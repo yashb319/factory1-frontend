@@ -28,8 +28,11 @@ import { InventoryFormDialog } from "./InventoryFormDialog";
 import { InventoryInsightsPanel } from "./InventoryInsightsPanel";
 import { InventoryTable } from "./InventoryTable";
 import { StockMovementDialog } from "./StockMovementDialog";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
+import { InventoryExport } from "@/features/partner-saas/runtime/InventoryExport";
 
 export function InventoryPage() {
+  const { contextual, can } = useRuntimePermissions();
   const [filters, setFilters] = useState<InventorySearchParams>({
     page: 0,
     size: 10,
@@ -45,10 +48,10 @@ export function InventoryPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
-  const { data: dashboard, isLoading: dashboardLoading } =
-    useGetInventoryDashboardQuery();
+  const { data: dashboard, isLoading: dashboardLoading, isError: dashboardError } =
+    useGetInventoryDashboardQuery(undefined, { skip: !can("GET", "/api/inventory/dashboard") });
 
-  const { data, isLoading } = useGetInventoryItemsQuery(filters);
+  const { data, isLoading, error } = useGetInventoryItemsQuery(filters);
 
   const [deleteItem, deleteState] = useDeleteInventoryItemMutation();
   const logDataJob = useLogDataJob();
@@ -131,18 +134,18 @@ export function InventoryPage() {
           <Button
             variant="outline"
             onClick={handleExport}
-            disabled={items.length === 0}
+            disabled={contextual || items.length === 0}
           >
             <Download className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
 
-          <Button variant="outline" onClick={() => setBulkImportOpen(true)}>
+          <Button variant="outline" disabled={contextual} onClick={() => setBulkImportOpen(true)}>
             <Upload className="mr-2 h-4 w-4" />
             Import CSV
           </Button>
 
-          <Button onClick={openCreate}>
+          <Button disabled={!can("POST", "/api/inventory/items")} onClick={openCreate}>
             <PackagePlus className="mr-2 h-4 w-4" />
             Add Item
           </Button>
@@ -151,7 +154,8 @@ export function InventoryPage() {
 
       <InventoryInsightsPanel items={items} loading={isLoading} />
 
-      <InventoryDashboardCards data={dashboard} isLoading={dashboardLoading} />
+      {contextual && dashboardError ? <p role="alert">Inventory summary could not be loaded.</p> :
+        can("GET", "/api/inventory/dashboard") ? <InventoryDashboardCards data={dashboard} isLoading={dashboardLoading} /> : null}
 
       <div className="grid gap-3 md:grid-cols-3">
         {[
@@ -190,6 +194,8 @@ export function InventoryPage() {
       </div>
 
       <InventoryFilters filters={filters} onChange={setFilters} />
+      {contextual && can("POST", "/exports/inventory") ? <InventoryExport /> : null}
+      {error ? <p role="alert">Inventory could not be loaded. Refresh and verify your access before continuing.</p> : null}
 
       {isLoading ? (
         <div className="rounded-lg border bg-card p-10 text-center text-muted-foreground">
@@ -232,10 +238,10 @@ export function InventoryPage() {
         onClose={() => setDetailsOpen(false)}
       />
 
-      <InventoryBulkImportDialog
+      {!contextual ? <InventoryBulkImportDialog
         open={bulkImportOpen}
         onClose={() => setBulkImportOpen(false)}
-      />
+      /> : null}
 
       <InventoryConfirmDialog
         open={confirmOpen}

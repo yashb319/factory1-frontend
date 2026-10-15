@@ -8,6 +8,8 @@ import {
   logoutResultSchema,
   type AuthBootstrap,
 } from "../auth/contracts";
+import { hasOperationalAccess } from "../runtime/access";
+import { ProductWorkspace } from "../runtime/ProductWorkspace";
 
 type ViewState =
   | { phase: "loading" }
@@ -44,7 +46,7 @@ async function responseCode(response: Response) {
   }
 }
 
-export function PartnerSessionGate() {
+export function PartnerSessionGate({ operationalEnabled = false }: { operationalEnabled?: boolean }) {
   const [view, setView] = useState<ViewState>({ phase: "loading" });
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -219,6 +221,7 @@ export function PartnerSessionGate() {
   const { session, contextOptions, entitlements } = view.data;
   const selectedContext = session.context;
   const contexts = contextOptions.items;
+  const operational = operationalEnabled && hasOperationalAccess(view.data);
 
   return (
     <div className="w-full space-y-5" aria-busy={busy}>
@@ -232,7 +235,7 @@ export function PartnerSessionGate() {
           {entitlements?.modules.length ? (
             <div>
               <h3 className="text-sm font-medium">Effective modules</h3>
-              <ul className="mt-1 flex flex-wrap gap-2" aria-label="Effective modules; workspace unavailable">
+              <ul className="mt-1 flex flex-wrap gap-2" aria-label={operational ? "Effective modules" : "Effective modules; workspace unavailable"}>
                 {entitlements.modules.map((module) => (
                   <li key={module} className="rounded border px-2 py-1 text-sm">{module}</li>
                 ))}
@@ -240,10 +243,21 @@ export function PartnerSessionGate() {
             </div>
           ) : null}
           <p className="text-sm text-slate-700">
-            {entitlements?.ready
+            {operational
+              ? "Factory authorization is enforced for the reviewed operational workspace."
+              : entitlements?.ready
               ? "Your effective access is verified, but operational workspace routes remain unavailable in this rollout."
               : "Your context is selected, but effective access is not ready. Operational workspace routes remain unavailable."}
           </p>
+          {entitlements?.moduleDecisions.length ? <details className="rounded border p-3">
+            <summary className="cursor-pointer font-medium">Effective module access and unavailable reasons</summary>
+            <p className="my-2 text-sm">Runtime coverage: {entitlements.runtimeCoverage ?? "unavailable"}. Payroll as a dependency does not enable payroll calculations.</p>
+            <ul className="space-y-2 text-sm" aria-label="Authoritative module decisions">
+              {entitlements.moduleDecisions.map((decision) => <li key={decision.key}>
+                <strong>{decision.key}</strong>: {decision.enabled ? "Enabled" : "Unavailable"}{decision.reasons.length ? ` — ${decision.reasons.join(", ")}` : ""}
+              </li>)}
+            </ul>
+          </details> : null}
         </section>
       ) : null}
       {contexts.length > 0 && (!selectedContext || contexts.length > 1) ? (
@@ -280,6 +294,7 @@ export function PartnerSessionGate() {
           No factory is currently eligible for this product. A factory membership, active subscription, and explicit product grant are all required.
         </p>
       ) : null}
+      {operational && !busy ? <ProductWorkspace data={view.data} /> : null}
       <div className="flex flex-wrap gap-3 border-t pt-4">
         <button
           type="button"

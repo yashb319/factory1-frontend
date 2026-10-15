@@ -1,0 +1,136 @@
+"use client";
+
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { z } from "zod";
+import { authBootstrapSchema, bffEnvelopeSchema, type AuthBootstrap } from "../auth/contracts";
+import { runtimeQueryAllowed, runtimeRouteAllowed } from "./policy";
+import { hasOperationalAccess } from "./access";
+
+type RuntimeClient = {
+  data: AuthBootstrap;
+  request: <T>(method: string, path: string, schema: z.ZodType<T>, body?: unknown) => Promise<T>;
+};
+const RuntimeContext = createContext<RuntimeClient | null>(null);
+
+export function useProductRuntime() {
+  const context = useContext(RuntimeContext);
+  if (!context) throw new Error("Product runtime must be mounted inside an authorized workspace");
+  return context;
+}
+
+export class RuntimeRequestError extends Error {
+  constructor(message: string, readonly status?: number, readonly code?: string) { super(message); }
+}
+
+export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap; children: ReactNode }) {
+  const [failure, setFailure] = useState("");
+  const controllers = useRef(new Set<AbortController>());
+  const stopped = useRef(false);
+
+  const stop = useCallback((message: string) => {
+    stopped.current = true;
+    for (const controller of controllers.current) controller.abort();
+    controllers.current.clear();
+    setFailure(message);
+  }, []);
+
+  useEffect(() => {
+    const pending = controllers.current;
+    const timeout = window.setTimeout(() => stop("Your session expired. Sign in again."),
+      Math.max(0, Math.min(Date.parse(data.session.expiresAt) - Date.now(), 2_147_483_647)));
+    async function recheck() {
+      const controller = new AbortController();
+      pending.add(controller);
+      try {
+        const response = await fetch("/auth/session", {
+          credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal,
+          headers: { Accept: "application/json" },
+        });
+        const parsed = response.ok
+          ? bffEnvelopeSchema(authBootstrapSchema).safeParse(await response.json()) : null;
+        if (!parsed?.success ||
+            JSON.stringify(parsed.data.data.session) !== JSON.stringify(data.session) ||
+            JSON.stringify(parsed.data.data.entitlements) !== JSON.stringify(data.entitlements)) {
+          stop("Your factory access changed or expired. Reload to verify current access.");
+        }
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          stop("Factory access could not be verified. Reload before continuing.");
+        }
+      } finally {
+        pending.delete(controller);
+      }
+    }
+    function focused() { if (document.visibilityState === "visible") void recheck(); }
+    const interval = window.setInterval(() => void recheck(), 30_000);
+    window.addEventListener("focus", focused);
+    document.addEventListener("visibilitychange", focused);
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", focused);
+      document.removeEventListener("visibilitychange", focused);
+      for (const controller of pending) controller.abort();
+      pending.clear();
+    };
+  }, [data, stop]);
+
+  const request = useCallback(async <T,>(method: string, path: string, schema: z.ZodType<T>, body?: unknown): Promise<T> => {
+    const entitlement = data.entitlements;
+    const parsedUrl = new URL(path, "https://runtime.invalid");
+    if (failure || stopped.current || !hasOperationalAccess(data) || parsedUrl.hash || parsedUrl.origin !== "https://runtime.invalid" || !entitlement ||
+        !runtimeQueryAllowed(parsedUrl.searchParams, parsedUrl.pathname) ||
+        !runtimeRouteAllowed(entitlement.runtimeRoutes, entitlement.role, method, parsedUrl.pathname, entitlement.modules, entitlement.moduleDecisions)) {
+      throw new RuntimeRequestError("This operation is not available for your selected product and role.");
+    }
+    const serializedBody = body === undefined ? undefined : JSON.stringify(body);
+    if (serializedBody && new TextEncoder().encode(serializedBody).byteLength > 64 * 1024) {
+      throw new RuntimeRequestError("This request exceeds the 64 KiB contextual limit. Reduce inline photos or text before saving.", 400, "INVALID_REQUEST");
+    }
+    const controller = new AbortController();
+    controllers.current.add(controller);
+    try {
+      const response = await fetch(`/api/product-runtime${path}`, {
+        method, credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+          "X-Factory1-Context-Generation": data.session.contextGeneration ?? "",
+          ...(method === "GET" ? {} : { "X-CSRF-Token": data.csrfToken }),
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        },
+        ...(serializedBody === undefined ? {} : { body: serializedBody }),
+      });
+      if (response.status === 409) {
+        const payload = z.object({ code: z.string() }).safeParse(await response.json());
+        if (payload.success && ["CONTEXT_CHANGED", "CONTEXT_GENERATION_MISMATCH", "CONTEXT_REQUIRED", "ACCESS_CHANGED"].includes(payload.data.code)) {
+          stop("Your factory access changed. Reload to verify current access.");
+          throw new RuntimeRequestError("Factory context is no longer valid.", 409, payload.data.code);
+        }
+        if (payload.success && payload.data.code === "EXPORT_NOT_READY") {
+          throw new RuntimeRequestError("The export is still pending. Check its status before downloading.", 409, payload.data.code);
+        }
+        throw new RuntimeRequestError("This record conflicts with current factory data. Refresh the record and review before retrying.");
+      }
+      if ([401, 403].includes(response.status)) {
+        stop("Your factory access changed or expired. Reload to verify current access.");
+        throw new RuntimeRequestError("Factory context is no longer valid.");
+      }
+      if (response.status === 410) throw new RuntimeRequestError("This export expired. Request a new export.", 410, "EXPORT_EXPIRED");
+      if (response.status === 429) throw new RuntimeRequestError("The request limit was reached. Wait before requesting another export.", 429);
+      if (!response.ok) throw new RuntimeRequestError("The server could not complete this operation. Check the details and try again.");
+      const parsed = bffEnvelopeSchema(schema).safeParse(await response.json());
+      if (!parsed.success) throw new RuntimeRequestError("The server response could not be verified. Reload before continuing.");
+      return parsed.data.data;
+    } catch (error) {
+      if (error instanceof RuntimeRequestError || (error instanceof DOMException && error.name === "AbortError")) throw error;
+      throw new RuntimeRequestError("The server could not be reached. Check your connection and retry.");
+    } finally {
+      controllers.current.delete(controller);
+    }
+  }, [data, failure, stop]);
+
+  if (failure) return <div role="alert" className="space-y-3 rounded border border-red-300 p-4">
+    <p>{failure}</p><button type="button" onClick={() => window.location.assign("/")} className="underline">Reload factory access</button>
+  </div>;
+  return <RuntimeContext.Provider value={{ data, request }}>{children}</RuntimeContext.Provider>;
+}

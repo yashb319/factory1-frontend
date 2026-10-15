@@ -3,6 +3,25 @@ import { z } from "zod";
 const id = z.uuid();
 const sessionHandle = z.string().regex(/^[A-Za-z0-9_-]{32,512}$/);
 const csrfToken = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+const factoryRole = z.enum(["OWNER", "ADMIN", "MANAGEMENT", "FINANCE", "EMPLOYEE"]);
+
+export const runtimePrincipalSchema = z.object({
+  id, name: z.string().min(1), email: z.email(), role: factoryRole,
+  status: z.literal("ACTIVE"), organizationId: id,
+  organizationStatus: z.enum(["PENDING_APPROVAL", "ACTIVE", "SUSPENDED", "TERMINATED"]),
+  platformAdmin: z.literal(false),
+}).strict();
+
+export const runtimeRouteSchema = z.object({
+  method: z.enum(["GET", "POST", "PUT", "DELETE"]),
+  path: z.string().max(200).refine((path) => path.startsWith("/api/") ||
+    ["/exports/inventory", "/exports/inventory/{id}", "/exports/inventory/{id}/download"].includes(path)),
+}).strict();
+export const moduleDecisionSchema = z.object({
+  key: z.string().min(1).max(100), enabled: z.boolean(),
+  reasons: z.array(z.enum(["TENANT_DISABLED", "PARTNER_NOT_APPROVED", "PARTNER_DISABLED", "PRODUCT_DISABLED",
+    "DOMAIN_DISABLED", "SUBSCRIPTION_DISABLED", "ROLE_DENIED", "RUNTIME_NOT_IMPLEMENTED", "ROLLOUT_DISABLED"])),
+}).strict();
 
 export const partnerContextSchema = z.object({
   organizationId: id,
@@ -18,8 +37,14 @@ export const partnerSessionSchema = z.object({
   authenticated: z.literal(true),
   expiresAt: z.iso.datetime(),
   context: partnerContextSchema.nullable(),
-  operationalAccess: z.literal(false),
-}).strict();
+  operationalAccess: z.boolean(),
+  principal: runtimePrincipalSchema.nullable().optional().default(null),
+  contextGeneration: z.string().min(1).max(128).nullable().optional().default(null),
+}).strict().refine((session) => !session.operationalAccess ||
+  Boolean(session.context && session.principal && session.contextGeneration &&
+    session.principal.organizationId === session.context.organizationId &&
+    session.principal.organizationStatus === "ACTIVE"),
+{ message: "Operational sessions require an active authoritative factory principal and generation" });
 export type PartnerSession = z.infer<typeof partnerSessionSchema>;
 
 export const partnerContextOptionsSchema = z.object({
@@ -39,8 +64,15 @@ export const partnerEntitlementsSchema = z.object({
   organizationId: id,
   modules: z.array(z.string().min(1).max(100)),
   ready: z.boolean(),
-  operationalAccess: z.literal(false),
-}).strict();
+  operationalAccess: z.boolean(),
+  role: factoryRole.nullable().optional().default(null),
+  contextGeneration: z.string().min(1).max(128).nullable().optional().default(null),
+  runtimeRoutes: z.array(runtimeRouteSchema).max(256).optional().default([]),
+  runtimeCoverage: z.literal("PARTIAL_TENANT_CRUD").optional(),
+  moduleDecisions: z.array(moduleDecisionSchema).max(100).optional().default([]),
+}).strict().refine((entitlements) => !entitlements.operationalAccess ||
+  Boolean(entitlements.ready && entitlements.role && entitlements.contextGeneration && entitlements.runtimeRoutes.length),
+{ message: "Operational entitlements require enforced runtime authorization" });
 export type PartnerEntitlements = z.infer<typeof partnerEntitlementsSchema>;
 
 export const contextSelectionSchema = z.object({
@@ -76,7 +108,7 @@ export type AuthBootstrap = z.infer<typeof authBootstrapSchema>;
 export const contextChangeBrowserSchema = z.object({
   context: partnerContextSchema,
   entitlements: partnerEntitlementsSchema,
-  operationalAccess: z.literal(false),
+  operationalAccess: z.boolean(),
 }).strict();
 
 export function bffEnvelopeSchema<T extends z.ZodType>(data: T) {

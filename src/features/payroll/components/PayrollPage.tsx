@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Banknote, CalendarPlus, ShieldCheck, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 import {
   useApprovePayrollMutation,
@@ -34,6 +35,7 @@ interface ConfirmState {
 }
 
 export function PayrollPage() {
+  const { contextual, can } = useRuntimePermissions();
   const [page, setPage] = useState(0);
   const [month, setMonth] = useState<number | undefined>();
   const [year, setYear] = useState<number | undefined>();
@@ -64,10 +66,10 @@ export function PayrollPage() {
     [page, month, year, status]
   );
 
-  const { data: dashboard, isLoading: dashboardLoading } =
-    useGetPayrollDashboardQuery();
+  const { data: dashboard, isLoading: dashboardLoading, isError: dashboardError } =
+    useGetPayrollDashboardQuery(undefined, { skip: !can("GET", "/api/payroll/dashboard") });
 
-  const { data: payrollRuns, isLoading: payrollLoading } =
+  const { data: payrollRuns, isLoading: payrollLoading, error: payrollError } =
     useGetPayrollRunsQuery(queryParams);
 
   const [approvePayroll, { isLoading: approving }] =
@@ -183,10 +185,11 @@ export function PayrollPage() {
         loading={payrollLoading}
       />
 
-      <PayrollDashboardCards
+      {contextual && dashboardError ? <p role="alert">Payroll summary could not be loaded.</p> :
+      can("GET", "/api/payroll/dashboard") ? <PayrollDashboardCards
         data={dashboard}
         isLoading={dashboardLoading}
-      />
+      /> : null}
 
       <div className="rounded-lg border bg-white p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -201,7 +204,7 @@ export function PayrollPage() {
               </p>
             </div>
           </div>
-          <Button onClick={() => setGenerateOpen(true)} className="md:w-auto">
+          <Button disabled={!can("POST", "/api/payroll")} onClick={() => setGenerateOpen(true)} className="md:w-auto">
             <CalendarPlus className="mr-2 h-4 w-4" />
             Generate Payroll
           </Button>
@@ -238,6 +241,7 @@ export function PayrollPage() {
         onDelete={(id) => openConfirm("DELETE", id)}
       />
 
+      {payrollError ? <p role="alert">Payroll could not be loaded. Refresh and verify your access.</p> : null}
       <PayrollGenerateDialog
         open={generateOpen}
         onOpenChange={setGenerateOpen}

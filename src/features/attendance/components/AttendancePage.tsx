@@ -20,6 +20,7 @@ import { openExternalUrl } from "@/features/import-export/utils/localExportFiles
 import { MonthlyReportPanel } from "./MonthlyReportPanel";
 import { useAppSelector } from "@/lib/hook";
 import { EmployeeSelfAttendancePage } from "./EmployeeSelfAttendancePage";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 export function AttendancePage() {
   const user = useAppSelector((state) => state.auth.user);
@@ -32,6 +33,7 @@ export function AttendancePage() {
 }
 
 function AttendanceManagementPage({ canCorrect }: { canCorrect: boolean }) {
+  const { contextual, can } = useRuntimePermissions();
   const [markOpen, setMarkOpen] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -46,7 +48,7 @@ function AttendanceManagementPage({ canCorrect }: { canCorrect: boolean }) {
     sortDirection: "desc",
   });
 
-  const { data, isLoading, isFetching } = useGetAttendanceQuery(filters);
+  const { data, isLoading, isFetching, error } = useGetAttendanceQuery(filters);
   const logDataJob = useLogDataJob();
 
   function updateFilters(next: Partial<AttendanceListParams>) {
@@ -97,20 +99,20 @@ function AttendanceManagementPage({ canCorrect }: { canCorrect: boolean }) {
           <Button
             variant="outline"
             onClick={handleExport}
-            disabled={!data?.content?.length}
+            disabled={contextual || !data?.content?.length}
           >
             <Download className="mr-2 h-4 w-4" />
             Export
           </Button>
 
-          <Button onClick={() => setMarkOpen(true)}>
+          <Button disabled={!can("POST", "/api/attendance")} onClick={() => setMarkOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Mark Attendance
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950 md:flex-row md:items-center md:justify-between">
+      {!contextual ? <div className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950 md:flex-row md:items-center md:justify-between">
         <div className="flex gap-3">
           <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" />
           <div>
@@ -133,15 +135,16 @@ function AttendanceManagementPage({ canCorrect }: { canCorrect: boolean }) {
             Open Capture
           </Button>
         </div>
-      </div>
+      </div> : null}
 
       <AttendanceStatsCards />
 
-      <DailyAttendanceRegister />
+      {!contextual ? <DailyAttendanceRegister /> : null}
 
-      <MonthlyReportPanel />
+      {can("GET", "/api/attendance/report/monthly") ? <MonthlyReportPanel /> : null}
 
       <AttendanceFilters filters={filters} onChange={updateFilters} />
+      {error ? <p role="alert">Attendance could not be loaded. Refresh and verify your factory access.</p> : null}
 
       <AttendanceTable
         records={data?.content ?? []}
@@ -149,7 +152,7 @@ function AttendanceManagementPage({ canCorrect }: { canCorrect: boolean }) {
         canCorrect={canCorrect}
       />
 
-      <MarkAttendanceDialog open={markOpen} onOpenChange={setMarkOpen} />
+      {!contextual || markOpen ? <MarkAttendanceDialog open={markOpen} onOpenChange={setMarkOpen} /> : null}
     </div>
   );
 }

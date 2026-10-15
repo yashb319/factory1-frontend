@@ -62,7 +62,7 @@ export function ProductEditor({ scope, product, features, canEdit, onSaved, onCl
       <h2 className="text-lg font-semibold">{product ? `Product: ${product.displayName}` : "Create SaaS product"}</h2>
       <Button type="button" variant="outline" disabled={busy} onClick={onClose}>Close editor</Button>
     </div>
-    <p className="text-sm text-slate-600">Catalog ACTIVE is not operational readiness. This foundation cannot enable sign-in, checkout, routing or TLS.</p>
+    <p className="text-sm text-slate-600">Catalog ACTIVE is not operational readiness. Backend authorization, explicit grants and verified domain readiness are required separately. This editor cannot activate payments, routing or TLS.</p>
     {readOnly ? <p role="status" className="text-sm">Read-only: your membership cannot edit this product, or the product is retired.</p> : null}
     {error ? <FoundationError error={error} /> : null}
     <form onSubmit={submit} className="space-y-4">

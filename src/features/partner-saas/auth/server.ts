@@ -18,6 +18,10 @@ import { canonicalHost } from "../host";
 import { envelopeSchema, storefrontSchema } from "../contracts";
 import { proxyStorefront } from "../storefrontProxy";
 import { z } from "zod";
+import { hasOperationalAccess } from "../runtime/access";
+import { reviewedRuntimeRoute, runtimeQueryAllowed, runtimeRouteAllowed } from "../runtime/policy";
+import { invitationResultSchema } from "../onboarding/contracts";
+import { passwordSchema } from "@/lib/passwordPolicy";
 
 const cookieName = "__Host-factory1_session";
 const oauthStateCookieName = "__Host-factory1_oauth_state";
@@ -84,6 +88,21 @@ function failure(status: number, code: string, extraHeaders?: HeadersInit) {
     AUTH_UNAVAILABLE: "Sign-in is temporarily unavailable. Try again.",
     AUTH_FAILED: "Sign-in could not be verified. Start again.",
     LOGOUT_UNCONFIRMED: "Local sign-out completed, but server revocation could not be confirmed.",
+    RUNTIME_ROUTE_DENIED: "This operation is not available for your selected product and role.",
+    CONTEXT_CHANGED: "Your factory context changed. Reload before continuing.",
+    CONTEXT_REQUIRED: "Select a factory before continuing.",
+    CONTEXT_GENERATION_MISMATCH: "Your factory context changed. Reload before continuing.",
+    DOMAIN_CONTEXT_MISMATCH: "This address does not match your current factory context.",
+    INVITATION_INVALID: "This invitation is invalid, expired, revoked or belongs to another product.",
+    INVITATION_IDENTITY_MISMATCH: "Sign in with the explicitly invited account before accepting.",
+    ONBOARDING_DISABLED: "Factory onboarding is not enabled for this product.",
+    OWNER_IDENTITY_EXISTS: "An account with this email already exists. Select the existing owner instead.",
+    IDEMPOTENCY_CONFLICT: "This request was already submitted with different details. Start a new request.",
+    ACCESS_CHANGED: "Your permissions changed. Reload factory access before retrying.",
+    RUNTIME_JOB_DENIED: "This export is not available in your current factory context.",
+    EXPORT_NOT_READY: "This export is not ready. Check its status before downloading.",
+    EXPORT_EXPIRED: "This export expired. Request a new export.",
+    EXPORT_LIMIT: "The active export limit was reached. Wait before creating another.",
   };
   const headers = noStoreHeaders(extraHeaders);
   headers.set("Content-Type", "application/json; charset=utf-8");
@@ -112,7 +131,7 @@ function authErrorRedirect(
 }
 
 function configuredBackendPath(config: RuntimeConfig, path: string) {
-  if (!path.startsWith("/api/partner/v2/bff/") || path.startsWith("//")) {
+  if ((!path.startsWith("/api/partner/v2/bff/") && path !== "/api/public/v2/onboarding/activate") || path.startsWith("//")) {
     throw new BffError(503, "SSO_DISABLED");
   }
   return new URL(path, config.backendOrigin);
@@ -133,6 +152,7 @@ function backendStatus(code: string | undefined, status: number) {
   if (code === "AUTH_REQUIRED" || status === 401) return 401;
   if (status === 403 || code === "INVALID_CONTEXT" || code === "CSRF_INVALID" || code === "ENTITLEMENTS_NOT_READY") return 403;
   if (status === 404) return 404;
+  if ([400, 409, 410, 422, 429, 503].includes(status)) return status;
   return 502;
 }
 
@@ -141,9 +161,11 @@ async function backendRequest<T>(
   path: string,
   schema: z.ZodType<T>,
   options: {
-    method?: "GET" | "POST";
+    method?: "GET" | "POST" | "PUT" | "DELETE";
     body?: unknown;
     sessionHandle?: string;
+    storefrontHost?: string;
+    contextGeneration?: string;
   } = {},
 ): Promise<T> {
   const headers = new Headers({
@@ -152,6 +174,13 @@ async function backendRequest<T>(
   });
   if (options.body !== undefined) headers.set("Content-Type", "application/json");
   if (options.sessionHandle) headers.set("X-Factory1-BFF-Session", options.sessionHandle);
+  if (options.contextGeneration) headers.set("X-Factory1-Context-Generation", options.contextGeneration);
+  if (options.storefrontHost) {
+    const edgeToken = process.env.PARTNER_SAAS_EDGE_TOKEN;
+    if (!edgeToken || edgeToken.length < 32) throw new BffError(503, "SSO_DISABLED");
+    headers.set("X-Factory1-Storefront-Host", options.storefrontHost);
+    headers.set("X-Factory1-Edge-Token", edgeToken);
+  }
 
   let response: Response;
   try {
@@ -223,6 +252,7 @@ async function verifiedStorefront(request: Request) {
     canonicalOrigin: canonicalOrigin.origin,
     productId: parsed.data.data.storefront.productId,
     hostname: canonicalOrigin.hostname,
+    operationalAccess: parsed.data.data.capabilities.operationalAccess,
     url,
   };
 }
@@ -327,11 +357,11 @@ function assertSameOriginMutation(request: Request, handle: string, config: Runt
   }
 }
 
-async function requestJson<T extends z.ZodType>(request: Request, schema: T): Promise<z.infer<T>> {
+async function requestJson<T extends z.ZodType>(request: Request, schema: T, limit = bodyLimitBytes): Promise<z.infer<T>> {
   const contentLength = Number(request.headers.get("content-length") ?? "0");
   const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   if (contentType !== "application/json" || !Number.isFinite(contentLength) ||
-      (contentLength > 0 && contentLength > bodyLimitBytes) || !request.body) {
+      (contentLength > 0 && contentLength > limit) || !request.body) {
     throw new BffError(400, "INVALID_REQUEST");
   }
   const reader = request.body.getReader();
@@ -342,7 +372,7 @@ async function requestJson<T extends z.ZodType>(request: Request, schema: T): Pr
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > bodyLimitBytes) {
+      if (size > limit) {
         await reader.cancel();
         throw new BffError(413, "INVALID_REQUEST");
       }
@@ -555,13 +585,107 @@ export async function changeAuthContext(request: Request) {
     return bffJson({
       context: changed.context,
       entitlements: changed.entitlements,
-      operationalAccess: false,
+      operationalAccess: changed.entitlements.operationalAccess,
     }, 200, headers);
   } catch (error) {
     const headers = noStoreHeaders();
     if (error instanceof BffError && error.code === "AUTH_REQUIRED") clearSessionCookie(headers);
     return bffFailure(error, headers);
   }
+
+}
+
+export async function productRuntimeRequest(request: Request) {
+  try {
+    const config = runtimeConfig();
+    const url = new URL(request.url);
+    const prefix = "/api/product-runtime";
+    const path = url.pathname.slice(prefix.length);
+    const reviewed = reviewedRuntimeRoute(request.method, path);
+    if (!url.pathname.startsWith(`${prefix}/`) || !reviewed || !runtimeQueryAllowed(url.searchParams, path)) {
+      throw new BffError(403, "RUNTIME_ROUTE_DENIED");
+    }
+    const handle = sessionHandleFromRequest(request);
+    if (request.method !== "GET") assertSameOriginMutation(request, handle, config);
+    const storefront = await verifiedStorefront(request);
+    const data = await loadSession(config, handle, storefront.productId, storefront.hostname);
+    if (!storefront.operationalAccess || !hasOperationalAccess(data) || !data.entitlements ||
+        !runtimeRouteAllowed(data.entitlements.runtimeRoutes, data.entitlements.role, request.method, path, data.entitlements.modules, data.entitlements.moduleDecisions)) {
+      throw new BffError(403, "RUNTIME_ROUTE_DENIED");
+    }
+    if (request.headers.get("X-Factory1-Context-Generation") !== data.session.contextGeneration) {
+      throw new BffError(409, "CONTEXT_CHANGED");
+    }
+    const method = reviewed.method;
+    const body = method === "POST" || method === "PUT"
+      ? await requestJson(request, z.record(z.string(), z.unknown()), 64 * 1024) : undefined;
+    if (body && ["organizationId", "tenantId", "partnerId", "domainId", "modules", "role", "userId",
+      ...(path.startsWith("/api/production/") ? [] : ["productId"])]
+      .some((key) => key in body)) throw new BffError(400, "INVALID_REQUEST");
+    const result = await backendRequest(
+      config, `/api/partner/v2/bff/runtime${path}${url.search}`, z.unknown(),
+      { method, sessionHandle: handle, body, storefrontHost: storefront.hostname,
+        contextGeneration: data.session.contextGeneration ?? undefined },
+    );
+    const serialized = JSON.stringify(result);
+    if ([handle, config.clientSecret, process.env.PARTNER_SAAS_EDGE_TOKEN].some((secret) => secret && serialized?.includes(secret))) {
+      throw new BffError(502, "AUTH_UNAVAILABLE");
+    }
+    return bffJson(result);
+  } catch (error) {
+    const headers = noStoreHeaders();
+    if (error instanceof BffError && error.code === "AUTH_REQUIRED") clearSessionCookie(headers);
+    return bffFailure(error, headers);
+  }
+}
+
+const invitationCsrfCookie = "__Host-factory1_invitation_csrf";
+const invitationToken = z.string().min(32).max(4096);
+
+export async function getInvitationChallenge(request: Request) {
+  try {
+    const config = runtimeConfig();
+    await verifiedStorefront(request);
+    const nonce = `${randomUUID()}.${Date.now()}`;
+    const headers = noStoreHeaders();
+    headers.append("Set-Cookie", `${invitationCsrfCookie}=${nonce}; Path=/; Max-Age=600; HttpOnly; Secure; SameSite=Strict`);
+    return bffJson({ csrfToken: csrfForSession(nonce, new URL(request.url).origin, config.csrfSecret) }, 200, headers);
+  } catch (error) { return bffFailure(error); }
+}
+
+export async function activateProductInvitation(request: Request) {
+  try {
+    const config = runtimeConfig();
+    const nonces = (request.headers.get("cookie") ?? "").split(";")
+      .map((part) => part.trim()).filter((part) => part.startsWith(`${invitationCsrfCookie}=`))
+      .map((part) => part.slice(invitationCsrfCookie.length + 1));
+    if (nonces.length !== 1 || !/^[0-9a-f-]{36}\.\d{13}$/.test(nonces[0])) throw new BffError(403, "CSRF_INVALID");
+    const age = Date.now() - Number(nonces[0].split(".")[1]);
+    if (age < 0 || age > 600_000) throw new BffError(403, "CSRF_INVALID");
+    assertSameOriginMutation(request, nonces[0], config);
+    const storefront = await verifiedStorefront(request);
+    const body = await requestJson(request, z.object({ token: invitationToken, password: passwordSchema }).strict(), 8192);
+    const result = await backendRequest(config, "/api/public/v2/onboarding/activate", invitationResultSchema, {
+      method: "POST", body, storefrontHost: storefront.hostname,
+    });
+    const headers = noStoreHeaders();
+    headers.append("Set-Cookie", `${invitationCsrfCookie}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict`);
+    return bffJson(result, 200, headers);
+  } catch (error) { return bffFailure(error); }
+}
+
+export async function acceptProductInvitation(request: Request) {
+  try {
+    const config = runtimeConfig();
+    const handle = sessionHandleFromRequest(request);
+    assertSameOriginMutation(request, handle, config);
+    const storefront = await verifiedStorefront(request);
+    const body = await requestJson(request, z.object({ token: invitationToken }).strict(), 8192);
+    const result = await backendRequest(config, "/api/partner/v2/bff/onboarding/accept", invitationResultSchema, {
+      method: "POST", body, sessionHandle: handle, storefrontHost: storefront.hostname,
+    });
+    return bffJson(result);
+  } catch (error) { return bffFailure(error); }
 }
 
 const logoutBodySchema = z.object({ scope: z.enum(["domain", "all"]) }).strict();

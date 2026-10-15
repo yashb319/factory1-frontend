@@ -124,6 +124,7 @@ import { exportProfitLossCsv } from "../utils/profitLossExport";
 import { formatCurrency, labelCase } from "../utils/accountingFormat";
 import { handleTallyFieldNavigation } from "@/lib/tallyKeyboard";
 import { playUiSound } from "@/lib/uiSounds";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 import {
   AccountingWorkspaceNav,
@@ -229,6 +230,59 @@ type TaxSectionDraft = {
 };
 
 export function AccountingPage() {
+  const { contextual } = useRuntimePermissions();
+  return contextual ? <ContextAccountingReports /> : <LegacyAccountingPage />;
+}
+
+function ContextAccountingReports() {
+  const { can } = useRuntimePermissions();
+  const [range, setRange] = useState(currentQuarterRange);
+  const [selectedLedger, setSelectedLedger] = useState<SelectedLedger | null>(null);
+  const valid = Boolean(range.fromDate && range.toDate && range.fromDate <= range.toDate);
+  const ledger = useGetLedgerReportQuery(range, { skip: !valid });
+  const trial = useGetTrialBalanceQuery(range, { skip: !valid || !can("GET", "/api/accounting/trial-balance") });
+  const profit = useGetProfitLossQuery(range, { skip: !valid || !can("GET", "/api/accounting/profit-loss") });
+  const balance = useGetBalanceSheetQuery(range, { skip: !valid || !can("GET", "/api/accounting/balance-sheet") });
+  const receivables = useGetAgingReportQuery({ type: "SALES", asOfDate: range.toDate }, { skip: !valid || !can("GET", "/api/accounting/aging") });
+  const payables = useGetAgingReportQuery({ type: "PURCHASE", asOfDate: range.toDate }, { skip: !valid || !can("GET", "/api/accounting/aging") });
+  const vouchers = useGetAccountingVouchersQuery(range, { skip: !valid || !selectedLedger || !can("GET", "/api/accounting/vouchers") });
+  const rows = selectedLedger ? ledgerVoucherLines(vouchers.data ?? [], selectedLedger.id) : [];
+  return <section className="space-y-4" aria-label="Contextual accounting reports">
+    <h1 className="text-xl font-semibold">Accounting reports</h1>
+    <p>Read-only reviewed reports for the selected factory. Accounting authoring, settings, local exports and printing are unavailable.</p>
+    <div className="flex flex-wrap gap-3"><label>From<Input type="date" value={range.fromDate} onChange={(event) => setRange({ ...range, fromDate: event.target.value })} /></label>
+      <label>To<Input type="date" value={range.toDate} onChange={(event) => setRange({ ...range, toDate: event.target.value })} /></label></div>
+    {!valid ? <p role="alert">Choose a valid date range.</p> : null}
+    {[ledger, trial, profit, balance, receivables, payables, vouchers].some((query) => query.isError) ?
+      <p role="alert">One or more reports could not be loaded. Refresh and verify current access; failed reports are not zero balances.</p> : null}
+    {ledger.data && !ledger.isError ? <div className="grid gap-3 sm:grid-cols-3">
+      <SummaryCard title="Receivables" value={formatCurrency(ledger.data.totalReceivables)} loading={ledger.isFetching} />
+      <SummaryCard title="Payables" value={formatCurrency(ledger.data.totalPayables)} loading={ledger.isFetching} />
+      <SummaryCard title="Net position" value={formatCurrency(ledger.data.netReceivable)} loading={ledger.isFetching} />
+    </div> : null}
+    {profit.data && !profit.isError ? <Card><CardHeader><CardTitle>Profit and loss</CardTitle></CardHeader><CardContent>
+      <p>Gross profit: {formatCurrency(profit.data.grossProfit)}; net profit: {formatCurrency(profit.data.netProfit)}</p>
+      <table className="w-full text-left"><thead><tr><th>Ledger</th><th>Section</th><th>Amount</th></tr></thead><tbody>{profit.data.rows.map((row) =>
+        <tr key={row.ledgerId}><td>{row.ledgerName}</td><td>{row.section}</td><td>{formatCurrency(row.amount)}</td></tr>)}</tbody></table>
+    </CardContent></Card> : null}
+    {trial.data && !trial.isError ? <Card><CardHeader><CardTitle>Trial balance</CardTitle></CardHeader><CardContent>
+      <p>Closing debit {formatCurrency(trial.data.totalClosingDebit)}; closing credit {formatCurrency(trial.data.totalClosingCredit)}</p>
+      <table className="w-full text-left"><thead><tr><th>Ledger</th><th>Debit</th><th>Credit</th></tr></thead><tbody>{trial.data.rows.map((row) =>
+        <tr key={row.ledgerId}><td>{row.ledgerName}</td><td>{formatCurrency(row.closingDebit)}</td><td>{formatCurrency(row.closingCredit)}</td></tr>)}</tbody></table>
+    </CardContent></Card> : null}
+    {balance.data && !balance.isError ? <div className="grid gap-3 sm:grid-cols-2">
+      <BalanceSheetSide title="Assets" rows={balance.data.assets} total={balance.data.totalAssets} onOpenLedger={setSelectedLedger} />
+      <BalanceSheetSide title="Liabilities" rows={balance.data.liabilities} total={balance.data.totalLiabilities} onOpenLedger={setSelectedLedger} />
+    </div> : null}
+    {receivables.data && !receivables.isError ? <AgingPanel title="Receivables aging" report={receivables.data} /> : null}
+    {payables.data && !payables.isError ? <AgingPanel title="Payables aging" report={payables.data} /> : null}
+    {!vouchers.isError && !vouchers.isFetching ? <LedgerDrilldownDialog selectedLedger={selectedLedger} rows={rows}
+      totals={summarizeLedgerDrilldown(rows)} fromDate={range.fromDate} toDate={range.toDate}
+      onClose={() => setSelectedLedger(null)} /> : null}
+  </section>;
+}
+
+function LegacyAccountingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [fromDate, setFromDate] = useState(
@@ -4564,6 +4618,7 @@ function BalanceSheetSide({
   total: number;
   onOpenLedger: (ledger: SelectedLedger) => void;
 }) {
+  const { can } = useRuntimePermissions();
   return (
       <div className="overflow-x-auto rounded-md border">
         <div className="flex items-center justify-between bg-muted px-3 py-2 text-sm font-semibold">
@@ -4588,6 +4643,7 @@ function BalanceSheetSide({
                 {row.ledgerId ? (
                   <button
                     type="button"
+                    disabled={!can("GET", "/api/accounting/vouchers")}
                     className="text-left font-medium text-blue-700 hover:underline"
                     onClick={() =>
                       onOpenLedger({
@@ -4631,8 +4687,9 @@ function AgingPanel({
 }: {
   title: string;
   report: AgingReport | undefined;
-  onExport: () => void;
+  onExport?: () => void;
 }) {
+  const { contextual } = useRuntimePermissions();
   return (
     <div className="overflow-hidden rounded-md border">
       <div className="flex items-center justify-between gap-3 bg-muted px-3 py-2">
@@ -4646,7 +4703,7 @@ function AgingPanel({
           size="sm"
           variant="outline"
           onClick={onExport}
-          disabled={!report?.rows.length}
+          disabled={contextual || !onExport || !report?.rows.length}
         >
           <Download className="mr-2 h-4 w-4" />
           CSV

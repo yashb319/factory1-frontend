@@ -35,6 +35,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Employee } from "../types/employee.types";
+import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
 
 interface Props {
   employees: Employee[];
@@ -59,6 +60,7 @@ export function EmployeeTable({
   selectedIds,
   onToggleSelected,
 }: Props) {
+  const { contextual, can } = useRuntimePermissions();
   const [qrEmployee, setQrEmployee] = useState<Employee | null>(null);
   const qrPayload = useMemo(() => {
     if (!qrEmployee) return "";
@@ -125,7 +127,7 @@ export function EmployeeTable({
               employees.map((employee) => (
                 <TableRow key={employee.id}>
                   <TableCell data-label="Select">
-                    {!employee.accountActivated && employee.email ? (
+                    {!contextual && !employee.accountActivated && employee.email ? (
                       <Checkbox
                         checked={selectedIds.includes(employee.id)}
                         onCheckedChange={() => onToggleSelected(employee.id)}
@@ -187,17 +189,18 @@ export function EmployeeTable({
                           View
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem onClick={() => onEdit(employee)}>
+                        <DropdownMenuItem disabled={!can("PUT", `/api/employees/${employee.id}`)} onClick={() => onEdit(employee)}>
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem onClick={() => setQrEmployee(employee)}>
+                        <DropdownMenuItem disabled={contextual} onClick={() => setQrEmployee(employee)}>
                           <QrCode className="mr-2 h-4 w-4" />
                           Attendance QR
                         </DropdownMenuItem>
 
                         <DropdownMenuItem
+                          disabled={contextual}
                           onClick={() => onOffboard(employee)}
                           className="text-amber-700"
                         >
@@ -206,6 +209,7 @@ export function EmployeeTable({
                         </DropdownMenuItem>
 
                         <DropdownMenuItem
+                          disabled={!can("DELETE", `/api/employees/${employee.id}`)}
                           onClick={() => onDelete(employee)}
                           className="text-destructive"
                         >

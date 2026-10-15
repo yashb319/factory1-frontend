@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { logout } from "@/features/auth/authSlice";
 import type { RootState } from "@/lib/store";
 import { productionLoginPath } from "@/lib/productionOrderLink";
+import { isContextTransport } from "./contextTransport";
 
 const publicEndpoints = new Set([
   "login",
@@ -53,6 +54,7 @@ const baseQueryWithAuthRedirect: BaseQueryFn<
   unknown,
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
+  if (isContextTransport(api.extra)) return api.extra.productRuntime(args, api);
   const generation = (api.getState() as RootState).auth.generation;
   const result = await rawBaseQuery(args, api, extraOptions);
   if (generation !== (api.getState() as RootState).auth.generation) {
