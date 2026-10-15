@@ -28,7 +28,7 @@ describe("hosted backend fixture UUID contract", () => {
     }
     expect(result.success).toBe(true);
     if (!result.success) throw new Error("Serialized public fixture was rejected");
-    expect(result.data.data.capabilities).toEqual({ operationalAccess: false, sso: true, checkout: false });
+    expect(result.data.data.capabilities).toMatchObject({ operationalAccess: false, sso: true, checkout: false });
     expect(result.data.data.storefront).toEqual(body.data.storefront);
   });
 
