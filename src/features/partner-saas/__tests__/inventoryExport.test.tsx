@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { InventoryExport } from "../runtime/InventoryExport";
+import { InventoryExport, inventoryExportDownloadSchema } from "../runtime/InventoryExport";
 import { ProductRuntimeProvider } from "../runtime/client";
 import { RuntimePermissionsContext } from "../runtime/permissions";
 import { factoryId, runtimeBootstrap } from "./runtimeFixtures";
@@ -24,6 +24,15 @@ const envelope = (data: unknown) => new Response(JSON.stringify({ success: true,
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("contextual bounded inventory export", () => {
+  it("accepts exactly 1000 complete inventory DTO rows but rejects 1001 rows, truncation and malformed values", () => {
+    const row = { id: factoryId, itemCode: "ITEM-1", name: "Steel", itemType: "RAW_MATERIAL",
+      unit: "kg", currentStock: 2, minimumStock: 1, inventoryValue: 10, lowStock: false, outOfStock: false, status: "ACTIVE" };
+    const payload = { id: factoryId, rows: Array.from({ length: 1000 }, () => row), truncated: false };
+    expect(inventoryExportDownloadSchema.safeParse(payload).success).toBe(true);
+    expect(inventoryExportDownloadSchema.safeParse({ ...payload, rows: [...payload.rows, row] }).success).toBe(false);
+    expect(inventoryExportDownloadSchema.safeParse({ ...payload, truncated: true }).success).toBe(false);
+    expect(inventoryExportDownloadSchema.safeParse({ ...payload, rows: [{ ...row, inventoryValue: "10" }] }).success).toBe(false);
+  });
   it("requires a completed rechecked job before downloading validated JSON, without local export persistence", async () => {
     const createObjectURL = vi.fn(() => "blob:context-inventory");
     const revokeObjectURL = vi.fn();

@@ -81,6 +81,13 @@ describe("isolated existing-module transport", () => {
     const view = render(<Workspace data={first} />);
     expect(await screen.findByText("Factory A")).toBeInTheDocument();
     const second = runtimeBootstrap();
+    const otherFactory = "66666666-6666-4666-8666-666666666666";
+    second.session.context!.organizationId = otherFactory;
+    second.session.context!.organizationName = "Factory Two";
+    second.session.principal!.organizationId = otherFactory;
+    second.entitlements!.organizationId = otherFactory;
+    second.contextOptions.items[0].organizationId = otherFactory;
+    second.contextOptions.items[0].label = "Factory Two";
     second.session.contextGeneration = "fresh-generation";
     second.entitlements!.contextGeneration = "fresh-generation";
     view.rerender(<Workspace data={second} />);

@@ -3,16 +3,27 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import type { InventoryItem } from "@/features/inventory/types/inventory.types";
 import { useProductRuntime } from "./client";
 import { useRuntimePermissions } from "./permissions";
-import { inventoryRecordSchema } from "./records";
 
 export const exportStatusSchema = z.object({
   id: z.uuid(), status: z.enum(["PENDING", "COMPLETED", "DENIED", "FAILED"]),
   expiresAt: z.iso.datetime({ offset: true }), errorCode: z.string().nullable(),
 }).strict();
-const downloadSchema = z.object({
-  id: z.uuid(), rows: z.array(inventoryRecordSchema).max(1000), truncated: z.literal(false),
+const inventoryExportRowSchema = z.object({
+  id: z.uuid(), itemCode: z.string(), name: z.string(),
+  category: z.string().nullable().optional(),
+  itemType: z.enum(["RAW_MATERIAL", "FINISHED_GOOD", "PACKAGING", "CONSUMABLE", "SEMI_FINISHED", "OTHER"]),
+  unit: z.string(), currentStock: z.number(), minimumStock: z.number(), inventoryValue: z.number(),
+  purchasePrice: z.number().nullable().optional(), sellingPrice: z.number().nullable().optional(),
+  hsnCode: z.string().nullable().optional(), gstRate: z.number().nullable().optional(),
+  supplierId: z.uuid().nullable().optional(), supplierName: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(), status: z.enum(["ACTIVE", "INACTIVE"]),
+  lowStock: z.boolean(), outOfStock: z.boolean(),
+}) satisfies z.ZodType<InventoryItem>;
+export const inventoryExportDownloadSchema = z.object({
+  id: z.uuid(), rows: z.array(inventoryExportRowSchema).max(1000), truncated: z.literal(false),
 }).strict();
 
 export function InventoryExport() {
@@ -46,7 +57,7 @@ export function InventoryExport() {
         if (job.status !== "COMPLETED" || Date.parse(job.expiresAt) <= Date.now()) {
           throw new Error("Only a completed, unexpired export can be downloaded.");
         }
-        const result = await request("GET", `/exports/inventory/${job.id}/download`, downloadSchema);
+        const result = await request("GET", `/exports/inventory/${job.id}/download`, inventoryExportDownloadSchema);
         if (result.id !== job.id) throw new Error("The export response did not match this job.");
         const url = URL.createObjectURL(new Blob([JSON.stringify(result.rows, null, 2)], { type: "application/json" }));
         const link = document.createElement("a");

@@ -468,7 +468,7 @@ function RequestTable({ requests, loading, canDecide, onView, onCancel, onDecide
       <TableBody>
         {requests.map((request) => (
           <TableRow key={request.id}>
-            <TableCell><button className="text-left font-medium text-blue-700 hover:underline" onClick={() => onView(request.id)}>{request.leaveTypeCode}</button><span className="block text-xs text-slate-500">{request.reason || "No reason provided"}</span></TableCell>
+            <TableCell><button disabled={!can("GET", `/api/leave/requests/${request.id}`)} className="text-left font-medium text-blue-700 hover:underline" onClick={() => onView(request.id)}>{request.leaveTypeCode}</button><span className="block text-xs text-slate-500">{request.reason || "No reason provided"}</span></TableCell>
             {canDecide && <TableCell className="text-slate-600">{request.employeeName || "Employee name unavailable"}</TableCell>}
             <TableCell>{formatDate(request.startDate)} - {formatDate(request.endDate)}</TableCell>
             <TableCell>{formatDays(request.days)}</TableCell>
