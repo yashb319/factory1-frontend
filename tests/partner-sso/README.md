@@ -62,6 +62,11 @@ account `partner-sso-e2e@example.test`. There is no email request or OTP bypass.
 Outbound schedulers are disabled, SMTP points to loopback port 9, dedicated backend/frontend browser runtime identities are firewalled against all
 non-loopback egress while the Actions runner retains its control connection. Photo storage
 and third-party credentials are absent from the backend's clean environment.
+The backend's storefront, edge token and trusted proxy settings use exact Spring
+command-line property names (`factory1.partner-saas.*`), not inferred environment
+bindings. After seeding, an HTTPS preflight requires public storefront HTTP 200
+with the ephemeral edge token and HTTP 421 with an invalid token. Only statuses
+are logged; request headers and response bodies are never printed.
 
 Restricted checkout/tool/temp ancestors (including `/home/runner`) receive only
 temporary `o+x` traversal permission, with their exact original modes restored

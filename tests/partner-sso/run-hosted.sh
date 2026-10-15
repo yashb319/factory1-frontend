@@ -178,9 +178,6 @@ sudo -u partner-sso-ci env -i PATH="$PATH" JAVA_HOME="$JAVA_HOME" HOME="$WORK/ba
   PARTNER_SSO_SIGNING_PRIVATE_KEY_PEM="$(cat "$WORK/signing.key")" \
   PARTNER_SSO_SIGNING_PUBLIC_KEY_PEM="$(cat "$WORK/signing.pub")" \
   PARTNER_SSO_REDIRECT_URIS=https://product-a.test/auth/callback,https://product-b.test/auth/callback \
-  FACTORY1_PARTNER_SAAS_STOREFRONT_ENABLED=true \
-  FACTORY1_PARTNER_SAAS_EDGE_TOKEN="$PARTNER_SAAS_EDGE_TOKEN" \
-  FACTORY1_PARTNER_SAAS_TRUSTED_PROXY_ADDRESSES=127.0.0.1 \
   SANDBOX_DEMO_PROVISION_ON_STARTUP=false PRODUCTION_QUANTITY_FLOW_ENABLED=false \
   FACTORY1_HEALTH_CHECK_EMAIL_ENABLED=false FACTORY1_HEALTH_CHECK_DIGEST_ENABLED=false \
   MAIL_HOST=127.0.0.1 MAIL_PORT=9 MAIL_USERNAME= MAIL_PASSWORD= MAIL_FROM=ci@example.test \
@@ -191,6 +188,9 @@ sudo -u partner-sso-ci env -i PATH="$PATH" JAVA_HOME="$JAVA_HOME" HOME="$WORK/ba
   -Djavax.net.ssl.trustStorePassword="$TRUSTSTORE_PASSWORD" \
   -jar "$BACKEND/target/factory1-backend-0.0.1-SNAPSHOT.jar" \
   --server.address=127.0.0.1 --server.forward-headers-strategy=framework \
+  --factory1.partner-saas.storefront-enabled=true \
+  --factory1.partner-saas.edge-token="$PARTNER_SAAS_EDGE_TOKEN" \
+  --factory1.partner-saas.trusted-proxy-addresses=127.0.0.1 \
   --management.health.mail.enabled=false \
   --factory1.notifications.operational-digest.enabled=false \
   --factory1.notifications.renewal.cron=- \
@@ -250,6 +250,22 @@ fi
   PARTNER_SSO_E2E_JDBC_URL=jdbc:postgresql://127.0.0.1:5432/factory1_e2e \
   PARTNER_SSO_E2E_DB_USER=postgres PARTNER_SSO_E2E_DB_PASSWORD=disposable-e2e-only \
   bash mvnw -B -q -o -Dtest=PartnerSsoE2eFixtureSeederTest test)
+# Exercise actual Spring binding and host trust after the authorized fixture exists.
+# Do not print headers or raw bodies, even if the preflight fails.
+for expected_status in 200 421; do
+  edge_token="$PARTNER_SAAS_EDGE_TOKEN"
+  if [[ "$expected_status" == 421 ]]; then edge_token=invalid-test-edge-token; fi
+  status="$(curl --cacert "$WORK/ca.crt" --noproxy '*' --silent --show-error \
+    -o "$WORK/edge-preflight.json" -w '%{http_code}' \
+    -H 'X-Factory1-Storefront-Host: product-a.test' \
+    -H "X-Factory1-Edge-Token: $edge_token" https://central.test/api/public/v2/storefront)"
+  echo "Backend edge binding preflight: expected=$expected_status actual=$status"
+  if [[ "$status" != "$expected_status" ]]; then
+    echo "Backend edge binding or disposable storefront fixture readiness failed" >&2
+    exit 1
+  fi
+done
+unset edge_token
 wait_for https://product-a.test
 wait_for https://product-b.test
 sudo -u partner-sso-browser env -i PATH="$PATH" HOME="$TEST_HOME" \
