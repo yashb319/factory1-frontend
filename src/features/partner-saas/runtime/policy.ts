@@ -21,7 +21,8 @@ function entries(methods: string, path: string, features: string, role: keyof ty
   });
 }
 
-// Frozen against backend 6522bfce, docs/partner-runtime-and-onboarding.md.
+// Backend 6522bfce plus the frozen three-route execution-batch addendum.
+// The 108-row fingerprint is pinned in runtimePolicy.test.ts.
 // The backend's filtered runtimeRoutes is still required for every operation.
 export const reviewedRoutes: readonly ReviewedRoute[] = [
   ...entries("GET,POST", "/api/inventory/items", "inventory", "M"),

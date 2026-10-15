@@ -12,7 +12,7 @@ import { useCreateExecutionBatchMutation, useGetExecutionBatchesQuery } from "..
 import { usePreviewProductionRecordMutation } from "../api/productionFlowApi";
 import type { OrderStep, ProductionOrder } from "../types/production.types";
 import type { RecordPreview, RecordPreviewRequest } from "../types/productionFlow.types";
-import { productionFailure, productionFlowVersions } from "../utils/productionFlow";
+import { productionActionBlock, productionFailure, productionFlowVersions } from "../utils/productionFlow";
 import { parseProductionQuantity, productionQuantityUnits } from "../utils/productionQuantity";
 import { useProductionReview } from "../utils/useProductionReview";
 import { ExecutionBatchHistory } from "./ExecutionBatchHistory";
@@ -31,7 +31,7 @@ export function ContextExecutionBatches({ order, refreshing, failed, onRefresh }
   const historyVerified = validHistory.success && validHistory.data.every((batch) => batch.productionOrderId === order.id);
   const step = order.steps.find((item) => item.id === order.currentStepId);
   const finalStep = step && !order.steps.some((item) => item.active && item.sequenceNumber > step.sequenceNumber);
-  const writable = Boolean(step?.active && finalStep && order.quantityModel === "FLOW_V1" &&
+  const writable = Boolean(step?.active && order.quantityModel === "FLOW_V1" &&
     can("POST", path) && can("POST", `/api/production/orders/${order.id}/steps/${step.id}/record-preview`));
   if (!readable) return null;
   const refresh = () => { onRefresh(); void history.refetch(); };
@@ -41,16 +41,17 @@ export function ContextExecutionBatches({ order, refreshing, failed, onRefresh }
     {history.isError || (!history.isFetching && history.currentData && !historyVerified) ? <p role="alert">Execution batches could not be verified. Refresh before recording output.</p> :
       history.isFetching ? <p role="status">Loading execution batches...</p> :
         validHistory.success && historyVerified ? <ExecutionBatchHistory batches={validHistory.data} /> : null}
-    <Button variant="outline" disabled={refreshing || history.isFetching} onClick={refresh}>Refresh order and output history</Button>
+    <Button type="button" variant="outline" disabled={refreshing || history.isFetching} onClick={refresh}>Refresh order and output history</Button>
     {writable && step ? <ExecutionBatchForm key={step.id} order={order} step={step}
+      finalStep={Boolean(finalStep)}
       disabled={refreshing || failed || history.isFetching || history.isError || !historyVerified}
       onRefresh={refresh} /> :
-      <p className="text-sm">Recording requires a current FLOW_V1 final step and explicit preview, create and history permissions. Other production operations remain unavailable.</p>}
+      <p className="text-sm">Recording requires an active current FLOW_V1 step and explicit preview, create and history permissions. Other production operations remain unavailable.</p>}
   </section>;
 }
 
-function ExecutionBatchForm({ order, step, disabled, onRefresh }: {
-  order: ProductionOrder; step: OrderStep; disabled: boolean; onRefresh: () => void;
+function ExecutionBatchForm({ order, step, finalStep, disabled, onRefresh }: {
+  order: ProductionOrder; step: OrderStep; finalStep: boolean; disabled: boolean; onRefresh: () => void;
 }) {
   const [batchNumber, setBatchNumber] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -59,7 +60,7 @@ function ExecutionBatchForm({ order, step, disabled, onRefresh }: {
   const [create] = useCreateExecutionBatchMutation();
   const control = useProductionReview<RecordPreviewRequest, RecordPreview, unknown>({
     order, step, action: "RECORD_GOOD", disabled,
-    draftKey: JSON.stringify({ batchNumber, quantity, notes }),
+    draftKey: JSON.stringify({ batchNumber, quantity, notes, finalStep }),
     preview: async (body) => {
       const result = await preview({ orderId: order.id, stepId: step.id, body }).unwrap();
       const parsed = contextualBatchPreviewResultSchema.safeParse(result);
@@ -106,30 +107,37 @@ function ExecutionBatchForm({ order, step, disabled, onRefresh }: {
     } catch (error) { control.setError(productionFailure(error)); }
   }
   const result = control.review?.preview;
-  const creditMatches = Boolean(result && control.review && result.finishedGoodCredit === control.review.body.completedQuantity);
+  const effectsMatch = Boolean(result && control.review &&
+    result.finishedGoodCredit === (finalStep ? control.review.body.completedQuantity : 0) &&
+    (finalStep || result.items.length === 0));
   return <section className="space-y-3" aria-label="Record contextual execution batch">
-    <h3 className="font-medium">Record reviewed final-good batch</h3>
-    <p className="text-sm">The server previews automatic deductions from the pinned BOM. Existing manual material coverage cannot be selected here; if it is required, resolve it through an authorized workflow instead of guessing inventory identifiers. Rejected quantity is fixed to zero.</p>
+    <h3 className="font-medium">Record reviewed execution batch</h3>
+    <p className="text-sm">{finalStep
+      ? "This final step previews finished-good credit and automatic deductions from the pinned BOM. Existing manual material coverage cannot be selected here; if required, resolve it through an authorized workflow instead of guessing inventory identifiers."
+      : "This intermediate step records good quantity only, without material deductions or finished-good credit. Recording does not advance the step."} Rejected quantity is fixed to zero.</p>
+    {!control.allowed && !disabled ? <p role="alert">{productionActionBlock(order, "RECORD_GOOD")}</p> : null}
     <fieldset disabled={control.busy || control.uncertain} className="space-y-3">
       <label className="block">Batch number<Input value={batchNumber} onChange={(event) => setBatchNumber(event.target.value)} /></label>
       <label className="block">New good quantity<Input inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
       <label className="block">Batch notes<Textarea value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
       {control.error && !control.review ? <p role="alert">{control.error}</p> : null}
-      <Button disabled={!control.allowed || control.busy} onClick={() => void review()}>Review execution batch</Button>
+      <Button type="button" disabled={!control.allowed || control.busy || control.uncertain} onClick={() => void review()}>Review execution batch</Button>
     </fieldset>
     <ProductionReviewDialog open={Boolean(result)} title="Confirm reviewed execution batch"
-      description="Review the exact final-good credit and material deductions. Saving does not advance or close this step."
+      description={finalStep ? "Review the exact final-good credit and material deductions. Saving does not advance or close this step." :
+        "Review intermediate-step good quantity with no inventory effects. Saving does not advance or close this step."}
       busy={control.busy} stale={control.stale} uncertain={control.uncertain}
-      disabled={!control.allowed || !creditMatches || Boolean(result?.blockingReasons.length) || Boolean(result?.stockWarnings.length)}
-      error={control.error} onCancel={control.cancel} onConfirm={() => { if (creditMatches) void control.confirm(); }}
+      disabled={!control.allowed || !effectsMatch || Boolean(result?.blockingReasons.length) || Boolean(result?.stockWarnings.length)}
+      error={control.error} onCancel={control.cancel} onConfirm={() => { if (effectsMatch) void control.confirm(); }}
       onRetry={() => void control.confirm(true)} onRefresh={onRefresh}>
       {result ? <div className="space-y-3">
         <p>{order.orderNumber} / {step.name} / batch {control.review?.body.source.type === "EXECUTION_BATCH" ? control.review.body.source.batchNumber : ""}</p>
+        <p>New good quantity: {control.review?.body.completedQuantity}</p>
         {control.review?.body.notes ? <p>Notes: {control.review.body.notes}</p> : null}
         <ProductionMaterialPreview preview={result} />
         <ProductionPreviewBlockers blockers={result.blockingReasons} />
         {result.stockWarnings.length ? <p role="alert">Resolve all stock warnings, refresh and request a new preview before recording this batch.</p> : null}
-        {!creditMatches ? <p role="alert">Finished-good credit does not match the reviewed quantity. Cancel, refresh and request a new preview.</p> : null}
+        {!effectsMatch ? <p role="alert">Inventory effects do not match the reviewed current-step recording. Cancel, refresh and request a new preview.</p> : null}
       </div> : null}
     </ProductionReviewDialog>
   </section>;

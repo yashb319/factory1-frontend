@@ -14,6 +14,10 @@ describe("reviewed product runtime policy", () => {
   });
   it("adds only the three frozen execution-batch routes with both dependencies and operator roles", () => {
     expect(reviewedRoutes).toHaveLength(108);
+    const rows = reviewedRoutes.map((route) =>
+      `${route.method} ${route.path}|${route.features.join("+")}|${route.roles.join(",")}`).sort();
+    expect(createHash("sha256").update(rows.join("\n")).digest("hex"))
+      .toBe("f602a7001790ff0f8db0e64d610cfdb8753aa907c0437b1435c02d28b7566cac");
     const batchRoutes = reviewedRoutes.filter((route) => route.path.endsWith("/execution-batches") || route.path.endsWith("/record-preview"));
     expect(batchRoutes).toEqual([
       { method: "POST", path: "/api/production/orders/{orderId}/steps/{stepId}/record-preview",

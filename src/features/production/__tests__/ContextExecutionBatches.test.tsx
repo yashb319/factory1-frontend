@@ -49,13 +49,13 @@ function workspace({ data = bootstrap(), value = order, onRefresh = vi.fn() } = 
 function mount(options: Parameters<typeof workspace>[0] = {}) {
   return render(workspace(options));
 }
-function network({ result = previewResult, conflict, previewConflict, uncertain = false }: {
-  result?: RecordPreview; conflict?: string; previewConflict?: string; uncertain?: boolean;
+function network({ result = previewResult, conflict, previewConflict, uncertain = false, history }: {
+  result?: unknown; conflict?: string; previewConflict?: string; uncertain?: boolean; history?: unknown;
 } = {}) {
   let saved = false;
   const fetcher = vi.fn().mockImplementation(async (url: string, init: RequestInit) => {
     let data: unknown;
-    if (url.endsWith("/execution-batches") && init.method === "GET") data = saved ? [batch] : [];
+    if (url.endsWith("/execution-batches") && init.method === "GET") data = history ?? (saved ? [batch] : []);
     else if (url.endsWith("/record-preview") && init.method === "POST") {
       if (previewConflict) return new Response(JSON.stringify({ success: false, code: previewConflict }), { status: 409 });
       data = { success: true, message: "OK", data: result };
@@ -109,12 +109,13 @@ describe("contextual execution batch reuse", () => {
     }
   });
 
-  it.each(["missing preview", "missing create", "missing inventory", "denied module", "employee", "missing factory role"])(
+  it.each(["missing preview", "missing create", "missing history", "missing inventory", "denied module", "employee", "missing factory role"])(
     "never mounts mutation controls for %s", async (reason) => {
       const fetcher = network();
       const data = bootstrap();
       if (reason === "missing preview") data.entitlements!.runtimeRoutes = data.entitlements!.runtimeRoutes.filter((route) => !route.path.endsWith("record-preview"));
       if (reason === "missing create") data.entitlements!.runtimeRoutes = data.entitlements!.runtimeRoutes.filter((route) => route.method !== "POST" || !route.path.endsWith("execution-batches"));
+      if (reason === "missing history") data.entitlements!.runtimeRoutes = data.entitlements!.runtimeRoutes.filter((route) => route.method !== "GET" || !route.path.endsWith("execution-batches"));
       if (reason === "missing inventory") data.entitlements!.modules = ["production_tracking"];
       if (reason === "denied module") data.entitlements!.moduleDecisions = [{ key: "inventory", enabled: false, reasons: ["PRODUCT_DISABLED"] }];
       if (reason === "employee") data.entitlements!.role = "EMPLOYEE";
@@ -133,6 +134,62 @@ describe("contextual execution batch reuse", () => {
     } });
     mount();
     expect(await review()).toBeDisabled();
+  });
+
+  it.each(["legacy", "inactive", "missing capability"])("keeps %s recording unavailable", async (reason) => {
+    const fetcher = network();
+    const value = structuredClone(order);
+    if (reason === "legacy") value.quantityModel = "LEGACY";
+    if (reason === "inactive") value.steps[0].active = false;
+    if (reason === "missing capability") value.capabilities = undefined;
+    mount({ value });
+    await screen.findByText("No execution batches recorded yet.");
+    const action = screen.queryByRole("button", { name: "Review execution batch" });
+    if (action) expect(action).toBeDisabled();
+    expect(fetcher.mock.calls.every(([, init]) => init.method === "GET")).toBe(true);
+  });
+
+  it("records an eligible intermediate step with zero finished-good credit and no material effects", async () => {
+    const fetcher = network({ result: { ...previewResult, finishedGoodCredit: 0 } });
+    const value = structuredClone(order);
+    value.steps.push({ ...value.steps[0], id: factoryId, sequenceNumber: 2 });
+    mount({ value });
+    fireEvent.click(await review());
+    expect(await screen.findByText("Output record LOT-A")).toBeInTheDocument();
+    const writes = fetcher.mock.calls.filter(([url, init]) => url.endsWith("/execution-batches") && init.method === "POST");
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(String(writes[0][1].body))).toMatchObject({ completedQuantity: 2, materialCoverage: [] });
+    expect(fetcher.mock.calls.some(([url]) => url.endsWith("/complete"))).toBe(false);
+  });
+
+  it("blocks an intermediate preview that unexpectedly credits finished goods", async () => {
+    network();
+    const value = structuredClone(order);
+    value.steps.push({ ...value.steps[0], id: factoryId, sequenceNumber: 2 });
+    mount({ value });
+    expect(await review()).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Inventory effects do not match");
+  });
+
+  it("blocks malformed previews without opening a confirmation", async () => {
+    const fetcher = network({ result: { ...previewResult, stockWarnings: null } });
+    mount();
+    await screen.findByText("No execution batches recorded yet.");
+    fireEvent.change(screen.getByLabelText("Batch number"), { target: { value: "LOT-A" } });
+    fireEvent.change(screen.getByLabelText("New good quantity"), { target: { value: "2" } });
+    fireEvent.click(screen.getByText("Review execution batch"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("material preview could not be verified");
+    expect(screen.queryByRole("button", { name: "Confirm reviewed action" })).not.toBeInTheDocument();
+    expect(fetcher.mock.calls).toHaveLength(2);
+  });
+
+  it("does not display or mutate a history row for a different order", async () => {
+    const fetcher = network({ history: [{ ...batch, productionOrderId: stepId }] });
+    mount();
+    expect(await screen.findByRole("alert")).toHaveTextContent("could not be verified");
+    expect(screen.queryByText("Output record LOT-A")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review execution batch" })).toBeDisabled();
+    expect(fetcher.mock.calls).toHaveLength(1);
   });
 
   it("clears known conflicts without offering an uncertain retry", async () => {
