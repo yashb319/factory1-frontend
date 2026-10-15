@@ -104,3 +104,19 @@ prints the sanitized HTTPS health response and HTTP status, trying the readiness
 health group if the response body is empty. Backend diagnostics include up to 40
 startup/error/database highlights before the final 80 log lines. Network policy
 and application behavior are unchanged.
+
+## Sign-in readiness diagnostics
+
+Before waiting for the Sign in link, the scenario probes the public storefront
+bootstrap and anonymous BFF session from the browser and logs only HTTP status,
+error code, schema version and boolean capabilities. It fails fast unless the
+storefront advertises `sso=true` and `operationalAccess=false`. On failure the
+final page origin/path, title and a bounded ARIA snapshot are written under the
+browser-owned output directory and printed through the existing sanitizer before
+cleanup. No artifacts are uploaded.
+
+Known blocker at backend `c9bdbda`: `FoundationService.bootstrap` returns
+`RuntimeCapabilities(false, false, false)` unconditionally, so `sso` is always
+false. The frontend then correctly hides Sign in and `/auth/start` returns
+`SSO_DISABLED`. The harness does not bypass this gate; real sign-in requires a
+reviewed backend pin whose storefront advertises SSO for the ready fixture domain.

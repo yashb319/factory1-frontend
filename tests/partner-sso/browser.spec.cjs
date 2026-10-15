@@ -1,3 +1,5 @@
+const fs = require("node:fs");
+const path = require("node:path");
 const { test, expect } = require("@playwright/test");
 
 const A = "https://product-a.test";
@@ -76,6 +78,54 @@ async function replayStatus(browser, savedCookie, origin) {
   }
 }
 
+// Public/BFF readiness summary only: statuses, codes and booleans, never bodies or credentials.
+async function readiness(page) {
+  return page.evaluate(async () => {
+    async function probe(path) {
+      try {
+        const response = await fetch(path, { cache: "no-store", headers: { Accept: "application/json" } });
+        let body = null;
+        try { body = await response.json(); } catch { body = null; }
+        const data = body && typeof body === "object" ? body.data : null;
+        return {
+          status: response.status,
+          code: body && typeof body.code === "string" ? body.code : null,
+          schemaVersion: data && typeof data.schemaVersion === "number" ? data.schemaVersion : null,
+          capabilities: data && data.capabilities && typeof data.capabilities === "object"
+            ? Object.fromEntries(Object.entries(data.capabilities).filter(([, value]) => typeof value === "boolean"))
+            : null,
+        };
+      } catch (error) {
+        return { status: 0, code: error instanceof Error ? error.name : "FetchError" };
+      }
+    }
+    return { storefront: await probe("/api/public/v2/storefront"), session: await probe("/auth/session") };
+  });
+}
+
+async function requireSignInReady(page, origin) {
+  const result = await readiness(page);
+  console.log(`Partner SSO readiness ${new URL(origin).hostname}: ${JSON.stringify(result)}`);
+  expect(result.storefront.status, "public storefront bootstrap must be available").toBe(200);
+  expect(result.storefront.capabilities?.sso, "storefront must advertise sso=true before sign-in is shown").toBe(true);
+  expect(result.storefront.capabilities?.operationalAccess).toBe(false);
+  expect(result.session.status, "anonymous BFF session must be 401").toBe(401);
+}
+
+test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.status === testInfo.expectedStatus) return;
+  for (const current of page.context().pages()) {
+    if (current.isClosed()) continue;
+    const url = new URL(current.url());
+    const lines = [`URL: ${url.origin}${url.pathname}`, `Title: ${await current.title().catch(() => "")}`];
+    const snapshot = await current.locator("body").ariaSnapshot({ timeout: 5_000 }).catch((error) => `snapshot unavailable: ${error.name}`);
+    lines.push("ARIA:", ...snapshot.split("\n").slice(0, 60));
+    const file = testInfo.outputPath("failure-pages.txt");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, `${lines.join("\n")}\n`);
+  }
+});
+
 test("real HTTPS OAuth, host cookies, context rotation, CSRF and two-product revocation", async ({ page, context, browser }) => {
   const authorizationRequests = [];
   let callback;
@@ -87,6 +137,7 @@ test("real HTTPS OAuth, host cookies, context rotation, CSRF and two-product rev
   });
 
   await page.goto(A);
+  await requireSignInReady(page, A);
   await page.getByRole("link", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Sign in to Factory1" })).toBeVisible();
   expect(new URL(page.url()).origin).toBe(CENTRAL);

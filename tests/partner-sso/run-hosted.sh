@@ -38,6 +38,12 @@ cleanup() {
         tail -n 80 "$WORK/$log.log" | node "$ROOT/tests/partner-sso/sanitize-logs.cjs"
       fi
     done
+    if sudo test -d "$WORK/playwright/output"; then
+      while IFS= read -r file; do
+        echo "Sanitized Playwright failure context ($(basename "$file"), bounded):"
+        sudo head -c 8000 "$file" | node "$ROOT/tests/partner-sso/sanitize-logs.cjs"
+      done < <(sudo find "$WORK/playwright/output" -type f \( -name error-context.md -o -name failure-pages.txt \) | sort | head -n 6)
+    fi
   fi
   if [[ -n "$BACKEND_UID" ]]; then
     sudo iptables -D OUTPUT -m owner --uid-owner "$BACKEND_UID" -d 127.0.0.0/8 -j ACCEPT 2>/dev/null || true
