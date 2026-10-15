@@ -40,6 +40,8 @@ cleanup() {
   sudo rm -rf "$WORK"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 cd "$ROOT"
 
 export NEXT_TELEMETRY_DISABLED=1
