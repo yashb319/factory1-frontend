@@ -25,8 +25,12 @@ npm ci --ignore-scripts --no-audit --no-fund
 sudo apt-get update -qq
 sudo apt-get install -y -qq libnss3-tools
 export BROWSER_TOOLS="$RUNNER_TEMP/browser-tools"
+export PLAYWRIGHT_BROWSERS_PATH="$BROWSER_TOOLS/browsers"
 npm install --prefix "$BROWSER_TOOLS" --ignore-scripts --no-audit --no-fund @playwright/test@1.58.2
 node "$BROWSER_TOOLS/node_modules/@playwright/test/cli.js" install --with-deps chromium
+# Persist both paths across workflow steps before invoking the runner.
+echo "BROWSER_TOOLS=$BROWSER_TOOLS" >> "$GITHUB_ENV"
+echo "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH" >> "$GITHUB_ENV"
 bash tests/partner-sso/run-hosted.sh /absolute/path/to/backend-checkout
 ```
 
@@ -44,8 +48,8 @@ then exactly `PartnerSsoE2eFixtureSeederTest` with `PARTNER_SSO_E2E_FIXTURES=tru
 and its localhost / database-name-containing-`e2e` guard. No SQL is duplicated.
 The fixed fixture password and ten-minute OTP belong only to the disposable test
 account `partner-sso-e2e@example.test`. There is no email request or OTP bypass.
-Outbound schedulers are disabled, SMTP points to loopback port 9, and a dedicated
-backend runtime user is firewalled against all non-loopback egress. Photo storage
+Outbound schedulers are disabled, SMTP points to loopback port 9, dedicated backend/frontend browser runtime identities are firewalled against all
+non-loopback egress while the Actions runner retains its control connection. Photo storage
 and third-party credentials are absent from the backend's clean environment.
 
 ## Assertions and limits

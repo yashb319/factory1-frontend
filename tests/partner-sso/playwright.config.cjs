@@ -8,6 +8,7 @@ module.exports = defineConfig({
   timeout: 120_000,
   expect: { timeout: 15_000 },
   reporter: "line",
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR ?? "test-results",
   use: {
     browserName: "chromium",
     ignoreHTTPSErrors: false,

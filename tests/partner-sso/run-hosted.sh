@@ -9,14 +9,33 @@ EXPECTED_BACKEND=c9bdbda834fadace0cf94e2a6850edea0bea0d87
 [[ "$(git -C "$BACKEND" rev-parse HEAD)" == "$EXPECTED_BACKEND" ]] || { echo "Backend SHA mismatch"; exit 1; }
 : "${BROWSER_TOOLS:?Install pinned Playwright tools first}"
 : "${RUNNER_TEMP:?}"
+: "${PLAYWRIGHT_BROWSERS_PATH:?Set the same shared browser path used by Playwright install}"
 
 WORK="$(mktemp -d "$RUNNER_TEMP/partner-sso.XXXXXX")"
+TEST_HOME="$WORK/browser-home"
 PIDS=()
+BACKEND_UID=""
+APP_UID=""
 cleanup() {
   for pid in "${PIDS[@]}"; do
     sudo kill "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
   done
+  if [[ -n "$BACKEND_UID" ]]; then
+    sudo iptables -D OUTPUT -m owner --uid-owner "$BACKEND_UID" -d 127.0.0.0/8 -j ACCEPT 2>/dev/null || true
+    sudo iptables -D OUTPUT -m owner --uid-owner "$BACKEND_UID" -j REJECT 2>/dev/null || true
+    sudo ip6tables -D OUTPUT -m owner --uid-owner "$BACKEND_UID" -j REJECT 2>/dev/null || true
+  fi
+  if [[ -n "$APP_UID" ]]; then
+    sudo iptables -D OUTPUT -m owner --uid-owner "$APP_UID" -d 127.0.0.0/8 -j ACCEPT 2>/dev/null || true
+    sudo iptables -D OUTPUT -m owner --uid-owner "$APP_UID" -j REJECT 2>/dev/null || true
+    sudo ip6tables -D OUTPUT -m owner --uid-owner "$APP_UID" -j REJECT 2>/dev/null || true
+  fi
+  sudo userdel partner-sso-browser 2>/dev/null || true
+  sudo userdel partner-sso-ci 2>/dev/null || true
+  sudo rm -f /usr/local/share/ca-certificates/partner-sso-ci.crt
+  sudo update-ca-certificates >/dev/null 2>&1 || true
+  sudo sed -i '/^127\.0\.0\.1 central\.test product-a\.test product-b\.test$/d' /etc/hosts
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -34,7 +53,8 @@ export PARTNER_SAAS_EDGE_TOKEN="$(openssl rand -hex 32)"
 export PARTNER_SAAS_CSRF_SECRET="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n')"
 JWT_SECRET="$(openssl rand -hex 32)"
 ENCRYPTION_KEY="$(openssl rand -hex 32)"
-for value in "$JWT_SECRET" "$ENCRYPTION_KEY" "$PARTNER_SAAS_OAUTH_CLIENT_SECRET" "$PARTNER_SAAS_EDGE_TOKEN" "$PARTNER_SAAS_CSRF_SECRET"; do
+TRUSTSTORE_PASSWORD="$(openssl rand -hex 24)"
+for value in "$JWT_SECRET" "$ENCRYPTION_KEY" "$PARTNER_SAAS_OAUTH_CLIENT_SECRET" "$PARTNER_SAAS_EDGE_TOKEN" "$PARTNER_SAAS_CSRF_SECRET" "$TRUSTSTORE_PASSWORD"; do
   echo "::add-mask::$value"
 done
 
@@ -45,13 +65,11 @@ openssl req -newkey rsa:2048 -nodes -keyout "$WORK/tls.key" -out "$WORK/tls.csr"
 printf 'subjectAltName=DNS:central.test,DNS:product-a.test,DNS:product-b.test\nextendedKeyUsage=serverAuth\n' > "$WORK/tls.ext"
 openssl x509 -req -in "$WORK/tls.csr" -CA "$WORK/ca.crt" -CAkey "$WORK/ca.key" \
   -CAcreateserial -out "$WORK/tls.crt" -days 1 -extfile "$WORK/tls.ext" 2>/dev/null
+keytool -importcert -noprompt -trustcacerts -alias partner-sso-ci \
+  -file "$WORK/ca.crt" -keystore "$WORK/java-truststore.p12" \
+  -storetype PKCS12 -storepass "$TRUSTSTORE_PASSWORD" >/dev/null
 sudo cp "$WORK/ca.crt" /usr/local/share/ca-certificates/partner-sso-ci.crt
 sudo update-ca-certificates > /dev/null
-mkdir -p "$HOME/.pki/nssdb"
-if [[ ! -f "$HOME/.pki/nssdb/cert9.db" ]]; then
-  certutil -N -d "sql:$HOME/.pki/nssdb" --empty-password
-fi
-certutil -A -d "sql:$HOME/.pki/nssdb" -n partner-sso-ci -t "C,," -i "$WORK/ca.crt"
 echo '127.0.0.1 central.test product-a.test product-b.test' | sudo tee -a /etc/hosts > /dev/null
 export NODE_EXTRA_CA_CERTS="$WORK/ca.crt"
 export NO_PROXY=localhost,127.0.0.1,central.test,product-a.test,product-b.test
@@ -61,15 +79,32 @@ export NODE_PATH="$BROWSER_TOOLS/node_modules"
 # Build before denying runtime egress; never reuse a build with different flags.
 npm run build
 (cd "$BACKEND" && bash mvnw -B -q -DskipTests package)
+(cd "$BACKEND" && bash mvnw -B -q -Dtest=PartnerSsoE2eFixtureSeederTest -DskipTests test)
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$WORK/signing.key" 2>/dev/null
 openssl pkey -in "$WORK/signing.key" -pubout -out "$WORK/signing.pub"
 
-# The isolated hosted runner loses egress after all package/build downloads finish.
-sudo iptables -I OUTPUT 1 -o lo -j ACCEPT
-sudo iptables -I OUTPUT 2 -j REJECT
-sudo ip6tables -I OUTPUT 1 -o lo -j ACCEPT
-sudo ip6tables -I OUTPUT 2 -j REJECT
+# Only application identities lose egress; the Actions runner and private CI control plane remain connected.
 sudo useradd --system --no-create-home partner-sso-ci
+sudo useradd --system --create-home --home-dir "$TEST_HOME" --shell /usr/sbin/nologin partner-sso-browser
+chmod 755 "$WORK"
+BACKEND_UID="$(id -u partner-sso-ci)"
+APP_UID="$(id -u partner-sso-browser)"
+mkdir -p "$WORK/playwright-output"
+sudo -u partner-sso-browser mkdir -p "$TEST_HOME/.pki/nssdb"
+sudo -u partner-sso-browser certutil -N -d "sql:$TEST_HOME/.pki/nssdb" --empty-password
+sudo -u partner-sso-browser certutil -A -d "sql:$TEST_HOME/.pki/nssdb" -n partner-sso-ci -t "C,," -i "$WORK/ca.crt"
+sudo chown -R partner-sso-browser:partner-sso-browser "$ROOT/.next" "$WORK/playwright-output"
+sudo chmod -R a+rX "$BROWSER_TOOLS" "$PLAYWRIGHT_BROWSERS_PATH"
+chmod 644 "$WORK/ca.crt" "$WORK/java-truststore.p12"
+for key_line in "$WORK/signing.key" "$WORK/signing.pub"; do
+  while IFS= read -r line; do echo "::add-mask::$line"; done < "$key_line"
+done
+sudo iptables -I OUTPUT 1 -m owner --uid-owner "$BACKEND_UID" -d 127.0.0.0/8 -j ACCEPT
+sudo iptables -I OUTPUT 2 -m owner --uid-owner "$BACKEND_UID" -j REJECT
+sudo iptables -I OUTPUT 3 -m owner --uid-owner "$APP_UID" -d 127.0.0.0/8 -j ACCEPT
+sudo iptables -I OUTPUT 4 -m owner --uid-owner "$APP_UID" -j REJECT
+sudo ip6tables -I OUTPUT 1 -m owner --uid-owner "$BACKEND_UID" -j REJECT
+sudo ip6tables -I OUTPUT 2 -m owner --uid-owner "$APP_UID" -j REJECT
 sudo -u partner-sso-ci env -i PATH="$PATH" JAVA_HOME="$JAVA_HOME" \
   SPRING_PROFILES_ACTIVE=prod PORT=8080 \
   DATABASE_URL=jdbc:postgresql://127.0.0.1:5432/factory1_e2e \
@@ -89,7 +124,10 @@ sudo -u partner-sso-ci env -i PATH="$PATH" JAVA_HOME="$JAVA_HOME" \
   FACTORY1_HEALTH_CHECK_EMAIL_ENABLED=false FACTORY1_HEALTH_CHECK_DIGEST_ENABLED=false \
   MAIL_HOST=127.0.0.1 MAIL_PORT=9 MAIL_USERNAME= MAIL_PASSWORD= MAIL_FROM=ci@example.test \
   MAIL_SMTP_AUTH=false MAIL_SMTP_STARTTLS_ENABLE=false LOCAL_OTP_BYPASS_CODE= \
-  java -jar "$BACKEND/target/factory1-backend-0.0.1-SNAPSHOT.jar" \
+  java -Djavax.net.ssl.trustStore="$WORK/java-truststore.p12" \
+  -Djavax.net.ssl.trustStoreType=PKCS12 \
+  -Djavax.net.ssl.trustStorePassword="$TRUSTSTORE_PASSWORD" \
+  -jar "$BACKEND/target/factory1-backend-0.0.1-SNAPSHOT.jar" \
   --server.address=127.0.0.1 --server.forward-headers-strategy=framework \
   --factory1.notifications.operational-digest.enabled=false \
   --factory1.notifications.renewal.cron=- \
@@ -105,7 +143,17 @@ PIDS+=("$!")
 sudo "$(command -v node)" "$ROOT/tests/partner-sso/https-proxy.cjs" "$WORK/tls.crt" "$WORK/tls.key" \
   > "$WORK/proxy.log" 2>&1 &
 PIDS+=("$!")
-npm start -- --hostname 127.0.0.1 > "$WORK/frontend.log" 2>&1 &
+sudo -u partner-sso-browser env -i PATH="$PATH" HOME="$TEST_HOME" \
+  NODE_EXTRA_CA_CERTS="$WORK/ca.crt" NODE_PATH="$BROWSER_TOOLS/node_modules" \
+  PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" \
+  NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_PARTNER_SAAS_V2_ENABLED=true \
+  PARTNER_SAAS_HOST_BOUNDARY_ENABLED=true PARTNER_SAAS_DIRECT_HOSTS=localhost:3000,127.0.0.1:3000 \
+  PARTNER_SAAS_STOREFRONT_ENABLED=true PARTNER_SAAS_BACKEND_ORIGIN=https://central.test \
+  PARTNER_SAAS_OAUTH_CLIENT_ID="$PARTNER_SAAS_OAUTH_CLIENT_ID" \
+  PARTNER_SAAS_OAUTH_CLIENT_SECRET="$PARTNER_SAAS_OAUTH_CLIENT_SECRET" \
+  PARTNER_SAAS_EDGE_TOKEN="$PARTNER_SAAS_EDGE_TOKEN" \
+  PARTNER_SAAS_CSRF_SECRET="$PARTNER_SAAS_CSRF_SECRET" \
+  npm start -- --hostname 127.0.0.1 > "$WORK/frontend.log" 2>&1 &
 PIDS+=("$!")
 
 wait_for() {
@@ -113,21 +161,35 @@ wait_for() {
     if curl --noproxy '*' --silent --fail "$1" > /dev/null; then return; fi
     sleep 1
   done
-  echo "Service did not become ready: $1 (runtime logs intentionally not uploaded)"
+  echo "Service did not become ready: $1 (bounded private runner log follows)"
+  if [[ -f "$WORK/backend.log" ]]; then tail -n 80 "$WORK/backend.log"; fi
   exit 1
 }
 wait_for https://central.test/actuator/health
+FRONTEND_READY=false
 for attempt in $(seq 1 120); do
-  if curl --noproxy '*' --silent --fail -H 'Host: localhost:3000' http://127.0.0.1:3000/login > /dev/null; then break; fi
+  if curl --noproxy '*' --silent --fail -H 'Host: localhost:3000' http://127.0.0.1:3000/login > /dev/null; then
+    FRONTEND_READY=true
+    break
+  fi
   sleep 1
 done
+if [[ "$FRONTEND_READY" != true ]]; then
+  echo "Frontend did not become ready (bounded private runner log follows)"
+  tail -n 80 "$WORK/frontend.log"
+  exit 1
+fi
 
 (cd "$BACKEND" && PARTNER_SSO_E2E_FIXTURES=true \
   PARTNER_SSO_E2E_JDBC_URL=jdbc:postgresql://127.0.0.1:5432/factory1_e2e \
   PARTNER_SSO_E2E_DB_USER=postgres PARTNER_SSO_E2E_DB_PASSWORD=disposable-e2e-only \
-  bash mvnw -B -q -Dtest=PartnerSsoE2eFixtureSeederTest test)
+  bash mvnw -B -q -o -Dtest=PartnerSsoE2eFixtureSeederTest test)
 wait_for https://product-a.test
 wait_for https://product-b.test
-node "$BROWSER_TOOLS/node_modules/@playwright/test/cli.js" test --config tests/partner-sso/playwright.config.cjs
+sudo -u partner-sso-browser env -i PATH="$PATH" HOME="$TEST_HOME" \
+  NODE_EXTRA_CA_CERTS="$WORK/ca.crt" NODE_PATH="$BROWSER_TOOLS/node_modules" \
+  PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" \
+  PLAYWRIGHT_OUTPUT_DIR="$WORK/playwright-output" GITHUB_ACTIONS=true \
+  node "$BROWSER_TOOLS/node_modules/@playwright/test/cli.js" test --config tests/partner-sso/playwright.config.cjs
 printf 'Backend SHA: `%s`\nFrontend SHA: `%s`\nReal Chromium / trusted HTTPS / disposable PostgreSQL 14.22; fixture readiness is not provisioning evidence.\n' \
   "$EXPECTED_BACKEND" "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
