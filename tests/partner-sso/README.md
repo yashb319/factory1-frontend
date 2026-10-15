@@ -14,8 +14,8 @@ and a fresh `postgres:14.22` service, exposed at `127.0.0.1:5432`, with database
 `factory1_e2e`, user `postgres`, password `disposable-e2e-only`.
 Use `contents: read`, `persist-credentials: false`, and separately checkout:
 
-- Backend **367524efed74c3f6f2391abf61c506dbccd51ddf**, the reviewed fixture-host
-  merge including the readiness fix, not latest main or PR head.
+- Backend **18a235d952d1227e415709011e2c0e3c0a7a2a71**, the reviewed UUID-fixture
+  merge including the hostname and readiness fixes, not latest main or PR head.
 - A reviewed immutable public `yashb319/factory1-frontend` commit containing
   this harness; pin its full SHA in the backend workflow, not arbitrary input.
 
@@ -143,8 +143,8 @@ cleanup. No artifacts are uploaded.
 
 The focused `hostedFixtureContract.test.ts` regression parses exact public JSON
 resources copied byte-for-byte from backend test resources
-`src/test/resources/partner-sso/bootstrap-product-{a,b}.json` at reviewed candidate
-`1958347a12b28f26bdf1866306e46a4aa33d3a81`. The backend compares these with its
+`src/test/resources/partner-sso/bootstrap-product-{a,b}.json` at the pinned merge
+`18a235d952d1227e415709011e2c0e3c0a7a2a71`. The backend compares these with its
 actual seeded service DTO serialized by the application ObjectMapper. The
 frontend uses its unchanged production envelope/storefront schemas, including
 strict RFC UUID validation; unsupported runtime metadata is not proof of module
