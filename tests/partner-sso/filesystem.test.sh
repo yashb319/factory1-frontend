@@ -25,6 +25,18 @@ grant_test_traversal "$FIXTURE/private/workspace" "$FIXTURE/private/workspace/to
 [[ "$(stat -c %a "$FIXTURE/private")" == 701 ]]
 sudo -u nobody test -r "$FIXTURE/private/workspace/package.json"
 sudo -u nobody test -x "$FIXTURE/private/workspace/tools/browsers"
+# Playwright removes and recreates outputDir, so owning only the leaf is insufficient.
+chmod 755 "$FIXTURE/private/workspace"
+sudo install -d -o nobody -m 700 "$FIXTURE/private/workspace/playwright-output"
+if sudo -u nobody rmdir "$FIXTURE/private/workspace/playwright-output" 2>/dev/null; then
+  echo "Expected a runner-owned parent to reject outputDir removal" >&2
+  exit 1
+fi
+sudo install -d -o nobody -m 700 "$FIXTURE/private/workspace/playwright"
+sudo -u nobody mkdir "$FIXTURE/private/workspace/playwright/output"
+sudo -u nobody rmdir "$FIXTURE/private/workspace/playwright/output"
+sudo -u nobody mkdir "$FIXTURE/private/workspace/playwright/output"
+sudo -u nobody touch "$FIXTURE/private/workspace/playwright/output/.last-run.json"
 restore_test_traversal
 [[ "$(stat -c %a "$FIXTURE")" == 750 ]]
 [[ "$(stat -c %a "$FIXTURE/private")" == 700 ]]

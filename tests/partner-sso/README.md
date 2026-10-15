@@ -50,6 +50,12 @@ Before any users, firewall rules or services exist, the runner resolves the
 seeder's surefire JUnit Platform provider online with the fixture environment
 unset (the test is skipped by its environment guard), then repeats it offline so
 a missing artifact fails in seconds; the real seeder step stays offline (`-o`).
+Playwright output (including `.last-run.json`) lives under a browser-owned
+`$WORK/playwright` parent so Playwright can remove and recreate its output
+directory. The line reporter writes to stdout; no HTML report is generated.
+Writable browser state and `.next` are checked before services start. Failure
+logs are sanitized into the private job log before privileged cleanup removes
+the temporary tree; browser artifacts are not uploaded.
 The fixed fixture password and ten-minute OTP belong only to the disposable test
 account `partner-sso-e2e@example.test`. There is no email request or OTP bypass.
 Outbound schedulers are disabled, SMTP points to loopback port 9, dedicated backend/frontend browser runtime identities are firewalled against all

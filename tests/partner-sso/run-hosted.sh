@@ -122,11 +122,11 @@ grant_test_traversal "$ROOT" "$BACKEND" "$BROWSER_TOOLS" "$PLAYWRIGHT_BROWSERS_P
 BACKEND_UID="$(id -u partner-sso-ci)"
 APP_UID="$(id -u partner-sso-browser)"
 sudo install -d -o partner-sso-ci -g partner-sso-ci -m 700 "$WORK/backend-home" "$WORK/backend-tmp"
-mkdir -p "$WORK/playwright-output"
+sudo install -d -o partner-sso-browser -g partner-sso-browser -m 700 "$WORK/playwright"
 sudo -u partner-sso-browser mkdir -p "$TEST_HOME/.pki/nssdb" "$TEST_HOME/cache" "$TEST_HOME/config" "$TEST_HOME/data" "$TEST_HOME/npm-cache" "$TEST_HOME/tmp"
 sudo -u partner-sso-browser certutil -N -d "sql:$TEST_HOME/.pki/nssdb" --empty-password
 sudo -u partner-sso-browser certutil -A -d "sql:$TEST_HOME/.pki/nssdb" -n partner-sso-ci -t "C,," -i "$WORK/ca.crt"
-sudo chown -R partner-sso-browser:partner-sso-browser "$ROOT/.next" "$WORK/playwright-output"
+sudo chown -R partner-sso-browser:partner-sso-browser "$ROOT/.next"
 sudo chmod -R a+rX "$BROWSER_TOOLS" "$PLAYWRIGHT_BROWSERS_PATH"
 chmod 644 "$WORK/ca.crt" "$WORK/java-truststore.p12"
 require_access() {
@@ -147,7 +147,10 @@ done
 for path in "$ROOT/node_modules/.bin/next" "$BROWSER_TOOLS" "$PLAYWRIGHT_BROWSERS_PATH"; do
   require_access partner-sso-browser -x "$path"
 done
-require_access partner-sso-browser -w "$TEST_HOME/tmp"
+for path in "$WORK/playwright" "$ROOT/.next" "$TEST_HOME/.pki/nssdb" \
+  "$TEST_HOME/cache" "$TEST_HOME/config" "$TEST_HOME/data" "$TEST_HOME/npm-cache" "$TEST_HOME/tmp"; do
+  require_access partner-sso-browser -w "$path"
+done
 for key_line in "$WORK/signing.key" "$WORK/signing.pub"; do
   while IFS= read -r line; do echo "::add-mask::$line"; done < "$key_line"
 done
@@ -248,7 +251,7 @@ sudo -u partner-sso-browser env -i PATH="$PATH" HOME="$TEST_HOME" \
   npm_config_cache="$TEST_HOME/npm-cache" TMPDIR="$TEST_HOME/tmp" \
   NODE_EXTRA_CA_CERTS="$WORK/ca.crt" NODE_PATH="$BROWSER_TOOLS/node_modules" \
   PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" \
-  PLAYWRIGHT_OUTPUT_DIR="$WORK/playwright-output" GITHUB_ACTIONS=true \
+  PLAYWRIGHT_OUTPUT_DIR="$WORK/playwright/output" GITHUB_ACTIONS=true \
   node "$BROWSER_TOOLS/node_modules/@playwright/test/cli.js" test --config tests/partner-sso/playwright.config.cjs
 printf 'Backend SHA: `%s`\nFrontend SHA: `%s`\nReal Chromium / trusted HTTPS / disposable PostgreSQL 14.22; fixture readiness is not provisioning evidence.\n' \
   "$EXPECTED_BACKEND" "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
