@@ -8,7 +8,7 @@ import type { FetchArgs } from "@reduxjs/toolkit/query";
 import type { AuthState } from "@/features/auth/authSlice";
 import { baseApi } from "@/services/baseApi";
 import type { ContextTransport } from "@/services/contextTransport";
-import { useProductRuntime } from "./client";
+import { RuntimeRequestError, useProductRuntime } from "./client";
 import { RuntimePermissionsContext } from "./permissions";
 
 export function ContextModuleStore({ children }: { children: ReactNode }) {
@@ -31,6 +31,9 @@ export function ContextModuleStore({ children }: { children: ReactNode }) {
           if (api.signal.aborted) return { error: { status: "CUSTOM_ERROR", error: "The context request was cancelled." } };
           return { data: result };
         } catch (error) {
+          if (error instanceof RuntimeRequestError && error.status && error.status < 500) {
+            return { error: { status: error.status, data: { code: error.code, message: error.message } } };
+          }
           return { error: { status: "CUSTOM_ERROR", error: error instanceof Error ? error.message : "The contextual operation failed." } };
         }
       },

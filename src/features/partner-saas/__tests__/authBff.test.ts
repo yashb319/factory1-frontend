@@ -274,6 +274,51 @@ describe("confidential reviewed operational BFF", () => {
     }))).status).toBe(400);
     expect(upstream.mock.calls.filter(([url]) => url.toString().includes("/runtime/"))).toHaveLength(1);
   });
+
+  it.each(["preview", "create", "history"])("forwards only the exact execution-batch %s contract", async (operation) => {
+    const data = runtimeBootstrap();
+    data.entitlements!.modules.push("production_tracking");
+    const path = `/api/production/orders/${organizationId}/${operation === "preview" ? `steps/${otherOrganizationId}/record-preview` : "execution-batches"}`;
+    const method = operation === "history" ? "GET" : "POST";
+    const template = operation === "preview" ? "/api/production/orders/{orderId}/steps/{stepId}/record-preview" :
+      "/api/production/orders/{orderId}/execution-batches";
+    data.entitlements!.runtimeRoutes.push({ method, path: template });
+    const upstream = runtimeBackend(data);
+    vi.stubGlobal("fetch", upstream);
+    const common = { completedQuantity: 2.5, rejectedQuantity: 0, materialCoverage: [],
+      expectedStepVersion: 3, expectedFamilyVersion: 4, notes: "Reviewed" };
+    const body = operation === "preview" ? { ...common, expectedOrderVersion: 2,
+      source: { type: "EXECUTION_BATCH", batchNumber: "LOT-A" }, action: "RECORD_GOOD" } :
+      { ...common, orderStepSnapshotId: otherOrganizationId, batchNumber: "LOT-A", expectedVersion: 2,
+        requestId: organizationId, previewToken: "server-token" };
+    const headers = { Origin: `https://${host}`, "Content-Type": "application/json",
+      "X-CSRF-Token": testCsrf(), "X-Factory1-Context-Generation": generation };
+    const make = (bodyOverride = body, suffix = "", headerOverride = headers) => productRuntimeRequest(
+      requestWithSession(`/api/product-runtime${path}${suffix}`, {
+        method, headers: headerOverride, ...(method === "GET" ? {} : { body: JSON.stringify(bodyOverride) }),
+      }));
+    expect((await make()).status).toBe(200);
+    const [target, init] = upstream.mock.calls.at(-1)!;
+    expect(target.toString()).toBe(`${backendOrigin}/api/partner/v2/bff/runtime${path}`);
+    expect(init?.method).toBe(method);
+    if (method === "POST") expect(JSON.parse(String(init?.body))).toEqual(body);
+    expect(new Headers(init?.headers).get("X-Factory1-Context-Generation")).toBe(generation);
+    const forwarded = () => upstream.mock.calls.filter(([url]) => url.toString().includes("/runtime/"));
+    expect((await make(body, "?page=0")).status).toBe(403);
+    expect((await make(body, "", { ...headers, "X-Factory1-Context-Generation": "old" })).status).toBe(409);
+    if (method === "POST") {
+      expect((await make(body, "", { ...headers, "X-CSRF-Token": "invalid" })).status).toBe(403);
+      expect((await make({ ...body, organizationId: otherOrganizationId })).status).toBe(400);
+      expect((await make({ ...body, rejectedQuantity: 1 })).status).toBe(400);
+      expect((await make({ ...body, arbitraryCallback: "https://evil.test" })).status).toBe(400);
+      expect((await make(operation === "preview" ? { ...body, source: { type: "EXECUTION_BATCH", batchNumber: 123 } } :
+        { ...body, batchNumber: 123 })).status).toBe(400);
+    }
+    expect(forwarded()).toHaveLength(1);
+    data.entitlements!.runtimeRoutes = data.entitlements!.runtimeRoutes.filter((route) => route.path !== template);
+    expect((await make()).status).toBe(403);
+    expect(forwarded()).toHaveLength(1);
+  });
 });
 
 describe("explicit product-bound invitation BFF", () => {

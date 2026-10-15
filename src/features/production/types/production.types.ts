@@ -397,7 +397,7 @@ export type OrderAssignment = OrderAssignmentRequest & {
 
 export type ExecutionBatchRequest = {
   orderStepSnapshotId: string;
-  batchNumber: number;
+  batchNumber: string;
   completedQuantity: number;
   rejectedQuantity: number;
   notes?: string;

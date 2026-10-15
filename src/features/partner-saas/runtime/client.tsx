@@ -109,7 +109,18 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
         if (payload.success && payload.data.code === "EXPORT_NOT_READY") {
           throw new RuntimeRequestError("The export is still pending. Check its status before downloading.", 409, payload.data.code);
         }
-        throw new RuntimeRequestError("This record conflicts with current factory data. Refresh the record and review before retrying.");
+        const productionConflicts: Record<string, string> = {
+          MATERIAL_ALLOCATION_REQUIRED: "Existing manual material issues require allocation. This workspace cannot allocate them; use an authorized material workflow before requesting a new preview.",
+          INSUFFICIENT_STOCK: "Stock is insufficient. Refresh stock and the order before requesting a new preview.",
+          STALE_CONFIRMATION: "The preview or order versions are stale. Refresh the order and request a new preview.",
+          IDEMPOTENCY_PAYLOAD_MISMATCH: "This request identifier was already used with different details. Inspect output history before making a new recording.",
+          BATCH_NUMBER_EXISTS: "This batch number already exists. Inspect output history and use a different number only for a genuinely new recording.",
+        };
+        if (payload.success && Object.hasOwn(productionConflicts, payload.data.code)) {
+          throw new RuntimeRequestError(productionConflicts[payload.data.code], 409, payload.data.code);
+        }
+        throw new RuntimeRequestError("This record conflicts with current factory data. Refresh the record and review before retrying.", 409,
+          payload.success ? payload.data.code : undefined);
       }
       if ([401, 403].includes(response.status)) {
         stop("Your factory access changed or expired. Reload to verify current access.");
@@ -117,7 +128,8 @@ export function ProductRuntimeProvider({ data, children }: { data: AuthBootstrap
       }
       if (response.status === 410) throw new RuntimeRequestError("This export expired. Request a new export.", 410, "EXPORT_EXPIRED");
       if (response.status === 429) throw new RuntimeRequestError("The request limit was reached. Wait before requesting another export.", 429);
-      if (!response.ok) throw new RuntimeRequestError("The server could not complete this operation. Check the details and try again.");
+      if (!response.ok) throw new RuntimeRequestError("The server could not complete this operation. Refresh the current record, check the details and review before trying again.",
+        response.status < 500 ? response.status : undefined);
       const parsed = bffEnvelopeSchema(schema).safeParse(await response.json());
       if (!parsed.success) throw new RuntimeRequestError("The server response could not be verified. Reload before continuing.");
       return parsed.data.data;

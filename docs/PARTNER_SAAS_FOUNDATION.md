@@ -182,9 +182,19 @@ confirmed holiday deletion, reviewer comments and required clarification
 (the frozen controller's 2000-character limit), without email-derived self-service
 or balances.
 Production reuses order-list, quantity, timeline, audit and BOM-binding components
-and reads workflow versions; unreviewed catalog/user lookup/preview dependencies
-keep creation, quantity-flow execution, authoring, assignments, workstations and
-QR controls unavailable. Billing reuses voucher actions for confirmed post,
+and reads workflow versions. The three additional execution-batch routes enable
+history and reviewed FLOW_V1 final-step good-output recording only when both
+`production_tracking` and `inventory`, the backend role ceiling and every exact
+route grant permit it. The existing production APIs, material preview, versioned
+confirmation dialog and output history are reused. Batch numbers remain strings;
+preview and commit preserve captured order/step/family versions, the confirmation
+token and idempotency request ID. Manual material allocation, server blockers,
+stock warnings and mismatched final-good credit block confirmation. An ordinary
+409 is a known failure requiring refresh/new review; only unknown network outcomes
+offer an explicit identical-request retry, never automatic mutation retry.
+No material-availability or consumption dependency is fetched. Other quantity
+operations, workflow advance/close, creation, authoring, assignments, workstations
+and QR controls remain unavailable. Billing reuses voucher actions for confirmed post,
 cancel and payment operations; voucher creation remains unavailable until its
 catalog/settings dependencies are reviewed. Accounting reuses report components
 for ledger summaries, trial balance, profit/loss, balance sheet, aging and ledger

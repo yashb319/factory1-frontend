@@ -21,6 +21,7 @@ import { proxyStorefront } from "../storefrontProxy";
 import { z } from "zod";
 import { hasOperationalAccess } from "../runtime/access";
 import { reviewedRuntimeRoute, runtimeQueryAllowed, runtimeRouteAllowed } from "../runtime/policy";
+import { contextualBatchPreviewSchema, contextualExecutionBatchSchema } from "../runtime/executionBatchContracts";
 import { invitationResultSchema } from "../onboarding/contracts";
 import { passwordSchema } from "@/lib/passwordPolicy";
 
@@ -623,6 +624,10 @@ export async function productRuntimeRequest(request: Request) {
     const method = reviewed.method;
     const body = method === "POST" || method === "PUT"
       ? await requestJson(request, z.record(z.string(), z.unknown()), 64 * 1024) : undefined;
+    if (body && ((reviewed.path.endsWith("/record-preview") && !contextualBatchPreviewSchema.safeParse(body).success) ||
+        (reviewed.path.endsWith("/execution-batches") && !contextualExecutionBatchSchema.safeParse(body).success))) {
+      throw new BffError(400, "INVALID_REQUEST");
+    }
     if (body && ["organizationId", "tenantId", "partnerId", "domainId", "modules", "role", "userId",
       ...(path.startsWith("/api/production/") ? [] : ["productId"])]
       .some((key) => key in body)) throw new BffError(400, "INVALID_REQUEST");
