@@ -33,28 +33,24 @@ export function toImportReportParams(rows: Array<Record<string, unknown>>) {
   return { headers, validRows, errorRows };
 }
 
-// Employee imports use a richer validation shape (status / data / messages).
-export function toEmployeeReportParams(
-  validationRows: Array<{
-    rowNumber: number;
-    status: string;
-    data: Record<string, unknown>;
-    messages: string[];
-  }>
-) {
-  const headers = validationRows[0] ? Object.keys(validationRows[0].data) : [];
-
-  const validRows = validationRows
-    .filter((r) => r.status === "VALID")
-    .map((r) => r.data);
-
-  const errorRows: StoredErrorRow[] = validationRows
-    .filter((r) => r.status === "ERROR")
-    .map((r) => ({
-      rowNumber: r.rowNumber,
-      data: r.data,
-      messages: r.messages,
-    }));
-
-  return { headers, validRows, errorRows };
+// Employee imports store metadata only: employee rows (names, identifiers,
+// salaries) must never be copied into import/export history.
+export function toEmployeeImportHistoryParams(input: {
+  sheetName: string;
+  headerRowNumber: number;
+  totalRows: number;
+  importedRows: number;
+  errorRowNumbers: number[];
+  skippedRowNumbers: number[];
+}) {
+  return {
+    reportType: "IMPORT_TEMPLATE",
+    module: "EMPLOYEE",
+    sheetName: input.sheetName,
+    headerRowNumber: input.headerRowNumber,
+    totalRows: input.totalRows,
+    importedRows: input.importedRows,
+    errorRowNumbers: input.errorRowNumbers,
+    skippedRowNumbers: input.skippedRowNumbers,
+  };
 }
