@@ -20,6 +20,7 @@ import { PayrollListTable } from "@/features/payroll/components/PayrollListTable
 import { PayrollToolbar } from "@/features/payroll/components/PayrollToolbar";
 import { PayrollConfirmDialog } from "@/features/payroll/components/PayrollConfirmDialog";
 import { PayrollInsightsPanel } from "@/features/payroll/components/PayrollInsightsPanel";
+import { PayrollHistoryPanel } from "@/features/payroll/components/PayrollHistoryPanel";
 
 import {
   PayrollSearchParams,
@@ -210,6 +211,8 @@ export function PayrollPage() {
           </Button>
         </div>
       </div>
+
+      <PayrollHistoryPanel />
 
       <PayrollToolbar
         month={month}

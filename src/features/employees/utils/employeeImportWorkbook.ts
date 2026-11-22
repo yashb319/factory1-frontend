@@ -19,6 +19,8 @@ export interface SourceRow {
 
 export interface ExtractedSheet {
   columns: string[];
+  /** 0-based source column index for each entry in `columns`. */
+  columnIndexes: number[];
   rows: SourceRow[];
   blankRowNumbers: number[];
 }
@@ -350,7 +352,7 @@ export function extractSheetRows(
     rows.push({ rowNumber, values });
   });
 
-  return { columns, rows, blankRowNumbers };
+  return { columns, columnIndexes, rows, blankRowNumbers };
 }
 
 /** Auto-maps columns by header synonym; each target is used at most once. */
