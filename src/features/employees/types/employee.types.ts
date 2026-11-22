@@ -194,6 +194,7 @@ export interface EmployeeImportRowInput {
   reportingTo?: string | null;
   panNumber?: string | null;
   uan?: string | null;
+  pfAccountNumber?: string | null;
   taxRegime?: string | null;
   fatherName?: string | null;
   fatherDateOfBirth?: string | null;

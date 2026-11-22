@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { saveFile } from "@/features/import-export/utils/localExportFiles";
-import { toEmployeeReportParams } from "@/features/import-export/utils/importReportParams";
+import { toEmployeeImportHistoryParams } from "@/features/import-export/utils/importReportParams";
 import { Download, FileText, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -45,15 +45,43 @@ import {
   EmployeeImportPreviewResponse,
   EmployeeImportRowInput,
 } from "../types/employee.types";
+import {
+  autoMapColumns,
+  classifyNonEmployeeRow,
+  detectHeaderRowNumber,
+  extractSheetRows,
+  headerRowCandidates,
+  ImportRow,
+  mapSourceRow,
+  maskSensitiveFields,
+  readSheetMatrix,
+  readWorkbook,
+  SALARY_NOT_IN_FILE,
+  SALARY_TYPE_COLUMN_PREFIX,
+  SALARY_TYPE_FIXED_PREFIX,
+  SalarySelection,
+  salarySelectionComplete,
+  SourceRow,
+  suggestSheetName,
+  toEmployeeImportRowInput,
+  unsafeIdentifierFields,
+  VALID_SALARY_TYPES,
+} from "../utils/employeeImportWorkbook";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-type ImportRow = Record<string, unknown>;
 type ExistingCodeResolution = "SKIP" | "UPDATE";
 
+interface SkippedRow {
+  rowNumber: number;
+  reason: string;
+}
+
+// Salary Rate / Salary Type are chosen in the dedicated salary panel so they
+// can never be implicitly auto-mapped from a header name.
 const EMPLOYEE_TARGET_FIELDS: TargetField[] = [
   { label: "Employee Code", value: "employeeCode", required: true },
   { label: "Name", value: "name", required: true },
@@ -62,8 +90,6 @@ const EMPLOYEE_TARGET_FIELDS: TargetField[] = [
   { label: "Email", value: "email" },
   { label: "Designation", value: "designation" },
   { label: "Department", value: "department" },
-  { label: "Salary Rate", value: "salaryRate", required: true },
-  { label: "Salary Type", value: "salaryType", required: true },
   { label: "Joining Date", value: "joiningDate" },
   { label: "Status", value: "status" },
   { label: "Location", value: "location" },
@@ -81,6 +107,7 @@ const EMPLOYEE_TARGET_FIELDS: TargetField[] = [
   { label: "IFSC Code", value: "bankIfscCode" },
   { label: "PAN Number", value: "panNumber" },
   { label: "UAN", value: "uan" },
+  { label: "PF Account No", value: "pfAccountNumber" },
   { label: "Tax Regime", value: "taxRegime" },
   { label: "Father's Name", value: "fatherName" },
   { label: "Father's DOB", value: "fatherDateOfBirth" },
@@ -114,7 +141,6 @@ const REQUIRED_TARGET_FIELDS = EMPLOYEE_TARGET_FIELDS.filter(
   (field) => field.required
 ).map((field) => field.value);
 
-const VALID_SALARY_TYPES = ["HOURLY", "DAILY", "MONTHLY"];
 const VALID_STATUS = ["ACTIVE", "INACTIVE"];
 const VALID_GENDERS = ["MALE", "FEMALE", "OTHER"];
 const VALID_MARITAL_STATUSES = [
@@ -127,213 +153,24 @@ const VALID_MARITAL_STATUSES = [
 const VALID_EMPLOYMENT_BASIS = ["FULL_TIME", "PART_TIME", "CONTRACT"];
 const VALID_TAX_REGIMES = ["OLD", "NEW"];
 
-const COLUMN_SYNONYMS: Record<string, string[]> = {
-  employeeCode: [
-    "employee code",
-    "emp code",
-    "emp id",
-    "employee id",
-    "employee no",
-    "employee number",
-    "code",
-    "id",
-  ],
-  name: ["name", "employee name", "emp name", "full name", "worker name", "staff name"],
-  phone: ["phone"],
-  mobile: ["mobile", "mobile number", "contact", "contact number"],
-  email: ["email", "email id", "email address"],
-  designation: ["designation", "role", "job title", "position"],
-  department: ["department", "dept", "team"],
-  salaryRate: ["salary", "salary rate", "wage", "rate", "amount", "pay"],
-  salaryType: ["salary type", "pay type", "wage type"],
-  joiningDate: ["joining date", "join date", "date of joining", "date of join", "doj"],
-  status: ["status", "employee status"],
-  location: ["location", "site", "plant", "branch location"],
-  dateOfBirth: ["date of birth", "dob", "birth date"],
-  gender: ["gender", "sex"],
-  employmentBasis: ["emp type", "employment basis", "employment type", "type"],
-  reportingTo: ["reporting to", "manager", "reports to", "reporting manager"],
-  address: ["address", "current address"],
-  permanentAddress: ["permanent address", "permanent addr"],
-  maritalStatus: ["marital status", "maritalstatus"],
-  aadhaarNumber: ["aadhaar number", "aadhaar", "aadhar number", "aadhar"],
-  bankAccountNumber: ["account no", "account number", "bank account no", "bank account number"],
-  bankName: ["bank name"],
-  bankBranchName: ["branch name", "bank branch name", "bank branch"],
-  bankIfscCode: ["ifsc code", "ifsc"],
-  panNumber: ["pan number", "pan"],
-  uan: ["uan"],
-  taxRegime: ["tax regime"],
-  fatherName: ["father's name", "father name"],
-  fatherDateOfBirth: ["father's dob", "father dob", "father date of birth"],
-  fatherGender: ["father's gender", "father gender"],
-  motherName: ["mother's name", "mother name"],
-  motherDateOfBirth: ["mother's dob", "mother dob", "mother date of birth"],
-  motherGender: ["mother's gender", "mother gender"],
-  spouseName: ["spouse name"],
-  spouseDateOfBirth: ["spouse dob", "spouse date of birth"],
-  spouseGender: ["spouse gender"],
-  child1Name: ["child 1 name", "child1 name"],
-  child1DateOfBirth: ["child 1 dob", "child1 dob"],
-  child1Gender: ["child 1 gender", "child1 gender"],
-  child2Name: ["child 2 name", "child2 name"],
-  child2DateOfBirth: ["child 2 dob", "child2 dob"],
-  child2Gender: ["child 2 gender", "child2 gender"],
-  heightCm: ["height", "height cm", "height (cm)"],
-  weightKg: ["weight", "weight kg", "weight (kg)"],
-  smoker: ["smoker", "smoker / non-smoker", "smoking status"],
-  occupation: ["occupation"],
-  organizationName: ["organisation name", "organization name"],
-  annualIncome: ["annual income"],
-  education: ["education", "qualification"],
-  nomineeName: ["nominee name"],
-  nomineeDateOfBirth: ["nominee dob", "nominee date of birth"],
-  nomineeGender: ["nominee gender"],
-  nomineeRelationship: ["relationship with employee", "nominee relationship"],
-};
+const SALARY_MISSING_FOR_NEW =
+  "Salary Rate and Salary Type are required to create a new employee";
+const SALARY_KEPT_FOR_EXISTING =
+  "Salary not provided — the existing employee's salary is kept if updated";
 
-function normalizeColumnName(value: string) {
-  return value.trim().toLowerCase().replace(/[_-]/g, " ");
-}
-
-// Target fields whose value must reach the backend as YYYY-MM-DD, regardless
-// of how the source spreadsheet cell was authored/parsed.
-const DATE_TARGET_FIELDS = new Set([
-  "dateOfBirth",
-  "joiningDate",
-  "fatherDateOfBirth",
-  "motherDateOfBirth",
-  "spouseDateOfBirth",
-  "child1DateOfBirth",
-  "child2DateOfBirth",
-  "nomineeDateOfBirth",
-]);
-
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function excelSerialToIsoDate(serial: number): string | null {
-  if (!Number.isFinite(serial)) return null;
-  const parsed = XLSX.SSF.parse_date_code(serial);
-  if (!parsed) return null;
-  return `${parsed.y}-${pad2(parsed.m)}-${pad2(parsed.d)}`;
-}
-
-/**
- * Normalizes a raw import cell into a YYYY-MM-DD string. Handles:
- * - JS Date objects (e.g. from XLSX.read with cellDates: true)
- * - Excel date serial numbers (e.g. when cellDates wasn't applied, or the
- *   source data was copy-pasted as a plain number)
- * - Strings already in YYYY-MM-DD (optionally with a time suffix)
- * - Strings in DD/MM/YYYY or DD-MM-YYYY (common in Indian spreadsheets)
- * - Any other parseable date string, via a native Date fallback
- * Unparseable input is returned trimmed as-is so downstream validation can
- * flag it, rather than silently dropping the value.
- */
-function normalizeDateForImport(raw: unknown): string {
-  if (raw === null || raw === undefined) return "";
-
-  if (raw instanceof Date) {
-    if (Number.isNaN(raw.getTime())) return "";
-    // XLSX constructs date cells via Date.UTC(...), so read UTC parts to
-    // avoid the date shifting by a day in non-UTC local timezones.
-    return `${raw.getUTCFullYear()}-${pad2(raw.getUTCMonth() + 1)}-${pad2(raw.getUTCDate())}`;
-  }
-
-  if (typeof raw === "number") {
-    return excelSerialToIsoDate(raw) ?? "";
-  }
-
-  const text = String(raw).trim();
-  if (!text) return "";
-
-  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-
-  // Pure numeric string: some parsers stringify a numeric/date cell.
-  if (/^\d+(\.\d+)?$/.test(text)) {
-    const iso = excelSerialToIsoDate(Number(text));
-    if (iso) return iso;
-  }
-
-  const slashMatch = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-  if (slashMatch) {
-    const day = Number(slashMatch[1]);
-    const month = Number(slashMatch[2]);
-    const year = Number(slashMatch[3]);
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return `${year}-${pad2(month)}-${pad2(day)}`;
-    }
-  }
-
-  const parsedDate = new Date(text);
-  if (!Number.isNaN(parsedDate.getTime())) {
-    return `${parsedDate.getFullYear()}-${pad2(parsedDate.getMonth() + 1)}-${pad2(parsedDate.getDate())}`;
-  }
-
-  return text;
-}
-
-const PAYROLL_REQUIRED_FIELDS = ["salaryRate", "salaryType"];
+const EMPTY_SALARY: SalarySelection = { rateColumn: "", typeSource: "" };
 
 function targetFieldLabel(value: string): string {
+  if (value === "salaryRate") return "Salary Rate";
+  if (value === "salaryType") return "Salary Type";
   return (
     EMPLOYEE_TARGET_FIELDS.find((field) => field.value === value)?.label ??
     value
   );
 }
 
-function autoMapColumns(columns: string[]): ColumnMappingValue {
-  const mapping: ColumnMappingValue = {};
-
-  columns.forEach((column) => {
-    const normalizedColumn = normalizeColumnName(column);
-
-    const matchedTarget = Object.entries(COLUMN_SYNONYMS).find(([, synonyms]) =>
-      synonyms.some(
-        (synonym) => normalizeColumnName(synonym) === normalizedColumn
-      )
-    );
-
-    mapping[column] = matchedTarget ? matchedTarget[0] : "IGNORE";
-  });
-
-  return mapping;
-}
-
-function mapRowsToEmployeeFields(
-  rows: ImportRow[],
-  mapping: ColumnMappingValue
-): ImportRow[] {
-  return rows.map((row) => {
-    const mappedRow: ImportRow = {};
-
-    Object.entries(mapping).forEach(([sourceColumn, targetField]) => {
-      if (targetField === "IGNORE") return;
-      const raw = row[sourceColumn];
-      mappedRow[targetField] = DATE_TARGET_FIELDS.has(targetField)
-        ? normalizeDateForImport(raw)
-        : raw;
-    });
-
-    return mappedRow;
-  });
-}
-
-function value(value: unknown) {
-  return String(value ?? "").trim();
-}
-
-function smokerValue(value: unknown) {
-  const normalized = String(value ?? "").trim().toLowerCase();
-  if (["smoker", "yes", "y", "true", "1"].includes(normalized)) return "true";
-  if (
-    ["non-smoker", "non smoker", "no", "n", "false", "0"].includes(normalized)
-  ) {
-    return "false";
-  }
-  return normalized;
+function value(raw: unknown) {
+  return String(raw ?? "").trim();
 }
 
 function isExistingCodeConflictError(message: string) {
@@ -348,165 +185,122 @@ function isExistingCodeConflictError(message: string) {
   );
 }
 
-function toEmployeeImportRowInput(
-  row: ImportRow,
-  rowNumber: number
-): EmployeeImportRowInput {
-  return {
-    rowNumber,
-    employeeCode: value(row.employeeCode),
-    name: value(row.name),
-    phone: value(row.phone),
-    mobile: value(row.mobile),
-    email: value(row.email),
-    photoDataUrl: value(row.photoDataUrl),
-    designation: value(row.designation),
-    department: value(row.department),
-    salaryRate: value(row.salaryRate),
-    salaryType: value(row.salaryType),
-    joiningDate: value(row.joiningDate),
-    status: value(row.status),
-    locationRaw: value(row.location),
-    dateOfBirth: value(row.dateOfBirth),
-    gender: value(row.gender),
-    employmentBasis: value(row.employmentBasis),
-    reportingTo: value(row.reportingTo),
-    address: value(row.address),
-    permanentAddress: value(row.permanentAddress),
-    maritalStatus: value(row.maritalStatus),
-    aadhaarNumber: value(row.aadhaarNumber),
-    bankAccountNumber: value(row.bankAccountNumber),
-    bankName: value(row.bankName),
-    bankBranchName: value(row.bankBranchName),
-    bankIfscCode: value(row.bankIfscCode),
-    panNumber: value(row.panNumber),
-    uan: value(row.uan),
-    taxRegime: value(row.taxRegime),
-    fatherName: value(row.fatherName),
-    fatherDateOfBirth: value(row.fatherDateOfBirth),
-    fatherGender: value(row.fatherGender),
-    motherName: value(row.motherName),
-    motherDateOfBirth: value(row.motherDateOfBirth),
-    motherGender: value(row.motherGender),
-    spouseName: value(row.spouseName),
-    spouseDateOfBirth: value(row.spouseDateOfBirth),
-    spouseGender: value(row.spouseGender),
-    child1Name: value(row.child1Name),
-    child1DateOfBirth: value(row.child1DateOfBirth),
-    child1Gender: value(row.child1Gender),
-    child2Name: value(row.child2Name),
-    child2DateOfBirth: value(row.child2DateOfBirth),
-    child2Gender: value(row.child2Gender),
-    heightCm: value(row.heightCm),
-    weightKg: value(row.weightKg),
-    smoker: smokerValue(row.smoker),
-    occupation: value(row.occupation),
-    organizationName: value(row.organizationName),
-    annualIncome: value(row.annualIncome),
-    education: value(row.education),
-    nomineeName: value(row.nomineeName),
-    nomineeDateOfBirth: value(row.nomineeDateOfBirth),
-    nomineeGender: value(row.nomineeGender),
-    nomineeRelationship: value(row.nomineeRelationship),
-  };
+function isSalaryRequiredError(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    (normalized.includes("salary") || normalized.includes("salarytype") || normalized.includes("salaryrate")) &&
+    (normalized.includes("required") ||
+      normalized.includes("missing") ||
+      normalized.includes("must not be") ||
+      normalized.includes("blank"))
+  );
 }
 
-function validateRows(
-  mappedRows: ImportRow[],
-  reportingToResolved: boolean[] = []
-): ValidationRow[] {
-  return mappedRows.map((row, index) => {
-    const errors: string[] = [];
-    const warnings: string[] = [];
+interface ClientValidation {
+  rowNumber: number;
+  data: ImportRow;
+  errors: string[];
+  warnings: string[];
+  salaryMissing: boolean;
+}
 
-    const employeeCode = value(row.employeeCode);
-    const name = value(row.name);
-    const salaryRate = value(row.salaryRate);
-    const salaryType = value(row.salaryType);
-    const status = value(row.status);
-    const gender = value(row.gender);
-    const maritalStatus = value(row.maritalStatus);
-    const employmentBasis = value(row.employmentBasis);
-    const taxRegime = value(row.taxRegime);
-    const reportingTo = value(row.reportingTo);
-    const mobile = value(row.mobile);
-    const dateOfBirth = value(row.dateOfBirth);
-    const joiningDate = value(row.joiningDate);
+function validateRow(
+  row: ImportRow,
+  rowNumber: number,
+  reportingToResolved: boolean,
+  unsafeIdentifiers: string[]
+): ClientValidation {
+  const errors: string[] = [];
+  const warnings: string[] = [];
 
-    if (!employeeCode) errors.push("Employee Code is required");
-    if (!name) errors.push("Name is required");
-    if (!salaryRate) errors.push("Salary Rate is required");
-    if (!salaryType) errors.push("Salary Type is required");
+  const employeeCode = value(row.employeeCode);
+  const name = value(row.name);
+  const salaryRate = value(row.salaryRate);
+  const salaryType = value(row.salaryType);
+  const status = value(row.status);
+  const gender = value(row.gender);
+  const maritalStatus = value(row.maritalStatus);
+  const employmentBasis = value(row.employmentBasis);
+  const taxRegime = value(row.taxRegime);
+  const reportingTo = value(row.reportingTo);
+  const mobile = value(row.mobile);
+  const dateOfBirth = value(row.dateOfBirth);
+  const joiningDate = value(row.joiningDate);
 
-    if (salaryRate && Number.isNaN(Number(salaryRate))) {
-      errors.push("Salary Rate must be a number");
-    } else if (salaryRate && Number(salaryRate) < 0) {
-      errors.push("Salary Rate cannot be negative");
-    }
+  if (!employeeCode) errors.push("Employee Code is required");
+  if (!name) errors.push("Name is required");
 
-    if (salaryType && !VALID_SALARY_TYPES.includes(salaryType)) {
-      errors.push("Invalid Salary Type (use HOURLY, DAILY or MONTHLY)");
-    }
+  if (salaryRate && Number.isNaN(Number(salaryRate))) {
+    errors.push("Salary Rate must be a number");
+  } else if (salaryRate && Number(salaryRate) < 0) {
+    errors.push("Salary Rate cannot be negative");
+  }
 
-    if (status && !VALID_STATUS.includes(status)) {
-      errors.push("Invalid Status (use ACTIVE or INACTIVE)");
-    }
+  if (salaryRate && !salaryType) {
+    errors.push("Salary Type is required when a salary amount is provided");
+  }
 
-    if (gender && !VALID_GENDERS.includes(gender)) {
-      errors.push("Invalid Gender (use MALE, FEMALE or OTHER)");
-    }
+  if (salaryType && !VALID_SALARY_TYPES.includes(salaryType)) {
+    errors.push("Invalid Salary Type (use HOURLY, DAILY or MONTHLY)");
+  }
 
-    if (maritalStatus && !VALID_MARITAL_STATUSES.includes(maritalStatus)) {
-      errors.push(
-        "Invalid Marital Status (use SINGLE, MARRIED, DIVORCED, WIDOWED or OTHER)"
-      );
-    }
-
-    if (employmentBasis && !VALID_EMPLOYMENT_BASIS.includes(employmentBasis)) {
-      errors.push(
-        "Invalid Emp Type / Employment Basis (use FULL_TIME, PART_TIME or CONTRACT)"
-      );
-    }
-
-    if (taxRegime && !VALID_TAX_REGIMES.includes(taxRegime)) {
-      errors.push("Invalid Tax Regime (use OLD or NEW)");
-    }
-
-    if (
-      reportingTo &&
-      reportingTo.toUpperCase() === employeeCode.toUpperCase()
-    ) {
-      errors.push("Reporting To cannot be the employee's own code");
-    }
-
-    if (mobile && !/^\d{10}$/.test(mobile)) {
-      errors.push("Mobile must contain exactly 10 digits");
-    }
-
-    if (dateOfBirth && joiningDate && dateOfBirth >= joiningDate) {
-      errors.push("Date of Birth must be before Joining Date");
-    }
-
-    if (!row.phone) warnings.push("Phone missing");
-    if (!row.email) warnings.push("Email missing");
-    if (!row.department) warnings.push("Department missing");
-    if (!row.designation) warnings.push("Designation missing");
-    if (reportingTo && !reportingToResolved[index]) {
-      warnings.push(
-        "Reporting To could not be matched to an existing employee code — it will be sent as entered"
-      );
-    }
-
-    const statusValue: ValidationRow["status"] =
-      errors.length > 0 ? "ERROR" : warnings.length > 0 ? "WARNING" : "VALID";
-
-    return {
-      rowNumber: index + 2,
-      data: row,
-      status: statusValue,
-      messages: [...errors, ...warnings],
-    };
+  unsafeIdentifiers.forEach((field) => {
+    errors.push(
+      `${targetFieldLabel(field)} is stored as a number with more than 15 digits, so the spreadsheet has already rounded it. Format the column as Text in the source file and re-enter it.`
+    );
   });
+
+  if (status && !VALID_STATUS.includes(status)) {
+    errors.push("Invalid Status (use ACTIVE or INACTIVE)");
+  }
+
+  if (gender && !VALID_GENDERS.includes(gender)) {
+    errors.push("Invalid Gender (use MALE, FEMALE or OTHER)");
+  }
+
+  if (maritalStatus && !VALID_MARITAL_STATUSES.includes(maritalStatus)) {
+    errors.push(
+      "Invalid Marital Status (use SINGLE, MARRIED, DIVORCED, WIDOWED or OTHER)"
+    );
+  }
+
+  if (employmentBasis && !VALID_EMPLOYMENT_BASIS.includes(employmentBasis)) {
+    errors.push(
+      "Invalid Emp Type / Employment Basis (use FULL_TIME, PART_TIME or CONTRACT)"
+    );
+  }
+
+  if (taxRegime && !VALID_TAX_REGIMES.includes(taxRegime)) {
+    errors.push("Invalid Tax Regime (use OLD or NEW)");
+  }
+
+  if (reportingTo && reportingTo.toUpperCase() === employeeCode.toUpperCase()) {
+    errors.push("Reporting To cannot be the employee's own code");
+  }
+
+  if (mobile && !/^\d{10}$/.test(mobile)) {
+    errors.push("Mobile must contain exactly 10 digits");
+  }
+
+  if (dateOfBirth && joiningDate && dateOfBirth >= joiningDate) {
+    errors.push("Date of Birth must be before Joining Date");
+  }
+
+  if (reportingTo && !reportingToResolved) {
+    warnings.push(
+      "Reporting To could not be matched to an existing employee code — it will be sent as entered"
+    );
+  }
+
+  return {
+    rowNumber,
+    data: row,
+    errors,
+    warnings,
+    // Only "no salary amount" may be accepted for existing employees; a rate
+    // without a type is always an error (reported above).
+    salaryMissing: !salaryRate,
+  };
 }
 
 async function downloadErrorRows(rows: ValidationRow[]) {
@@ -517,6 +311,7 @@ async function downloadErrorRows(rows: ValidationRow[]) {
     return;
   }
 
+  // Data is already masked in ValidationRow; identifiers never leave in full.
   const data = errorRows.map((row) => ({
     rowNumber: row.rowNumber,
     ...row.data,
@@ -526,13 +321,10 @@ async function downloadErrorRows(rows: ValidationRow[]) {
   const worksheet = XLSX.utils.json_to_sheet(data);
   const csv = XLSX.utils.sheet_to_csv(worksheet);
 
-  const blob = new Blob([csv], {
-    type: "text/csv;charset=utf-8;",
-  });
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
 
   await saveFile({ fileName: "employee-import-errors.csv", content: blob });
 }
-
 
 async function downloadTemplate() {
   const template = getImportTemplateCsv("EMPLOYEE");
@@ -548,9 +340,14 @@ async function downloadTemplate() {
 
 export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   const [fileName, setFileName] = useState("");
-  const [rawRows, setRawRows] = useState<ImportRow[]>([]);
+  const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
+  const [sheetName, setSheetName] = useState("");
+  const [headerRowNumber, setHeaderRowNumber] = useState<number | null>(null);
+  const [columns, setColumns] = useState<string[]>([]);
+  const [sourceRows, setSourceRows] = useState<SourceRow[]>([]);
+  const [blankRowNumbers, setBlankRowNumbers] = useState<number[]>([]);
   const [mapping, setMapping] = useState<ColumnMappingValue>({});
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [salary, setSalary] = useState<SalarySelection>(EMPTY_SALARY);
   const [rowResolutions, setRowResolutions] = useState<
     Record<number, ExistingCodeResolution>
   >({});
@@ -567,6 +364,16 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   const router = useRouter();
   const logDataJob = useLogDataJob();
 
+  const sheetMatrix = useMemo(
+    () => (workbook && sheetName ? readSheetMatrix(workbook, sheetName) : null),
+    [workbook, sheetName]
+  );
+
+  const headerCandidates = useMemo(
+    () => (sheetMatrix ? headerRowCandidates(sheetMatrix) : []),
+    [sheetMatrix]
+  );
+
   const managerLookup = useMemo(() => {
     const codeSet = new Set<string>();
     const nameToCode = new Map<string, string>();
@@ -579,55 +386,97 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     return { codeSet, nameToCode };
   }, [orgEmployeesPage]);
 
-  const sourceColumns = useMemo(() => {
-    if (!rawRows.length) return [];
-    return Object.keys(rawRows[0]);
-  }, [rawRows]);
+  function clearPreview() {
+    setBackendPreview(null);
+    setRowResolutions({});
+  }
 
-  const mappedRows = useMemo(() => {
-    return mapRowsToEmployeeFields(rawRows, mapping);
-  }, [rawRows, mapping]);
+  function applyHeaderRow(
+    nextWorkbook: XLSX.WorkBook,
+    nextSheet: string,
+    nextHeaderRow: number | null
+  ) {
+    const matrix = readSheetMatrix(nextWorkbook, nextSheet);
+    const header = nextHeaderRow ?? detectHeaderRowNumber(matrix);
+    clearPreview();
+    setSalary(EMPTY_SALARY);
 
-  // Resolve "Reporting To" manager names to employee codes where possible,
-  // since the import contract expects reportingTo to be a manager's
-  // employeeCode. Rows already using a valid code are left untouched.
-  const { resolvedRows, reportingToResolved } = useMemo(() => {
-    const resolvedFlags: boolean[] = [];
+    if (header === null) {
+      setHeaderRowNumber(null);
+      setColumns([]);
+      setSourceRows([]);
+      setBlankRowNumbers([]);
+      setMapping({});
+      return;
+    }
 
-    const rows = mappedRows.map((row) => {
-      const rawReportingTo = value(row.reportingTo);
-      if (!rawReportingTo) {
-        resolvedFlags.push(true);
-        return row;
+    const extracted = extractSheetRows(matrix, header);
+    setHeaderRowNumber(header);
+    setColumns(extracted.columns);
+    setSourceRows(extracted.rows);
+    setBlankRowNumbers(extracted.blankRowNumbers);
+    setMapping(autoMapColumns(extracted.columns));
+  }
+
+  // Classify each source row once so totals / non-employee rows are reported
+  // (by row number only) and never sent to the server.
+  const { employeeRows, skippedRows } = useMemo(() => {
+    const employees: Array<SourceRow & { mapped: ImportRow }> = [];
+    const skipped: SkippedRow[] = [];
+
+    sourceRows.forEach((row) => {
+      const mapped = mapSourceRow(row.values, mapping, salary);
+      const reason = classifyNonEmployeeRow(row.values, mapped);
+      if (reason) {
+        skipped.push({ rowNumber: row.rowNumber, reason });
+      } else {
+        employees.push({ ...row, mapped });
       }
-
-      if (managerLookup.codeSet.has(rawReportingTo)) {
-        resolvedFlags.push(true);
-        return row;
-      }
-
-      const matchedCode = managerLookup.nameToCode.get(
-        rawReportingTo.toLowerCase()
-      );
-
-      if (matchedCode) {
-        resolvedFlags.push(true);
-        return { ...row, reportingTo: matchedCode };
-      }
-
-      resolvedFlags.push(false);
-      return row;
     });
 
-    return { resolvedRows: rows, reportingToResolved: resolvedFlags };
-  }, [mappedRows, managerLookup]);
+    return { employeeRows: employees, skippedRows: skipped };
+  }, [sourceRows, mapping, salary]);
+
+  // Resolve "Reporting To" manager names to employee codes where possible.
+  const resolvedRows = useMemo(
+    () =>
+      employeeRows.map((row) => {
+        const rawReportingTo = value(row.mapped.reportingTo);
+        if (!rawReportingTo || managerLookup.codeSet.has(rawReportingTo)) {
+          return { ...row, reportingToResolved: true };
+        }
+        const matchedCode = managerLookup.nameToCode.get(
+          rawReportingTo.toLowerCase()
+        );
+        if (matchedCode) {
+          return {
+            ...row,
+            mapped: { ...row.mapped, reportingTo: matchedCode },
+            reportingToResolved: true,
+          };
+        }
+        return { ...row, reportingToResolved: false };
+      }),
+    [employeeRows, managerLookup]
+  );
+
+  const missingRequiredMappings = useMemo(() => {
+    const mapped = Object.values(mapping);
+    return REQUIRED_TARGET_FIELDS.filter((field) => !mapped.includes(field));
+  }, [mapping]);
+
+  const salaryChosen = salarySelectionComplete(salary);
+  const readyForPreview =
+    resolvedRows.length > 0 && missingRequiredMappings.length === 0 && salaryChosen;
 
   const previewInputs = useMemo(
     () =>
-      resolvedRows.map((row, index) =>
-        toEmployeeImportRowInput(row, index + 2)
-      ),
-    [resolvedRows]
+      readyForPreview
+        ? resolvedRows.map((row) =>
+            toEmployeeImportRowInput(row.mapped, row.rowNumber)
+          )
+        : [],
+    [readyForPreview, resolvedRows]
   );
 
   useEffect(() => {
@@ -656,45 +505,57 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   }, [previewEmployeeImport, previewInputs]);
 
   const previewRowsByNumber = useMemo(
-    () =>
-      new Map(
-        (backendPreview?.rows ?? []).map((row) => [row.rowNumber, row])
-      ),
+    () => new Map((backendPreview?.rows ?? []).map((row) => [row.rowNumber, row])),
     [backendPreview]
   );
 
-  const validationRows = useMemo(
+  const validationRows: ValidationRow[] = useMemo(
     () =>
-      validateRows(resolvedRows, reportingToResolved).map((row) => {
-        const previewRow = previewRowsByNumber.get(row.rowNumber);
-        const serverErrors = previewRow?.errors ?? [];
-        const blockingServerErrors =
-          previewRow?.existingCodeOutcome === "CONFLICT"
-            ? serverErrors.filter(
-                (message) => !isExistingCodeConflictError(message)
-              )
-            : serverErrors;
-        const conflictMessage =
-          previewRow?.existingCodeOutcome === "CONFLICT"
-            ? "Employee Code already exists; choose Skip or Update before importing"
-            : undefined;
-        const messages = Array.from(
-          new Set([
-            ...row.messages,
-            ...serverErrors,
-            ...(conflictMessage ? [conflictMessage] : []),
-          ])
+      resolvedRows.map((row) => {
+        const client = validateRow(
+          row.mapped,
+          row.rowNumber,
+          row.reportingToResolved,
+          unsafeIdentifierFields(row.values, mapping)
         );
-        const status: ValidationRow["status"] =
-          row.status === "ERROR" || blockingServerErrors.length > 0
-            ? "ERROR"
-            : row.status === "WARNING" || conflictMessage
-              ? "WARNING"
-              : "VALID";
+        const previewRow = previewRowsByNumber.get(row.rowNumber);
+        const isExisting = previewRow?.existingCodeOutcome === "CONFLICT";
+        const serverErrors = previewRow?.errors ?? [];
 
-        return { ...row, messages, status };
+        // Existing employees may be updated without salary (the backend keeps
+        // the stored values); new employees must have both salary fields.
+        const blockingServerErrors = serverErrors.filter(
+          (message) =>
+            !(isExisting && isExistingCodeConflictError(message)) &&
+            !(isExisting && client.salaryMissing && isSalaryRequiredError(message))
+        );
+        const salaryMessages = client.salaryMissing
+          ? isExisting
+            ? { errors: [], warnings: [SALARY_KEPT_FOR_EXISTING] }
+            : { errors: [SALARY_MISSING_FOR_NEW], warnings: [] }
+          : { errors: [], warnings: [] };
+        const conflictMessage = isExisting
+          ? "Employee Code already exists; choose Skip or Update before importing"
+          : undefined;
+
+        const errors = [...client.errors, ...salaryMessages.errors, ...blockingServerErrors];
+        const warnings = [
+          ...client.warnings,
+          ...salaryMessages.warnings,
+          ...(conflictMessage ? [conflictMessage] : []),
+        ];
+
+        const status: ValidationRow["status"] =
+          errors.length > 0 ? "ERROR" : warnings.length > 0 ? "WARNING" : "VALID";
+
+        return {
+          rowNumber: row.rowNumber,
+          data: maskSensitiveFields(row.mapped),
+          status,
+          messages: Array.from(new Set([...errors, ...warnings])),
+        };
       }),
-    [previewRowsByNumber, reportingToResolved, resolvedRows]
+    [mapping, previewRowsByNumber, resolvedRows]
   );
 
   const conflictRows = useMemo(
@@ -708,47 +569,47 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     (row) => !rowResolutions[row.rowNumber]
   ).length;
 
-  const validation = useMemo(() => {
-    const mappedTargetFields = Object.values(mapping).filter(
-      (field) => field !== "IGNORE"
-    );
-
-    const missingRequiredMappings = REQUIRED_TARGET_FIELDS.filter(
-      (field) => !mappedTargetFields.includes(field)
-    );
-
-    const missingPayrollFields = PAYROLL_REQUIRED_FIELDS.filter((field) =>
-      missingRequiredMappings.includes(field)
-    );
-
-    return {
+  const counts = useMemo(
+    () => ({
       valid: validationRows.filter((row) => row.status === "VALID").length,
       warning: validationRows.filter((row) => row.status === "WARNING").length,
       invalid: validationRows.filter((row) => row.status === "ERROR").length,
-      missingRequiredMappings,
-      missingPayrollFields,
-    };
-  }, [validationRows, mapping]);
+    }),
+    [validationRows]
+  );
+
+  const importableRowNumbers = new Set(
+    validationRows
+      .filter((row) => row.status === "VALID" || row.status === "WARNING")
+      .map((row) => row.rowNumber)
+  );
+  const importableRows = resolvedRows.filter((row) =>
+    importableRowNumbers.has(row.rowNumber)
+  );
+
+  const ignoredColumns = columns.filter(
+    (column) =>
+      mapping[column] === "IGNORE" &&
+      column !== salary.rateColumn &&
+      salary.typeSource !== `${SALARY_TYPE_COLUMN_PREFIX}${column}`
+  );
 
   async function handleStartImport() {
-    if (!selectedFile) return;
     if (unresolvedConflictCount > 0) {
       toast.error("Choose Skip or Update for every employee code conflict.");
       return;
     }
 
     try {
-      const rows: EmployeeImportRowInput[] = importableRows.map((row) =>
-        ({
-          ...toEmployeeImportRowInput(row.data, row.rowNumber),
-          existingCodeResolution: rowResolutions[row.rowNumber],
-        })
-      );
+      const rows: EmployeeImportRowInput[] = importableRows.map((row) => ({
+        ...toEmployeeImportRowInput(row.mapped, row.rowNumber),
+        existingCodeResolution: rowResolutions[row.rowNumber],
+      }));
       const result = await importEmployees(rows).unwrap();
       const outcomeCounts = result.rows.reduce(
-        (counts, row) => {
-          counts[row.existingCodeOutcome] += 1;
-          return counts;
+        (acc, row) => {
+          acc[row.existingCodeOutcome] += 1;
+          return acc;
         },
         { CONFLICT: 0, SKIP: 0, UPDATE: 0, NEW: 0 }
       );
@@ -760,90 +621,70 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       return;
     }
 
-    const report = toEmployeeReportParams(validationRows);
-
     void logDataJob({
       operation: "IMPORT",
       module: "EMPLOYEE",
-      fileName: fileName || `employees-${new Date().toISOString().slice(0, 10)}.csv`,
-      status: validation.invalid > 0 ? "PARTIAL_SUCCESS" : "COMPLETED",
+      fileName: fileName || `employees-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      status: counts.invalid > 0 ? "PARTIAL_SUCCESS" : "COMPLETED",
       progress: 100,
       totalRows: validationRows.length,
       successRows: importableRows.length,
-      failedRows: validation.invalid,
-      parameters: {
-        reportType: "IMPORT_TEMPLATE",
-        module: "EMPLOYEE",
-        headers: report.headers,
-        validRows: report.validRows,
-        errorRows: report.errorRows,
-      },
+      failedRows: counts.invalid,
+      parameters: toEmployeeImportHistoryParams({
+        sheetName,
+        headerRowNumber: headerRowNumber ?? 1,
+        totalRows: validationRows.length,
+        importedRows: importableRows.length,
+        errorRowNumbers: validationRows
+          .filter((row) => row.status === "ERROR")
+          .map((row) => row.rowNumber),
+        skippedRowNumbers: skippedRows.map((row) => row.rowNumber),
+      }),
       notes: "Employee import completed after client and server-side preview validation.",
     });
-    toast.success("Import job started. Track progress in Import / Export History.");
 
     handleOpenChange(false);
-
     router.push("/import-export");
   }
 
   async function handleFileSelect(file: File) {
     try {
-      setFileName(file.name);
-      setSelectedFile(file);
-
       const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array" });
-
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-
-      const parsedRows = XLSX.utils.sheet_to_json<ImportRow>(worksheet, {
-        defval: "",
-      });
-
-      if (!parsedRows.length) {
-        toast.error("No rows found in file");
+      const nextWorkbook = readWorkbook(buffer);
+      if (!nextWorkbook.SheetNames.length) {
+        toast.error("No sheets found in file");
         return;
       }
+      const nextSheet = suggestSheetName(nextWorkbook);
 
-      const columns = Object.keys(parsedRows[0]);
-
-      const initialMapping = autoMapColumns(columns);
-      setRawRows(parsedRows);
-      setMapping(initialMapping);
-
-      setBackendPreview(null);
-      setRowResolutions({});
-      toast.success("File parsed. Running server validation.");
+      setFileName(file.name);
+      setWorkbook(nextWorkbook);
+      setSheetName(nextSheet);
+      applyHeaderRow(nextWorkbook, nextSheet, null);
+      toast.success("File parsed. Confirm the sheet, header row and salary columns.");
     } catch {
       toast.error("Failed to parse file");
-      setRawRows([]);
-      setFileName("");
-      setMapping({});
-      setSelectedFile(null);
-      setBackendPreview(null);
-      setRowResolutions({});
+      resetImport();
     }
   }
 
   function resetImport() {
-    setRawRows([]);
     setFileName("");
+    setWorkbook(null);
+    setSheetName("");
+    setHeaderRowNumber(null);
+    setColumns([]);
+    setSourceRows([]);
+    setBlankRowNumbers([]);
     setMapping({});
-    setSelectedFile(null);
-    setBackendPreview(null);
-    setRowResolutions({});
+    setSalary(EMPTY_SALARY);
+    clearPreview();
   }
 
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) resetImport();
     onOpenChange(nextOpen);
   }
-
-  const importableRows = validationRows.filter(
-    (row) => row.status === "VALID" || row.status === "WARNING"
-  );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -854,7 +695,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
 
         <div className="h-[calc(90vh-73px)] overflow-y-auto px-6 py-6">
           <div className="space-y-6">
-            {!rawRows.length && (
+            {!workbook && (
               <div className="space-y-3">
                 <div className="flex justify-end">
                   <Button variant="outline" onClick={downloadTemplate}>
@@ -863,33 +704,26 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                   </Button>
                 </div>
                 <FileDropzone onFileSelect={handleFileSelect} />
+                <p className="text-sm text-muted-foreground">
+                  This imports employee records only. Historical payroll
+                  earnings and deductions in the file are not imported here.
+                </p>
               </div>
             )}
 
-            {rawRows.length > 0 && (
+            {workbook && (
               <>
-                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                  <p className="font-medium">Reporting To mapping</p>
-                  <p className="mt-1">
-                    Enter the manager&apos;s <strong>Employee Code</strong> or
-                    their exact <strong>name</strong> as it appears in
-                    Factory1 — matching names are resolved to employee codes
-                    automatically. Unmatched values are still submitted as
-                    entered, and the server will report a clear error if no
-                    matching employee is found.
-                  </p>
-                </div>
-
                 <div className="flex flex-col justify-between gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center">
                   <div className="flex items-center gap-3">
                     <div className="rounded-lg bg-primary/10 p-2">
                       <FileText className="h-5 w-5 text-primary" />
                     </div>
-
                     <div>
                       <p className="font-medium">{fileName}</p>
                       <p className="text-sm text-muted-foreground">
-                        {rawRows.length} rows detected
+                        {resolvedRows.length} employee rows
+                        {skippedRows.length ? ` · ${skippedRows.length} non-employee rows skipped` : ""}
+                        {blankRowNumbers.length ? ` · ${blankRowNumbers.length} blank rows ignored` : ""}
                         {backendPreview?.invalidRows !== undefined
                           ? ` · ${backendPreview.invalidRows} server validation errors`
                           : ""}
@@ -903,32 +737,226 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                   </Button>
                 </div>
 
-                <ColumnMapping
-                  sourceColumns={sourceColumns}
-                  targetFields={EMPLOYEE_TARGET_FIELDS}
-                  value={mapping}
-                  onChange={(nextMapping) => {
-                    setMapping(nextMapping);
-                    setBackendPreview(null);
-                    setRowResolutions({});
-                  }}
-                />
+                <div className="grid gap-4 rounded-xl border bg-card p-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium" htmlFor="employee-import-sheet">
+                      Sheet
+                    </label>
+                    <Select
+                      value={sheetName}
+                      onValueChange={(nextSheet) => {
+                        setSheetName(nextSheet);
+                        applyHeaderRow(workbook, nextSheet, null);
+                      }}
+                    >
+                      <SelectTrigger id="employee-import-sheet" aria-label="Sheet">
+                        <SelectValue placeholder="Select sheet" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {workbook.SheetNames.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <FileValidationSummary
-                  valid={validation.valid}
-                  warning={validation.warning}
-                  invalid={validation.invalid}
-                />
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium" htmlFor="employee-import-header-row">
+                      Header row
+                    </label>
+                    <Select
+                      value={headerRowNumber ? String(headerRowNumber) : ""}
+                      onValueChange={(next) =>
+                        applyHeaderRow(workbook, sheetName, Number(next))
+                      }
+                    >
+                      <SelectTrigger id="employee-import-header-row" aria-label="Header row">
+                        <SelectValue placeholder="Select header row" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {headerCandidates.map((candidate) => (
+                          <SelectItem
+                            key={candidate.rowNumber}
+                            value={String(candidate.rowNumber)}
+                          >
+                            Row {candidate.rowNumber} ({candidate.filledCells} filled cells)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Rows below the header are read as employees. Row numbers
+                      below match the spreadsheet.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                  <p className="font-medium">Employee records only</p>
+                  <p className="mt-1">
+                    This import creates or updates employee records. Historical
+                    payroll earnings and deductions are <strong>not</strong>{" "}
+                    imported by this dialog, and existing employees keep any
+                    fields that are blank or not mapped. Reporting To accepts a
+                    manager&apos;s Employee Code or exact name in Factory1.
+                  </p>
+                </div>
+
+                {columns.length > 0 && (
+                  <ColumnMapping
+                    sourceColumns={columns}
+                    targetFields={EMPLOYEE_TARGET_FIELDS}
+                    value={mapping}
+                    onChange={(nextMapping) => {
+                      setMapping(nextMapping);
+                      clearPreview();
+                    }}
+                  />
+                )}
+
+                {columns.length > 0 && (
+                  <div className="space-y-3 rounded-xl border bg-card p-4">
+                    <div>
+                      <h3 className="text-sm font-semibold">Salary</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Choose which column supplies the salary amount and how
+                        the salary type is set. Factory1 never guesses salary
+                        amounts or types. If the file has no salary, choose
+                        &quot;Not in this file&quot;: existing employees can
+                        still be updated, but new employees cannot be created.
+                      </p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium" htmlFor="employee-import-salary-rate">
+                          Salary amount column *
+                        </label>
+                        <Select
+                          value={salary.rateColumn}
+                          onValueChange={(next) => {
+                            setSalary((current) => ({ ...current, rateColumn: next }));
+                            clearPreview();
+                          }}
+                        >
+                          <SelectTrigger id="employee-import-salary-rate" aria-label="Salary amount column">
+                            <SelectValue placeholder="Choose salary amount column" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={SALARY_NOT_IN_FILE}>Not in this file</SelectItem>
+                            {columns.map((column) => (
+                              <SelectItem key={column} value={column}>
+                                {column}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium" htmlFor="employee-import-salary-type">
+                          Salary type *
+                        </label>
+                        <Select
+                          value={salary.typeSource}
+                          onValueChange={(next) => {
+                            setSalary((current) => ({ ...current, typeSource: next }));
+                            clearPreview();
+                          }}
+                        >
+                          <SelectTrigger id="employee-import-salary-type" aria-label="Salary type">
+                            <SelectValue placeholder="Choose salary type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={SALARY_NOT_IN_FILE}>Not in this file</SelectItem>
+                            {VALID_SALARY_TYPES.map((type) => (
+                              <SelectItem key={type} value={`${SALARY_TYPE_FIXED_PREFIX}${type}`}>
+                                All rows: {type}
+                              </SelectItem>
+                            ))}
+                            {columns.map((column) => (
+                              <SelectItem
+                                key={column}
+                                value={`${SALARY_TYPE_COLUMN_PREFIX}${column}`}
+                              >
+                                From column: {column}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {ignoredColumns.length > 0 && (
+                  <div className="rounded-xl border p-4 text-sm">
+                    <p className="font-medium">
+                      {ignoredColumns.length} column{ignoredColumns.length === 1 ? "" : "s"} will not be imported
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {ignoredColumns.join(", ")}. Payroll figures (earnings,
+                      deductions, attendance) in these columns are not saved by
+                      this import.
+                    </p>
+                  </div>
+                )}
+
+                {skippedRows.length > 0 && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                    <p className="font-medium">
+                      {skippedRows.length} row{skippedRows.length === 1 ? "" : "s"} skipped
+                    </p>
+                    <ul className="mt-1 max-h-28 overflow-y-auto">
+                      {skippedRows.slice(0, 50).map((row) => (
+                        <li key={row.rowNumber}>
+                          Row {row.rowNumber}: {row.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {(missingRequiredMappings.length > 0 || !salaryChosen) && (
+                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                    <p className="text-sm font-medium text-destructive">
+                      Complete the mapping to validate
+                    </p>
+                    {missingRequiredMappings.length > 0 && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Please map:{" "}
+                        <span className="font-medium">
+                          {missingRequiredMappings.map(targetFieldLabel).join(", ")}
+                        </span>
+                      </p>
+                    )}
+                    {!salaryChosen && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Choose the salary amount column and salary type (or
+                        &quot;Not in this file&quot;).
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {readyForPreview && (
+                  <FileValidationSummary
+                    valid={counts.valid}
+                    warning={counts.warning}
+                    invalid={counts.invalid}
+                  />
+                )}
 
                 {conflictRows.length > 0 && (
                   <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
                     <div>
                       <p className="font-medium">
-                        {conflictRows.length} employee code conflict
+                        {conflictRows.length} existing employee
                         {conflictRows.length === 1 ? "" : "s"} found
                       </p>
                       <p className="mt-1 text-sm">
-                        Choose update or skip for every row. Import remains
+                        Choose update or skip for every row. Updates only change
+                        fields that have a value in this file. Import remains
                         disabled until all conflicts have an explicit decision.
                       </p>
                     </div>
@@ -949,9 +977,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                         <SelectValue placeholder="Apply a choice to all conflicts" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="SKIP">
-                          Skip existing employees
-                        </SelectItem>
+                        <SelectItem value="SKIP">Skip existing employees</SelectItem>
                         <SelectItem value="UPDATE">
                           Update existing employees from this file
                         </SelectItem>
@@ -959,15 +985,15 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                     </Select>
                     <div className="max-h-36 overflow-y-auto rounded-md border border-amber-200 bg-background">
                       {conflictRows.slice(0, 50).map((row) => {
-                        const clientRow = validationRows.find(
+                        const clientRow = resolvedRows.find(
                           (candidate) => candidate.rowNumber === row.rowNumber
                         );
                         const employeeCode =
                           row.resolvedEmployeeCode ||
                           row.employeeCode ||
-                          value(clientRow?.data.employeeCode);
+                          value(clientRow?.mapped.employeeCode);
                         const employeeName =
-                          row.employee?.name || value(clientRow?.data.name);
+                          row.employee?.name || value(clientRow?.mapped.name);
 
                         return (
                           <div
@@ -975,8 +1001,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                             className="grid gap-2 border-b px-3 py-2 text-sm last:border-b-0 sm:grid-cols-[1fr_220px] sm:items-center"
                           >
                             <span>
-                              Row {row.rowNumber}:{" "}
-                              <strong>{employeeCode}</strong>
+                              Row {row.rowNumber}: <strong>{employeeCode}</strong>
                               {employeeName ? ` — ${employeeName}` : ""}
                             </span>
                             <Select
@@ -984,8 +1009,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                               onValueChange={(nextValue) =>
                                 setRowResolutions((current) => ({
                                   ...current,
-                                  [row.rowNumber]:
-                                    nextValue as ExistingCodeResolution,
+                                  [row.rowNumber]: nextValue as ExistingCodeResolution,
                                 }))
                               }
                             >
@@ -993,12 +1017,8 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                                 <SelectValue placeholder="Decision required" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="SKIP">
-                                  Skip this employee
-                                </SelectItem>
-                                <SelectItem value="UPDATE">
-                                  Update this employee
-                                </SelectItem>
+                                <SelectItem value="SKIP">Skip this employee</SelectItem>
+                                <SelectItem value="UPDATE">Update this employee</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -1008,77 +1028,39 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                   </div>
                 )}
 
-                {validation.missingRequiredMappings.length > 0 && (
-                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-                    <p className="text-sm font-medium text-destructive">
-                      Missing required mappings
-                    </p>
-
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Please map these fields:{" "}
-                      <span className="font-medium">
-                        {validation.missingRequiredMappings
-                          .map(targetFieldLabel)
-                          .join(", ")}
-                      </span>
-                    </p>
-
-                    {validation.missingPayrollFields.length > 0 && (
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        <span className="font-medium text-destructive">
-                          Payroll classification is required:
-                        </span>{" "}
-                        your spreadsheet has no column for{" "}
-                        {validation.missingPayrollFields
-                          .map(targetFieldLabel)
-                          .join(", ")}
-                        . Add these as columns (or map existing ones) in your
-                        source file — Factory1 will not guess or default
-                        these values, so rows will fail to import until they
-                        are provided. Salary Type accepts{" "}
-                        {VALID_SALARY_TYPES.join(", ")}.
-                      </p>
-                    )}
+                {readyForPreview && (
+                  <div className="space-y-3">
+                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                      <div>
+                        <h3 className="text-sm font-semibold">Validation Preview</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Showing first 50 rows. Identity and bank numbers are
+                          masked.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        disabled={counts.invalid === 0}
+                        onClick={() => downloadErrorRows(validationRows)}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Error Rows
+                      </Button>
+                    </div>
+                    <FileValidationTable rows={validationRows} />
                   </div>
                 )}
 
-                <div className="space-y-3">
-                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-                    <div>
-                      <h3 className="text-sm font-semibold">
-                        Validation Preview
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Showing first 50 rows with row-level validation.
-                      </p>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      disabled={validation.invalid === 0}
-                      onClick={() => downloadErrorRows(validationRows)}
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Download Error Rows
-                    </Button>
-                  </div>
-
-                  <FileValidationTable rows={validationRows} />
-                </div>
-
                 <div className="sticky bottom-0 flex justify-end gap-2 border-t bg-background pt-5">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleOpenChange(false)}
-                  >
+                  <Button variant="outline" onClick={() => handleOpenChange(false)}>
                     Cancel
                   </Button>
-
                   <Button
                     disabled={
+                      !readyForPreview ||
                       importableRows.length === 0 ||
-                      validation.missingRequiredMappings.length > 0 ||
                       previewState.isLoading ||
+                      importState.isLoading ||
                       !backendPreview ||
                       unresolvedConflictCount > 0
                     }
