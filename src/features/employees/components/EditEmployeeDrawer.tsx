@@ -49,8 +49,10 @@ const defaultValues: EmployeeFormValues = {
   photoDataUrl: "",
   designation: "",
   department: "",
-  salaryRate: 0,
-  salaryType: "DAILY",
+  salaryConfigurationType: "UNCONFIGURED",
+  salaryRate: undefined,
+  salaryType: undefined,
+  salaryComponents: [],
   joiningDate: "",
   status: "ACTIVE",
   location: "",
@@ -122,8 +124,17 @@ export function EditEmployeeDrawer({ employee, open, onOpenChange }: Props) {
       photoDataUrl: employee.photoDataUrl ?? "",
       designation: employee.designation ?? "",
       department: employee.department ?? "",
-      salaryRate: Number(employee.salaryRate ?? 0),
-      salaryType: employee.salaryType,
+      salaryConfigurationType:
+        employee.salaryConfigurationType ??
+        (employee.salaryRate != null && employee.salaryType
+          ? "LEGACY"
+          : "UNCONFIGURED"),
+      salaryRate:
+        employee.salaryRate == null
+          ? undefined
+          : Number(employee.salaryRate),
+      salaryType: employee.salaryType ?? undefined,
+      salaryComponents: employee.salaryComponents ?? [],
       joiningDate: employee.joiningDate ?? "",
       status: employee.status,
       location: employee.location ?? "",

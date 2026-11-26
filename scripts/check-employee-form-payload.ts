@@ -13,6 +13,8 @@ import {
 
 const baseValues: EmployeeFormValues = {
   name: "Test Employee",
+  salaryConfigurationType: "LEGACY",
+  salaryComponents: [],
   salaryRate: 500,
   salaryType: "DAILY",
   status: "ACTIVE",

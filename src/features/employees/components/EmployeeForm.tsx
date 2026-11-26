@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Plus, Trash2, X } from "lucide-react";
 import {
   FieldPath,
   SubmitErrorHandler,
@@ -26,6 +26,7 @@ import { createDefaultStatutoryProfile } from "../utils/employeeStatutory";
 import { EmployeeStatutoryFields } from "./EmployeeStatutoryFields";
 import { EmployeeInsuranceFields } from "./EmployeeInsuranceFields";
 import { useRuntimePermissions } from "@/features/partner-saas/runtime/permissions";
+import type { SalaryComponentType } from "../types/employee.types";
 
 interface Props {
   form: UseFormReturn<EmployeeFormValues>;
@@ -57,6 +58,8 @@ const FIELD_SECTIONS: Partial<
   reportingToEmployeeId: "employee-company",
   salaryRate: "employee-company",
   salaryType: "employee-company",
+  salaryConfigurationType: "employee-company",
+  salaryComponents: "employee-company",
   status: "employee-company",
   bankAccountNumber: "employee-financial",
   bankBranchName: "employee-financial",
@@ -105,6 +108,8 @@ export function EmployeeForm({
   const photoDataUrl = form.watch("photoDataUrl");
   const dateOfBirth = form.watch("dateOfBirth");
   const joiningDate = form.watch("joiningDate");
+  const salaryConfigurationType = form.watch("salaryConfigurationType");
+  const salaryComponents = form.watch("salaryComponents") ?? [];
   const statutoryProfile =
     form.watch("statutoryProfile") ?? createDefaultStatutoryProfile();
   const photoInputRef = React.useRef<HTMLInputElement>(null);
@@ -456,47 +461,195 @@ export function EmployeeForm({
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Salary Rate *</label>
-          <Input
-            type="number"
-            min={0}
-            step="0.01"
-            placeholder="700"
-            {...form.register("salaryRate", {
-              valueAsNumber: true,
-            })}
-          />
-          {errors.salaryRate && (
-            <p className="text-xs text-destructive">
-              {errors.salaryRate.message}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Salary Type *</label>
+      <div className="space-y-3 rounded-xl border p-4">
+        <div className="space-y-1">
+          <label className="text-sm font-medium" htmlFor="salary-configuration">
+            Salary configuration
+          </label>
           <Select
-            value={form.watch("salaryType")}
+            value={salaryConfigurationType}
             onValueChange={(value) =>
               form.setValue(
-                "salaryType",
-                value as EmployeeFormValues["salaryType"],
-                { shouldValidate: true }
+                "salaryConfigurationType",
+                value as EmployeeFormValues["salaryConfigurationType"],
+                { shouldDirty: true, shouldValidate: true }
               )
             }
           >
-            <SelectTrigger>
+            <SelectTrigger id="salary-configuration">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="HOURLY">Hourly</SelectItem>
-              <SelectItem value="DAILY">Daily</SelectItem>
-              <SelectItem value="MONTHLY">Monthly</SelectItem>
+              <SelectItem value="UNCONFIGURED">Not configured</SelectItem>
+              <SelectItem value="LEGACY">Attendance-based salary</SelectItem>
+              <SelectItem value="COMPONENTS">Monthly components</SelectItem>
             </SelectContent>
           </Select>
+          <p className="text-xs text-muted-foreground">
+            Salary settings belong to this employee. Active employees without a
+            salary configuration cannot be included in payroll.
+          </p>
         </div>
+
+        {salaryConfigurationType === "LEGACY" ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Salary rate *</label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="700"
+                {...form.register("salaryRate", { valueAsNumber: true })}
+              />
+              {errors.salaryRate && (
+                <p className="text-xs text-destructive">
+                  {errors.salaryRate.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Salary type *</label>
+              <Select
+                value={form.watch("salaryType") ?? ""}
+                onValueChange={(value) =>
+                  form.setValue(
+                    "salaryType",
+                    value as EmployeeFormValues["salaryType"],
+                    { shouldDirty: true, shouldValidate: true }
+                  )
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="HOURLY">Hourly</SelectItem>
+                  <SelectItem value="DAILY">Daily</SelectItem>
+                  <SelectItem value="MONTHLY">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+              {errors.salaryType && (
+                <p className="text-xs text-destructive">
+                  {errors.salaryType.message}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {salaryConfigurationType === "COMPONENTS" ? (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Enter recurring monthly amounts. Choose each component&apos;s
+              classification explicitly; earnings, employee deductions and
+              employer contributions are handled separately in payroll.
+            </p>
+            {salaryComponents.map((component, index) => (
+              <div
+                key={index}
+                className="grid gap-3 rounded-md border p-3 sm:grid-cols-[1fr_1fr_150px_auto] sm:items-end"
+              >
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Component name *</label>
+                  <Input
+                    placeholder="Basic salary, HRA, PF, TDS…"
+                    {...form.register(`salaryComponents.${index}.name` as const)}
+                  />
+                  {errors.salaryComponents?.[index]?.name && (
+                    <p className="text-xs text-destructive">
+                      {errors.salaryComponents[index]?.name?.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Classification *</label>
+                  <Select
+                    value={component.type}
+                    onValueChange={(value) =>
+                      form.setValue(
+                        `salaryComponents.${index}.type`,
+                        value as SalaryComponentType,
+                        { shouldDirty: true, shouldValidate: true }
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EARNING">Earning</SelectItem>
+                      <SelectItem value="EMPLOYEE_DEDUCTION">
+                        Employee deduction
+                      </SelectItem>
+                      <SelectItem value="EMPLOYER_CONTRIBUTION">
+                        Employer contribution
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Monthly amount *</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    {...form.register(
+                      `salaryComponents.${index}.amount` as const,
+                      { valueAsNumber: true }
+                    )}
+                  />
+                  {errors.salaryComponents?.[index]?.amount && (
+                    <p className="text-xs text-destructive">
+                      {errors.salaryComponents[index]?.amount?.message}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label={`Remove ${component.name || "salary"} component`}
+                  onClick={() =>
+                    form.setValue(
+                      "salaryComponents",
+                      salaryComponents.filter((_, itemIndex) => itemIndex !== index),
+                      { shouldDirty: true, shouldValidate: true }
+                    )
+                  }
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            {errors.salaryComponents?.root?.message ||
+            typeof errors.salaryComponents?.message === "string" ? (
+              <p className="text-xs text-destructive">
+                {errors.salaryComponents.root?.message ??
+                  errors.salaryComponents.message}
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                form.setValue(
+                  "salaryComponents",
+                  [
+                    ...salaryComponents,
+                    { name: "", type: "EARNING", amount: 0 },
+                  ],
+                  { shouldDirty: true, shouldValidate: true }
+                )
+              }
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add salary component
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-2">

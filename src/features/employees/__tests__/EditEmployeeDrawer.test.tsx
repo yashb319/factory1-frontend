@@ -120,6 +120,43 @@ describe("EditEmployeeDrawer", () => {
     );
   });
 
+  it("saves per-employee component salary without converting it to a legacy rate", async () => {
+    const user = userEvent.setup();
+    const componentEmployee = {
+      ...employee,
+      salaryConfigurationType: "COMPONENTS",
+      salaryRate: null,
+      salaryType: null,
+      salaryComponents: [
+        { name: "Basic Salary", type: "EARNING", amount: 12000 },
+        { name: "Employee PF", type: "EMPLOYEE_DEDUCTION", amount: 500 },
+      ],
+    } as unknown as Employee;
+    render(
+      <EditEmployeeDrawer
+        employee={componentEmployee}
+        open
+        onOpenChange={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() => expect(mocks.updateEmployee).toHaveBeenCalledTimes(1));
+    expect(mocks.updateEmployee).toHaveBeenCalledWith({
+      id: "employee-1",
+      body: expect.objectContaining({
+        salaryConfigurationType: "COMPONENTS",
+        salaryRate: undefined,
+        salaryType: undefined,
+        salaryComponents: [
+          { name: "Basic Salary", type: "EARNING", amount: 12000 },
+          { name: "Employee PF", type: "EMPLOYEE_DEDUCTION", amount: 500 },
+        ],
+      }),
+    });
+  });
+
   it("reveals, reports, and focuses a hidden invalid field", async () => {
     const user = userEvent.setup();
     const invalidEmployee = {

@@ -7,6 +7,7 @@ import {
   classifyNonEmployeeRow,
   detectHeaderRowNumber,
   extractSheetRows,
+  mapSalaryFieldsForImport,
   mapSourceRow,
   maskSensitiveFields,
   readSheetMatrix,
@@ -14,6 +15,7 @@ import {
   SALARY_NOT_IN_FILE,
   SALARY_TYPE_COLUMN_PREFIX,
   SALARY_TYPE_FIXED_PREFIX,
+  SalarySelection,
   suggestSheetName,
   toEmployeeImportRowInput,
   unsafeIdentifierFields,
@@ -200,6 +202,118 @@ describe("employee import workbook parsing", () => {
 });
 
 describe("employee import payload and history", () => {
+  it("omits salary fields when no salary is mapped", () => {
+    const salaryFields = mapSalaryFieldsForImport(
+      { Basic: 12000 },
+      "PRESERVE",
+      { rateColumn: "", typeSource: "" },
+      []
+    );
+    const input = toEmployeeImportRowInput(
+      {
+        employeeCode: "T001",
+        name: "Alpha Tester",
+        ...salaryFields,
+      },
+      5
+    );
+
+    expect(input).toEqual({
+      rowNumber: 5,
+      employeeCode: "T001",
+      name: "Alpha Tester",
+    });
+    expect(input).not.toHaveProperty("salaryConfigurationType");
+    expect(input).not.toHaveProperty("salaryComponents");
+  });
+
+  it("maps a separate monthly component setup for each employee row", () => {
+    const mappings = [
+      { column: "Basic", name: "Basic Salary", type: "EARNING" as const },
+      { column: "HRA", name: "HRA", type: "EARNING" as const },
+      {
+        column: "Employee PF",
+        name: "PF",
+        type: "EMPLOYEE_DEDUCTION" as const,
+      },
+      {
+        column: "Employer PF",
+        name: "Employer PF",
+        type: "EMPLOYER_CONTRIBUTION" as const,
+      },
+    ];
+    const noLegacySalary: SalarySelection = {
+      rateColumn: "",
+      typeSource: "",
+    };
+    const first = toEmployeeImportRowInput(
+      {
+        employeeCode: "T001",
+        name: "Alpha Tester",
+        ...mapSalaryFieldsForImport(
+          {
+            Basic: 12000,
+            HRA: 3000,
+            "Employee PF": 500,
+            "Employer PF": 500,
+          },
+          "COMPONENTS",
+          noLegacySalary,
+          mappings
+        ),
+      },
+      5
+    );
+    const second = toEmployeeImportRowInput(
+      {
+        employeeCode: "T002",
+        name: "Beta Tester",
+        ...mapSalaryFieldsForImport(
+          { Basic: 9000, HRA: "", "Employee PF": 300, "Employer PF": "" },
+          "COMPONENTS",
+          noLegacySalary,
+          mappings
+        ),
+      },
+      6
+    );
+
+    expect(first.salaryComponents).toEqual([
+      { name: "Basic Salary", type: "EARNING", amount: 12000 },
+      { name: "HRA", type: "EARNING", amount: 3000 },
+      { name: "PF", type: "EMPLOYEE_DEDUCTION", amount: 500 },
+      {
+        name: "Employer PF",
+        type: "EMPLOYER_CONTRIBUTION",
+        amount: 500,
+      },
+    ]);
+    expect(second.salaryComponents).toEqual([
+      { name: "Basic Salary", type: "EARNING", amount: 9000 },
+      { name: "PF", type: "EMPLOYEE_DEDUCTION", amount: 300 },
+    ]);
+    expect(first.salaryConfigurationType).toBe("COMPONENTS");
+    expect(second.salaryConfigurationType).toBe("COMPONENTS");
+  });
+
+  it("maps legacy salary type explicitly without confusing it with components", () => {
+    const mapped = mapSalaryFieldsForImport(
+      { Rate: "700" },
+      "LEGACY",
+      {
+        rateColumn: "Rate",
+        typeSource: `${SALARY_TYPE_FIXED_PREFIX}DAILY`,
+      },
+      []
+    );
+
+    expect(mapped).toEqual({
+      salaryConfigurationType: "LEGACY",
+      salaryRate: "700",
+      salaryType: "DAILY",
+    });
+  });
+
   it("omits blank fields so updates do not clear existing values", () => {
     const input = toEmployeeImportRowInput(
       { employeeCode: "T001", name: "Alpha Tester", phone: "", pfAccountNumber: "PF/TEST/0001", location: "Unit 1" },

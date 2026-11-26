@@ -6,7 +6,7 @@ import type {
 import type { Employee } from "../types/employee.types";
 
 type EmployeeExportColumn = ExportColumn & {
-  value: Extract<keyof Employee, string>;
+  value: Exclude<Extract<keyof Employee, string>, "salaryComponents">;
 };
 
 export const EMPLOYEE_EXPORT_COLUMNS: EmployeeExportColumn[] = [

@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { saveFile } from "@/features/import-export/utils/localExportFiles";
 import { toEmployeeImportHistoryParams } from "@/features/import-export/utils/importReportParams";
-import { Download, FileText, RotateCcw } from "lucide-react";
+import { Download, FileText, Plus, RotateCcw, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +44,7 @@ import {
 import {
   EmployeeImportPreviewResponse,
   EmployeeImportRowInput,
+  SalaryComponentType,
 } from "../types/employee.types";
 import {
   autoMapColumns,
@@ -52,6 +53,7 @@ import {
   extractSheetRows,
   headerRowCandidates,
   ImportRow,
+  mapSalaryFieldsForImport,
   mapSourceRow,
   maskSensitiveFields,
   readSheetMatrix,
@@ -60,7 +62,8 @@ import {
   SALARY_TYPE_COLUMN_PREFIX,
   SALARY_TYPE_FIXED_PREFIX,
   SalarySelection,
-  salarySelectionComplete,
+  SalaryComponentColumnMapping,
+  SalaryImportMode,
   SourceRow,
   suggestSheetName,
   toEmployeeImportRowInput,
@@ -153,12 +156,12 @@ const VALID_MARITAL_STATUSES = [
 const VALID_EMPLOYMENT_BASIS = ["FULL_TIME", "PART_TIME", "CONTRACT"];
 const VALID_TAX_REGIMES = ["OLD", "NEW"];
 
-const SALARY_MISSING_FOR_NEW =
-  "Salary Rate and Salary Type are required to create a new employee";
-const SALARY_KEPT_FOR_EXISTING =
-  "Salary not provided — the existing employee's salary is kept if updated";
-
 const EMPTY_SALARY: SalarySelection = { rateColumn: "", typeSource: "" };
+const EMPTY_COMPONENT_MAPPING: SalaryComponentColumnMapping = {
+  column: "",
+  name: "",
+  type: "",
+};
 
 function targetFieldLabel(value: string): string {
   if (value === "salaryRate") return "Salary Rate";
@@ -185,30 +188,20 @@ function isExistingCodeConflictError(message: string) {
   );
 }
 
-function isSalaryRequiredError(message: string) {
-  const normalized = message.toLowerCase();
-  return (
-    (normalized.includes("salary") || normalized.includes("salarytype") || normalized.includes("salaryrate")) &&
-    (normalized.includes("required") ||
-      normalized.includes("missing") ||
-      normalized.includes("must not be") ||
-      normalized.includes("blank"))
-  );
-}
-
 interface ClientValidation {
   rowNumber: number;
   data: ImportRow;
   errors: string[];
   warnings: string[];
-  salaryMissing: boolean;
 }
 
 function validateRow(
   row: ImportRow,
+  sourceValues: ImportRow,
   rowNumber: number,
   reportingToResolved: boolean,
-  unsafeIdentifiers: string[]
+  unsafeIdentifiers: string[],
+  componentMappings: SalaryComponentColumnMapping[]
 ): ClientValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -217,6 +210,10 @@ function validateRow(
   const name = value(row.name);
   const salaryRate = value(row.salaryRate);
   const salaryType = value(row.salaryType);
+  const salaryConfigurationType = row.salaryConfigurationType;
+  const salaryComponents = Array.isArray(row.salaryComponents)
+    ? row.salaryComponents
+    : [];
   const status = value(row.status);
   const gender = value(row.gender);
   const maritalStatus = value(row.maritalStatus);
@@ -230,18 +227,40 @@ function validateRow(
   if (!employeeCode) errors.push("Employee Code is required");
   if (!name) errors.push("Name is required");
 
-  if (salaryRate && Number.isNaN(Number(salaryRate))) {
-    errors.push("Salary Rate must be a number");
-  } else if (salaryRate && Number(salaryRate) < 0) {
-    errors.push("Salary Rate cannot be negative");
+  if (salaryConfigurationType === "LEGACY") {
+    if (!salaryRate) {
+      errors.push("Salary amount is required for legacy salary");
+    } else if (Number.isNaN(Number(salaryRate))) {
+      errors.push("Salary Rate must be a number");
+    } else if (Number(salaryRate) < 0) {
+      errors.push("Salary Rate cannot be negative");
+    }
+
+    if (!salaryType) {
+      errors.push("Salary Type is required for legacy salary");
+    } else if (!VALID_SALARY_TYPES.includes(salaryType)) {
+      errors.push("Invalid Salary Type (use HOURLY, DAILY or MONTHLY)");
+    }
   }
 
-  if (salaryRate && !salaryType) {
-    errors.push("Salary Type is required when a salary amount is provided");
-  }
+  if (salaryConfigurationType === "COMPONENTS") {
+    if (!salaryComponents.length) {
+      errors.push("At least one recurring monthly salary component is required");
+    }
 
-  if (salaryType && !VALID_SALARY_TYPES.includes(salaryType)) {
-    errors.push("Invalid Salary Type (use HOURLY, DAILY or MONTHLY)");
+    componentMappings.forEach((component) => {
+      if (!component.column) return;
+      const rawAmount = value(sourceValues[component.column]);
+      if (!rawAmount) return;
+      const normalizedAmount = rawAmount
+        .replace(/^(rs\.?|inr|₹)\s*/i, "")
+        .replace(/,/g, "")
+        .replace(/\s+/g, "");
+      const amount = Number(normalizedAmount);
+      if (!Number.isFinite(amount) || amount < 0) {
+        errors.push(`${component.name || component.column} must be a non-negative number`);
+      }
+    });
   }
 
   unsafeIdentifiers.forEach((field) => {
@@ -292,15 +311,7 @@ function validateRow(
     );
   }
 
-  return {
-    rowNumber,
-    data: row,
-    errors,
-    warnings,
-    // Only "no salary amount" may be accepted for existing employees; a rate
-    // without a type is always an error (reported above).
-    salaryMissing: !salaryRate,
-  };
+  return { rowNumber, data: row, errors, warnings };
 }
 
 async function downloadErrorRows(rows: ValidationRow[]) {
@@ -348,6 +359,16 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   const [blankRowNumbers, setBlankRowNumbers] = useState<number[]>([]);
   const [mapping, setMapping] = useState<ColumnMappingValue>({});
   const [salary, setSalary] = useState<SalarySelection>(EMPTY_SALARY);
+  const [salaryMode, setSalaryMode] =
+    useState<SalaryImportMode>("PRESERVE");
+  const [rowSalaryModes, setRowSalaryModes] = useState<
+    Record<number, SalaryImportMode>
+  >({});
+  const [componentMappings, setComponentMappings] = useState<
+    SalaryComponentColumnMapping[]
+  >([]);
+  const [componentAmountsConfirmed, setComponentAmountsConfirmed] =
+    useState(false);
   const [rowResolutions, setRowResolutions] = useState<
     Record<number, ExistingCodeResolution>
   >({});
@@ -400,6 +421,10 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     const header = nextHeaderRow ?? detectHeaderRowNumber(matrix);
     clearPreview();
     setSalary(EMPTY_SALARY);
+    setSalaryMode("PRESERVE");
+    setRowSalaryModes({});
+    setComponentMappings([]);
+    setComponentAmountsConfirmed(false);
 
     if (header === null) {
       setHeaderRowNumber(null);
@@ -421,21 +446,39 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   // Classify each source row once so totals / non-employee rows are reported
   // (by row number only) and never sent to the server.
   const { employeeRows, skippedRows } = useMemo(() => {
-    const employees: Array<SourceRow & { mapped: ImportRow }> = [];
+    const employees: Array<
+      SourceRow & { mapped: ImportRow; salaryMode: SalaryImportMode }
+    > = [];
     const skipped: SkippedRow[] = [];
 
     sourceRows.forEach((row) => {
-      const mapped = mapSourceRow(row.values, mapping, salary);
+      const rowSalaryMode = rowSalaryModes[row.rowNumber] ?? salaryMode;
+      const mapped = {
+        ...mapSourceRow(row.values, mapping, EMPTY_SALARY),
+        ...mapSalaryFieldsForImport(
+          row.values,
+          rowSalaryMode,
+          salary,
+          componentMappings
+        ),
+      };
       const reason = classifyNonEmployeeRow(row.values, mapped);
       if (reason) {
         skipped.push({ rowNumber: row.rowNumber, reason });
       } else {
-        employees.push({ ...row, mapped });
+        employees.push({ ...row, mapped, salaryMode: rowSalaryMode });
       }
     });
 
     return { employeeRows: employees, skippedRows: skipped };
-  }, [sourceRows, mapping, salary]);
+  }, [
+    sourceRows,
+    mapping,
+    salary,
+    salaryMode,
+    rowSalaryModes,
+    componentMappings,
+  ]);
 
   // Resolve "Reporting To" manager names to employee codes where possible.
   const resolvedRows = useMemo(
@@ -465,7 +508,29 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     return REQUIRED_TARGET_FIELDS.filter((field) => !mapped.includes(field));
   }, [mapping]);
 
-  const salaryChosen = salarySelectionComplete(salary);
+  const usesLegacySalary = employeeRows.some(
+    (row) => row.salaryMode === "LEGACY"
+  );
+  const usesComponentSalary = employeeRows.some(
+    (row) => row.salaryMode === "COMPONENTS"
+  );
+  const componentMappingComplete =
+    componentMappings.length > 0 &&
+    componentMappings.every(
+      (component) =>
+        Boolean(component.column) &&
+        Boolean(component.name.trim()) &&
+        Boolean(component.type)
+    );
+  const legacySalaryMappingComplete =
+    Boolean(salary.rateColumn) &&
+    salary.rateColumn !== SALARY_NOT_IN_FILE &&
+    Boolean(salary.typeSource) &&
+    salary.typeSource !== SALARY_NOT_IN_FILE;
+  const salaryChosen =
+    (!usesLegacySalary || legacySalaryMappingComplete) &&
+    (!usesComponentSalary ||
+      (componentMappingComplete && componentAmountsConfirmed));
   const readyForPreview =
     resolvedRows.length > 0 && missingRequiredMappings.length === 0 && salaryChosen;
 
@@ -514,34 +579,33 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       resolvedRows.map((row) => {
         const client = validateRow(
           row.mapped,
+          row.values,
           row.rowNumber,
           row.reportingToResolved,
-          unsafeIdentifierFields(row.values, mapping)
+          unsafeIdentifierFields(row.values, mapping),
+          componentMappings
         );
         const previewRow = previewRowsByNumber.get(row.rowNumber);
         const isExisting = previewRow?.existingCodeOutcome === "CONFLICT";
         const serverErrors = previewRow?.errors ?? [];
 
-        // Existing employees may be updated without salary (the backend keeps
-        // the stored values); new employees must have both salary fields.
         const blockingServerErrors = serverErrors.filter(
-          (message) =>
-            !(isExisting && isExistingCodeConflictError(message)) &&
-            !(isExisting && client.salaryMissing && isSalaryRequiredError(message))
+          (message) => !(isExisting && isExistingCodeConflictError(message))
         );
-        const salaryMessages = client.salaryMissing
-          ? isExisting
-            ? { errors: [], warnings: [SALARY_KEPT_FOR_EXISTING] }
-            : { errors: [SALARY_MISSING_FOR_NEW], warnings: [] }
-          : { errors: [], warnings: [] };
+        const salaryWarnings =
+          row.salaryMode === "PRESERVE"
+            ? [
+                "Salary not mapped: new employees remain unconfigured and existing salary stays unchanged",
+              ]
+            : [];
         const conflictMessage = isExisting
           ? "Employee Code already exists; choose Skip or Update before importing"
           : undefined;
 
-        const errors = [...client.errors, ...salaryMessages.errors, ...blockingServerErrors];
+        const errors = [...client.errors, ...blockingServerErrors];
         const warnings = [
           ...client.warnings,
-          ...salaryMessages.warnings,
+          ...salaryWarnings,
           ...(conflictMessage ? [conflictMessage] : []),
         ];
 
@@ -555,7 +619,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
           messages: Array.from(new Set([...errors, ...warnings])),
         };
       }),
-    [mapping, previewRowsByNumber, resolvedRows]
+    [componentMappings, mapping, previewRowsByNumber, resolvedRows]
   );
 
   const conflictRows = useMemo(
@@ -591,7 +655,8 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     (column) =>
       mapping[column] === "IGNORE" &&
       column !== salary.rateColumn &&
-      salary.typeSource !== `${SALARY_TYPE_COLUMN_PREFIX}${column}`
+      salary.typeSource !== `${SALARY_TYPE_COLUMN_PREFIX}${column}` &&
+      !componentMappings.some((component) => component.column === column)
   );
 
   async function handleStartImport() {
@@ -601,10 +666,13 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     }
 
     try {
-      const rows: EmployeeImportRowInput[] = importableRows.map((row) => ({
-        ...toEmployeeImportRowInput(row.mapped, row.rowNumber),
-        existingCodeResolution: rowResolutions[row.rowNumber],
-      }));
+      const rows: EmployeeImportRowInput[] = importableRows.map((row) => {
+        const input = toEmployeeImportRowInput(row.mapped, row.rowNumber);
+        const resolution = rowResolutions[row.rowNumber];
+        return resolution
+          ? { ...input, existingCodeResolution: resolution }
+          : input;
+      });
       const result = await importEmployees(rows).unwrap();
       const outcomeCounts = result.rows.reduce(
         (acc, row) => {
@@ -661,7 +729,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       setWorkbook(nextWorkbook);
       setSheetName(nextSheet);
       applyHeaderRow(nextWorkbook, nextSheet, null);
-      toast.success("File parsed. Confirm the sheet, header row and salary columns.");
+      toast.success("File parsed. Confirm the sheet, header row and any salary mappings.");
     } catch {
       toast.error("Failed to parse file");
       resetImport();
@@ -678,6 +746,10 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     setBlankRowNumbers([]);
     setMapping({});
     setSalary(EMPTY_SALARY);
+    setSalaryMode("PRESERVE");
+    setRowSalaryModes({});
+    setComponentMappings([]);
+    setComponentAmountsConfirmed(false);
     clearPreview();
   }
 
@@ -817,76 +889,370 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                 )}
 
                 {columns.length > 0 && (
-                  <div className="space-y-3 rounded-xl border bg-card p-4">
-                    <div>
-                      <h3 className="text-sm font-semibold">Salary</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Choose which column supplies the salary amount and how
-                        the salary type is set. Factory1 never guesses salary
-                        amounts or types. If the file has no salary, choose
-                        &quot;Not in this file&quot;: existing employees can
-                        still be updated, but new employees cannot be created.
-                      </p>
-                    </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium" htmlFor="employee-import-salary-rate">
-                          Salary amount column *
+                    <div className="space-y-3 rounded-xl border bg-card p-4">
+                      <div>
+                        <h3 className="text-sm font-semibold">
+                          Salary configuration (optional)
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Leave salary unchanged to create new employees as
+                          unconfigured and preserve existing employees&apos;
+                          salary. Active unconfigured employees must be configured
+                          before payroll. Salary mappings are never guessed.
+                        </p>
+                      </div>
+                      <div className="max-w-md space-y-1">
+                        <label className="text-sm font-medium" htmlFor="employee-import-salary-mode">
+                          Default salary choice for rows
                         </label>
                         <Select
-                          value={salary.rateColumn}
+                          value={salaryMode}
                           onValueChange={(next) => {
-                            setSalary((current) => ({ ...current, rateColumn: next }));
+                            setSalaryMode(next as SalaryImportMode);
+                            setComponentAmountsConfirmed(false);
                             clearPreview();
                           }}
                         >
-                          <SelectTrigger id="employee-import-salary-rate" aria-label="Salary amount column">
-                            <SelectValue placeholder="Choose salary amount column" />
+                          <SelectTrigger
+                            id="employee-import-salary-mode"
+                            aria-label="Default salary choice for rows"
+                          >
+                            <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value={SALARY_NOT_IN_FILE}>Not in this file</SelectItem>
-                            {columns.map((column) => (
-                              <SelectItem key={column} value={column}>
-                                {column}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="PRESERVE">
+                              No salary change / create unconfigured
+                            </SelectItem>
+                            <SelectItem value="LEGACY">
+                              Attendance-based salary
+                            </SelectItem>
+                            <SelectItem value="COMPONENTS">
+                              Monthly salary components
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium" htmlFor="employee-import-salary-type">
-                          Salary type *
-                        </label>
-                        <Select
-                          value={salary.typeSource}
-                          onValueChange={(next) => {
-                            setSalary((current) => ({ ...current, typeSource: next }));
-                            clearPreview();
-                          }}
-                        >
-                          <SelectTrigger id="employee-import-salary-type" aria-label="Salary type">
-                            <SelectValue placeholder="Choose salary type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={SALARY_NOT_IN_FILE}>Not in this file</SelectItem>
-                            {VALID_SALARY_TYPES.map((type) => (
-                              <SelectItem key={type} value={`${SALARY_TYPE_FIXED_PREFIX}${type}`}>
-                                All rows: {type}
-                              </SelectItem>
-                            ))}
-                            {columns.map((column) => (
-                              <SelectItem
-                                key={column}
-                                value={`${SALARY_TYPE_COLUMN_PREFIX}${column}`}
+
+                      {usesLegacySalary ? (
+                        <div className="grid gap-4 rounded-md border p-3 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <label
+                              className="text-sm font-medium"
+                              htmlFor="employee-import-salary-rate"
+                            >
+                              Legacy salary amount column *
+                            </label>
+                            <Select
+                              value={salary.rateColumn}
+                              onValueChange={(next) => {
+                                setSalary((current) => ({
+                                  ...current,
+                                  rateColumn: next,
+                                }));
+                                clearPreview();
+                              }}
+                            >
+                              <SelectTrigger
+                                id="employee-import-salary-rate"
+                                aria-label="Legacy salary amount column"
                               >
-                                From column: {column}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                                <SelectValue placeholder="Choose amount column" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={SALARY_NOT_IN_FILE}>
+                                  Not in this file
+                                </SelectItem>
+                                {columns.map((column) => (
+                                  <SelectItem key={column} value={column}>
+                                    {column}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <label
+                              className="text-sm font-medium"
+                              htmlFor="employee-import-salary-type"
+                            >
+                              Legacy salary type *
+                            </label>
+                            <Select
+                              value={salary.typeSource}
+                              onValueChange={(next) => {
+                                setSalary((current) => ({
+                                  ...current,
+                                  typeSource: next,
+                                }));
+                                clearPreview();
+                              }}
+                            >
+                              <SelectTrigger
+                                id="employee-import-salary-type"
+                                aria-label="Legacy salary type"
+                              >
+                                <SelectValue placeholder="Choose salary type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={SALARY_NOT_IN_FILE}>
+                                  Not in this file
+                                </SelectItem>
+                                {VALID_SALARY_TYPES.map((type) => (
+                                  <SelectItem
+                                    key={type}
+                                    value={`${SALARY_TYPE_FIXED_PREFIX}${type}`}
+                                  >
+                                    All rows: {type}
+                                  </SelectItem>
+                                ))}
+                                {columns.map((column) => (
+                                  <SelectItem
+                                    key={column}
+                                    value={`${SALARY_TYPE_COLUMN_PREFIX}${column}`}
+                                  >
+                                    From column: {column}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {usesComponentSalary ? (
+                        <div className="space-y-3 rounded-md border p-3">
+                          <div>
+                            <p className="text-sm font-medium">
+                              Map recurring monthly components
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Choose a source column, component name and
+                              classification for each amount. Blank cells are
+                              omitted per employee; historical payroll rows are
+                              never converted automatically.
+                            </p>
+                          </div>
+                          {componentMappings.map((component, index) => (
+                            <div
+                              key={index}
+                              className="grid gap-3 rounded-md border p-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end"
+                            >
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium">
+                                  Amount column *
+                                </label>
+                                <Select
+                                  value={component.column}
+                                  onValueChange={(column) => {
+                                    setComponentMappings((current) =>
+                                      current.map((item, itemIndex) =>
+                                        itemIndex === index
+                                          ? { ...item, column }
+                                          : item
+                                      )
+                                    );
+                                    setComponentAmountsConfirmed(false);
+                                    clearPreview();
+                                  }}
+                                >
+                                  <SelectTrigger aria-label={`Component ${index + 1} amount column`}>
+                                    <SelectValue placeholder="Choose column" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {columns.map((column) => (
+                                      <SelectItem key={column} value={column}>
+                                        {column}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <label
+                                  className="text-xs font-medium"
+                                  htmlFor={`employee-import-component-name-${index}`}
+                                >
+                                  Component name *
+                                </label>
+                                <input
+                                  id={`employee-import-component-name-${index}`}
+                                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                                  placeholder="Basic salary, HRA, TDS…"
+                                  value={component.name}
+                                  onChange={(event) => {
+                                    setComponentMappings((current) =>
+                                      current.map((item, itemIndex) =>
+                                        itemIndex === index
+                                          ? { ...item, name: event.target.value }
+                                          : item
+                                      )
+                                    );
+                                    setComponentAmountsConfirmed(false);
+                                    clearPreview();
+                                  }}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium">
+                                  Classification *
+                                </label>
+                                <Select
+                                  value={component.type}
+                                  onValueChange={(type) => {
+                                    setComponentMappings((current) =>
+                                      current.map((item, itemIndex) =>
+                                        itemIndex === index
+                                          ? {
+                                              ...item,
+                                              type: type as SalaryComponentType,
+                                            }
+                                          : item
+                                      )
+                                    );
+                                    setComponentAmountsConfirmed(false);
+                                    clearPreview();
+                                  }}
+                                >
+                                  <SelectTrigger aria-label={`Component ${index + 1} classification`}>
+                                    <SelectValue placeholder="Choose classification" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="EARNING">Earning</SelectItem>
+                                    <SelectItem value="EMPLOYEE_DEDUCTION">
+                                      Employee deduction
+                                    </SelectItem>
+                                    <SelectItem value="EMPLOYER_CONTRIBUTION">
+                                      Employer contribution
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                aria-label={`Remove component mapping ${index + 1}`}
+                                onClick={() => {
+                                  setComponentMappings((current) =>
+                                    current.filter((_, itemIndex) => itemIndex !== index)
+                                  );
+                                  setComponentAmountsConfirmed(false);
+                                  clearPreview();
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setComponentMappings((current) => [
+                                ...current,
+                                { ...EMPTY_COMPONENT_MAPPING },
+                              ]);
+                              setComponentAmountsConfirmed(false);
+                              clearPreview();
+                            }}
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add component mapping
+                          </Button>
+                          <label className="flex items-start gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              className="mt-1"
+                              checked={componentAmountsConfirmed}
+                              onChange={(event) => {
+                                setComponentAmountsConfirmed(event.target.checked);
+                                clearPreview();
+                              }}
+                            />
+                            <span>
+                              I confirm these columns contain recurring monthly
+                              compensation for the selected employees, not
+                              one-month &quot;Actual&quot; payments or historical
+                              payroll values.
+                            </span>
+                          </label>
+                        </div>
+                      ) : null}
+
+                      <details className="rounded-md border p-3">
+                        <summary className="cursor-pointer text-sm font-medium">
+                          Choose salary configuration per employee (
+                          {resolvedRows.length} rows)
+                        </summary>
+                        <p className="my-2 text-xs text-muted-foreground">
+                          Selecting monthly components confirms that employee&apos;s
+                          mapped amounts are recurring monthly values.
+                        </p>
+                        <div className="max-h-64 space-y-2 overflow-y-auto">
+                          {resolvedRows.map((row) => {
+                            const code = value(row.mapped.employeeCode);
+                            const name = value(row.mapped.name);
+                            return (
+                              <div
+                                key={row.rowNumber}
+                                className="grid gap-2 border-t pt-2 text-sm sm:grid-cols-[1fr_220px] sm:items-center"
+                              >
+                                <span>
+                                  Row {row.rowNumber}: {code}
+                                  {name ? ` — ${name}` : ""}
+                                </span>
+                                <Select
+                                  value={rowSalaryModes[row.rowNumber] ?? "DEFAULT"}
+                                  onValueChange={(next) => {
+                                    setRowSalaryModes((current) => {
+                                      if (next === "DEFAULT") {
+                                        const nextModes = { ...current };
+                                        delete nextModes[row.rowNumber];
+                                        return nextModes;
+                                      }
+                                      return {
+                                        ...current,
+                                        [row.rowNumber]: next as SalaryImportMode,
+                                      };
+                                    });
+                                    setComponentAmountsConfirmed(false);
+                                    clearPreview();
+                                  }}
+                                >
+                                  <SelectTrigger
+                                    className="h-8"
+                                    aria-label={`Salary configuration for row ${row.rowNumber}`}
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="DEFAULT">
+                                      Use default (
+                                      {salaryMode === "PRESERVE"
+                                        ? "no salary change"
+                                        : salaryMode === "LEGACY"
+                                          ? "legacy"
+                                          : "components"}
+                                      )
+                                    </SelectItem>
+                                    <SelectItem value="PRESERVE">
+                                      No salary change / unconfigured
+                                    </SelectItem>
+                                    <SelectItem value="LEGACY">
+                                      Attendance-based salary
+                                    </SelectItem>
+                                    <SelectItem value="COMPONENTS">
+                                      Monthly components
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </details>
                     </div>
-                  </div>
                 )}
 
                 {ignoredColumns.length > 0 && (
@@ -931,10 +1297,28 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                       </p>
                     )}
                     {!salaryChosen && (
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Choose the salary amount column and salary type (or
-                        &quot;Not in this file&quot;).
-                      </p>
+                      <div className="mt-1 space-y-1 text-sm text-muted-foreground">
+                        {usesLegacySalary && !legacySalaryMappingComplete ? (
+                          <p>
+                            Choose a salary amount column and salary type for
+                            each row using legacy salary.
+                          </p>
+                        ) : null}
+                        {usesComponentSalary && !componentMappingComplete ? (
+                          <p>
+                            Complete every component&apos;s amount column, name
+                            and classification.
+                          </p>
+                        ) : null}
+                        {usesComponentSalary &&
+                        componentMappingComplete &&
+                        !componentAmountsConfirmed ? (
+                          <p>
+                            Confirm that component columns are recurring monthly
+                            amounts, not historical Actual payments.
+                          </p>
+                        ) : null}
+                      </div>
                     )}
                   </div>
                 )}

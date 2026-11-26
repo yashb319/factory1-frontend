@@ -29,6 +29,7 @@ import {
   createDefaultStatutoryProfile,
   normalizeStatutoryProfile,
 } from "../utils/employeeStatutory";
+import { buildEmployeeSalaryRequest } from "../utils/employeeFormPayload";
 
 interface Props {
   open: boolean;
@@ -43,8 +44,10 @@ const defaultValues: EmployeeFormValues = {
   photoDataUrl: "",
   designation: "",
   department: "",
-  salaryRate: 0,
-  salaryType: "DAILY",
+  salaryConfigurationType: "UNCONFIGURED",
+  salaryRate: undefined,
+  salaryType: undefined,
+  salaryComponents: [],
   joiningDate: "",
   status: "ACTIVE",
   location: "",
@@ -108,6 +111,7 @@ export function AddEmployeeDrawer({ open, onOpenChange }: Props) {
     try {
       await createEmployee({
         ...employeeValues,
+        ...buildEmployeeSalaryRequest(values),
         phone: values.phone || undefined,
         email: values.email || undefined,
         photoDataUrl: values.photoDataUrl || undefined,
