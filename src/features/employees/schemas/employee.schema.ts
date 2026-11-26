@@ -47,9 +47,25 @@ export const employeeFormSchema = z
     designation: z.string().optional(),
     department: z.string().optional(),
 
-    salaryRate: z.number().min(0, "Salary must be 0 or more"),
-
-    salaryType: z.enum(["HOURLY", "DAILY", "MONTHLY"]),
+    salaryConfigurationType: z.enum([
+      "UNCONFIGURED",
+      "LEGACY",
+      "COMPONENTS",
+    ]),
+    salaryRate: z.number().min(0, "Salary must be 0 or more").optional(),
+    salaryType: z.enum(["HOURLY", "DAILY", "MONTHLY"]).optional(),
+    salaryComponents: z
+      .array(
+        z.object({
+          name: z.string().trim().min(1, "Component name is required"),
+          type: z.enum([
+            "EARNING",
+            "EMPLOYEE_DEDUCTION",
+            "EMPLOYER_CONTRIBUTION",
+          ]),
+          amount: z.number().min(0, "Amount cannot be negative"),
+        })
+      ),
 
     joiningDate: z.string().optional(),
     status: z.enum(["ACTIVE", "INACTIVE"]),
@@ -103,6 +119,34 @@ export const employeeFormSchema = z
     statutoryProfile: employeeStatutoryProfileSchema.optional(),
   })
   .superRefine((values, context) => {
+    if (values.salaryConfigurationType === "LEGACY") {
+      if (values.salaryRate === undefined) {
+        context.addIssue({
+          code: "custom",
+          path: ["salaryRate"],
+          message: "Salary amount is required for legacy salary",
+        });
+      }
+      if (!values.salaryType) {
+        context.addIssue({
+          code: "custom",
+          path: ["salaryType"],
+          message: "Salary type is required for legacy salary",
+        });
+      }
+    }
+
+    if (
+      values.salaryConfigurationType === "COMPONENTS" &&
+      values.salaryComponents.length === 0
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["salaryComponents"],
+        message: "Add at least one salary component",
+      });
+    }
+
     if (
       values.dateOfBirth &&
       values.joiningDate &&

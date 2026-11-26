@@ -1,5 +1,6 @@
 import type { EmployeeFormValues } from "../schemas/employee.schema";
 import type {
+  CreateEmployeeRequest,
   EmployeeStatutoryProfileRequest,
   UpdateEmployeeRequest,
 } from "../types/employee.types";
@@ -12,15 +13,60 @@ export class EmployeeStatutorySaveError extends Error {
   }
 }
 
+export function buildEmployeeSalaryRequest(
+  values: EmployeeFormValues
+): Pick<
+  CreateEmployeeRequest,
+  "salaryConfigurationType" | "salaryRate" | "salaryType" | "salaryComponents"
+> {
+  if (values.salaryConfigurationType === "LEGACY") {
+    return {
+      salaryConfigurationType: "LEGACY",
+      salaryRate: values.salaryRate,
+      salaryType: values.salaryType,
+      salaryComponents: [],
+    };
+  }
+
+  if (values.salaryConfigurationType === "COMPONENTS") {
+    return {
+      salaryConfigurationType: "COMPONENTS",
+      salaryRate: undefined,
+      salaryType: undefined,
+      salaryComponents: values.salaryComponents,
+    };
+  }
+
+  return {
+    salaryConfigurationType: "UNCONFIGURED",
+    salaryRate: undefined,
+    salaryType: undefined,
+    salaryComponents: [],
+  };
+}
+
 export function buildEmployeeUpdateRequest(
   values: EmployeeFormValues
 ): UpdateEmployeeRequest {
-  const { code, statutoryProfile, ...employeeValues } = values;
+  const {
+    code,
+    statutoryProfile,
+    salaryConfigurationType,
+    salaryRate,
+    salaryType,
+    salaryComponents,
+    ...employeeValues
+  } = values;
   void code;
   void statutoryProfile;
+  void salaryConfigurationType;
+  void salaryRate;
+  void salaryType;
+  void salaryComponents;
 
   return {
     ...employeeValues,
+    ...buildEmployeeSalaryRequest(values),
     phone: values.phone || undefined,
     email: values.email || undefined,
     photoDataUrl: values.photoDataUrl?.trim() || "",

@@ -1,5 +1,17 @@
 export type EmployeeStatus = "ACTIVE" | "INACTIVE";
 export type SalaryType = "HOURLY" | "DAILY" | "MONTHLY";
+export type SalaryConfigurationType = "UNCONFIGURED" | "LEGACY" | "COMPONENTS";
+export type SalaryComponentType =
+  | "EARNING"
+  | "EMPLOYEE_DEDUCTION"
+  | "EMPLOYER_CONTRIBUTION";
+
+export interface SalaryComponent {
+  name: string;
+  type: SalaryComponentType;
+  amount: number;
+}
+
 export type Gender = "MALE" | "FEMALE" | "OTHER";
 export type MaritalStatus = "SINGLE" | "MARRIED" | "DIVORCED" | "WIDOWED" | "OTHER";
 export type EmploymentBasis = "FULL_TIME" | "PART_TIME" | "CONTRACT";
@@ -42,8 +54,10 @@ export interface Employee extends EmployeeInsuranceDetails {
   photoDataUrl?: string;
   designation?: string;
   department?: string;
-  salaryRate: number;
-  salaryType: SalaryType;
+  salaryConfigurationType?: SalaryConfigurationType;
+  salaryComponents?: SalaryComponent[];
+  salaryRate?: number | null;
+  salaryType?: SalaryType | null;
   joiningDate?: string;
   status: EmployeeStatus;
   accountActivated?: boolean;
@@ -122,8 +136,10 @@ export interface CreateEmployeeRequest extends EmployeeInsuranceDetails {
   photoDataUrl?: string;
   designation?: string;
   department?: string;
-  salaryRate: number;
-  salaryType: SalaryType;
+  salaryConfigurationType?: SalaryConfigurationType;
+  salaryComponents?: SalaryComponent[];
+  salaryRate?: number;
+  salaryType?: SalaryType;
   joiningDate?: string;
   status: EmployeeStatus;
 
@@ -175,6 +191,8 @@ export interface EmployeeImportRowInput {
   department?: string | null;
   salaryRate?: string | null;
   salaryType?: string | null;
+  salaryConfigurationType?: SalaryConfigurationType;
+  salaryComponents?: SalaryComponent[];
   joiningDate?: string | null;
   status?: string | null;
 

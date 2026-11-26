@@ -67,7 +67,7 @@ export function EmployeesTallyView({
     <TallyMasterList
       title="Employees"
       initialScreen={initialScreen}
-      subtitle="Manage workers, staff, salary structure and employee records."
+      subtitle="Manage employee records. Use the Employees editor for component salary breakdowns."
       items={items}
       columns={[
         { key: "employeeCode", label: "Code" },
@@ -78,11 +78,31 @@ export function EmployeesTallyView({
           key: "salaryRate",
           label: "Salary",
           className: "text-right",
-          render: (item) =>
-            new Intl.NumberFormat("en-IN", {
+          render: (item) => {
+            if (
+              item.salaryConfigurationType === "UNCONFIGURED" ||
+              (item.salaryConfigurationType === undefined &&
+                item.salaryRate == null)
+            ) {
+              return "Not configured";
+            }
+            if (item.salaryConfigurationType === "COMPONENTS") {
+              return (
+                <div className="space-y-0.5">
+                  {(item.salaryComponents ?? []).map((component) => (
+                    <p key={`${component.name}-${component.type}`}>
+                      {component.name}: ₹
+                      {component.amount.toLocaleString("en-IN")}
+                    </p>
+                  ))}
+                </div>
+              );
+            }
+            return new Intl.NumberFormat("en-IN", {
               style: "currency",
               currency: "INR",
-            }).format(item.salaryRate),
+            }).format(item.salaryRate ?? 0);
+          },
         },
         { key: "status", label: "Status" },
       ]}
@@ -110,7 +130,6 @@ export function EmployeesTallyView({
           key: "salaryRate",
           label: "Salary Rate",
           type: "number",
-          required: true,
           min: 0,
           step: 0.01,
         },
@@ -118,7 +137,6 @@ export function EmployeesTallyView({
           key: "salaryType",
           label: "Salary Type",
           type: "select",
-          required: true,
           options: [
             { value: "HOURLY", label: "Hourly" },
             { value: "DAILY", label: "Daily" },
@@ -247,13 +265,29 @@ export function EmployeesTallyView({
         ) {
           return "Date of birth must be before the joining date";
         }
-        if (Number(draft.salaryRate) < 0) {
+        const hasSalaryRate =
+          draft.salaryRate !== "" &&
+          draft.salaryRate !== undefined &&
+          draft.salaryRate !== null;
+        const hasSalaryType = Boolean(String(draft.salaryType ?? "").trim());
+        if (hasSalaryRate !== hasSalaryType) {
+          return "Legacy salary rate and type must be supplied together";
+        }
+        if (
+          hasSalaryRate &&
+          (!Number.isFinite(Number(draft.salaryRate)) ||
+            Number(draft.salaryRate) < 0)
+        ) {
           return "Salary Rate cannot be negative";
         }
       }}
       onCreateItem={async (data) => {
         const employeeData = { ...data };
         delete employeeData.code;
+        const salaryRate = optionalNumber(employeeData.salaryRate);
+        const salaryType = String(employeeData.salaryType ?? "");
+        delete employeeData.salaryRate;
+        delete employeeData.salaryType;
 
         const statutoryProfile: EmployeeStatutoryProfileRequest = {
           ...createDefaultStatutoryProfile(),
@@ -290,10 +324,41 @@ export function EmployeesTallyView({
 
         return createEmployee({
           ...(employeeData as unknown as CreateEmployeeRequest),
+          ...(salaryRate !== undefined && salaryType
+            ? {
+                salaryConfigurationType: "LEGACY" as const,
+                salaryRate,
+                salaryType: salaryType as CreateEmployeeRequest["salaryType"],
+                salaryComponents: [],
+              }
+            : {
+                salaryConfigurationType: "UNCONFIGURED" as const,
+                salaryComponents: [],
+              }),
           statutoryProfile: normalizeStatutoryProfile(statutoryProfile),
         }).unwrap();
       }}
-      onUpdateItem={(id, data) => updateEmployee({ id, body: data as unknown as UpdateEmployeeRequest }).unwrap()}
+      onUpdateItem={(id, data) => {
+        const employeeData = { ...data };
+        const salaryRate = optionalNumber(employeeData.salaryRate);
+        const salaryType = String(employeeData.salaryType ?? "");
+        delete employeeData.salaryRate;
+        delete employeeData.salaryType;
+        return updateEmployee({
+          id,
+          body: {
+            ...(employeeData as unknown as UpdateEmployeeRequest),
+            ...(salaryRate !== undefined && salaryType
+              ? {
+                  salaryConfigurationType: "LEGACY" as const,
+                  salaryRate,
+                  salaryType: salaryType as UpdateEmployeeRequest["salaryType"],
+                  salaryComponents: [],
+                }
+              : {}),
+          },
+        }).unwrap();
+      }}
       onDeleteItem={(id) => deleteEmployee(id).unwrap()}
       isCreating={createEmployeeState.isLoading}
       isUpdating={updateEmployeeState.isLoading}

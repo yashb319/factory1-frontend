@@ -35,7 +35,7 @@ export function EmployeeExportMenu({ employees }: Props) {
     const fileName = `employees-${new Date().toISOString().slice(0, 10)}.csv`;
     const rows = employees.map((employee) =>
       selectedColumns.map((column) => {
-        const cell = employee[column.value as keyof Employee];
+        const cell = employee[column.value];
         return typeof cell === "boolean" ? String(cell) : cell ?? "";
       })
     );

@@ -1,6 +1,11 @@
 import * as XLSX from "xlsx";
 
-import type { EmployeeImportRowInput } from "../types/employee.types";
+import type {
+  EmployeeImportRowInput,
+  SalaryComponent,
+  SalaryComponentType,
+  SalaryConfigurationType,
+} from "../types/employee.types";
 
 export type ImportRow = Record<string, unknown>;
 export type ColumnMappingRecord = Record<string, string>;
@@ -35,6 +40,14 @@ export interface SalarySelection {
   rateColumn: string;
   /** "" = not chosen, SALARY_NOT_IN_FILE, `COLUMN:<name>` or `FIXED:<TYPE>`. */
   typeSource: string;
+}
+
+export type SalaryImportMode = "PRESERVE" | "LEGACY" | "COMPONENTS";
+
+export interface SalaryComponentColumnMapping {
+  column: string;
+  name: string;
+  type: SalaryComponentType | "";
 }
 
 // Salary fields are deliberately absent: amounts and pay type must always be
@@ -474,6 +487,54 @@ export function normalizeSalaryType(raw: unknown): string {
   return cellText(raw).toUpperCase();
 }
 
+export function mapSalaryFieldsForImport(
+  values: ImportRow,
+  mode: SalaryImportMode,
+  legacySalary: SalarySelection,
+  componentMappings: SalaryComponentColumnMapping[]
+): ImportRow {
+  if (mode === "PRESERVE") return {};
+
+  if (mode === "LEGACY") {
+    const mapped: ImportRow = { salaryConfigurationType: "LEGACY" };
+    if (
+      legacySalary.rateColumn &&
+      legacySalary.rateColumn !== SALARY_NOT_IN_FILE
+    ) {
+      mapped.salaryRate = normalizeSalaryRate(values[legacySalary.rateColumn]);
+    }
+
+    if (legacySalary.typeSource.startsWith(SALARY_TYPE_COLUMN_PREFIX)) {
+      const column = legacySalary.typeSource.slice(
+        SALARY_TYPE_COLUMN_PREFIX.length
+      );
+      mapped.salaryType = normalizeSalaryType(values[column]);
+    } else if (legacySalary.typeSource.startsWith(SALARY_TYPE_FIXED_PREFIX)) {
+      mapped.salaryType = legacySalary.typeSource.slice(
+        SALARY_TYPE_FIXED_PREFIX.length
+      );
+    }
+
+    return mapped;
+  }
+
+  const salaryComponents: SalaryComponent[] = componentMappings.flatMap(
+    ({ column, name, type }) => {
+      if (!column || !name.trim() || !type) return [];
+      const rawAmount = normalizeSalaryRate(values[column]);
+      if (!rawAmount) return [];
+      const amount = Number(rawAmount);
+      if (!Number.isFinite(amount) || amount < 0) return [];
+      return [{ name: name.trim(), type, amount }];
+    }
+  );
+
+  return {
+    salaryConfigurationType: "COMPONENTS" satisfies SalaryConfigurationType,
+    salaryComponents,
+  };
+}
+
 export function salarySelectionComplete(selection: SalarySelection) {
   return Boolean(selection.rateColumn) && Boolean(selection.typeSource);
 }
@@ -640,6 +701,32 @@ export function toEmployeeImportRowInput(
     const text = field === "smoker" ? smokerValue(row.smoker) : cellText(row[field]);
     if (text) input[field] = text;
   });
+
+  const configurationType = row.salaryConfigurationType;
+  if (
+    configurationType === "UNCONFIGURED" ||
+    configurationType === "LEGACY" ||
+    configurationType === "COMPONENTS"
+  ) {
+    input.salaryConfigurationType = configurationType;
+  }
+
+  if (Array.isArray(row.salaryComponents)) {
+    const components = row.salaryComponents.filter(
+      (component): component is SalaryComponent =>
+        Boolean(component) &&
+        typeof component === "object" &&
+        typeof component.name === "string" &&
+        ["EARNING", "EMPLOYEE_DEDUCTION", "EMPLOYER_CONTRIBUTION"].includes(
+          component.type
+        ) &&
+        typeof component.amount === "number" &&
+        Number.isFinite(component.amount)
+    );
+    if (components.length === row.salaryComponents.length) {
+      input.salaryComponents = components;
+    }
+  }
 
   const location = cellText(row.location);
   if (location) input.locationRaw = location;

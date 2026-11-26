@@ -79,6 +79,11 @@ export function EmployeeDetailsDrawer({
   }, [employee, employeesPage]);
 
   if (!employee) return null;
+  const salaryConfigurationType =
+    employee.salaryConfigurationType ??
+    (employee.salaryRate != null && employee.salaryType
+      ? "LEGACY"
+      : "UNCONFIGURED");
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -255,19 +260,62 @@ export function EmployeeDetailsDrawer({
           <section className="space-y-3">
             <h3 className="text-sm font-semibold">Salary Information</h3>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <DetailItem
-                icon={BadgeIndianRupee}
-                label="Salary Rate"
-                value={`₹${employee.salaryRate}`}
-              />
-
-              <DetailItem
-                icon={BadgeIndianRupee}
-                label="Salary Type"
-                value={employee.salaryType}
-              />
-            </div>
+            {salaryConfigurationType === "UNCONFIGURED" ? (
+              <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                Salary not configured. This active employee must be configured
+                before payroll can be generated.
+              </p>
+            ) : salaryConfigurationType === "LEGACY" ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <DetailItem
+                  icon={BadgeIndianRupee}
+                  label="Salary rate"
+                  value={
+                    employee.salaryRate == null
+                      ? "-"
+                      : `₹${employee.salaryRate}`
+                  }
+                />
+                <DetailItem
+                  icon={BadgeIndianRupee}
+                  label="Salary type"
+                  value={employee.salaryType}
+                />
+                <p className="text-xs text-muted-foreground sm:col-span-2">
+                  Attendance-based salary
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Monthly amounts; earnings and deductions are classified
+                  separately.
+                </p>
+                <div className="divide-y rounded-lg border">
+                  {(employee.salaryComponents ?? []).map((component) => (
+                    <div
+                      key={`${component.name}-${component.type}`}
+                      className="flex items-center justify-between gap-3 p-3 text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">{component.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {component.type.replaceAll("_", " ").toLowerCase()}
+                        </p>
+                      </div>
+                      <p className="shrink-0 font-medium">
+                        ₹{component.amount.toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                  ))}
+                  {(employee.salaryComponents ?? []).length === 0 ? (
+                    <p className="p-3 text-sm text-muted-foreground">
+                      No salary components configured.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )}
           </section>
         </div>
       </SheetContent>

@@ -159,10 +159,30 @@ export function EmployeeTable({
                   </TableCell>
 
                   <TableCell data-label="Salary">
-                    ₹{employee.salaryRate}{" "}
-                    <span className="text-xs text-muted-foreground">
-                      / {employee.salaryType.toLowerCase()}
-                    </span>
+                    {employee.salaryConfigurationType === "COMPONENTS" ? (
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-medium">Monthly components</p>
+                        {(employee.salaryComponents ?? []).map((component) => (
+                          <p
+                            key={`${component.name}-${component.type}`}
+                            className="text-xs text-muted-foreground"
+                          >
+                            {component.name}: ₹{component.amount.toLocaleString("en-IN")}
+                          </p>
+                        ))}
+                      </div>
+                    ) : employee.salaryConfigurationType === "UNCONFIGURED" ||
+                      (employee.salaryConfigurationType === undefined &&
+                        employee.salaryRate == null) ? (
+                      <span className="text-sm text-amber-700">Not configured</span>
+                    ) : (
+                      <>
+                        ₹{employee.salaryRate ?? 0}{" "}
+                        <span className="text-xs text-muted-foreground">
+                          / {employee.salaryType?.toLowerCase() ?? "legacy"}
+                        </span>
+                      </>
+                    )}
                   </TableCell>
 
                   <TableCell data-label="Status">
