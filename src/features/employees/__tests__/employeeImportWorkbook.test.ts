@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { describe, expect, it } from "vitest";
 
+import { filterValidationRows } from "@/components/file-upload/FileValidationTable";
 import { toEmployeeImportHistoryParams } from "@/features/import-export/utils/importReportParams";
 import {
   autoMapColumns,
@@ -9,10 +10,12 @@ import {
   extractSheetRows,
   getGenderSourceValues,
   getUnmappedGenderSourceValues,
+  isValidMobileNumber,
   mapSalaryFieldsForImport,
   mapSourceRow,
   maskSensitiveFields,
   normalizeMappedGenderValues,
+  normalizeIndianMobile,
   normalizeGenderSourceLabel,
   readSheetMatrix,
   readWorkbook,
@@ -300,9 +303,84 @@ describe("employee import workbook parsing", () => {
       )
     ).toEqual([]);
   });
+
+  it.each([
+    ["+91 88605 88713", "8860588713"],
+    ["+91-8860588713", "8860588713"],
+    ["+918860588713", "8860588713"],
+    ["8860588713", "8860588713"],
+  ])("normalizes valid Indian mobile value %s for the import payload", (raw, expected) => {
+    const sourceValues = { Mobile: raw };
+    const mapped = mapSourceRow(sourceValues, { Mobile: "mobile" }, {
+      rateColumn: "",
+      typeSource: "",
+    });
+
+    expect(mapped.mobile).toBe(expected);
+    expect(isValidMobileNumber(mapped.mobile)).toBe(true);
+    expect(toEmployeeImportRowInput(mapped, 2).mobile).toBe(expected);
+    expect(sourceValues.Mobile).toBe(raw);
+  });
+
+  it("normalizes the mobile field without changing the separate phone field", () => {
+    const raw = "+91 88605 88713";
+    const mapped = mapSourceRow(
+      { Phone: raw, Mobile: raw },
+      { Phone: "phone", Mobile: "mobile" },
+      { rateColumn: "", typeSource: "" }
+    );
+
+    expect(mapped.phone).toBe(raw);
+    expect(mapped.mobile).toBe("8860588713");
+  });
+
+  it.each([
+    "123456789",
+    "12345678901",
+    "+91 886058871",
+    "+91 88605887123",
+    "+1 8860588713",
+    "91 8860588713",
+  ])("preserves invalid or non-Indian mobile value %s for validation", (raw) => {
+    const normalized = normalizeIndianMobile(raw);
+    expect(normalized).toBe(raw);
+    expect(isValidMobileNumber(normalized)).toBe(false);
+  });
 });
 
 describe("employee import payload and history", () => {
+  it("filters all validation rows by status without limiting to the first 50", () => {
+    const rows = [
+      ...Array.from({ length: 60 }, (_, index) => ({
+        rowNumber: index + 2,
+        data: {},
+        status: "VALID" as const,
+        messages: [],
+      })),
+      {
+        rowNumber: 62,
+        data: {},
+        status: "WARNING" as const,
+        messages: ["Synthetic warning"],
+      },
+      {
+        rowNumber: 63,
+        data: {},
+        status: "ERROR" as const,
+        messages: ["Synthetic error"],
+      },
+    ];
+
+    expect(filterValidationRows(rows, "ALL")).toHaveLength(62);
+    expect(filterValidationRows(rows, "WARNING").map((row) => row.rowNumber)).toEqual([
+      62,
+    ]);
+    expect(filterValidationRows(rows, "ERROR").map((row) => row.rowNumber)).toEqual([
+      63,
+    ]);
+    expect(filterValidationRows(rows, "VALID")).toHaveLength(60);
+  });
+
   it("omits salary fields when no salary is mapped", () => {
     const salaryFields = mapSalaryFieldsForImport(
       { Basic: 12000 },

@@ -245,6 +245,25 @@ export function cellText(raw: unknown): string {
   return String(raw).trim();
 }
 
+export function normalizeIndianMobile(raw: unknown): string {
+  const text = cellText(raw);
+  if (!text) return "";
+
+  const compact = text.replace(/[\s()./-]/g, "");
+  if (text.startsWith("+")) {
+    if (!compact.startsWith("+91")) return text;
+
+    const nationalNumber = compact.slice(3);
+    return /^\d{10}$/.test(nationalNumber) ? nationalNumber : text;
+  }
+
+  return /^\d{10}$/.test(compact) ? compact : text;
+}
+
+export function isValidMobileNumber(raw: unknown): boolean {
+  return /^\d{10}$/.test(cellText(raw));
+}
+
 export function normalizeGenderSourceLabel(raw: unknown): string {
   return cellText(raw).replace(/\s+/g, " ").toUpperCase();
 }
@@ -637,6 +656,8 @@ export function mapSourceRow(
     const raw = values[column];
     if (DATE_TARGET_FIELDS.has(target)) {
       mapped[target] = normalizeDateForImport(raw);
+    } else if (target === "mobile") {
+      mapped[target] = normalizeIndianMobile(raw);
     } else if (IDENTIFIER_FIELDS.has(target)) {
       mapped[target] = identifierText(raw);
     } else {
