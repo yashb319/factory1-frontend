@@ -31,7 +31,9 @@ import {
 } from "@/components/file-upload/ColumnMapping";
 import {
   FileValidationTable,
+  filterValidationRows,
   ValidationRow,
+  ValidationRowFilter,
 } from "@/components/file-upload/FileValidationTable";
 import { useRouter } from "next/navigation";
 import { useLogDataJob } from "@/features/import-export/hooks/useLogDataJob";
@@ -55,6 +57,7 @@ import {
   getGenderSourceValues,
   getUnmappedGenderSourceValues,
   headerRowCandidates,
+  isValidMobileNumber,
   ImportRow,
   mapSalaryFieldsForImport,
   mapSourceRow,
@@ -301,7 +304,7 @@ function validateRow(
     errors.push("Reporting To cannot be the employee's own code");
   }
 
-  if (mobile && !/^\d{10}$/.test(mobile)) {
+  if (mobile && !isValidMobileNumber(mobile)) {
     errors.push("Mobile must contain exactly 10 digits");
   }
 
@@ -381,6 +384,8 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   >({});
   const [backendPreview, setBackendPreview] =
     useState<EmployeeImportPreviewResponse | null>(null);
+  const [validationFilter, setValidationFilter] =
+    useState<ValidationRowFilter>("ALL");
   const [previewEmployeeImport, previewState] =
     usePreviewEmployeeImportMutation();
   const [importEmployees, importState] = useImportEmployeesMutation();
@@ -417,6 +422,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   function clearPreview() {
     setBackendPreview(null);
     setRowResolutions({});
+    setValidationFilter("ALL");
   }
 
   function applyHeaderRow(
@@ -664,6 +670,11 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
       invalid: validationRows.filter((row) => row.status === "ERROR").length,
     }),
     [validationRows]
+  );
+
+  const filteredValidationRows = useMemo(
+    () => filterValidationRows(validationRows, validationFilter),
+    [validationFilter, validationRows]
   );
 
   const importableRowNumbers = new Set(
@@ -1504,20 +1515,63 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                       <div>
                         <h3 className="text-sm font-semibold">Validation Preview</h3>
                         <p className="text-sm text-muted-foreground">
-                          Showing first 50 rows. Identity and bank numbers are
-                          masked.
+                          Showing {filteredValidationRows.length}{" "}
+                          {validationFilter === "ALL"
+                            ? `of ${validationRows.length} rows`
+                            : `${validationFilter === "ERROR" ? "error" : validationFilter === "WARNING" ? "warning" : "valid"} rows`}
+                          . Identity and bank numbers are masked.
                         </p>
                       </div>
-                      <Button
-                        variant="outline"
-                        disabled={counts.invalid === 0}
-                        onClick={() => downloadErrorRows(validationRows)}
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Download Error Rows
-                      </Button>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Select
+                          value={validationFilter}
+                          onValueChange={(nextValue) =>
+                            setValidationFilter(nextValue as ValidationRowFilter)
+                          }
+                        >
+                          <SelectTrigger
+                            className="sm:w-48"
+                            aria-label="Filter preview rows by status"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ALL">
+                              All ({validationRows.length})
+                            </SelectItem>
+                            <SelectItem value="ERROR">
+                              Errors ({counts.invalid})
+                            </SelectItem>
+                            <SelectItem value="WARNING">
+                              Warnings ({counts.warning})
+                            </SelectItem>
+                            <SelectItem value="VALID">
+                              Valid ({counts.valid})
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="outline"
+                          disabled={counts.invalid === 0}
+                          onClick={() => downloadErrorRows(validationRows)}
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Download Error Rows
+                        </Button>
+                      </div>
                     </div>
-                    <FileValidationTable rows={validationRows} />
+                    {filteredValidationRows.length > 0 ? (
+                      <FileValidationTable rows={filteredValidationRows} />
+                    ) : (
+                      <div
+                        className="rounded-xl border p-6 text-center text-sm text-muted-foreground"
+                        role="status"
+                      >
+                        {validationFilter === "ALL"
+                          ? "No rows to preview."
+                          : `No ${validationFilter.toLowerCase()} rows to show.`}
+                      </div>
+                    )}
                   </div>
                 )}
 

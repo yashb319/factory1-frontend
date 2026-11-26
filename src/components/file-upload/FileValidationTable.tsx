@@ -17,8 +17,17 @@ export interface ValidationRow {
   messages: string[];
 }
 
+export type ValidationRowFilter = "ALL" | ValidationRow["status"];
+
 interface Props {
   rows: ValidationRow[];
+}
+
+export function filterValidationRows(
+  rows: ValidationRow[],
+  filter: ValidationRowFilter
+): ValidationRow[] {
+  return filter === "ALL" ? rows : rows.filter((row) => row.status === filter);
 }
 
 export function FileValidationTable({ rows }: Props) {
@@ -42,7 +51,7 @@ export function FileValidationTable({ rows }: Props) {
           </TableHeader>
 
           <TableBody>
-            {rows.slice(0, 50).map((row) => (
+            {rows.map((row) => (
               <TableRow key={row.rowNumber}>
                 <TableCell data-label="Row">{row.rowNumber}</TableCell>
 
