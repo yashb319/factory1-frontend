@@ -7,9 +7,13 @@ import {
   classifyNonEmployeeRow,
   detectHeaderRowNumber,
   extractSheetRows,
+  getGenderSourceValues,
+  getUnmappedGenderSourceValues,
   mapSalaryFieldsForImport,
   mapSourceRow,
   maskSensitiveFields,
+  normalizeMappedGenderValues,
+  normalizeGenderSourceLabel,
   readSheetMatrix,
   readWorkbook,
   SALARY_NOT_IN_FILE,
@@ -198,6 +202,103 @@ describe("employee import workbook parsing", () => {
     expect(sheet.rows[0].rowNumber).toBe(2);
     expect(mapped.joiningDate).toBe("2098-04-05");
     expect(mapped.bankAccountNumber).toBe("000123456789");
+  });
+
+  it("collects distinct noncanonical gender labels and suggests without choosing", () => {
+    const genderValues = getGenderSourceValues(
+      [
+        {
+          rowNumber: 2,
+          values: { Gender: "M", "Father Gender": "Oth" },
+        },
+        {
+          rowNumber: 3,
+          values: { Gender: " m ", "Father Gender": "Custom identity" },
+        },
+        {
+          rowNumber: 4,
+          values: { Gender: "  f  ", "Father Gender": "OTHER" },
+        },
+      ],
+      { Gender: "gender", "Father Gender": "fatherGender" }
+    );
+
+    expect(genderValues).toEqual([
+      { key: "M", label: "M", suggestion: "MALE" },
+      { key: "OTH", label: "Oth", suggestion: "OTHER" },
+      {
+        key: "CUSTOM IDENTITY",
+        label: "Custom identity",
+        suggestion: null,
+      },
+      { key: "F", label: "f", suggestion: "FEMALE" },
+    ]);
+    expect(normalizeGenderSourceLabel("  Male   ")).toBe("MALE");
+  });
+
+  it("requires explicit mappings, then normalizes every gender field for import", () => {
+    const sourceValues = getGenderSourceValues(
+      [
+        {
+          rowNumber: 2,
+          values: {
+            Gender: "M",
+            "Father Gender": "Oth",
+            "Nominee Gender": "Custom identity",
+          },
+        },
+      ],
+      {
+        Gender: "gender",
+        "Father Gender": "fatherGender",
+        "Nominee Gender": "nomineeGender",
+      }
+    );
+    const mappings = {
+      M: "MALE" as const,
+      OTH: "OTHER" as const,
+      "CUSTOM IDENTITY": "FEMALE" as const,
+    };
+
+    expect(getUnmappedGenderSourceValues(sourceValues, {})).toHaveLength(3);
+    expect(getUnmappedGenderSourceValues(sourceValues, mappings)).toEqual([]);
+    const normalized = normalizeMappedGenderValues(
+      {
+        gender: "M",
+        fatherGender: "Oth",
+        nomineeGender: "Custom identity",
+        motherGender: "  female ",
+      },
+      mappings
+    );
+    expect(normalized).toEqual({
+      gender: "MALE",
+      fatherGender: "OTHER",
+      nomineeGender: "FEMALE",
+      motherGender: "FEMALE",
+    });
+    expect(toEmployeeImportRowInput(normalized, 2)).toMatchObject({
+      gender: "MALE",
+      fatherGender: "OTHER",
+      nomineeGender: "FEMALE",
+      motherGender: "FEMALE",
+    });
+  });
+
+  it("leaves blank gender optional and omits it from the import payload", () => {
+    const normalized = normalizeMappedGenderValues(
+      { employeeCode: "T001", name: "Alpha Tester", gender: "  " },
+      {}
+    );
+    expect(
+      toEmployeeImportRowInput(normalized, 2)
+    ).not.toHaveProperty("gender");
+    expect(
+      getGenderSourceValues(
+        [{ rowNumber: 2, values: { Gender: "" } }],
+        { Gender: "gender" }
+      )
+    ).toEqual([]);
   });
 });
 

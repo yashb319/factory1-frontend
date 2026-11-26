@@ -42,6 +42,7 @@ import {
   usePreviewEmployeeImportMutation,
 } from "../api/employeeApi";
 import {
+  Gender,
   EmployeeImportPreviewResponse,
   EmployeeImportRowInput,
   SalaryComponentType,
@@ -51,11 +52,14 @@ import {
   classifyNonEmployeeRow,
   detectHeaderRowNumber,
   extractSheetRows,
+  getGenderSourceValues,
+  getUnmappedGenderSourceValues,
   headerRowCandidates,
   ImportRow,
   mapSalaryFieldsForImport,
   mapSourceRow,
   maskSensitiveFields,
+  normalizeMappedGenderValues,
   readSheetMatrix,
   readWorkbook,
   SALARY_NOT_IN_FILE,
@@ -145,7 +149,7 @@ const REQUIRED_TARGET_FIELDS = EMPLOYEE_TARGET_FIELDS.filter(
 ).map((field) => field.value);
 
 const VALID_STATUS = ["ACTIVE", "INACTIVE"];
-const VALID_GENDERS = ["MALE", "FEMALE", "OTHER"];
+const VALID_GENDERS: Gender[] = ["MALE", "FEMALE", "OTHER"];
 const VALID_MARITAL_STATUSES = [
   "SINGLE",
   "MARRIED",
@@ -273,7 +277,7 @@ function validateRow(
     errors.push("Invalid Status (use ACTIVE or INACTIVE)");
   }
 
-  if (gender && !VALID_GENDERS.includes(gender)) {
+  if (gender && !VALID_GENDERS.some((validGender) => validGender === gender)) {
     errors.push("Invalid Gender (use MALE, FEMALE or OTHER)");
   }
 
@@ -358,6 +362,9 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
   const [sourceRows, setSourceRows] = useState<SourceRow[]>([]);
   const [blankRowNumbers, setBlankRowNumbers] = useState<number[]>([]);
   const [mapping, setMapping] = useState<ColumnMappingValue>({});
+  const [genderMappings, setGenderMappings] = useState<
+    Record<string, Gender | "">
+  >({});
   const [salary, setSalary] = useState<SalarySelection>(EMPTY_SALARY);
   const [salaryMode, setSalaryMode] =
     useState<SalaryImportMode>("PRESERVE");
@@ -425,6 +432,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     setRowSalaryModes({});
     setComponentMappings([]);
     setComponentAmountsConfirmed(false);
+    setGenderMappings({});
 
     if (header === null) {
       setHeaderRowNumber(null);
@@ -443,6 +451,15 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     setMapping(autoMapColumns(extracted.columns));
   }
 
+  const genderSourceValues = useMemo(
+    () => getGenderSourceValues(sourceRows, mapping),
+    [sourceRows, mapping]
+  );
+  const unmappedGenderValues = useMemo(
+    () => getUnmappedGenderSourceValues(genderSourceValues, genderMappings),
+    [genderMappings, genderSourceValues]
+  );
+
   // Classify each source row once so totals / non-employee rows are reported
   // (by row number only) and never sent to the server.
   const { employeeRows, skippedRows } = useMemo(() => {
@@ -453,15 +470,18 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
 
     sourceRows.forEach((row) => {
       const rowSalaryMode = rowSalaryModes[row.rowNumber] ?? salaryMode;
-      const mapped = {
-        ...mapSourceRow(row.values, mapping, EMPTY_SALARY),
-        ...mapSalaryFieldsForImport(
-          row.values,
-          rowSalaryMode,
-          salary,
-          componentMappings
-        ),
-      };
+      const mapped = normalizeMappedGenderValues(
+        {
+          ...mapSourceRow(row.values, mapping, EMPTY_SALARY),
+          ...mapSalaryFieldsForImport(
+            row.values,
+            rowSalaryMode,
+            salary,
+            componentMappings
+          ),
+        },
+        genderMappings
+      );
       const reason = classifyNonEmployeeRow(row.values, mapped);
       if (reason) {
         skipped.push({ rowNumber: row.rowNumber, reason });
@@ -478,6 +498,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     salaryMode,
     rowSalaryModes,
     componentMappings,
+    genderMappings,
   ]);
 
   // Resolve "Reporting To" manager names to employee codes where possible.
@@ -532,7 +553,10 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     (!usesComponentSalary ||
       (componentMappingComplete && componentAmountsConfirmed));
   const readyForPreview =
-    resolvedRows.length > 0 && missingRequiredMappings.length === 0 && salaryChosen;
+    resolvedRows.length > 0 &&
+    missingRequiredMappings.length === 0 &&
+    unmappedGenderValues.length === 0 &&
+    salaryChosen;
 
   const previewInputs = useMemo(
     () =>
@@ -745,6 +769,7 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
     setSourceRows([]);
     setBlankRowNumbers([]);
     setMapping({});
+    setGenderMappings({});
     setSalary(EMPTY_SALARY);
     setSalaryMode("PRESERVE");
     setRowSalaryModes({});
@@ -886,6 +911,67 @@ export function EmployeeImportDialog({ open, onOpenChange }: Props) {
                       clearPreview();
                     }}
                   />
+                )}
+
+                {genderSourceValues.length > 0 && (
+                  <div className="space-y-3 rounded-xl border bg-card p-4">
+                    <div>
+                      <h3 className="text-sm font-semibold">Gender value mapping</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Canonical values are recognized case-insensitively.
+                        Confirm how each other source value maps to MALE, FEMALE
+                        or OTHER. The same mapping applies to employee, family
+                        and nominee gender fields.
+                      </p>
+                    </div>
+                    <div className="divide-y rounded-md border">
+                      {genderSourceValues.map((source) => (
+                        <div
+                          key={source.key}
+                          className="grid gap-3 px-3 py-3 sm:grid-cols-[1fr_240px] sm:items-center"
+                        >
+                          <div>
+                            <p className="text-sm font-medium">{source.label}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Source value
+                              {source.suggestion
+                                ? ` · Suggested: ${source.suggestion} (confirm)`
+                                : " · Choose a mapping"}
+                            </p>
+                          </div>
+                          <Select
+                            value={genderMappings[source.key] ?? ""}
+                            onValueChange={(nextGender) => {
+                              setGenderMappings((current) => ({
+                                ...current,
+                                [source.key]: nextGender as Gender,
+                              }));
+                              clearPreview();
+                            }}
+                          >
+                            <SelectTrigger
+                              aria-label={`Map gender value ${source.label}`}
+                            >
+                              <SelectValue placeholder="Choose gender meaning" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {VALID_GENDERS.map((gender) => (
+                                <SelectItem key={gender} value={gender}>
+                                  {gender}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                    {unmappedGenderValues.length > 0 && (
+                      <p className="text-sm text-destructive">
+                        Map every listed value before preview. Blank gender
+                        cells are left optional.
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 {columns.length > 0 && (
