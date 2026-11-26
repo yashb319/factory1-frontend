@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 
 import type {
+  Gender,
   EmployeeImportRowInput,
   SalaryComponent,
   SalaryComponentType,
@@ -49,6 +50,24 @@ export interface SalaryComponentColumnMapping {
   name: string;
   type: SalaryComponentType | "";
 }
+
+export interface GenderSourceValue {
+  key: string;
+  label: string;
+  suggestion: Gender | null;
+}
+
+export const GENDER_TARGET_FIELDS = new Set([
+  "gender",
+  "fatherGender",
+  "motherGender",
+  "spouseGender",
+  "child1Gender",
+  "child2Gender",
+  "nomineeGender",
+]);
+
+const VALID_GENDERS: Gender[] = ["MALE", "FEMALE", "OTHER"];
 
 // Salary fields are deliberately absent: amounts and pay type must always be
 // chosen explicitly by the user, never inferred from a header name.
@@ -224,6 +243,71 @@ export function cellText(raw: unknown): string {
   if (raw === null || raw === undefined) return "";
   if (raw instanceof Date) return raw.toISOString();
   return String(raw).trim();
+}
+
+export function normalizeGenderSourceLabel(raw: unknown): string {
+  return cellText(raw).replace(/\s+/g, " ").toUpperCase();
+}
+
+function canonicalGender(raw: unknown): Gender | null {
+  const normalized = normalizeGenderSourceLabel(raw);
+  return VALID_GENDERS.find((gender) => gender === normalized) ?? null;
+}
+
+function suggestGender(raw: unknown): Gender | null {
+  const normalized = normalizeGenderSourceLabel(raw);
+  if (normalized === "M") return "MALE";
+  if (normalized === "F") return "FEMALE";
+  if (normalized === "OTH") return "OTHER";
+  return null;
+}
+
+export function getGenderSourceValues(
+  sourceRows: SourceRow[],
+  mapping: ColumnMappingRecord
+): GenderSourceValue[] {
+  const genderColumns = Object.entries(mapping)
+    .filter(([, target]) => GENDER_TARGET_FIELDS.has(target))
+    .map(([column]) => column);
+  const labels = new Map<string, GenderSourceValue>();
+
+  sourceRows.forEach(({ values }) => {
+    genderColumns.forEach((column) => {
+      const raw = values[column];
+      const key = normalizeGenderSourceLabel(raw);
+      if (!key || canonicalGender(raw) || labels.has(key)) return;
+      labels.set(key, { key, label: cellText(raw), suggestion: suggestGender(raw) });
+    });
+  });
+
+  return Array.from(labels.values());
+}
+
+export function getUnmappedGenderSourceValues(
+  sourceValues: GenderSourceValue[],
+  mappings: Record<string, Gender | "">
+): GenderSourceValue[] {
+  return sourceValues.filter((source) => !mappings[source.key]);
+}
+
+export function normalizeMappedGenderValues(
+  row: ImportRow,
+  mappings: Record<string, Gender | "">
+): ImportRow {
+  const normalized: ImportRow = { ...row };
+
+  GENDER_TARGET_FIELDS.forEach((field) => {
+    const raw = row[field];
+    if (!cellText(raw)) return;
+
+    const gender =
+      canonicalGender(raw) ??
+      mappings[normalizeGenderSourceLabel(raw)] ??
+      raw;
+    normalized[field] = gender;
+  });
+
+  return normalized;
 }
 
 export function readWorkbook(buffer: ArrayBuffer) {
